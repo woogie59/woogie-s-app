@@ -738,6 +738,8 @@ export default function App() {
           {view === 'revenue' && (
             <AdminRoute session={session}>
               <div className="min-h-[100dvh] bg-zinc-950 flex flex-col p-6 text-white overflow-y-auto pb-24">
+                <BackButton onClick={() => setView('admin_home')} label="Admin Home" />
+                
                 {/* Header & Date */}
                 <div className="flex justify-between items-center mb-6">
                   <h2 className="text-2xl font-bold text-yellow-500">💰 SALARY CALCULATOR</h2>
@@ -1392,12 +1394,10 @@ const ClassBooking = ({ user, setView }) => {
 
   return (
     <div className="min-h-[100dvh] bg-zinc-950 text-white p-6 pb-20">
-      <header className="flex items-center justify-between mb-6">
-        <button onClick={() => setView('client_home')} className="text-zinc-400 hover:text-white">
-          <ChevronLeft size={24} />
-        </button>
+      <BackButton onClick={() => setView('client_home')} label="Home" />
+      
+      <header className="flex items-center justify-center mb-6">
         <h2 className="text-lg font-serif text-yellow-500">CLASS BOOKING</h2>
-        <div className="w-6"></div>
       </header>
 
       {/* Date Selector */}
@@ -1578,12 +1578,10 @@ const AdminSchedule = ({ setView }) => {
 
   return (
     <div className="min-h-[100dvh] bg-zinc-950 text-white p-6 pb-20">
-      <header className="flex items-center justify-between mb-6">
-        <button onClick={() => setView('admin_home')} className="text-zinc-400 hover:text-white">
-          <ChevronLeft size={24} />
-        </button>
+      <BackButton onClick={() => setView('admin_home')} label="Admin Home" />
+      
+      <header className="flex items-center justify-center mb-6">
         <h2 className="text-lg font-serif text-yellow-500">ALL SCHEDULES</h2>
-        <div className="w-6"></div>
       </header>
 
       {loading ? (
@@ -1688,8 +1686,10 @@ const MemberList = ({ setView, setSelectedMemberId }) => {
 
     return (
       <div className="min-h-[100dvh] bg-zinc-950 text-white p-6">
+        <BackButton onClick={() => setView('admin_home')} label="Admin Home" />
+        
         <header className="flex items-center justify-between mb-8">
-          <button onClick={() => setView('admin_home')} className="text-zinc-400 hover:text-white"><ChevronRight className="rotate-180" /></button>
+          <div></div>
           <h2 className="text-lg font-serif text-yellow-500">CLIENTS</h2>
           <div className="w-6"></div>
         </header>
@@ -1816,12 +1816,10 @@ const MemberDetail = ({ selectedMemberId, setView }) => {
 
     return (
       <div className="min-h-[100dvh] bg-zinc-950 text-white p-6 pb-20 relative">
-        <header className="flex items-center justify-between mb-6">
-          <button onClick={() => setView('member_list')} className="text-zinc-400 hover:text-white">
-            <ChevronRight className="rotate-180" />
-          </button>
-          <h2 className="text-lg font-serif text-yellow-500">{u.name}</h2>
-          <div className="w-6"></div>
+        <BackButton onClick={() => setView('member_list')} label="Client List" />
+        
+        <header className="flex items-center justify-center mb-6">
+          <h2 className="text-lg font-serif text-yellow-500">{u?.name}</h2>
         </header>
         
         <div className="space-y-6">
