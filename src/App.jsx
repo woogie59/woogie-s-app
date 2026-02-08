@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { QrCode, Camera, CheckCircle, ChevronRight, BookOpen, LogOut, Plus, User, X, CreditCard, History, Search, ArrowLeft, Edit3, Save, Sparkles, MessageSquare, Calendar, Clock, ChevronLeft, XCircle, Trash2, Edit, Image } from 'lucide-react';
-import { Html5QrcodeScanner } from 'html5-qrcode';
+import { Html5Qrcode } from 'html5-qrcode';
 
 // [중요] 우리가 만든 Supabase 연결 도구와 페이지 가져오기
 import { supabase } from './lib/supabaseClient'; 
@@ -249,6 +249,50 @@ const ClientHome = ({ user, logout, setView }) => {
     };
 
     fetchProfile();
+  }, [user]);
+
+  // [REALTIME] Listen for attendance check-ins
+  useEffect(() => {
+    if (!user) return;
+
+    // Create a channel for realtime updates
+    const channel = supabase
+      .channel('attendance_changes')
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'attendance_logs',
+          filter: `user_id=eq.${user.id}`
+        },
+        (payload) => {
+          console.log('Attendance detected:', payload);
+          
+          // Show notification to user
+          alert('✅ 출석완료되었습니다');
+          
+          // Refresh profile to get updated session count
+          const fetchProfile = async () => {
+            const { data, error } = await supabase
+              .from('profiles')
+              .select('*')
+              .eq('id', user.id)
+              .single();
+
+            if (!error && data) {
+              setProfile(data);
+            }
+          };
+          fetchProfile();
+        }
+      )
+      .subscribe();
+
+    // Cleanup on unmount
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, [user]);
 
   // Fetch user's bookings when modal opens
@@ -1066,71 +1110,72 @@ export default function App() {
   );
 }
 
-// --- [QRScanner] QR 스캔 화면 (체크인 처리) ---
+// --- [QRScanner] QR 스캔 화면 (체크인 처리) - CAMERA ONLY VERSION ---
 const QRScanner = ({ setView }) => {
-    const [users, setUsers] = useState([]);
-    const [loading, setLoading] = useState(true);
     const [scanning, setScanning] = useState(false);
     const [result, setResult] = useState(null);
-    const [searchTerm, setSearchTerm] = useState('');
     const [cameraError, setCameraError] = useState(null);
-    const scannerRef = useRef(null);
+    const html5QrCodeRef = useRef(null);
+    const isScanning = useRef(false);
 
-    // Fetch users for fallback list
+    // Start camera immediately when component mounts
     useEffect(() => {
-        const fetchUsers = async () => {
-            const { data, error } = await supabase
-                .from('profiles')
-                .select('*')
-                .eq('role', 'user')
-                .order('name');
-            if (error) console.error(error);
-            else setUsers(data);
-            setLoading(false);
-        };
-        fetchUsers();
-    }, []);
-
-    // Auto-start camera when component mounts
-    useEffect(() => {
-        if (!scannerRef.current) {
-            try {
-                const scanner = new Html5QrcodeScanner(
-                    "qr-reader",
-                    { 
-                        fps: 10,
-                        qrbox: { width: 250, height: 250 },
-                        aspectRatio: 1.0
-                    },
-                    false
-                );
-
-                scanner.render(onScanSuccess, onScanError);
-                scannerRef.current = scanner;
-                setCameraError(null);
-            } catch (err) {
-                console.error('Camera initialization error:', err);
-                setCameraError('Failed to initialize camera. Please check permissions.');
-            }
-        }
+        startCamera();
 
         // Cleanup on unmount
         return () => {
-            if (scannerRef.current) {
-                scannerRef.current.clear().catch(console.error);
-                scannerRef.current = null;
-            }
+            stopCamera();
         };
     }, []);
 
-    const onScanSuccess = async (decodedText) => {
+    const startCamera = async () => {
+        if (isScanning.current) return;
+        
+        try {
+            const html5QrCode = new Html5Qrcode("qr-reader");
+            html5QrCodeRef.current = html5QrCode;
+
+            await html5QrCode.start(
+                { facingMode: "environment" }, // Force back camera
+                {
+                    fps: 10,
+                    qrbox: { width: 250, height: 250 }
+                },
+                onScanSuccess,
+                onScanError
+            );
+
+            isScanning.current = true;
+            setCameraError(null);
+        } catch (err) {
+            console.error('Camera start error:', err);
+            setCameraError('Failed to access camera. Please allow camera permission.');
+        }
+    };
+
+    const stopCamera = async () => {
+        if (html5QrCodeRef.current && isScanning.current) {
+            try {
+                await html5QrCodeRef.current.stop();
+                html5QrCodeRef.current = null;
+                isScanning.current = false;
+            } catch (err) {
+                console.error('Camera stop error:', err);
+            }
+        }
+    };
+
+    const restartCamera = async () => {
+        await stopCamera();
+        await new Promise(resolve => setTimeout(resolve, 100));
+        await startCamera();
+    };
+
+    const onScanSuccess = async (decodedText, decodedResult) => {
         console.log(`QR Code detected: ${decodedText}`);
         
-        // Stop scanner
-        if (scannerRef.current) {
-            scannerRef.current.clear().catch(console.error);
-            scannerRef.current = null;
-        }
+        // Stop scanning temporarily
+        await stopCamera();
         setScanning(true);
 
         try {
@@ -1141,9 +1186,14 @@ const QRScanner = ({ setView }) => {
 
             if (error) throw error;
 
-            // Find user name
-            const user = users.find(u => u.id === decodedText);
-            const userName = user?.name || 'Unknown User';
+            // Fetch user name
+            const { data: userData } = await supabase
+                .from('profiles')
+                .select('name')
+                .eq('id', decodedText)
+                .single();
+
+            const userName = userData?.name || 'Unknown User';
 
             setResult({
                 success: true,
@@ -1152,34 +1202,10 @@ const QRScanner = ({ setView }) => {
                 message: `Check-in successful! ${data.remaining} sessions remaining.`
             });
 
-            // Refresh user list
-            const { data: updatedUsers } = await supabase
-                .from('profiles')
-                .select('*')
-                .eq('role', 'user')
-                .order('name');
-            setUsers(updatedUsers || []);
-
             // Auto-restart scanner after 3 seconds
-            setTimeout(() => {
+            setTimeout(async () => {
                 setResult(null);
-                if (!scannerRef.current) {
-                    try {
-                        const scanner = new Html5QrcodeScanner(
-                            "qr-reader",
-                            { 
-                                fps: 10,
-                                qrbox: { width: 250, height: 250 },
-                                aspectRatio: 1.0
-                            },
-                            false
-                        );
-                        scanner.render(onScanSuccess, onScanError);
-                        scannerRef.current = scanner;
-                    } catch (err) {
-                        setCameraError('Failed to restart camera');
-                    }
-                }
+                await restartCamera();
             }, 3000);
 
         } catch (error) {
@@ -1189,26 +1215,10 @@ const QRScanner = ({ setView }) => {
                 message: error.message || 'Check-in failed'
             });
             
-            // Auto-restart scanner after error (3 seconds)
-            setTimeout(() => {
+            // Auto-restart scanner after error
+            setTimeout(async () => {
                 setResult(null);
-                if (!scannerRef.current) {
-                    try {
-                        const scanner = new Html5QrcodeScanner(
-                            "qr-reader",
-                            { 
-                                fps: 10,
-                                qrbox: { width: 250, height: 250 },
-                                aspectRatio: 1.0
-                            },
-                            false
-                        );
-                        scanner.render(onScanSuccess, onScanError);
-                        scannerRef.current = scanner;
-                    } catch (err) {
-                        setCameraError('Failed to restart camera');
-                    }
-                }
+                await restartCamera();
             }, 3000);
         } finally {
             setScanning(false);
@@ -1216,137 +1226,48 @@ const QRScanner = ({ setView }) => {
     };
 
     const onScanError = (errorMessage) => {
-        // Ignore continuous scan errors - they're normal during scanning
+        // Ignore - these are normal during scanning
     };
 
-    const handleManualCheckIn = async (userId, userName) => {
-        if (scanning) return;
-        
-        if (!confirm(`${userName}님을 체크인 하시겠습니까?`)) return;
-        
-        setScanning(true);
-        setResult(null);
-
-        try {
-            const { data, error } = await supabase.rpc('check_in_user', {
-                user_uuid: userId
-            });
-
-            if (error) throw error;
-
-            setResult({
-                success: true,
-                userName: userName,
-                remainingSessions: data.remaining,
-                message: `Check-in successful!`
-            });
-
-            // Refresh user list
-            const { data: updatedUsers } = await supabase
-                .from('profiles')
-                .select('*')
-                .eq('role', 'user')
-                .order('name');
-            setUsers(updatedUsers);
-
-        } catch (error) {
-            setResult({
-                success: false,
-                userName: userName,
-                message: error.message || 'Check-in failed'
-            });
-        } finally {
-            setScanning(false);
-        }
-    };
-
-    const handleRetryCamera = () => {
+    const handleRetryCamera = async () => {
         setCameraError(null);
-        if (scannerRef.current) {
-            scannerRef.current.clear().catch(console.error);
-            scannerRef.current = null;
-        }
-        
-        try {
-            const scanner = new Html5QrcodeScanner(
-                "qr-reader",
-                { 
-                    fps: 10,
-                    qrbox: { width: 250, height: 250 },
-                    aspectRatio: 1.0
-                },
-                false
-            );
-            scanner.render(onScanSuccess, onScanError);
-            scannerRef.current = scanner;
-        } catch (err) {
-            setCameraError('Failed to initialize camera. Please check permissions.');
-        }
+        await restartCamera();
     };
-
-    const filteredUsers = users.filter(u => 
-        u.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        u.email?.toLowerCase().includes(searchTerm.toLowerCase())
-    );
 
     return (
-      <div className="min-h-[100dvh] bg-zinc-950 text-white p-6 pb-20">
-        <BackButton onClick={() => {
-          // Clean up camera before leaving
-          if (scannerRef.current) {
-            scannerRef.current.clear().catch(console.error);
-            scannerRef.current = null;
-          }
-          setView('admin_home');
-        }} />
-        
-        <header className="mb-6">
-          <h2 className="text-2xl font-bold text-yellow-500 mb-2">QR CHECK-IN</h2>
-          <p className="text-zinc-400 text-sm">Camera starts automatically</p>
-        </header>
+      <div className="min-h-[100dvh] bg-black text-white flex flex-col">
+        {/* BACK BUTTON - Fixed at top */}
+        <div className="absolute top-4 left-4 z-50">
+          <BackButton 
+            onClick={async () => {
+              await stopCamera();
+              setView('admin_home');
+            }}
+            label="Back"
+          />
+        </div>
 
-        {/* Camera Scanner Section - Auto-starts */}
-        <div className="mb-6 space-y-4">
+        {/* Camera Scanner - Full Screen */}
+        <div className="flex-1 flex items-center justify-center p-4">
           {cameraError ? (
-            <div className="bg-red-900/20 border border-red-500 rounded-xl p-6 text-center">
-              <XCircle size={48} className="text-red-500 mx-auto mb-4" />
-              <p className="text-red-400 mb-4">{cameraError}</p>
+            <div className="bg-red-900/20 border border-red-500 rounded-xl p-8 text-center max-w-md">
+              <XCircle size={64} className="text-red-500 mx-auto mb-4" />
+              <p className="text-red-400 mb-6 text-lg">{cameraError}</p>
               <button
                 onClick={handleRetryCamera}
-                className="bg-yellow-600 hover:bg-yellow-500 text-black font-bold py-3 px-6 rounded-xl transition-all shadow-lg"
+                className="bg-yellow-600 hover:bg-yellow-500 text-black font-bold py-4 px-8 rounded-xl transition-all shadow-lg text-lg"
               >
                 Retry Camera
               </button>
             </div>
           ) : (
-            <>
-              <div id="qr-reader" className="rounded-xl overflow-hidden border-2 border-yellow-500"></div>
-              <p className="text-center text-sm text-zinc-500">
-                📷 Camera is active. Point at QR code to scan.
+            <div className="w-full max-w-2xl">
+              <div id="qr-reader" className="rounded-2xl overflow-hidden"></div>
+              <p className="text-center text-sm text-zinc-400 mt-4">
+                📷 Camera active • Point at member's QR code
               </p>
-            </>
+            </div>
           )}
-        </div>
-
-        {/* Divider */}
-        <div className="flex items-center gap-4 my-6">
-          <div className="flex-1 h-px bg-zinc-800"></div>
-          <span className="text-xs text-zinc-500 uppercase tracking-wider">Or Select Member Manually</span>
-          <div className="flex-1 h-px bg-zinc-800"></div>
-        </div>
-
-        {/* Search Bar */}
-        <div className="mb-6">
-          <div className="relative">
-            <Search size={20} className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500" />
-            <input
-              type="text"
-              placeholder="Search by name or email..."
-              className="w-full bg-zinc-900 border border-zinc-800 rounded-xl pl-10 pr-4 py-3 text-white focus:border-yellow-600 outline-none transition-colors"
-              value={searchTerm}
-              onChange={e => setSearchTerm(e.target.value)}
-            />
-          </div>
         </div>
 
         {/* Result Modal */}
@@ -1356,98 +1277,33 @@ const QRScanner = ({ setView }) => {
               initial={{ opacity: 0, scale: 0.9 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.9 }}
-              className="fixed inset-0 z-50 flex items-center justify-center p-6 bg-black/80"
+              className="fixed inset-0 z-50 flex items-center justify-center p-6 bg-black/90"
               onClick={() => setResult(null)}
             >
               <motion.div
-                className={`bg-zinc-900 border-2 ${result.success ? 'border-green-500' : 'border-red-500'} rounded-2xl p-8 max-w-sm w-full text-center`}
+                className={`bg-zinc-900 border-4 ${result.success ? 'border-green-500' : 'border-red-500'} rounded-3xl p-10 max-w-md w-full text-center`}
                 onClick={e => e.stopPropagation()}
               >
                 {result.success ? (
-                  <CheckCircle size={64} className="text-green-500 mx-auto mb-4" />
+                  <CheckCircle size={80} className="text-green-500 mx-auto mb-6" />
                 ) : (
-                  <XCircle size={64} className="text-red-500 mx-auto mb-4" />
+                  <XCircle size={80} className="text-red-500 mx-auto mb-6" />
                 )}
-                <h3 className="text-2xl font-bold text-white mb-2">{result.userName}</h3>
-                <p className={`text-sm mb-4 ${result.success ? 'text-green-400' : 'text-red-400'}`}>
+                <h3 className="text-3xl font-bold text-white mb-3">{result.userName}</h3>
+                <p className={`text-base mb-6 ${result.success ? 'text-green-400' : 'text-red-400'}`}>
                   {result.message}
                 </p>
                 {result.success && (
-                  <div className="bg-zinc-800 rounded-xl p-4 mb-4">
-                    <p className="text-xs text-zinc-500 uppercase tracking-widest mb-1">Remaining Sessions</p>
-                    <p className="text-4xl font-serif text-yellow-500">{result.remainingSessions}</p>
+                  <div className="bg-zinc-800 rounded-xl p-6 mb-6">
+                    <p className="text-xs text-zinc-500 uppercase tracking-widest mb-2">Remaining Sessions</p>
+                    <p className="text-5xl font-serif text-yellow-500">{result.remainingSessions}</p>
                   </div>
                 )}
-                <button
-                  onClick={() => setResult(null)}
-                  className="w-full bg-yellow-600 text-white font-bold py-3 rounded-lg hover:bg-yellow-500 active:scale-95 transition-all"
-                >
-                  CLOSE
-                </button>
+                <p className="text-xs text-zinc-600">Auto-closing in 3 seconds...</p>
               </motion.div>
             </motion.div>
           )}
         </AnimatePresence>
-
-        {/* User List */}
-        <div className="space-y-3">
-          {loading ? (
-            <p className="text-zinc-500 text-center py-10">Loading users...</p>
-          ) : filteredUsers.length > 0 ? (
-            filteredUsers.map(u => (
-              <button
-                key={u.id}
-                onClick={() => handleManualCheckIn(u.id, u.name)}
-                disabled={scanning || (u.remaining_sessions || 0) <= 0}
-                className={`w-full bg-zinc-900 p-4 rounded-xl border transition-all active:scale-98 ${
-                  (u.remaining_sessions || 0) <= 0 
-                    ? 'border-zinc-800 opacity-50 cursor-not-allowed' 
-                    : 'border-zinc-800 hover:border-yellow-600/50 cursor-pointer'
-                }`}
-              >
-                <div className="flex justify-between items-center">
-                  <div className="text-left">
-                    <h3 className="font-bold text-white">{u.name}</h3>
-                    <p className="text-zinc-500 text-xs mt-1">{u.email}</p>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <div className="text-right">
-                      <span className="block text-[10px] text-zinc-500 uppercase tracking-wider">Sessions</span>
-                      <span className={`text-2xl font-serif ${
-                        (u.remaining_sessions || 0) > 0 ? 'text-yellow-500' : 'text-red-500'
-                      }`}>
-                        {u.remaining_sessions || 0}
-                      </span>
-                    </div>
-                    {(u.remaining_sessions || 0) > 0 ? (
-                      <CheckCircle size={24} className="text-green-500" />
-                    ) : (
-                      <XCircle size={24} className="text-red-500" />
-                    )}
-                  </div>
-                </div>
-              </button>
-            ))
-          ) : (
-            <div className="text-zinc-500 text-center py-10 flex flex-col items-center gap-2">
-              <User size={40} className="opacity-20"/>
-              <p>No users found</p>
-            </div>
-          )}
-        </div>
-
-        {/* Info Card */}
-        <div className="fixed bottom-6 left-6 right-6 bg-zinc-900 border border-zinc-800 rounded-xl p-4">
-          <div className="flex items-start gap-3">
-            <Sparkles size={20} className="text-yellow-500 mt-1 flex-shrink-0" />
-            <div>
-              <p className="text-xs text-zinc-400">
-                실제 QR 스캐너 대신 회원을 선택하여 체크인하세요. 
-                체크인 시 자동으로 세션이 차감됩니다.
-              </p>
-            </div>
-          </div>
-        </div>
       </div>
     );
 };
