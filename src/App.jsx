@@ -1,0 +1,1781 @@
+import React, { useState, useEffect } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { QrCode, Camera, CheckCircle, ChevronRight, BookOpen, LogOut, Plus, User, X, CreditCard, History, Search, ArrowLeft, Edit3, Save, Sparkles, MessageSquare, Calendar, Clock, ChevronLeft, XCircle, Trash2, Edit, Image } from 'lucide-react';
+
+// [중요] 우리가 만든 Supabase 연결 도구와 페이지 가져오기
+import { supabase } from './lib/supabaseClient'; 
+import RegisterView from './pages/RegisterView';
+
+// --- (가짜 데이터 삭제함) ---
+// 이제 INITIAL_USERS 같은 가짜 데이터는 쓰지 않습니다.
+
+// --- Mock Data (게시판 데이터는 일단 유지 - 나중에 DB로 옮길 예정) ---
+const INITIAL_KNOWLEDGE = [
+  {
+    post_id: 'n1',
+    category: 'Nutrition',
+    title: '체지방 감량을 위한 탄수화물 사이클링',
+    content: '고강도 운동일에는 탄수화물 섭취를 늘리고, 휴식일에는 줄이는 전략적 식단 가이드입니다.',
+    body: `<p>탄수화물 사이클링(Carb Cycling)은 다이어트 정체기를 극복하고 근손실을 최소화하며 체지방을 태우는 고급 영양 전략입니다.</p>`,
+    date: '2024.01.20',
+    image: 'https://images.unsplash.com/photo-1490645935967-10de6ba17061?w=800&q=80'
+  },
+  {
+    post_id: 'w1',
+    category: 'Workout',
+    title: '3대 운동 증량 프로그램 (5x5)',
+    content: '스트렝스 향상을 위한 가장 클래식하고 효과적인 5x5 프로그램의 원리와 적용.',
+    body: `<h3>StrongLifts 5x5 프로그램 가이드</h3><p>3대 운동(스쿼트, 벤치프레스, 데드리프트) 중량을 늘리고 싶다면 가장 확실한 방법은 5x5 훈련법입니다.</p>`,
+    date: '2024.02.01',
+    image: 'https://images.unsplash.com/photo-1534438327276-14e5300c3a48?w=800&q=80'
+  }
+];
+
+// --- Sub Components (간단한 컴포넌트들은 여기에 유지) ---
+
+const CinematicIntro = ({ onComplete }) => {
+  useEffect(() => {
+    const timer = setTimeout(() => onComplete(), 2500); // 시간 조금 줄임
+    return () => clearTimeout(timer);
+  }, [onComplete]);
+
+  return (
+    <motion.div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black"
+      initial={{ opacity: 1 }}
+      animate={{ opacity: 0 }}
+      transition={{ delay: 1.5, duration: 1 }}
+      onAnimationComplete={onComplete}
+    >
+      <motion.h1
+        className="text-2xl md:text-4xl font-serif text-transparent bg-clip-text bg-gradient-to-r from-yellow-200 via-yellow-400 to-yellow-600 tracking-widest text-center px-4"
+        initial={{ opacity: 0, scale: 0.9 }}
+        animate={{ opacity: 1, scale: 1 }}
+        exit={{ opacity: 0 }}
+        transition={{ duration: 1.5, ease: "easeInOut", repeat: 1, repeatType: "reverse" }}
+      >
+        THE COACH<br /><span className="text-sm md:text-lg text-zinc-500 font-sans tracking-[0.5em]">PROFESSIONAL</span>
+      </motion.h1>
+    </motion.div>
+  );
+};
+
+const ButtonPrimary = ({ children, onClick, className = "", icon: Icon }) => (
+  <button
+    onClick={onClick}
+    className={`w-full py-4 px-6 bg-gradient-to-r from-zinc-800 to-zinc-900 border border-yellow-600/30 rounded-xl text-yellow-500 font-medium tracking-wide shadow-lg hover:shadow-yellow-900/20 active:scale-95 transition-all flex items-center justify-center gap-3 ${className}`}
+  >
+    {Icon && <Icon size={20} />}
+    {children}
+  </button>
+);
+
+const ButtonGhost = ({ children, onClick, className = "" }) => (
+  <button
+    onClick={onClick}
+    className={`w-full py-3 px-6 text-zinc-400 text-sm hover:text-white transition-colors tracking-widest uppercase ${className}`}
+  >
+    {children}
+  </button>
+);
+
+// --- [LoginView] 진짜 로그인 기능 연결 ---
+// --- [LoginView] 관리자 뒷문 추가 버전 ---
+const LoginView = ({ setView }) => {
+    const [email, setEmail] = useState('');
+    const [pw, setPw] = useState('');
+    const [loading, setLoading] = useState(false);
+
+    const handleLogin = async () => {
+        // [관리자 뒷문] admin / 1234 입력 시 강제 이동
+        if (email === 'admin' && pw === '1234') {
+            alert('관리자 모드로 진입합니다.');
+            setView('admin_home'); // 화면을 강제로 관리자 홈으로 바꿈
+            return;
+        }
+
+        setLoading(true);
+        // 일반 회원은 Supabase 인증 사용
+        const { data, error } = await supabase.auth.signInWithPassword({
+            email: email,
+            password: pw,
+        });
+        setLoading(false);
+
+        if (error) {
+            alert('로그인 실패: ' + error.message);
+        } else {
+            console.log("로그인 성공!", data);
+        }
+    };
+
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[100dvh] px-6 bg-zinc-950 text-white">
+        <div className="mb-12 text-center">
+          <h2 className="text-3xl font-serif text-yellow-500 mb-2">THE COACH</h2>
+          <p className="text-zinc-500 text-xs tracking-[0.2em] uppercase">Premium Management System</p>
+        </div>
+        <div className="w-full max-w-sm space-y-4">
+          <input type="text" placeholder="EMAIL (admin)" className="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-4 py-3 text-white focus:border-yellow-600 outline-none" value={email} onChange={e => setEmail(e.target.value)} />
+          <input type="password" placeholder="PASSWORD (1234)" className="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-4 py-3 text-white focus:border-yellow-600 outline-none" value={pw} onChange={e => setPw(e.target.value)} />
+          
+          <ButtonPrimary onClick={handleLogin}>
+              {loading ? 'CHECKING...' : 'ENTER'}
+          </ButtonPrimary>
+        </div>
+        <div className="flex gap-4 mt-6 text-xs text-zinc-500">
+            <button className="hover:text-yellow-500">ID/PW 찾기</button>
+            <span className="text-zinc-700">|</span>
+            <button onClick={() => setView('register')} className="hover:text-yellow-500">회원가입</button>
+        </div>
+      </div>
+    );
+};
+
+// --- [ClientHome] DB 데이터 연동 버전 ---
+const ClientHome = ({ user, logout, setView }) => {
+  const [profile, setProfile] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [showQRModal, setShowQRModal] = useState(false);
+  const [showScheduleModal, setShowScheduleModal] = useState(false);
+  const [myBookings, setMyBookings] = useState([]);
+  const [loadingBookings, setLoadingBookings] = useState(false);
+  const [cancelling, setCancelling] = useState(null);
+
+  // 화면이 켜지면 DB에서 내 정보를 가져옴
+  useEffect(() => {
+    const fetchProfile = async () => {
+      if (!user) return;
+      
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', user.id)
+        .single();
+
+      if (error) {
+        console.error('프로필 로딩 실패:', error);
+      } else {
+        setProfile(data);
+      }
+      setLoading(false);
+    };
+
+    fetchProfile();
+  }, [user]);
+
+  // Fetch user's bookings when modal opens
+  const fetchMyBookings = async () => {
+    if (!user) return;
+    
+    setLoadingBookings(true);
+    const { data, error } = await supabase
+      .from('bookings')
+      .eq('user_id', user.id)
+      .select('*')
+      .order('date', { ascending: true })
+      .order('time', { ascending: true });
+
+    if (error) {
+      console.error('Error fetching bookings:', error);
+      setMyBookings([]);
+    } else {
+      setMyBookings(data || []);
+    }
+    setLoadingBookings(false);
+  };
+
+  const handleCancelBooking = async (bookingId, date, time) => {
+    if (!confirm(`Cancel booking on ${date} at ${time}?`)) return;
+
+    setCancelling(bookingId);
+    const { error } = await supabase
+      .from('bookings')
+      .delete()
+      .eq('id', bookingId);
+
+    if (error) {
+      alert('Error cancelling booking: ' + error.message);
+    } else {
+      alert('Booking cancelled successfully!');
+      fetchMyBookings(); // Refresh list
+    }
+    setCancelling(null);
+  };
+
+  const handleOpenSchedule = () => {
+    setShowScheduleModal(true);
+    fetchMyBookings();
+  };
+
+  return (
+    <div className="min-h-[100dvh] bg-zinc-950 text-white flex flex-col relative pb-safe">
+      <header className="p-6 flex justify-between items-center">
+        <div>
+          <h2 className="text-xl font-serif text-yellow-500">THE COACH</h2>
+          {/* 진짜 이름 표시 */}
+          <p className="text-zinc-500 text-xs">
+            {loading ? 'Loading...' : `${profile?.name || '회원'} 님`}
+          </p>
+        </div>
+        <button onClick={logout}><LogOut size={20} className="text-zinc-600 hover:text-white transition-colors" /></button>
+      </header>
+
+      <div className="flex-1 flex flex-col items-center justify-center px-6 gap-8 w-full relative">
+        {/* QR 코드 버튼 */}
+        <div className="relative group">
+          <div className="absolute -inset-1 bg-gradient-to-r from-yellow-600 to-amber-600 rounded-full blur opacity-25 group-hover:opacity-50 transition duration-1000"></div>
+          <button 
+            onClick={() => setShowQRModal(true)}
+            className="relative w-48 h-48 rounded-full bg-zinc-900 border border-zinc-800 flex flex-col items-center justify-center gap-2 active:scale-95 transition-all shadow-2xl"
+          >
+            <QrCode size={40} className="text-yellow-500" />
+            <span className="text-sm tracking-widest font-medium text-zinc-300">CHECK-IN</span>
+          </button>
+        </div>
+
+        {/* 메뉴 버튼들 */}
+        <div className="w-full max-w-xs space-y-2 mt-8">
+           <ButtonGhost onClick={() => setView('library')}>LIBRARY</ButtonGhost>
+           <ButtonGhost onClick={() => setView('class_booking')}>CLASS BOOKING</ButtonGhost>
+           <ButtonGhost onClick={handleOpenSchedule}>MY SCHEDULE</ButtonGhost>
+        </div>
+
+         {/* [핵심] 진짜 남은 횟수 표시 */}
+         <div className="absolute bottom-6 left-6 text-left">
+             <p className="text-zinc-500 text-[10px] tracking-widest uppercase mb-1">Total Remaining</p>
+             <p className="text-2xl font-serif text-white">
+               {loading ? '-' : (profile?.remaining_sessions || 0)} 
+               <span className="text-xs font-sans text-zinc-500 ml-1">Sessions</span>
+             </p>
+         </div>
+        <button onClick={() => setView('admin_home')}>Admin Home</button>
+      </div>
+
+      {/* QR Code Modal */}
+      <AnimatePresence>
+        {showQRModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center p-6 bg-black/90"
+            onClick={() => setShowQRModal(false)}
+          >
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              className="bg-zinc-900 border-2 border-yellow-500 rounded-2xl p-8 max-w-sm w-full"
+              onClick={e => e.stopPropagation()}
+            >
+              {/* Header */}
+              <div className="flex justify-between items-center mb-6">
+                <h3 className="text-xl font-serif text-yellow-500">CHECK-IN QR</h3>
+                <button 
+                  onClick={() => setShowQRModal(false)}
+                  className="text-zinc-500 hover:text-white transition-colors"
+                >
+                  <X size={24} />
+                </button>
+              </div>
+
+              {/* QR Code Simulation Box */}
+              <div className="bg-white p-6 rounded-xl mb-6 flex items-center justify-center min-h-[280px]">
+                <div className="text-center">
+                  <QrCode size={200} className="text-zinc-900 mx-auto mb-4" />
+                  <p className="text-xs text-zinc-600 font-mono break-all px-4">
+                    {user?.id || 'Loading...'}
+                  </p>
+                </div>
+              </div>
+
+              {/* User Info */}
+              <div className="bg-zinc-800 rounded-xl p-4 mb-4">
+                <div className="flex justify-between items-center mb-2">
+                  <span className="text-zinc-400 text-sm">Name</span>
+                  <span className="text-white font-bold">{profile?.name || 'Loading...'}</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-zinc-400 text-sm">Remaining Sessions</span>
+                  <span className="text-2xl font-serif text-yellow-500">{profile?.remaining_sessions || 0}</span>
+                </div>
+              </div>
+
+              {/* Instructions */}
+              <div className="bg-zinc-800/50 rounded-lg p-4 border border-zinc-700">
+                <div className="flex items-start gap-3">
+                  <Sparkles size={20} className="text-yellow-500 mt-0.5 flex-shrink-0" />
+                  <div>
+                    <p className="text-xs text-zinc-400 leading-relaxed">
+                      관리자에게 이 화면을 보여주세요. QR 스캔 시 자동으로 세션이 차감됩니다.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Close Button */}
+              <button
+                onClick={() => setShowQRModal(false)}
+                className="w-full mt-6 bg-yellow-600 text-white font-bold py-3 rounded-lg hover:bg-yellow-500 active:scale-95 transition-all"
+              >
+                CLOSE
+              </button>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* My Schedule Modal */}
+      <AnimatePresence>
+        {showScheduleModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center p-6 bg-black/90"
+            onClick={() => setShowScheduleModal(false)}
+          >
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              className="bg-zinc-900 border-2 border-yellow-500 rounded-2xl p-6 max-w-md w-full max-h-[80vh] overflow-y-auto"
+              onClick={e => e.stopPropagation()}
+            >
+              {/* Header */}
+              <div className="flex justify-between items-center mb-6">
+                <h3 className="text-xl font-serif text-yellow-500">MY SCHEDULE</h3>
+                <button 
+                  onClick={() => setShowScheduleModal(false)}
+                  className="text-zinc-500 hover:text-white transition-colors"
+                >
+                  <X size={24} />
+                </button>
+              </div>
+
+              {/* Bookings List */}
+              {loadingBookings ? (
+                <p className="text-zinc-500 text-center py-10">Loading...</p>
+              ) : myBookings.length > 0 ? (
+                <div className="space-y-3 mb-4">
+                  {myBookings.map((booking) => (
+                    <div
+                      key={booking.id}
+                      className="bg-zinc-800 border border-zinc-700 rounded-xl p-4"
+                    >
+                      <div className="flex justify-between items-start mb-3">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-3 mb-2">
+                            <div className="flex items-center gap-2 text-yellow-500">
+                              <Calendar size={16} />
+                              <span className="font-medium">{booking.date}</span>
+                            </div>
+                            <div className="flex items-center gap-2 text-yellow-500">
+                              <Clock size={16} />
+                              <span className="font-serif text-lg">{booking.time}</span>
+                            </div>
+                          </div>
+                          <p className="text-zinc-500 text-xs">
+                            Booked on {new Date(booking.created_at).toLocaleDateString()}
+                          </p>
+                        </div>
+                        <button
+                          onClick={() => handleCancelBooking(booking.id, booking.date, booking.time)}
+                          disabled={cancelling === booking.id}
+                          className="p-2 rounded-lg bg-red-600/20 border border-red-600/30 text-red-500 hover:bg-red-600/30 active:scale-95 transition-all disabled:opacity-50"
+                        >
+                          <Trash2 size={18} />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="flex flex-col items-center justify-center py-10 text-center">
+                  <Calendar size={64} className="text-zinc-700 mb-4" />
+                  <h4 className="text-lg font-bold text-zinc-500 mb-2">No Bookings</h4>
+                  <p className="text-sm text-zinc-600">You haven't booked any classes yet</p>
+                </div>
+              )}
+
+              {/* Close Button */}
+              <button
+                onClick={() => setShowScheduleModal(false)}
+                className="w-full bg-yellow-600 text-white font-bold py-3 rounded-lg hover:bg-yellow-500 active:scale-95 transition-all"
+              >
+                CLOSE
+              </button>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+};
+
+// --- Main App Component ---
+
+
+export default function App() {
+  const [showIntro, setShowIntro] = useState(true);
+  const [session, setSession] = useState(null); // 현재 로그인 세션
+  const [view, setView] = useState('login');
+  const [selectedMemberId, setSelectedMemberId] = useState(null); // 선택된 회원 ID
+
+  // [Library State]
+  const [libraryPosts, setLibraryPosts] = useState([]);
+  const [isLibraryLoading, setIsLibraryLoading] = useState(false);
+  const [showWriteModal, setShowWriteModal] = useState(false);
+  const [newPost, setNewPost] = useState({ title: '', content: '', category: 'Tip', image_url: '' });
+
+  // [Smart Revenue State]
+  const [currentRevenueDate, setCurrentRevenueDate] = useState(new Date());
+  const [revenueLogs, setRevenueLogs] = useState([]);
+  const [isRevenueLoading, setIsRevenueLoading] = useState(false);
+  
+  // Salary Configuration (Persist in LocalStorage)
+  const [salaryConfig, setSalaryConfig] = useState(() => {
+    const saved = localStorage.getItem('salaryConfig');
+    return saved ? JSON.parse(saved) : { base: 500000, incentiveRate: 100, extra: 0 };
+  });
+
+  // Save config whenever it changes
+  useEffect(() => {
+    localStorage.setItem('salaryConfig', JSON.stringify(salaryConfig));
+  }, [salaryConfig]);
+
+  // [핵심] 앱이 켜질 때 & 로그인 상태 바뀔 때 실행됨
+  useEffect(() => {
+    // 1. 현재 로그인 정보 가져오기
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setSession(session);
+      if (session) setView('client_home');
+    });
+
+    // 2. 로그인/로그아웃 감시자 등록
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      setSession(session);
+      if (session) {
+          setView('client_home');
+      } else {
+          setView('login');
+      }
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
+
+  const handleLogout = async () => {
+      await supabase.auth.signOut();
+      setView('login');
+  };
+
+  // [Library Logic]
+  const fetchLibraryPosts = async () => {
+    if (!supabase) return;
+    setIsLibraryLoading(true);
+    try {
+      const { data, error } = await supabase.from('posts').select('*').order('created_at', { ascending: false });
+      if (error) throw error;
+      setLibraryPosts(data || []);
+    } catch (err) {
+      console.error('Error fetching posts:', err);
+    } finally {
+      setIsLibraryLoading(false);
+    }
+  };
+
+  const handleSavePost = async () => {
+    if (!newPost.title || !newPost.content) return alert('Please enter a title and content.');
+    try {
+      const { error } = await supabase.from('posts').insert([{ ...newPost, created_at: new Date() }]);
+      if (error) throw error;
+      alert('Post saved successfully!');
+      setShowWriteModal(false);
+      setNewPost({ title: '', content: '', category: 'Tip', image_url: '' });
+      fetchLibraryPosts();
+    } catch (err) {
+      alert('Error saving post: ' + err.message);
+    }
+  };
+
+  // Auto-fetch when view changes to library
+  useEffect(() => {
+    if (view === 'library') {
+      fetchLibraryPosts();
+    }
+  }, [view]);
+
+  // [Smart Revenue Logic]
+  const fetchRevenueData = async () => {
+    if (!supabase) return;
+    setIsRevenueLoading(true);
+    
+    const year = currentRevenueDate.getFullYear();
+    const month = currentRevenueDate.getMonth();
+    const startDate = new Date(year, month, 1).toISOString();
+    const endDate = new Date(year, month + 1, 0, 23, 59, 59).toISOString();
+
+    try {
+      const { data, error } = await supabase
+        .from('attendance_logs')
+        .select('*, profiles(name)')
+        .gte('check_in_at', startDate)
+        .lte('check_in_at', endDate)
+        .order('check_in_at', { ascending: false });
+
+      if (error) throw error;
+      setRevenueLogs(data || []);
+    } catch (err) {
+      console.error('Error fetching revenue:', err);
+    } finally {
+      setIsRevenueLoading(false);
+    }
+  };
+
+  // Helper to handle month changes
+  const changeMonth = (delta) => {
+    const newDate = new Date(currentRevenueDate);
+    newDate.setMonth(newDate.getMonth() + delta);
+    setCurrentRevenueDate(newDate);
+  };
+
+  // Helper to handle input changes
+  const handleConfigChange = (key, value) => {
+    setSalaryConfig(prev => ({ ...prev, [key]: Number(value) }));
+  };
+
+  // Helper to format currency
+  const fmt = (num) => num?.toLocaleString() || '0';
+
+  // Excel download handler
+  const handleDownloadExcel = () => {
+    alert('Excel export feature coming soon! For now, you can copy the data from the table.');
+  };
+
+  // Auto-fetch when revenue date changes
+  useEffect(() => {
+    if (view === 'revenue') {
+      fetchRevenueData();
+    }
+  }, [view, currentRevenueDate]);
+
+  return (
+    <div className="bg-black min-h-[100dvh] font-sans selection:bg-yellow-500/30 overflow-x-hidden">
+      <AnimatePresence>
+        {showIntro && <CinematicIntro onComplete={() => setShowIntro(false)} />}
+      </AnimatePresence>
+
+      {!showIntro && (
+        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 1 }}>
+          
+          {/* 로그인 안 했을 때 보여줄 화면들 */}
+          {!session && view === 'login' && <LoginView setView={setView} />}
+          {!session && view === 'register' && <RegisterView setView={setView} />}
+
+          {/* 로그인 했을 때 보여줄 화면 (일반 회원) */}
+          {session && view === 'client_home' && <ClientHome user={session.user} logout={handleLogout} setView={setView} />}
+
+          {/* 관리자 화면 (session 없이도 접근 가능 - admin backdoor) */}
+          {view === 'admin_home' && (
+            <AdminRoute session={session}>
+              <AdminHome setView={setView} logout={handleLogout} />
+            </AdminRoute>
+          )}
+
+          {/* 회원 목록 */}
+          {view === 'member_list' && (
+            <AdminRoute session={session}>
+              <MemberList setView={setView} setSelectedMemberId={setSelectedMemberId} />
+            </AdminRoute>
+          )}
+
+          {/* 회원 상세 */}
+          {view === 'member_detail' && selectedMemberId && (
+            <AdminRoute session={session}>
+              <MemberDetail selectedMemberId={selectedMemberId} setView={setView} />
+            </AdminRoute>
+          )}
+
+          {/* QR 스캐너 */}
+          {view === 'scanner' && (
+            <AdminRoute session={session}>
+              <QRScanner setView={setView} />
+            </AdminRoute>
+          )}
+
+          {/* 관리자 스케줄 관리 */}
+          {view === 'admin_schedule' && (
+            <AdminRoute session={session}>
+              <AdminSchedule setView={setView} />
+            </AdminRoute>
+          )}
+
+          {/* 매출 관리 & 급여 계산기 */}
+          {view === 'revenue' && (
+            <AdminRoute session={session}>
+              <div className="min-h-[100dvh] bg-zinc-950 flex flex-col p-6 text-white overflow-y-auto pb-24">
+                {/* Header & Date */}
+                <div className="flex justify-between items-center mb-6">
+                  <h2 className="text-2xl font-bold text-yellow-500">💰 SALARY CALCULATOR</h2>
+                  <div className="flex items-center gap-4 bg-zinc-900 px-4 py-2 rounded-lg border border-zinc-800">
+                    <button onClick={() => changeMonth(-1)} className="text-xl font-bold hover:text-yellow-500">◀</button>
+                    <span className="text-lg font-bold w-24 text-center">
+                      {currentRevenueDate.getFullYear()}. {currentRevenueDate.getMonth() + 1}
+                    </span>
+                    <button onClick={() => changeMonth(1)} className="text-xl font-bold hover:text-yellow-500">▶</button>
+                  </div>
+                </div>
+
+                {/* Calculator Inputs (The Excel Replacement) */}
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+                  
+                  {/* 1. Base Salary */}
+                  <div className="bg-zinc-900 p-4 rounded-lg border border-zinc-800">
+                    <label className="text-zinc-400 text-xs block mb-1">Base Salary (Basic)</label>
+                    <div className="flex items-center text-xl font-bold">
+                      <span className="text-zinc-500 mr-2">₩</span>
+                      <input 
+                        type="number" 
+                        value={salaryConfig.base}
+                        onChange={(e) => handleConfigChange('base', e.target.value)}
+                        className="bg-transparent w-full outline-none text-white border-b border-zinc-700 focus:border-yellow-500 transition"
+                      />
+                    </div>
+                  </div>
+
+                  {/* 2. PT Revenue & Incentive Rate */}
+                  <div className="bg-zinc-900 p-4 rounded-lg border border-zinc-800">
+                    <div className="flex justify-between mb-1">
+                      <label className="text-zinc-400 text-xs">PT Revenue ({revenueLogs.length} sessions)</label>
+                      <div className="flex items-center text-xs gap-1">
+                        <span>Rate:</span>
+                        <input 
+                          type="number" 
+                          value={salaryConfig.incentiveRate}
+                          onChange={(e) => handleConfigChange('incentiveRate', e.target.value)}
+                          className="bg-zinc-800 w-10 text-center rounded text-yellow-500 font-bold outline-none"
+                        />
+                        <span>%</span>
+                      </div>
+                    </div>
+                    <div className="text-xl font-bold text-yellow-400">
+                      + ₩ {fmt(revenueLogs.reduce((sum, log) => sum + (log.session_price_snapshot || 0), 0) * (salaryConfig.incentiveRate / 100))}
+                      <span className="text-xs text-zinc-500 font-normal ml-2 block">
+                        (Total: ₩ {fmt(revenueLogs.reduce((sum, log) => sum + (log.session_price_snapshot || 0), 0))})
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* 3. Extra Income */}
+                  <div className="bg-zinc-900 p-4 rounded-lg border border-zinc-800">
+                    <label className="text-zinc-400 text-xs block mb-1">Extra / Bonus</label>
+                    <div className="flex items-center text-xl font-bold text-green-400">
+                      <span className="text-zinc-500 mr-2">+ ₩</span>
+                      <input 
+                        type="number" 
+                        value={salaryConfig.extra}
+                        onChange={(e) => handleConfigChange('extra', e.target.value)}
+                        className="bg-transparent w-full outline-none text-green-400 border-b border-zinc-700 focus:border-green-500 transition"
+                      />
+                    </div>
+                  </div>
+
+                  {/* 4. Final Payout */}
+                  <div className="bg-gradient-to-br from-yellow-900/50 to-zinc-900 p-4 rounded-lg border border-yellow-500 shadow-lg flex flex-col justify-center">
+                    <label className="text-yellow-200 text-xs block mb-1">FINAL PAYOUT</label>
+                    <div className="text-3xl font-bold text-yellow-400">
+                      ₩ {fmt(salaryConfig.base + (revenueLogs.reduce((sum, log) => sum + (log.session_price_snapshot || 0), 0) * (salaryConfig.incentiveRate / 100)) + salaryConfig.extra)}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Excel Download Button */}
+                <div className="flex justify-end mb-4">
+                  <button 
+                    onClick={handleDownloadExcel}
+                    className="bg-green-700 hover:bg-green-600 text-white px-4 py-2 rounded font-bold text-sm shadow flex items-center gap-2"
+                  >
+                    📥 DOWNLOAD EXCEL REPORT
+                  </button>
+                </div>
+
+                {/* Attendance Table */}
+                <div className="bg-zinc-900 rounded-lg overflow-hidden border border-zinc-800">
+                  <table className="w-full text-left border-collapse">
+                    <thead className="bg-zinc-800 text-zinc-400 text-xs uppercase">
+                      <tr>
+                        <th className="p-3">Date</th>
+                        <th className="p-3">Member</th>
+                        <th className="p-3 text-right">Price</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-zinc-800 text-sm">
+                      {isRevenueLoading ? (
+                        <tr><td colSpan="3" className="p-6 text-center text-zinc-500">Loading...</td></tr>
+                      ) : revenueLogs.length === 0 ? (
+                        <tr><td colSpan="3" className="p-6 text-center text-zinc-500">No records found for this month.</td></tr>
+                      ) : (
+                        revenueLogs.map((log) => (
+                          <tr key={log.id} className="hover:bg-zinc-800/50">
+                            <td className="p-3">
+                              <div className="font-bold text-white">{new Date(log.check_in_at).toLocaleDateString('ko-KR')}</div>
+                              <div className="text-zinc-500 text-xs">{new Date(log.check_in_at).toLocaleTimeString('ko-KR', {hour:'2-digit', minute:'2-digit'})}</div>
+                            </td>
+                            <td className="p-3 text-zinc-300">{log.profiles?.name || 'Unknown'}</td>
+                            <td className="p-3 text-right font-bold text-yellow-500">₩ {log.session_price_snapshot?.toLocaleString()}</td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </AdminRoute>
+          )}
+
+          {/* 클래스 예약 */}
+          {session && view === 'class_booking' && (
+            <ClassBooking user={session.user} setView={setView} />
+          )}
+
+          {/* 라이브러리 (지식 베이스) */}
+          {(session || view === 'admin_home' || view === 'library') && view === 'library' && (
+            <div className="min-h-[100dvh] bg-zinc-950 flex flex-col p-6 text-white overflow-y-auto pb-24">
+              <div className="flex justify-between items-center mb-6">
+                <h2 className="text-2xl font-bold text-yellow-500">📚 KNOWLEDGE BASE</h2>
+                {(session?.user?.email === 'admin' || !session) && (
+                  <button 
+                    onClick={() => setShowWriteModal(true)}
+                    className="bg-yellow-500 text-black px-4 py-2 rounded font-bold hover:bg-yellow-400 transition shadow-lg"
+                  >
+                    + NEW POST
+                  </button>
+                )}
+              </div>
+
+              {isLibraryLoading ? (
+                <div className="text-center text-zinc-400 mt-10">Loading library...</div>
+              ) : libraryPosts.length === 0 ? (
+                <div className="text-center text-zinc-500 mt-10 p-8 border border-zinc-800 rounded-lg">
+                  <p className="text-xl">No posts yet.</p>
+                  {(session?.user?.email === 'admin' || !session) && <p className="text-sm mt-2">Click "+ NEW POST" to add content.</p>}
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {libraryPosts.map((post) => (
+                    <div key={post.id} className="bg-zinc-900 rounded-lg overflow-hidden shadow-lg border border-zinc-800 hover:border-yellow-500/50 transition duration-300">
+                      {post.image_url ? (
+                        <img src={post.image_url} alt={post.title} className="w-full h-48 object-cover" />
+                      ) : (
+                        <div className="w-full h-48 bg-zinc-800 flex items-center justify-center text-zinc-500">No Image</div>
+                      )}
+                      <div className="p-4">
+                        <span className="text-xs font-bold text-yellow-400 bg-yellow-900/40 px-2 py-1 rounded mb-2 inline-block border border-yellow-500/20">
+                          {post.category}
+                        </span>
+                        <h3 className="text-xl font-bold mb-2 text-white">{post.title}</h3>
+                        <p className="text-zinc-400 text-sm line-clamp-3 whitespace-pre-line">{post.content}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Write Modal */}
+              {showWriteModal && (
+                <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4 backdrop-blur-sm">
+                  <div className="bg-zinc-900 p-6 rounded-xl w-full max-w-lg border border-yellow-500/30 shadow-2xl">
+                    <h3 className="text-xl font-bold text-yellow-500 mb-6">Create New Post</h3>
+                    
+                    <input 
+                      className="w-full bg-zinc-800 p-3 rounded mb-4 text-white border border-zinc-700 focus:border-yellow-500 outline-none"
+                      placeholder="Title"
+                      value={newPost.title}
+                      onChange={(e) => setNewPost({...newPost, title: e.target.value})}
+                    />
+                    
+                    <select 
+                      className="w-full bg-zinc-800 p-3 rounded mb-4 text-white border border-zinc-700 outline-none"
+                      value={newPost.category}
+                      onChange={(e) => setNewPost({...newPost, category: e.target.value})}
+                    >
+                      <option value="Tip">Tip</option>
+                      <option value="Notice">Notice</option>
+                      <option value="Motivation">Motivation</option>
+                    </select>
+
+                    <input 
+                      className="w-full bg-zinc-800 p-3 rounded mb-4 text-white border border-zinc-700 focus:border-yellow-500 outline-none"
+                      placeholder="Image URL (Optional)"
+                      value={newPost.image_url}
+                      onChange={(e) => setNewPost({...newPost, image_url: e.target.value})}
+                    />
+
+                    <textarea 
+                      className="w-full bg-zinc-800 p-3 rounded mb-6 text-white border border-zinc-700 focus:border-yellow-500 outline-none h-32 resize-none"
+                      placeholder="Content..."
+                      value={newPost.content}
+                      onChange={(e) => setNewPost({...newPost, content: e.target.value})}
+                    />
+
+                    <div className="flex justify-end gap-3">
+                      <button 
+                        onClick={() => setShowWriteModal(false)}
+                        className="px-4 py-2 text-zinc-400 hover:text-white font-bold"
+                      >
+                        Cancel
+                      </button>
+                      <button 
+                        onClick={handleSavePost}
+                        className="bg-yellow-500 text-black px-6 py-2 rounded font-bold hover:bg-yellow-400 transition"
+                      >
+                        SAVE POST
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+          
+        </motion.div>
+      )}
+    </div>
+  );
+}
+
+// --- [QRScanner] QR 스캔 화면 (체크인 처리) ---
+const QRScanner = ({ setView }) => {
+    const [users, setUsers] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [scanning, setScanning] = useState(false);
+    const [result, setResult] = useState(null);
+    const [searchTerm, setSearchTerm] = useState('');
+
+    useEffect(() => {
+        const fetchUsers = async () => {
+            const { data, error } = await supabase
+                .from('profiles')
+                .select('*')
+                .eq('role', 'user')
+                .order('name');
+            if (error) console.error(error);
+            else setUsers(data);
+            setLoading(false);
+        };
+        fetchUsers();
+    }, []);
+
+    const handleCheckIn = async (userId, userName) => {
+        if (scanning) return;
+        
+        if (!confirm(`${userName}님을 체크인 하시겠습니까?`)) return;
+        
+        setScanning(true);
+        setResult(null);
+
+        try {
+            // Call the RPC function
+            const { data, error } = await supabase.rpc('check_in_user', {
+                user_uuid: userId
+            });
+
+            if (error) throw error;
+
+            // Show success result
+            setResult({
+                success: true,
+                userName: userName,
+                remainingSessions: data.remaining_sessions,
+                message: data.message
+            });
+
+            // Refresh user list
+            const { data: updatedUsers } = await supabase
+                .from('profiles')
+                .select('*')
+                .eq('role', 'user')
+                .order('name');
+            setUsers(updatedUsers);
+
+        } catch (error) {
+            setResult({
+                success: false,
+                userName: userName,
+                message: error.message || 'Check-in failed'
+            });
+        } finally {
+            setScanning(false);
+        }
+    };
+
+    const filteredUsers = users.filter(u => 
+        u.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        u.email?.toLowerCase().includes(searchTerm.toLowerCase())
+    );
+
+    return (
+      <div className="min-h-[100dvh] bg-zinc-950 text-white p-6 pb-20">
+        <header className="flex items-center justify-between mb-6">
+          <button onClick={() => setView('admin_home')} className="text-zinc-400 hover:text-white">
+            <ChevronLeft size={24} />
+          </button>
+          <h2 className="text-lg font-serif text-yellow-500">QR CHECK-IN</h2>
+          <div className="w-6"></div>
+        </header>
+
+        {/* Search Bar */}
+        <div className="mb-6">
+          <div className="relative">
+            <Search size={20} className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500" />
+            <input
+              type="text"
+              placeholder="Search by name or email..."
+              className="w-full bg-zinc-900 border border-zinc-800 rounded-lg pl-10 pr-4 py-3 text-white focus:border-yellow-600 outline-none transition-colors"
+              value={searchTerm}
+              onChange={e => setSearchTerm(e.target.value)}
+            />
+          </div>
+        </div>
+
+        {/* Result Modal */}
+        <AnimatePresence>
+          {result && (
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.9 }}
+              className="fixed inset-0 z-50 flex items-center justify-center p-6 bg-black/80"
+              onClick={() => setResult(null)}
+            >
+              <motion.div
+                className={`bg-zinc-900 border-2 ${result.success ? 'border-green-500' : 'border-red-500'} rounded-2xl p-8 max-w-sm w-full text-center`}
+                onClick={e => e.stopPropagation()}
+              >
+                {result.success ? (
+                  <CheckCircle size={64} className="text-green-500 mx-auto mb-4" />
+                ) : (
+                  <XCircle size={64} className="text-red-500 mx-auto mb-4" />
+                )}
+                <h3 className="text-2xl font-bold text-white mb-2">{result.userName}</h3>
+                <p className={`text-sm mb-4 ${result.success ? 'text-green-400' : 'text-red-400'}`}>
+                  {result.message}
+                </p>
+                {result.success && (
+                  <div className="bg-zinc-800 rounded-xl p-4 mb-4">
+                    <p className="text-xs text-zinc-500 uppercase tracking-widest mb-1">Remaining Sessions</p>
+                    <p className="text-4xl font-serif text-yellow-500">{result.remainingSessions}</p>
+                  </div>
+                )}
+                <button
+                  onClick={() => setResult(null)}
+                  className="w-full bg-yellow-600 text-white font-bold py-3 rounded-lg hover:bg-yellow-500 active:scale-95 transition-all"
+                >
+                  CLOSE
+                </button>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* User List */}
+        <div className="space-y-3">
+          {loading ? (
+            <p className="text-zinc-500 text-center py-10">Loading users...</p>
+          ) : filteredUsers.length > 0 ? (
+            filteredUsers.map(u => (
+              <button
+                key={u.id}
+                onClick={() => handleCheckIn(u.id, u.name)}
+                disabled={scanning || (u.remaining_sessions || 0) <= 0}
+                className={`w-full bg-zinc-900 p-4 rounded-xl border transition-all active:scale-98 ${
+                  (u.remaining_sessions || 0) <= 0 
+                    ? 'border-zinc-800 opacity-50 cursor-not-allowed' 
+                    : 'border-zinc-800 hover:border-yellow-600/50 cursor-pointer'
+                }`}
+              >
+                <div className="flex justify-between items-center">
+                  <div className="text-left">
+                    <h3 className="font-bold text-white">{u.name}</h3>
+                    <p className="text-zinc-500 text-xs mt-1">{u.email}</p>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <div className="text-right">
+                      <span className="block text-[10px] text-zinc-500 uppercase tracking-wider">Sessions</span>
+                      <span className={`text-2xl font-serif ${
+                        (u.remaining_sessions || 0) > 0 ? 'text-yellow-500' : 'text-red-500'
+                      }`}>
+                        {u.remaining_sessions || 0}
+                      </span>
+                    </div>
+                    {(u.remaining_sessions || 0) > 0 ? (
+                      <CheckCircle size={24} className="text-green-500" />
+                    ) : (
+                      <XCircle size={24} className="text-red-500" />
+                    )}
+                  </div>
+                </div>
+              </button>
+            ))
+          ) : (
+            <div className="text-zinc-500 text-center py-10 flex flex-col items-center gap-2">
+              <User size={40} className="opacity-20"/>
+              <p>No users found</p>
+            </div>
+          )}
+        </div>
+
+        {/* Info Card */}
+        <div className="fixed bottom-6 left-6 right-6 bg-zinc-900 border border-zinc-800 rounded-xl p-4">
+          <div className="flex items-start gap-3">
+            <Sparkles size={20} className="text-yellow-500 mt-1 flex-shrink-0" />
+            <div>
+              <p className="text-xs text-zinc-400">
+                실제 QR 스캐너 대신 회원을 선택하여 체크인하세요. 
+                체크인 시 자동으로 세션이 차감됩니다.
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+};
+
+// --- [ClassBooking] 클래스 예약 화면 (간소화 버전) ---
+const ClassBooking = ({ user, setView }) => {
+  const [selectedDate, setSelectedDate] = useState(null);
+  const [bookings, setBookings] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [booking, setBooking] = useState(false);
+  const [result, setResult] = useState(null);
+
+  // 정의된 시간대 (10:00 - 22:00, 1시간 간격)
+  const TIME_SLOTS = [
+    "10:00", "11:00", "12:00", "13:00", "14:00", "15:00",
+    "16:00", "17:00", "18:00", "19:00", "20:00", "21:00", "22:00"
+  ];
+
+  // 오늘 날짜 (YYYY-MM-DD)
+  const today = new Date().toISOString().split('T')[0];
+
+  // 다음 7일간의 날짜 생성
+  const generateDates = () => {
+    const dates = [];
+    for (let i = 0; i < 7; i++) {
+      const date = new Date();
+      date.setDate(date.getDate() + i);
+      dates.push(date);
+    }
+    return dates;
+  };
+
+  const dates = generateDates();
+
+  // 날짜 선택 시 해당 날짜의 예약 현황 가져오기
+  useEffect(() => {
+    if (!selectedDate) return;
+
+    const fetchBookings = async () => {
+      setLoading(true);
+      const { data, error } = await supabase
+        .from('bookings')
+        .select('*')
+        .eq('date', selectedDate);
+
+      if (error) {
+        console.error('Error fetching bookings:', error);
+        setBookings([]);
+      } else {
+        setBookings(data || []);
+      }
+      setLoading(false);
+    };
+
+    fetchBookings();
+  }, [selectedDate]);
+
+  // 슬롯이 예약되었는지 확인
+  const isSlotBooked = (time) => {
+    return bookings.some(booking => booking.time === time);
+  };
+
+  // 예약하기
+  const handleBookSlot = async (timeSlot) => {
+    if (booking) return;
+    if (!confirm(`${selectedDate} ${timeSlot} 에 예약하시겠습니까?`)) return;
+
+    setBooking(true);
+    setResult(null);
+
+    try {
+      // Supabase에 직접 INSERT
+      const { data, error } = await supabase
+        .from('bookings')
+        .insert({
+          user_id: user.id,
+          date: selectedDate,
+          time: timeSlot
+        })
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      setResult({
+        success: true,
+        date: selectedDate,
+        time: timeSlot,
+        message: 'Booking confirmed!'
+      });
+
+      // 예약 목록 새로고침
+      const { data: updatedBookings } = await supabase
+        .from('bookings')
+        .select('*')
+        .eq('date', selectedDate);
+      setBookings(updatedBookings || []);
+
+    } catch (error) {
+      setResult({
+        success: false,
+        message: error.message || 'Booking failed'
+      });
+    } finally {
+      setBooking(false);
+    }
+  };
+
+  return (
+    <div className="min-h-[100dvh] bg-zinc-950 text-white p-6 pb-20">
+      <header className="flex items-center justify-between mb-6">
+        <button onClick={() => setView('client_home')} className="text-zinc-400 hover:text-white">
+          <ChevronLeft size={24} />
+        </button>
+        <h2 className="text-lg font-serif text-yellow-500">CLASS BOOKING</h2>
+        <div className="w-6"></div>
+      </header>
+
+      {/* Date Selector */}
+      <div className="mb-6">
+        <h3 className="text-sm text-zinc-400 uppercase tracking-widest mb-3">Select Date</h3>
+        <div className="grid grid-cols-7 gap-2">
+          {dates.map((date) => {
+            const dateStr = date.toISOString().split('T')[0];
+            const dayName = date.toLocaleDateString('en-US', { weekday: 'short' });
+            const dayNum = date.getDate();
+            const isSelected = selectedDate === dateStr;
+
+            return (
+              <button
+                key={dateStr}
+                onClick={() => setSelectedDate(dateStr)}
+                className={`p-3 rounded-xl border transition-all ${
+                  isSelected
+                    ? 'bg-yellow-600 border-yellow-500 text-white'
+                    : 'bg-zinc-900 border-zinc-800 text-zinc-400 hover:border-yellow-600/50'
+                }`}
+              >
+                <div className="text-[10px] uppercase">{dayName}</div>
+                <div className="text-lg font-bold">{dayNum}</div>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Time Slots */}
+      {selectedDate && (
+        <div>
+          <h3 className="text-sm text-zinc-400 uppercase tracking-widest mb-3">
+            Available Times - {selectedDate}
+          </h3>
+          
+          {loading ? (
+            <p className="text-zinc-500 text-center py-10">Loading times...</p>
+          ) : (
+            <div className="grid grid-cols-2 gap-3">
+              {TIME_SLOTS.map((timeSlot) => {
+                const isBooked = isSlotBooked(timeSlot);
+                
+                return (
+                  <button
+                    key={timeSlot}
+                    onClick={() => !isBooked && handleBookSlot(timeSlot)}
+                    disabled={isBooked || booking}
+                    className={`p-4 rounded-xl border font-bold text-lg transition-all ${
+                      isBooked
+                        ? 'bg-zinc-900/50 border-zinc-800 text-zinc-600 cursor-not-allowed'
+                        : 'bg-zinc-900 border-zinc-800 text-white hover:border-yellow-600/50 active:scale-95'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <Clock size={20} className={isBooked ? 'text-zinc-700' : 'text-yellow-500'} />
+                      <span>{timeSlot}</span>
+                      {isBooked ? (
+                        <span className="text-xs text-red-500">BOOKED</span>
+                      ) : (
+                        <CheckCircle size={20} className="text-green-500" />
+                      )}
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Empty State */}
+      {!selectedDate && (
+        <div className="flex flex-col items-center justify-center py-20 text-center">
+          <Calendar size={64} className="text-zinc-700 mb-4" />
+          <h3 className="text-xl font-bold text-zinc-500 mb-2">Select a Date</h3>
+          <p className="text-sm text-zinc-600">Choose a date above to view available time slots</p>
+        </div>
+      )}
+
+      {/* Result Modal */}
+      <AnimatePresence>
+        {result && (
+          <motion.div
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.9 }}
+            className="fixed inset-0 z-50 flex items-center justify-center p-6 bg-black/90"
+            onClick={() => setResult(null)}
+          >
+            <motion.div
+              className={`bg-zinc-900 border-2 ${result.success ? 'border-green-500' : 'border-red-500'} rounded-2xl p-8 max-w-sm w-full text-center`}
+              onClick={e => e.stopPropagation()}
+            >
+              {result.success ? (
+                <>
+                  <CheckCircle size={64} className="text-green-500 mx-auto mb-4" />
+                  <h3 className="text-2xl font-bold text-white mb-2">Booking Confirmed!</h3>
+                  <div className="bg-zinc-800 rounded-xl p-4 mb-4">
+                    <div className="flex items-center justify-center gap-2 text-yellow-500 mb-2">
+                      <Calendar size={20} />
+                      <span className="text-lg font-bold">{result.date}</span>
+                    </div>
+                    <div className="flex items-center justify-center gap-2 text-yellow-500">
+                      <Clock size={20} />
+                      <span className="text-2xl font-serif">{result.time}</span>
+                    </div>
+                  </div>
+                  <p className="text-sm text-green-400 mb-4">{result.message}</p>
+                </>
+              ) : (
+                <>
+                  <XCircle size={64} className="text-red-500 mx-auto mb-4" />
+                  <h3 className="text-2xl font-bold text-white mb-2">Booking Failed</h3>
+                  <p className="text-sm text-red-400 mb-4">{result.message}</p>
+                </>
+              )}
+              <button
+                onClick={() => setResult(null)}
+                className="w-full bg-yellow-600 text-white font-bold py-3 rounded-lg hover:bg-yellow-500 active:scale-95 transition-all"
+              >
+                CLOSE
+              </button>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+};
+
+// --- [AdminSchedule] 관리자 스케줄 관리 화면 ---
+const AdminSchedule = ({ setView }) => {
+  const [bookings, setBookings] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [cancelling, setCancelling] = useState(null);
+
+  const fetchBookings = async () => {
+    setLoading(true);
+    // Join with profiles to get user name and email
+    const { data, error } = await supabase
+      .from('bookings')
+      .select('*, profiles(name, email)')
+      .order('date', { ascending: true })
+      .order('time', { ascending: true });
+
+    if (error) {
+      console.error('Error fetching bookings:', error);
+      setBookings([]);
+    } else {
+      setBookings(data || []);
+    }
+    setLoading(false);
+  };
+
+  useEffect(() => {
+    fetchBookings();
+  }, []);
+
+  const handleCancelBooking = async (bookingId, userName, date, time) => {
+    if (!confirm(`Cancel booking for ${userName} on ${date} at ${time}?`)) return;
+
+    setCancelling(bookingId);
+    const { error } = await supabase
+      .from('bookings')
+      .delete()
+      .eq('id', bookingId);
+
+    if (error) {
+      alert('Error cancelling booking: ' + error.message);
+    } else {
+      alert('Booking cancelled successfully!');
+      fetchBookings(); // Refresh list
+    }
+    setCancelling(null);
+  };
+
+  return (
+    <div className="min-h-[100dvh] bg-zinc-950 text-white p-6 pb-20">
+      <header className="flex items-center justify-between mb-6">
+        <button onClick={() => setView('admin_home')} className="text-zinc-400 hover:text-white">
+          <ChevronLeft size={24} />
+        </button>
+        <h2 className="text-lg font-serif text-yellow-500">ALL SCHEDULES</h2>
+        <div className="w-6"></div>
+      </header>
+
+      {loading ? (
+        <p className="text-zinc-500 text-center py-10">Loading schedules...</p>
+      ) : bookings.length > 0 ? (
+        <div className="space-y-3">
+          {bookings.map((booking) => (
+            <div
+              key={booking.id}
+              className="bg-zinc-900 border border-zinc-800 rounded-xl p-4 hover:border-yellow-600/30 transition-colors"
+            >
+              <div className="flex justify-between items-start mb-3">
+                <div className="flex-1">
+                  <h3 className="font-bold text-white text-lg mb-1">
+                    {booking.profiles?.name || 'Unknown User'}
+                  </h3>
+                  <p className="text-zinc-500 text-xs">{booking.profiles?.email || '-'}</p>
+                </div>
+                <button
+                  onClick={() => handleCancelBooking(
+                    booking.id,
+                    booking.profiles?.name || 'User',
+                    booking.date,
+                    booking.time
+                  )}
+                  disabled={cancelling === booking.id}
+                  className="p-2 rounded-lg bg-red-600/20 border border-red-600/30 text-red-500 hover:bg-red-600/30 active:scale-95 transition-all disabled:opacity-50"
+                >
+                  <Trash2 size={18} />
+                </button>
+              </div>
+              
+              <div className="flex items-center gap-4 text-sm">
+                <div className="flex items-center gap-2 text-yellow-500">
+                  <Calendar size={16} />
+                  <span className="font-medium">{booking.date}</span>
+                </div>
+                <div className="flex items-center gap-2 text-yellow-500">
+                  <Clock size={16} />
+                  <span className="font-serif text-lg">{booking.time}</span>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <div className="flex flex-col items-center justify-center py-20 text-center">
+          <Calendar size={64} className="text-zinc-700 mb-4" />
+          <h3 className="text-xl font-bold text-zinc-500 mb-2">No Bookings</h3>
+          <p className="text-sm text-zinc-600">No scheduled classes yet</p>
+        </div>
+      )}
+    </div>
+  );
+};
+
+// --- [AdminHome] 관리자 메인 화면 ---
+const AdminHome = ({ setView, logout }) => (
+  <div className="min-h-[100dvh] bg-zinc-950 text-white flex flex-col relative pb-safe">
+    <header className="p-6 flex justify-between items-center">
+      <div>
+        <h2 className="text-xl font-serif text-yellow-500">THE COACH</h2>
+        <p className="text-zinc-500 text-xs">Manager Mode</p>
+      </div>
+      <button onClick={logout}><LogOut size={20} className="text-zinc-600 hover:text-white transition-colors" /></button>
+    </header>
+    <div className="flex-1 flex flex-col items-center justify-center px-6 gap-8">
+      <div className="relative group">
+        <div className="absolute -inset-1 bg-gradient-to-r from-yellow-600 to-amber-600 rounded-full blur opacity-25 group-hover:opacity-50 transition duration-1000"></div>
+        <button onClick={() => setView('scanner')} className="relative w-48 h-48 rounded-full bg-zinc-900 border border-zinc-800 flex flex-col items-center justify-center gap-2 active:scale-95 transition-all shadow-2xl">
+          <Camera size={40} className="text-yellow-500" />
+          <span className="text-sm tracking-widest font-medium text-zinc-300">QR SCAN</span>
+        </button>
+      </div>
+      <div className="w-full max-w-xs space-y-2 mt-8">
+         <ButtonGhost onClick={() => setView('member_list')}>CLIENT LIST</ButtonGhost>
+         <ButtonGhost onClick={() => setView('admin_schedule')}>SCHEDULE</ButtonGhost>
+         <ButtonGhost onClick={() => setView('library')}>LIBRARY</ButtonGhost>
+         <ButtonGhost onClick={() => setView('revenue')}>💰 REVENUE</ButtonGhost>
+      </div>
+    </div>
+  </div>
+);
+
+// --- [MemberList] 회원 목록 (DB에서 가져옴) ---
+const MemberList = ({ setView, setSelectedMemberId }) => {
+    const [users, setUsers] = useState([]);
+    const [loading, setLoading] = useState(true);
+
+    useEffect(() => {
+        const fetchUsers = async () => {
+            const { data, error } = await supabase
+                .from('profiles')
+                .select('*')
+                .eq('role', 'user'); 
+            if (error) console.error(error);
+            else setUsers(data);
+            setLoading(false);
+        };
+        fetchUsers();
+    }, []);
+
+    return (
+      <div className="min-h-[100dvh] bg-zinc-950 text-white p-6">
+        <header className="flex items-center justify-between mb-8">
+          <button onClick={() => setView('admin_home')} className="text-zinc-400 hover:text-white"><ChevronRight className="rotate-180" /></button>
+          <h2 className="text-lg font-serif text-yellow-500">CLIENTS</h2>
+          <div className="w-6"></div>
+        </header>
+        <div className="space-y-4">
+          {loading ? (
+              <p className="text-zinc-500 text-center py-10">Loading clients...</p>
+          ) : users.length > 0 ? (
+              users.map(u => (
+                <div key={u.id} onClick={() => { setSelectedMemberId(u.id); setView('member_detail'); }} className="bg-zinc-900 p-4 rounded-xl border border-zinc-800 flex justify-between items-center active:bg-zinc-800 hover:border-yellow-600/30 transition-colors cursor-pointer">
+                    <div>
+                        <h3 className="font-bold text-lg text-white">{u.name}</h3>
+                        <p className="text-zinc-500 text-xs mt-1">{u.email}</p>
+                    </div>
+                    <div className="flex items-center gap-4">
+                        <div className="text-right">
+                            <span className="block text-[10px] text-zinc-500 uppercase tracking-wider">Remaining</span>
+                            <span className="text-lg font-serif text-yellow-500">{u.remaining_sessions}</span>
+                        </div>
+                        <ChevronRight size={20} className="text-zinc-600" />
+                    </div>
+                </div>
+              ))
+          ) : (
+              <div className="text-zinc-500 text-center py-10 flex flex-col items-center gap-2">
+                  <User size={40} className="opacity-20"/>
+                  <p>등록된 회원이 없습니다.</p>
+              </div>
+          )}
+        </div>
+      </div>
+    );
+};
+
+// --- [MemberDetail] 회원 상세 & 세션 티켓 관리 ---
+const MemberDetail = ({ selectedMemberId, setView }) => {
+    const [u, setU] = useState(null);
+    const [batches, setBatches] = useState([]);
+    const [addAmount, setAddAmount] = useState('');
+    const [priceInput, setPriceInput] = useState(0);
+    const [loading, setLoading] = useState(false);
+    const [loadingBatches, setLoadingBatches] = useState(true);
+
+    const fetchMemberDetails = async () => {
+        // Fetch user profile
+        const { data: userData } = await supabase
+            .from('profiles')
+            .select('*')
+            .eq('id', selectedMemberId)
+            .single();
+        setU(userData);
+        setPriceInput(userData?.price_per_session || 0);
+
+        // Fetch session batches (tickets)
+        setLoadingBatches(true);
+        const { data: batchData, error: batchError } = await supabase
+            .from('session_batches')
+            .select('*')
+            .eq('user_id', selectedMemberId)
+            .gt('remaining_count', 0) // Only active batches
+            .order('created_at', { ascending: true }); // Oldest first (FIFO)
+
+        if (batchError) {
+            console.error('Error fetching batches:', batchError);
+            setBatches([]);
+        } else {
+            setBatches(batchData || []);
+        }
+        setLoadingBatches(false);
+    };
+
+    useEffect(() => {
+        fetchMemberDetails();
+    }, [selectedMemberId]);
+
+    // Calculate total: If batches exist, sum them; otherwise, use profile's remaining_sessions
+    const totalRemaining = batches.length > 0 
+        ? batches.reduce((sum, batch) => sum + batch.remaining_count, 0)
+        : (u?.remaining_sessions || 0);
+
+    const handleAddSession = async () => {
+        // Validation
+        if (!addAmount || isNaN(addAmount)) {
+            return alert('세션 횟수를 입력해주세요.');
+        }
+        if (priceInput === null || priceInput === '' || isNaN(priceInput)) {
+            return alert('유효한 단가를 입력해주세요.');
+        }
+
+        const sessionAmount = parseInt(addAmount);
+        const priceValue = parseInt(priceInput);
+
+        if (sessionAmount <= 0) {
+            return alert('세션 횟수는 1 이상이어야 합니다.');
+        }
+        if (priceValue < 0) {
+            return alert('단가는 0 이상이어야 합니다.');
+        }
+
+        // Confirmation
+        const confirmMessage = `${u.name}님에게\n• 세션 ${sessionAmount}회 추가\n• 단가: ${priceValue.toLocaleString()}원/회\n\n새로운 티켓을 생성하시겠습니까?`;
+        if (!confirm(confirmMessage)) return;
+
+        // Call RPC function to add new session batch
+        setLoading(true);
+        const { data, error } = await supabase.rpc('admin_add_session_batch', {
+            target_user_id: selectedMemberId,
+            sessions_to_add: sessionAmount,
+            price: priceValue
+        });
+
+        if (error) {
+            alert('오류 발생: ' + error.message);
+            setLoading(false);
+        } else {
+            alert(`✓ 새 티켓 추가 완료!\n• ${sessionAmount}회\n• ${priceValue.toLocaleString()}원/회`);
+            setAddAmount(''); 
+            // CRUCIAL: Refresh all data to show the new batch immediately
+            await fetchMemberDetails();
+            setLoading(false);
+        }
+    };
+
+    if (!u) return <div className="min-h-[100dvh] bg-zinc-950 flex items-center justify-center text-zinc-500">Loading...</div>;
+
+    return (
+      <div className="min-h-[100dvh] bg-zinc-950 text-white p-6 pb-20 relative">
+        <header className="flex items-center justify-between mb-6">
+          <button onClick={() => setView('member_list')} className="text-zinc-400 hover:text-white">
+            <ChevronRight className="rotate-180" />
+          </button>
+          <h2 className="text-lg font-serif text-yellow-500">{u.name}</h2>
+          <div className="w-6"></div>
+        </header>
+        
+        <div className="space-y-6">
+          {/* Top Summary - Total Remaining Sessions */}
+          <div className="bg-gradient-to-br from-zinc-800 to-zinc-900 p-6 rounded-2xl border border-zinc-700/50 relative overflow-hidden shadow-xl">
+            <div className="relative z-10">
+                <div className="flex justify-between items-end mb-2">
+                    <span className="text-zinc-400 text-sm tracking-widest uppercase">Total Remaining</span>
+                    <span className="text-4xl font-serif text-yellow-500">{totalRemaining}</span>
+                </div>
+                <p className="text-zinc-500 text-xs">{u.email}</p>
+                {batches.length > 0 && (
+                    <p className="text-zinc-600 text-xs mt-1">
+                        {batches.length} active ticket{batches.length > 1 ? 's' : ''}
+                    </p>
+                )}
+            </div>
+            <div className="absolute top-0 right-0 p-4 opacity-10">
+                <CreditCard size={100} className="text-white"/>
+            </div>
+          </div>
+
+          {/* Ticket List (Session Batches) */}
+          <div className="bg-zinc-900 border border-zinc-800 p-5 rounded-xl space-y-4">
+              <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                  <History size={16} className="text-yellow-500"/> 
+                  Active Session Packs
+              </h3>
+              
+              {loadingBatches ? (
+                  <p className="text-zinc-500 text-center py-6">Loading tickets...</p>
+              ) : batches.length > 0 ? (
+                  <div className="space-y-3">
+                      {batches.map((batch, index) => {
+                          const isInUse = index === 0; // First batch (oldest) is currently being used
+                          const batchDate = new Date(batch.created_at).toLocaleDateString('ko-KR', {
+                              year: 'numeric',
+                              month: '2-digit',
+                              day: '2-digit'
+                          }).replace(/\. /g, '.').replace(/\.$/, ''); // Format: 2024.02.09
+                          
+                          return (
+                              <div 
+                                  key={batch.id}
+                                  className={`bg-zinc-950 rounded-lg p-4 transition-all ${
+                                      isInUse 
+                                          ? 'border-2 border-yellow-600/70 bg-yellow-600/5' 
+                                          : 'border border-zinc-800'
+                                  }`}
+                              >
+                                  <div className="flex justify-between items-start mb-3">
+                                      <div className="flex-1">
+                                          {/* Date */}
+                                          <div className="flex items-center gap-2 mb-2">
+                                              <Calendar size={14} className={isInUse ? 'text-yellow-500' : 'text-zinc-500'} />
+                                              <span className="text-sm text-zinc-400">{batchDate}</span>
+                                              {isInUse && (
+                                                  <span className="text-xs bg-yellow-600 text-black font-bold px-2 py-0.5 rounded">
+                                                      IN USE
+                                                  </span>
+                                              )}
+                                          </div>
+                                          
+                                          {/* Status & Price */}
+                                          <div className="flex items-center gap-6">
+                                              <div>
+                                                  <span className="text-xs text-zinc-500 block mb-1">🎫 Status</span>
+                                                  <span className="text-lg font-bold text-white">
+                                                      {batch.remaining_count} / {batch.total_count}
+                                                  </span>
+                                              </div>
+                                              <div className="h-10 w-px bg-zinc-800"></div>
+                                              <div>
+                                                  <span className="text-xs text-zinc-500 block mb-1">💰 Price</span>
+                                                  <span className="text-lg font-serif text-yellow-500">
+                                                      {batch.price_per_session.toLocaleString()}
+                                                      <span className="text-xs ml-1">원</span>
+                                                  </span>
+                                              </div>
+                                          </div>
+                                      </div>
+                                  </div>
+                                  
+                                  {/* Progress Bar */}
+                                  <div className="w-full bg-zinc-800 rounded-full h-2 overflow-hidden">
+                                      <div 
+                                          className={`h-full rounded-full transition-all ${
+                                              isInUse ? 'bg-yellow-600' : 'bg-zinc-700'
+                                          }`}
+                                          style={{ 
+                                              width: `${(batch.remaining_count / batch.total_count) * 100}%` 
+                                          }}
+                                      ></div>
+                                  </div>
+                              </div>
+                          );
+                      })}
+                  </div>
+              ) : (
+                  <div className="text-center py-8 border border-zinc-800 rounded-lg bg-zinc-950">
+                      <CreditCard size={40} className="mx-auto mb-3 opacity-20 text-zinc-600" />
+                      <p className="text-sm text-zinc-500 mb-1">No detailed purchase history available</p>
+                      {u.remaining_sessions > 0 && (
+                          <p className="text-xs text-zinc-600">
+                              (Showing legacy balance: {u.remaining_sessions} sessions)
+                          </p>
+                      )}
+                  </div>
+              )}
+          </div>
+
+          {/* Add New Session Pack */}
+          <div className="bg-zinc-900 border border-zinc-800 p-5 rounded-xl space-y-4">
+              <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                  <Plus size={16} className="text-yellow-500"/> 
+                  Add New Session Pack
+              </h3>
+
+              {/* Input Fields */}
+              <div className="space-y-3">
+                  <div>
+                      <label className="text-xs text-zinc-400 uppercase tracking-wider block mb-2">
+                          Sessions to Add
+                      </label>
+                      <input 
+                        type="number" 
+                        placeholder="예: 10" 
+                        className="w-full bg-zinc-950 border border-zinc-800 rounded-lg p-3 text-white focus:border-yellow-600 outline-none transition-colors"
+                        value={addAmount}
+                        onChange={e => setAddAmount(e.target.value)}
+                      />
+                  </div>
+                  
+                  <div>
+                      <label className="text-xs text-zinc-400 uppercase tracking-wider block mb-2">
+                          Unit Price (KRW)
+                      </label>
+                      <input 
+                        type="number" 
+                        placeholder="예: 50000" 
+                        className="w-full bg-zinc-950 border border-zinc-800 rounded-lg p-3 text-white focus:border-yellow-600 outline-none transition-colors"
+                        value={priceInput}
+                        onChange={e => setPriceInput(e.target.value)}
+                      />
+                  </div>
+              </div>
+
+              {/* Action Button */}
+              <button 
+                onClick={handleAddSession}
+                disabled={loading}
+                className="w-full bg-yellow-600 text-white font-bold py-3 rounded-lg text-sm hover:bg-yellow-500 active:scale-95 transition-all disabled:opacity-50"
+              >
+                  {loading ? '처리 중...' : 'ADD SESSION PACK'}
+              </button>
+
+              {/* Helper Text */}
+              <p className="text-xs text-zinc-500 flex items-start gap-2">
+                <Sparkles size={14} className="mt-0.5 flex-shrink-0" />
+                <span>새 티켓이 추가되며, 가장 오래된 티켓부터 소진됩니다 (FIFO)</span>
+              </p>
+          </div>
+
+          {/* User Info Section */}
+          <div className="pt-6 border-t border-zinc-800 space-y-4">
+             <div>
+                 <label className="text-xs text-zinc-500 uppercase tracking-widest block mb-1">Goal</label>
+                 <p className="text-sm text-zinc-300 bg-zinc-900 p-3 rounded-lg border border-zinc-800">
+                     {u.goal || '등록된 목표가 없습니다.'}
+                 </p>
+             </div>
+             <div className="flex gap-4">
+                 <div className="flex-1">
+                     <label className="text-xs text-zinc-500 uppercase tracking-widest block mb-1">Birth</label>
+                     <p className="text-sm text-zinc-300">{u.dob || '-'}</p>
+                 </div>
+                 <div className="flex-1">
+                     <label className="text-xs text-zinc-500 uppercase tracking-widest block mb-1">Gender</label>
+                     <p className="text-sm text-zinc-300">{u.gender === 'M' ? 'Male' : 'Female'}</p>
+                 </div>
+             </div>
+          </div>
+        </div>
+      </div>
+    );
+};
+
+// --- [Admin Route] 관리자만 접근 가능한 페이지 ---
+const AdminRoute = ({ children, session }) => {
+  // [미구현] 관리자 권한 확인 로직 필요
+  const isAdmin = true; // 임시로 true 설정
+
+  if (!isAdmin) {
+    return <p>관리자 권한이 필요합니다.</p>;
+  }
+
+  return children;
+};
