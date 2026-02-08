@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ArrowLeft, User, Calendar, Target, Mail, Lock } from 'lucide-react';
+import { ArrowLeft, User, Calendar, Mail, Lock } from 'lucide-react';
 import { supabase } from '../lib/supabaseClient'; // 아까 만든 설정 파일 가져오기
 
 // --- [UI 컴포넌트] 고급스러운 골드 버튼 복구 ---
@@ -14,7 +14,7 @@ const ButtonPrimary = ({ children, onClick, className = "", disabled }) => (
 );
 
 const RegisterView = ({ setView }) => {
-    const [form, setForm] = useState({ email: '', password: '', name: '', dob: '', gender: 'M', goal: '' });
+    const [form, setForm] = useState({ email: '', password: '', name: '', dob: '', gender: 'M' });
     const [loading, setLoading] = useState(false);
 
     // --- 회원가입 로직 ---
@@ -40,7 +40,6 @@ const RegisterView = ({ setView }) => {
                         full_name: form.name,
                         dob: form.dob,
                         gender: form.gender,
-                        goal: form.goal,
                         role: 'user', // 기본 권한
                     },
                 },
@@ -102,15 +101,6 @@ const RegisterView = ({ setView }) => {
                           </select>
                           <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-zinc-500">▼</div>
                       </div>
-                  </div>
-              </div>
-
-              {/* 목표 */}
-              <div className="space-y-2">
-                  <label className="text-xs text-zinc-500 ml-1">Goal</label>
-                  <div className="relative">
-                      <Target size={16} className="absolute left-4 top-4 text-zinc-500"/>
-                      <textarea className="w-full bg-zinc-900 border border-zinc-800 rounded-xl p-4 pl-12 text-white h-28 resize-none focus:border-yellow-600 outline-none transition-colors" placeholder="운동 목표나 특이사항을 적어주세요." value={form.goal} onChange={e=>setForm({...form, goal: e.target.value})} />
                   </div>
               </div>
               

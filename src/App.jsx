@@ -1,6 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { QrCode, Camera, CheckCircle, ChevronRight, BookOpen, LogOut, Plus, User, X, CreditCard, History, Search, ArrowLeft, Edit3, Save, Sparkles, MessageSquare, Calendar, Clock, ChevronLeft, XCircle, Trash2, Edit, Image } from 'lucide-react';
+import { Html5QrcodeScanner } from 'html5-qrcode';
 
 // [중요] 우리가 만든 Supabase 연결 도구와 페이지 가져오기
 import { supabase } from './lib/supabaseClient'; 
@@ -79,12 +80,45 @@ const ButtonGhost = ({ children, onClick, className = "" }) => (
   </button>
 );
 
+const BackButton = ({ onClick, label = "Back" }) => (
+  <button
+    onClick={onClick}
+    className="flex items-center gap-2 text-zinc-400 hover:text-yellow-500 transition-colors mb-4"
+  >
+    <ArrowLeft size={20} />
+    <span className="text-sm uppercase tracking-wider">{label}</span>
+  </button>
+);
+
 // --- [LoginView] 진짜 로그인 기능 연결 ---
 // --- [LoginView] 관리자 뒷문 추가 버전 ---
 const LoginView = ({ setView }) => {
     const [email, setEmail] = useState('');
     const [pw, setPw] = useState('');
     const [loading, setLoading] = useState(false);
+    const [showForgotPassword, setShowForgotPassword] = useState(false);
+    const [resetEmail, setResetEmail] = useState('');
+
+    const handleForgotPassword = async () => {
+        if (!resetEmail) {
+            alert('Please enter your email address');
+            return;
+        }
+        
+        try {
+            const { error } = await supabase.auth.resetPasswordForEmail(resetEmail, {
+                redirectTo: `${window.location.origin}/reset-password`,
+            });
+            
+            if (error) throw error;
+            
+            alert('Password reset link sent to your email!');
+            setShowForgotPassword(false);
+            setResetEmail('');
+        } catch (error) {
+            alert('Error: ' + error.message);
+        }
+    };
 
     const handleLogin = async () => {
         // [관리자 뒷문] admin / 1234 입력 시 강제 이동
@@ -115,19 +149,72 @@ const LoginView = ({ setView }) => {
           <h2 className="text-3xl font-serif text-yellow-500 mb-2">THE COACH</h2>
           <p className="text-zinc-500 text-xs tracking-[0.2em] uppercase">Premium Management System</p>
         </div>
-        <div className="w-full max-w-sm space-y-4">
-          <input type="text" placeholder="EMAIL (admin)" className="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-4 py-3 text-white focus:border-yellow-600 outline-none" value={email} onChange={e => setEmail(e.target.value)} />
-          <input type="password" placeholder="PASSWORD (1234)" className="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-4 py-3 text-white focus:border-yellow-600 outline-none" value={pw} onChange={e => setPw(e.target.value)} />
-          
-          <ButtonPrimary onClick={handleLogin}>
-              {loading ? 'CHECKING...' : 'ENTER'}
-          </ButtonPrimary>
-        </div>
-        <div className="flex gap-4 mt-6 text-xs text-zinc-500">
-            <button className="hover:text-yellow-500">ID/PW 찾기</button>
-            <span className="text-zinc-700">|</span>
-            <button onClick={() => setView('register')} className="hover:text-yellow-500">회원가입</button>
-        </div>
+
+        {!showForgotPassword ? (
+          <>
+            <div className="w-full max-w-sm space-y-4">
+              <input 
+                type="text" 
+                placeholder="EMAIL (admin)" 
+                className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-3 text-white focus:border-yellow-600 outline-none transition-colors" 
+                value={email} 
+                onChange={e => setEmail(e.target.value)} 
+              />
+              <input 
+                type="password" 
+                placeholder="PASSWORD (1234)" 
+                className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-3 text-white focus:border-yellow-600 outline-none transition-colors" 
+                value={pw} 
+                onChange={e => setPw(e.target.value)} 
+              />
+              
+              <ButtonPrimary onClick={handleLogin}>
+                  {loading ? 'CHECKING...' : 'ENTER'}
+              </ButtonPrimary>
+            </div>
+            
+            <button
+              onClick={() => setShowForgotPassword(true)}
+              className="mt-4 text-sm text-zinc-500 hover:text-yellow-500 transition-colors"
+            >
+              Forgot Password?
+            </button>
+
+            <div className="flex gap-4 mt-6 text-xs text-zinc-500">
+                <button onClick={() => setView('register')} className="hover:text-yellow-500">회원가입</button>
+            </div>
+          </>
+        ) : (
+          <div className="w-full max-w-sm bg-zinc-900 p-6 rounded-xl border border-zinc-800">
+            <h3 className="text-xl font-bold text-yellow-500 mb-4">Reset Password</h3>
+            <p className="text-sm text-zinc-400 mb-4">
+              Enter your email address and we'll send you a link to reset your password.
+            </p>
+            
+            <input 
+              type="email" 
+              placeholder="Enter your email" 
+              value={resetEmail} 
+              onChange={e => setResetEmail(e.target.value)}
+              className="w-full px-4 py-3 bg-zinc-950 border border-zinc-800 rounded-xl text-white placeholder-zinc-600 focus:border-yellow-600 outline-none transition-colors mb-4"
+            />
+
+            <div className="flex gap-2">
+              <button
+                onClick={() => setShowForgotPassword(false)}
+                className="flex-1 py-3 px-4 bg-zinc-800 hover:bg-zinc-700 rounded-xl text-zinc-400 hover:text-white transition-all"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleForgotPassword}
+                className="flex-1 py-3 px-4 bg-yellow-600 hover:bg-yellow-500 rounded-xl text-black font-bold transition-all"
+              >
+                Send Reset Link
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     );
 };
@@ -428,6 +515,13 @@ export default function App() {
   const [isLibraryLoading, setIsLibraryLoading] = useState(false);
   const [showWriteModal, setShowWriteModal] = useState(false);
   const [newPost, setNewPost] = useState({ title: '', content: '', category: 'Tip', image_url: '' });
+  
+  // [Library Enhanced State]
+  const [selectedCategory, setSelectedCategory] = useState('All');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [filteredPosts, setFilteredPosts] = useState([]);
+  const [selectedPost, setSelectedPost] = useState(null);
+  const [showPostDetail, setShowPostDetail] = useState(false);
 
   // [Smart Revenue State]
   const [currentRevenueDate, setCurrentRevenueDate] = useState(new Date());
@@ -501,6 +595,32 @@ export default function App() {
       alert('Error saving post: ' + err.message);
     }
   };
+
+  // [Library Search & Filter Logic]
+  const handleSearch = () => {
+    let filtered = libraryPosts;
+
+    // Filter by category
+    if (selectedCategory !== 'All') {
+      filtered = filtered.filter(post => post.category === selectedCategory);
+    }
+
+    // Filter by search query (only when button clicked)
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase();
+      filtered = filtered.filter(post =>
+        post.title.toLowerCase().includes(query) ||
+        (post.content && post.content.toLowerCase().includes(query))
+      );
+    }
+
+    setFilteredPosts(filtered);
+  };
+
+  // Update filtered posts when category changes or posts load
+  useEffect(() => {
+    handleSearch();
+  }, [selectedCategory, libraryPosts]);
 
   // Auto-fetch when view changes to library
   useEffect(() => {
@@ -855,6 +975,8 @@ const QRScanner = ({ setView }) => {
     const [scanning, setScanning] = useState(false);
     const [result, setResult] = useState(null);
     const [searchTerm, setSearchTerm] = useState('');
+    const [cameraActive, setCameraActive] = useState(false);
+    const scannerRef = useRef(null);
 
     useEffect(() => {
         const fetchUsers = async () => {
@@ -869,6 +991,83 @@ const QRScanner = ({ setView }) => {
         };
         fetchUsers();
     }, []);
+
+    useEffect(() => {
+        if (cameraActive && !scannerRef.current) {
+            const scanner = new Html5QrcodeScanner(
+                "qr-reader",
+                { 
+                    fps: 10,
+                    qrbox: { width: 250, height: 250 },
+                    aspectRatio: 1.0
+                },
+                false
+            );
+
+            scanner.render(onScanSuccess, onScanError);
+            scannerRef.current = scanner;
+        }
+
+        return () => {
+            if (scannerRef.current) {
+                scannerRef.current.clear().catch(console.error);
+                scannerRef.current = null;
+            }
+        };
+    }, [cameraActive]);
+
+    const onScanSuccess = async (decodedText) => {
+        console.log(`QR Code detected: ${decodedText}`);
+        
+        // Stop scanner
+        if (scannerRef.current) {
+            scannerRef.current.clear().catch(console.error);
+            scannerRef.current = null;
+        }
+        setCameraActive(false);
+        setScanning(true);
+
+        try {
+            // Call the RPC function with scanned UUID
+            const { data, error } = await supabase.rpc('check_in_user', {
+                user_uuid: decodedText
+            });
+
+            if (error) throw error;
+
+            // Find user name
+            const user = users.find(u => u.id === decodedText);
+            const userName = user?.name || 'Unknown User';
+
+            setResult({
+                success: true,
+                userName: userName,
+                remainingSessions: data.remaining,
+                message: `Check-in successful! ${data.remaining} sessions remaining.`
+            });
+
+            // Refresh user list
+            const { data: updatedUsers } = await supabase
+                .from('profiles')
+                .select('*')
+                .eq('role', 'user')
+                .order('name');
+            setUsers(updatedUsers || []);
+
+        } catch (error) {
+            setResult({
+                success: false,
+                userName: 'Unknown',
+                message: error.message || 'Check-in failed'
+            });
+        } finally {
+            setScanning(false);
+        }
+    };
+
+    const onScanError = (errorMessage) => {
+        // Ignore continuous scan errors
+    };
 
     const handleCheckIn = async (userId, userName) => {
         if (scanning) return;
@@ -890,8 +1089,8 @@ const QRScanner = ({ setView }) => {
             setResult({
                 success: true,
                 userName: userName,
-                remainingSessions: data.remaining_sessions,
-                message: data.message
+                remainingSessions: data.remaining,
+                message: `Check-in successful!`
             });
 
             // Refresh user list
@@ -920,13 +1119,55 @@ const QRScanner = ({ setView }) => {
 
     return (
       <div className="min-h-[100dvh] bg-zinc-950 text-white p-6 pb-20">
-        <header className="flex items-center justify-between mb-6">
-          <button onClick={() => setView('admin_home')} className="text-zinc-400 hover:text-white">
-            <ChevronLeft size={24} />
-          </button>
-          <h2 className="text-lg font-serif text-yellow-500">QR CHECK-IN</h2>
-          <div className="w-6"></div>
+        <BackButton onClick={() => setView('admin_home')} />
+        
+        <header className="mb-6">
+          <h2 className="text-2xl font-bold text-yellow-500 mb-2">QR CHECK-IN</h2>
+          <p className="text-zinc-400 text-sm">Scan QR codes or select from list</p>
         </header>
+
+        {/* Camera Scanner Section */}
+        {!cameraActive ? (
+          <div className="mb-6 bg-zinc-900 rounded-xl p-6 border border-zinc-800">
+            <div className="flex flex-col items-center">
+              <Camera size={48} className="text-yellow-500 mb-4" />
+              <h3 className="text-lg font-bold mb-2">Real QR Scanner</h3>
+              <p className="text-sm text-zinc-400 mb-4 text-center">
+                Use your camera to scan member QR codes
+              </p>
+              <button
+                onClick={() => setCameraActive(true)}
+                className="bg-yellow-600 hover:bg-yellow-500 text-black font-bold py-3 px-6 rounded-xl transition-all shadow-lg"
+              >
+                Start Camera
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div className="mb-6 space-y-4">
+            <div id="qr-reader" className="rounded-xl overflow-hidden border-2 border-yellow-500"></div>
+            
+            <button
+              onClick={() => {
+                if (scannerRef.current) {
+                  scannerRef.current.clear().catch(console.error);
+                  scannerRef.current = null;
+                }
+                setCameraActive(false);
+              }}
+              className="w-full bg-zinc-800 hover:bg-zinc-700 text-white font-bold py-3 px-6 rounded-xl transition-all"
+            >
+              Stop Camera
+            </button>
+          </div>
+        )}
+
+        {/* Divider */}
+        <div className="flex items-center gap-4 my-6">
+          <div className="flex-1 h-px bg-zinc-800"></div>
+          <span className="text-xs text-zinc-500 uppercase tracking-wider">Or Select Member</span>
+          <div className="flex-1 h-px bg-zinc-800"></div>
+        </div>
 
         {/* Search Bar */}
         <div className="mb-6">
@@ -935,7 +1176,7 @@ const QRScanner = ({ setView }) => {
             <input
               type="text"
               placeholder="Search by name or email..."
-              className="w-full bg-zinc-900 border border-zinc-800 rounded-lg pl-10 pr-4 py-3 text-white focus:border-yellow-600 outline-none transition-colors"
+              className="w-full bg-zinc-900 border border-zinc-800 rounded-xl pl-10 pr-4 py-3 text-white focus:border-yellow-600 outline-none transition-colors"
               value={searchTerm}
               onChange={e => setSearchTerm(e.target.value)}
             />
