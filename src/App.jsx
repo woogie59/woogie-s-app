@@ -867,6 +867,9 @@ export default function App() {
           {/* 라이브러리 (지식 베이스) */}
           {(session || view === 'admin_home' || view === 'library') && view === 'library' && (
             <div className="min-h-[100dvh] bg-zinc-950 flex flex-col p-6 text-white overflow-y-auto pb-24">
+              {/* BACK BUTTON */}
+              <BackButton onClick={() => setView(session?.user ? 'client_home' : 'admin_home')} label="Home" />
+              
               <div className="flex justify-between items-center mb-6">
                 <h2 className="text-2xl font-bold text-yellow-500">📚 KNOWLEDGE BASE</h2>
                 {(session?.user?.email === 'admin' || !session) && (
@@ -879,33 +882,125 @@ export default function App() {
                 )}
               </div>
 
+              {/* CATEGORY TABS */}
+              <div className="flex gap-2 mb-4 overflow-x-auto">
+                {['All', 'Exercise', 'Diet', 'Routine'].map(cat => (
+                  <button
+                    key={cat}
+                    onClick={() => setSelectedCategory(cat)}
+                    className={`px-4 py-2 rounded-lg font-medium whitespace-nowrap transition-all ${
+                      selectedCategory === cat
+                        ? 'bg-yellow-500 text-black'
+                        : 'bg-zinc-800 text-zinc-400 hover:text-white'
+                    }`}
+                  >
+                    {cat}
+                  </button>
+                ))}
+              </div>
+
+              {/* SEARCH BAR WITH BUTTON */}
+              <div className="flex gap-2 mb-6">
+                <input
+                  type="text"
+                  placeholder="Search posts..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="flex-1 bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-3 text-white focus:border-yellow-500 outline-none"
+                />
+                <button
+                  onClick={handleSearch}
+                  className="bg-yellow-600 hover:bg-yellow-500 text-black font-bold px-6 py-3 rounded-xl transition-all flex items-center gap-2"
+                >
+                  <Search size={20} />
+                  Search
+                </button>
+              </div>
+
               {isLibraryLoading ? (
                 <div className="text-center text-zinc-400 mt-10">Loading library...</div>
-              ) : libraryPosts.length === 0 ? (
+              ) : filteredPosts.length === 0 ? (
                 <div className="text-center text-zinc-500 mt-10 p-8 border border-zinc-800 rounded-lg">
-                  <p className="text-xl">No posts yet.</p>
+                  <p className="text-xl">No posts found.</p>
                   {(session?.user?.email === 'admin' || !session) && <p className="text-sm mt-2">Click "+ NEW POST" to add content.</p>}
                 </div>
               ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {libraryPosts.map((post) => (
-                    <div key={post.id} className="bg-zinc-900 rounded-lg overflow-hidden shadow-lg border border-zinc-800 hover:border-yellow-500/50 transition duration-300">
+                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                  {filteredPosts.map((post) => (
+                    <button
+                      key={post.id}
+                      onClick={() => {
+                        setSelectedPost(post);
+                        setShowPostDetail(true);
+                      }}
+                      className="bg-zinc-900 rounded-xl overflow-hidden border border-zinc-800 hover:border-yellow-500 transition-all cursor-pointer group"
+                    >
                       {post.image_url ? (
-                        <img src={post.image_url} alt={post.title} className="w-full h-48 object-cover" />
+                        <img src={post.image_url} alt={post.title} className="w-full h-32 object-cover group-hover:scale-105 transition-transform" />
                       ) : (
-                        <div className="w-full h-48 bg-zinc-800 flex items-center justify-center text-zinc-500">No Image</div>
+                        <div className="w-full h-32 bg-zinc-800 flex items-center justify-center text-zinc-600">
+                          <Image size={32} />
+                        </div>
                       )}
-                      <div className="p-4">
-                        <span className="text-xs font-bold text-yellow-400 bg-yellow-900/40 px-2 py-1 rounded mb-2 inline-block border border-yellow-500/20">
-                          {post.category}
-                        </span>
-                        <h3 className="text-xl font-bold mb-2 text-white">{post.title}</h3>
-                        <p className="text-zinc-400 text-sm line-clamp-3 whitespace-pre-line">{post.content}</p>
+                      <div className="p-3">
+                        <h3 className="font-bold text-sm text-white line-clamp-2 text-left">{post.title}</h3>
                       </div>
-                    </div>
+                    </button>
                   ))}
                 </div>
               )}
+
+              {/* POST DETAIL MODAL */}
+              <AnimatePresence>
+                {showPostDetail && selectedPost && (
+                  <motion.div
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    className="fixed inset-0 bg-black/90 flex items-center justify-center z-50 p-4"
+                    onClick={() => setShowPostDetail(false)}
+                  >
+                    <motion.div
+                      initial={{ scale: 0.9, opacity: 0 }}
+                      animate={{ scale: 1, opacity: 1 }}
+                      exit={{ scale: 0.9, opacity: 0 }}
+                      className="bg-zinc-900 rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto border-2 border-yellow-500"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      {selectedPost.image_url && (
+                        <img 
+                          src={selectedPost.image_url} 
+                          alt={selectedPost.title} 
+                          className="w-full h-64 object-cover"
+                        />
+                      )}
+                      <div className="p-6">
+                        <div className="flex justify-between items-start mb-4">
+                          <span className="text-xs font-bold text-yellow-400 bg-yellow-900/40 px-3 py-1 rounded-lg border border-yellow-500/20">
+                            {selectedPost.category}
+                          </span>
+                          <button
+                            onClick={() => setShowPostDetail(false)}
+                            className="text-zinc-500 hover:text-white transition-colors"
+                          >
+                            <X size={24} />
+                          </button>
+                        </div>
+                        <h2 className="text-3xl font-bold text-yellow-500 mb-4">{selectedPost.title}</h2>
+                        <div className="text-zinc-300 leading-relaxed whitespace-pre-line">
+                          {selectedPost.content}
+                        </div>
+                        <button
+                          onClick={() => setShowPostDetail(false)}
+                          className="w-full mt-6 bg-yellow-600 text-black font-bold py-3 rounded-xl hover:bg-yellow-500 transition-all"
+                        >
+                          CLOSE
+                        </button>
+                      </div>
+                    </motion.div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
 
               {/* Write Modal */}
               {showWriteModal && (
@@ -925,9 +1020,10 @@ export default function App() {
                       value={newPost.category}
                       onChange={(e) => setNewPost({...newPost, category: e.target.value})}
                     >
+                      <option value="Exercise">Exercise</option>
+                      <option value="Diet">Diet</option>
+                      <option value="Routine">Routine</option>
                       <option value="Tip">Tip</option>
-                      <option value="Notice">Notice</option>
-                      <option value="Motivation">Motivation</option>
                     </select>
 
                     <input 
@@ -977,9 +1073,10 @@ const QRScanner = ({ setView }) => {
     const [scanning, setScanning] = useState(false);
     const [result, setResult] = useState(null);
     const [searchTerm, setSearchTerm] = useState('');
-    const [cameraActive, setCameraActive] = useState(false);
+    const [cameraError, setCameraError] = useState(null);
     const scannerRef = useRef(null);
 
+    // Fetch users for fallback list
     useEffect(() => {
         const fetchUsers = async () => {
             const { data, error } = await supabase
@@ -994,29 +1091,37 @@ const QRScanner = ({ setView }) => {
         fetchUsers();
     }, []);
 
+    // Auto-start camera when component mounts
     useEffect(() => {
-        if (cameraActive && !scannerRef.current) {
-            const scanner = new Html5QrcodeScanner(
-                "qr-reader",
-                { 
-                    fps: 10,
-                    qrbox: { width: 250, height: 250 },
-                    aspectRatio: 1.0
-                },
-                false
-            );
+        if (!scannerRef.current) {
+            try {
+                const scanner = new Html5QrcodeScanner(
+                    "qr-reader",
+                    { 
+                        fps: 10,
+                        qrbox: { width: 250, height: 250 },
+                        aspectRatio: 1.0
+                    },
+                    false
+                );
 
-            scanner.render(onScanSuccess, onScanError);
-            scannerRef.current = scanner;
+                scanner.render(onScanSuccess, onScanError);
+                scannerRef.current = scanner;
+                setCameraError(null);
+            } catch (err) {
+                console.error('Camera initialization error:', err);
+                setCameraError('Failed to initialize camera. Please check permissions.');
+            }
         }
 
+        // Cleanup on unmount
         return () => {
             if (scannerRef.current) {
                 scannerRef.current.clear().catch(console.error);
                 scannerRef.current = null;
             }
         };
-    }, [cameraActive]);
+    }, []);
 
     const onScanSuccess = async (decodedText) => {
         console.log(`QR Code detected: ${decodedText}`);
@@ -1026,7 +1131,6 @@ const QRScanner = ({ setView }) => {
             scannerRef.current.clear().catch(console.error);
             scannerRef.current = null;
         }
-        setCameraActive(false);
         setScanning(true);
 
         try {
@@ -1056,22 +1160,66 @@ const QRScanner = ({ setView }) => {
                 .order('name');
             setUsers(updatedUsers || []);
 
+            // Auto-restart scanner after 3 seconds
+            setTimeout(() => {
+                setResult(null);
+                if (!scannerRef.current) {
+                    try {
+                        const scanner = new Html5QrcodeScanner(
+                            "qr-reader",
+                            { 
+                                fps: 10,
+                                qrbox: { width: 250, height: 250 },
+                                aspectRatio: 1.0
+                            },
+                            false
+                        );
+                        scanner.render(onScanSuccess, onScanError);
+                        scannerRef.current = scanner;
+                    } catch (err) {
+                        setCameraError('Failed to restart camera');
+                    }
+                }
+            }, 3000);
+
         } catch (error) {
             setResult({
                 success: false,
                 userName: 'Unknown',
                 message: error.message || 'Check-in failed'
             });
+            
+            // Auto-restart scanner after error (3 seconds)
+            setTimeout(() => {
+                setResult(null);
+                if (!scannerRef.current) {
+                    try {
+                        const scanner = new Html5QrcodeScanner(
+                            "qr-reader",
+                            { 
+                                fps: 10,
+                                qrbox: { width: 250, height: 250 },
+                                aspectRatio: 1.0
+                            },
+                            false
+                        );
+                        scanner.render(onScanSuccess, onScanError);
+                        scannerRef.current = scanner;
+                    } catch (err) {
+                        setCameraError('Failed to restart camera');
+                    }
+                }
+            }, 3000);
         } finally {
             setScanning(false);
         }
     };
 
     const onScanError = (errorMessage) => {
-        // Ignore continuous scan errors
+        // Ignore continuous scan errors - they're normal during scanning
     };
 
-    const handleCheckIn = async (userId, userName) => {
+    const handleManualCheckIn = async (userId, userName) => {
         if (scanning) return;
         
         if (!confirm(`${userName}님을 체크인 하시겠습니까?`)) return;
@@ -1080,14 +1228,12 @@ const QRScanner = ({ setView }) => {
         setResult(null);
 
         try {
-            // Call the RPC function
             const { data, error } = await supabase.rpc('check_in_user', {
                 user_uuid: userId
             });
 
             if (error) throw error;
 
-            // Show success result
             setResult({
                 success: true,
                 userName: userName,
@@ -1114,6 +1260,30 @@ const QRScanner = ({ setView }) => {
         }
     };
 
+    const handleRetryCamera = () => {
+        setCameraError(null);
+        if (scannerRef.current) {
+            scannerRef.current.clear().catch(console.error);
+            scannerRef.current = null;
+        }
+        
+        try {
+            const scanner = new Html5QrcodeScanner(
+                "qr-reader",
+                { 
+                    fps: 10,
+                    qrbox: { width: 250, height: 250 },
+                    aspectRatio: 1.0
+                },
+                false
+            );
+            scanner.render(onScanSuccess, onScanError);
+            scannerRef.current = scanner;
+        } catch (err) {
+            setCameraError('Failed to initialize camera. Please check permissions.');
+        }
+    };
+
     const filteredUsers = users.filter(u => 
         u.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         u.email?.toLowerCase().includes(searchTerm.toLowerCase())
@@ -1121,53 +1291,47 @@ const QRScanner = ({ setView }) => {
 
     return (
       <div className="min-h-[100dvh] bg-zinc-950 text-white p-6 pb-20">
-        <BackButton onClick={() => setView('admin_home')} />
+        <BackButton onClick={() => {
+          // Clean up camera before leaving
+          if (scannerRef.current) {
+            scannerRef.current.clear().catch(console.error);
+            scannerRef.current = null;
+          }
+          setView('admin_home');
+        }} />
         
         <header className="mb-6">
           <h2 className="text-2xl font-bold text-yellow-500 mb-2">QR CHECK-IN</h2>
-          <p className="text-zinc-400 text-sm">Scan QR codes or select from list</p>
+          <p className="text-zinc-400 text-sm">Camera starts automatically</p>
         </header>
 
-        {/* Camera Scanner Section */}
-        {!cameraActive ? (
-          <div className="mb-6 bg-zinc-900 rounded-xl p-6 border border-zinc-800">
-            <div className="flex flex-col items-center">
-              <Camera size={48} className="text-yellow-500 mb-4" />
-              <h3 className="text-lg font-bold mb-2">Real QR Scanner</h3>
-              <p className="text-sm text-zinc-400 mb-4 text-center">
-                Use your camera to scan member QR codes
-              </p>
+        {/* Camera Scanner Section - Auto-starts */}
+        <div className="mb-6 space-y-4">
+          {cameraError ? (
+            <div className="bg-red-900/20 border border-red-500 rounded-xl p-6 text-center">
+              <XCircle size={48} className="text-red-500 mx-auto mb-4" />
+              <p className="text-red-400 mb-4">{cameraError}</p>
               <button
-                onClick={() => setCameraActive(true)}
+                onClick={handleRetryCamera}
                 className="bg-yellow-600 hover:bg-yellow-500 text-black font-bold py-3 px-6 rounded-xl transition-all shadow-lg"
               >
-                Start Camera
+                Retry Camera
               </button>
             </div>
-          </div>
-        ) : (
-          <div className="mb-6 space-y-4">
-            <div id="qr-reader" className="rounded-xl overflow-hidden border-2 border-yellow-500"></div>
-            
-            <button
-              onClick={() => {
-                if (scannerRef.current) {
-                  scannerRef.current.clear().catch(console.error);
-                  scannerRef.current = null;
-                }
-                setCameraActive(false);
-              }}
-              className="w-full bg-zinc-800 hover:bg-zinc-700 text-white font-bold py-3 px-6 rounded-xl transition-all"
-            >
-              Stop Camera
-            </button>
-          </div>
-        )}
+          ) : (
+            <>
+              <div id="qr-reader" className="rounded-xl overflow-hidden border-2 border-yellow-500"></div>
+              <p className="text-center text-sm text-zinc-500">
+                📷 Camera is active. Point at QR code to scan.
+              </p>
+            </>
+          )}
+        </div>
 
         {/* Divider */}
         <div className="flex items-center gap-4 my-6">
           <div className="flex-1 h-px bg-zinc-800"></div>
-          <span className="text-xs text-zinc-500 uppercase tracking-wider">Or Select Member</span>
+          <span className="text-xs text-zinc-500 uppercase tracking-wider">Or Select Member Manually</span>
           <div className="flex-1 h-px bg-zinc-800"></div>
         </div>
 
@@ -1233,7 +1397,7 @@ const QRScanner = ({ setView }) => {
             filteredUsers.map(u => (
               <button
                 key={u.id}
-                onClick={() => handleCheckIn(u.id, u.name)}
+                onClick={() => handleManualCheckIn(u.id, u.name)}
                 disabled={scanning || (u.remaining_sessions || 0) <= 0}
                 className={`w-full bg-zinc-900 p-4 rounded-xl border transition-all active:scale-98 ${
                   (u.remaining_sessions || 0) <= 0 
