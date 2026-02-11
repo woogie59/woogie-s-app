@@ -1314,10 +1314,15 @@ const QRScanner = ({ setView }) => {
             html5QrCodeRef.current = html5QrCode;
 
             await html5QrCode.start(
-                { facingMode: "environment" }, // Force back camera
+                { 
+                    facingMode: "environment", // Force back camera
+                    focusMode: "continuous"     // Continuous autofocus
+                },
                 {
-                    fps: 10,
-                    qrbox: { width: 250, height: 250 }
+                    fps: 30,                    // Faster detection (was 10)
+                    qrbox: 300,                 // Larger scan area (was 250)
+                    aspectRatio: 1.0,           // Square aspect ratio
+                    disableFlip: false          // Allow flipped QR codes
                 },
                 onScanSuccess,
                 onScanError
@@ -1325,8 +1330,9 @@ const QRScanner = ({ setView }) => {
 
             isScanning.current = true;
             setCameraError(null);
+            console.log('✅ Camera started successfully - fps: 30, qrbox: 300x300');
         } catch (err) {
-            console.error('Camera start error:', err);
+            console.error('❌ Camera start error:', err);
             setCameraError('Failed to access camera. Please allow camera permission.');
         }
     };
@@ -1350,33 +1356,66 @@ const QRScanner = ({ setView }) => {
     };
 
     const onScanSuccess = async (decodedText, decodedResult) => {
-        console.log(`QR Code detected: ${decodedText}`);
+        // 🔍 DEBUG: Log raw QR data
+        console.log("═══════════════════════════════════════");
+        console.log("🎯 RAW QR DATA:", decodedText);
+        console.log("📦 Result Object:", decodedResult);
+        console.log("═══════════════════════════════════════");
         
-        // Stop scanning temporarily
-        await stopCamera();
+        // 🚨 TEMPORARY DEBUG ALERT
+        window.alert("✅ 인식됨: " + decodedText);
+        
+        // Immediately stop scanning to prevent double-scan
+        if (html5QrCodeRef.current && isScanning.current) {
+            try {
+                console.log("⏸️ Stopping scanner to prevent double-scan...");
+                await html5QrCodeRef.current.stop();
+                isScanning.current = false;
+                html5QrCodeRef.current = null;
+            } catch (stopErr) {
+                console.error("⚠️ Error stopping scanner:", stopErr);
+            }
+        }
+        
         setScanning(true);
 
         try {
+            console.log("🔄 Calling RPC: check_in_user with UUID:", decodedText);
+            
             // Call the RPC function with scanned UUID
             const { data, error } = await supabase.rpc('check_in_user', {
                 user_uuid: decodedText
             });
 
-            if (error) throw error;
+            if (error) {
+                console.error("❌ RPC Error:", error);
+                throw error;
+            }
+
+            console.log("✅ RPC Success:", data);
 
             // Fetch user name
-            const { data: userData } = await supabase
+            console.log("👤 Fetching user name...");
+            const { data: userData, error: userError } = await supabase
                 .from('profiles')
                 .select('name')
                 .eq('id', decodedText)
                 .single();
 
+            if (userError) {
+                console.error("⚠️ User fetch error:", userError);
+            }
+
             const userName = userData?.name || 'Unknown User';
+            console.log("👤 User Name:", userName);
 
             // ✅ SUCCESS FEEDBACK
+            console.log("🎉 Triggering success feedback...");
+            
             // Vibrate device (if supported)
             if (navigator.vibrate) {
                 navigator.vibrate(200);
+                console.log("📳 Vibration triggered");
             }
             
             // Play success beep (Web Audio API)
@@ -1393,8 +1432,9 @@ const QRScanner = ({ setView }) => {
                 
                 oscillator.start();
                 oscillator.stop(audioContext.currentTime + 0.1);
+                console.log("🔊 Success beep played");
             } catch (audioError) {
-                console.log('Audio feedback not available');
+                console.log('⚠️ Audio feedback not available:', audioError);
             }
 
             setResult({
@@ -1404,19 +1444,27 @@ const QRScanner = ({ setView }) => {
                 message: `출석 완료 (남은 횟수: ${data.remaining}회)`
             });
 
+            console.log("✅ Success modal displayed");
+
             // Auto-restart scanner after 3 seconds
             setTimeout(async () => {
+                console.log("⏱️ 3 seconds passed, restarting camera...");
                 setResult(null);
                 await restartCamera();
             }, 3000);
 
         } catch (error) {
-            console.error('Check-in error:', error);
+            console.error('═══════════════════════════════════════');
+            console.error('❌ Check-in error:', error);
+            console.error('Error message:', error.message);
+            console.error('Error stack:', error.stack);
+            console.error('═══════════════════════════════════════');
             
             // ⚠️ ERROR FEEDBACK
             // Vibrate twice for error
             if (navigator.vibrate) {
                 navigator.vibrate([100, 50, 100]);
+                console.log("📳 Error vibration triggered");
             }
             
             // Play error beep (lower pitch)
@@ -1433,8 +1481,9 @@ const QRScanner = ({ setView }) => {
                 
                 oscillator.start();
                 oscillator.stop(audioContext.currentTime + 0.2);
+                console.log("🔊 Error beep played");
             } catch (audioError) {
-                console.log('Audio feedback not available');
+                console.log('⚠️ Audio feedback not available:', audioError);
             }
 
             // Parse error message
@@ -1451,8 +1500,11 @@ const QRScanner = ({ setView }) => {
                 message: errorMessage
             });
             
+            console.log("❌ Error modal displayed:", errorMessage);
+
             // Auto-restart scanner after error
             setTimeout(async () => {
+                console.log("⏱️ 3 seconds passed, restarting camera after error...");
                 setResult(null);
                 await restartCamera();
             }, 3000);
@@ -1462,7 +1514,11 @@ const QRScanner = ({ setView }) => {
     };
 
     const onScanError = (errorMessage) => {
-        // Ignore - these are normal during scanning
+        // Most errors are normal "no QR found" during continuous scanning
+        // Only log non-routine errors
+        if (errorMessage && !errorMessage.includes('NotFoundException')) {
+            console.warn('⚠️ QR Scan Error (non-routine):', errorMessage);
+        }
     };
 
     const handleRetryCamera = async () => {
