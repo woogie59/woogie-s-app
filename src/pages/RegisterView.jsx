@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { ArrowLeft, User, Calendar, Mail, Lock } from 'lucide-react';
 import { supabase } from '../lib/supabaseClient';
+import { useGlobalModal } from '../context/GlobalModalContext';
 
 // --- [UI 컴포넌트] 고급스러운 골드 버튼 복구 ---
 const ButtonPrimary = ({ children, onClick, className = "", disabled }) => (
@@ -14,17 +15,18 @@ const ButtonPrimary = ({ children, onClick, className = "", disabled }) => (
 );
 
 const RegisterView = ({ setView, onSignupSuccess }) => {
+    const { showAlert } = useGlobalModal();
     const [form, setForm] = useState({ email: '', password: '', name: '', dob: '', gender: 'M' });
     const [loading, setLoading] = useState(false);
 
     // --- 회원가입 로직 ---
     const handleRegisterSubmit = async () => {
         if (!form.email || !form.password || !form.name) {
-            alert('필수 정보(이메일, 비밀번호, 이름)를 모두 입력해주세요.');
+            showAlert({ message: '필수 정보(이메일, 비밀번호, 이름)를 모두 입력해주세요.' });
             return;
         }
         if (form.password.length < 6) {
-            alert('비밀번호는 최소 6자리 이상이어야 합니다.');
+            showAlert({ message: '비밀번호는 최소 6자리 이상이어야 합니다.' });
             return;
         }
 
@@ -68,7 +70,7 @@ const RegisterView = ({ setView, onSignupSuccess }) => {
 
         } catch (err) {
             console.error(err);
-            alert(`🚨 가입 실패: ${err.message}`);
+            showAlert({ message: `🚨 가입 실패: ${err.message}` });
         } finally {
             setLoading(false);
         }

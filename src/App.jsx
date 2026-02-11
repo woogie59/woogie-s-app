@@ -8,6 +8,7 @@ import OneSignal from 'react-onesignal';
 import { supabase, REMEMBER_ME_KEY } from './lib/supabaseClient'; 
 import RegisterView from './pages/RegisterView';
 import WelcomeModal from './components/WelcomeModal';
+import { useGlobalModal } from './context/GlobalModalContext';
 
 // --- (가짜 데이터 삭제함) ---
 // 이제 INITIAL_USERS 같은 가짜 데이터는 쓰지 않습니다.
@@ -95,6 +96,7 @@ const BackButton = ({ onClick, label = "Back" }) => (
 // --- [LoginView] 진짜 로그인 기능 연결 ---
 // --- [LoginView] 관리자 뒷문 추가 버전 ---
 const LoginView = ({ setView }) => {
+    const { showAlert } = useGlobalModal();
     const [email, setEmail] = useState('');
     const [pw, setPw] = useState('');
     const [loading, setLoading] = useState(false);
@@ -110,7 +112,7 @@ const LoginView = ({ setView }) => {
 
     const handleForgotPassword = async () => {
         if (!resetEmail) {
-            alert('Please enter your email address');
+            showAlert({ message: 'Please enter your email address' });
             return;
         }
         
@@ -121,11 +123,11 @@ const LoginView = ({ setView }) => {
             
             if (error) throw error;
             
-            alert('Password reset link sent to your email!');
+            showAlert({ message: 'Password reset link sent to your email!' });
             setShowForgotPassword(false);
             setResetEmail('');
         } catch (error) {
-            alert('Error: ' + error.message);
+            showAlert({ message: 'Error: ' + error.message });
         }
     };
 
@@ -138,7 +140,7 @@ const LoginView = ({ setView }) => {
             password: pw,
           });
           if (error) {
-            alert('로그인 실패: ' + error.message);
+            showAlert({ message: '로그인 실패: ' + error.message });
           } else {
             console.log('로그인 성공!', data);
           }
@@ -241,6 +243,7 @@ const LoginView = ({ setView }) => {
 
 // --- [ResetPasswordView] 비밀번호 재설정 화면 ---
 const ResetPasswordView = ({ onClose }) => {
+    const { showAlert } = useGlobalModal();
     const [newPassword, setNewPassword] = useState('');
     const [confirmPassword, setConfirmPassword] = useState('');
     const [loading, setLoading] = useState(false);
@@ -254,17 +257,17 @@ const ResetPasswordView = ({ onClose }) => {
         console.log('🔄 Starting password reset...');
         
         if (!newPassword) {
-            alert('새 비밀번호를 입력해주세요.');
+            showAlert({ message: '새 비밀번호를 입력해주세요.' });
             return;
         }
 
         if (newPassword.length < 6) {
-            alert('비밀번호는 최소 6자리 이상이어야 합니다.');
+            showAlert({ message: '비밀번호는 최소 6자리 이상이어야 합니다.' });
             return;
         }
 
         if (newPassword !== confirmPassword) {
-            alert('비밀번호가 일치하지 않습니다.');
+            showAlert({ message: '비밀번호가 일치하지 않습니다.' });
             return;
         }
 
@@ -279,7 +282,7 @@ const ResetPasswordView = ({ onClose }) => {
             if (error) throw error;
 
             console.log('✅ Password updated successfully:', data);
-            alert('✅ 비밀번호가 변경되었습니다');
+            showAlert({ message: '✅ 비밀번호가 변경되었습니다' });
             
             // Sign out to force fresh login with new password
             await supabase.auth.signOut();
@@ -288,7 +291,7 @@ const ResetPasswordView = ({ onClose }) => {
             onClose();
         } catch (error) {
             console.error('❌ Password update error:', error);
-            alert('오류: ' + error.message);
+            showAlert({ message: '오류: ' + error.message });
         } finally {
             setLoading(false);
         }
@@ -355,6 +358,7 @@ const ResetPasswordView = ({ onClose }) => {
 
 // --- [ClientHome] DB 데이터 연동 버전 ---
 const ClientHome = ({ user, logout, setView }) => {
+  const { showAlert } = useGlobalModal();
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
   const [showQRModal, setShowQRModal] = useState(false);
@@ -414,7 +418,7 @@ const ClientHome = ({ user, logout, setView }) => {
           console.log('Attendance detected:', payload);
           
           // Show notification to user
-          alert('✅ 출석완료되었습니다');
+          showAlert({ message: '✅ 출석완료되었습니다' });
           
           // Refresh profile to get updated session count
           const fetchProfile = async () => {
@@ -437,7 +441,7 @@ const ClientHome = ({ user, logout, setView }) => {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [user]);
+  }, [user, showAlert]);
 
   const fetchMyBookings = async () => {
     if (!user) {
@@ -484,7 +488,7 @@ const ClientHome = ({ user, logout, setView }) => {
       .eq('id', bookingToDelete.id);
 
     if (error) {
-      alert('취소 실패: ' + error.message);
+      showAlert({ message: '취소 실패: ' + error.message });
     } else {
       fetchMyBookings(); // Refresh list
     }
@@ -839,6 +843,7 @@ const ClientHome = ({ user, logout, setView }) => {
 
 
 export default function App() {
+  const { showAlert, showConfirm } = useGlobalModal();
   const [showIntro, setShowIntro] = useState(true);
   const [session, setSession] = useState(null); // 현재 로그인 세션
   const [view, setView] = useState('login');
@@ -1033,16 +1038,19 @@ export default function App() {
   };
 
   const handleSavePost = async () => {
-    if (!newPost.title || !newPost.content) return alert('Please enter a title and content.');
+    if (!newPost.title || !newPost.content) {
+      showAlert({ message: 'Please enter a title and content.' });
+      return;
+    }
     try {
       const { error } = await supabase.from('posts').insert([{ ...newPost, created_at: new Date() }]);
       if (error) throw error;
-      alert('Post saved successfully!');
+      showAlert({ message: 'Post saved successfully!' });
       setShowWriteModal(false);
       setNewPost({ title: '', content: '', category: 'Tip', image_url: '' });
       fetchLibraryPosts();
     } catch (err) {
-      alert('Error saving post: ' + err.message);
+      showAlert({ message: 'Error saving post: ' + err.message });
     }
   };
 
@@ -2074,6 +2082,7 @@ const translateMacrosToFood = (carbsG, proteinG, fatG, meals = 3) => {
 
 // --- [MacroCalculator] 스마트 매크로 계산기 ---
 const MacroCalculator = ({ user, setView }) => {
+  const { showAlert } = useGlobalModal();
   const [goal, setGoal] = useState('diet');
   const [height, setHeight] = useState('');
   const [weight, setWeight] = useState('');
@@ -2084,7 +2093,7 @@ const MacroCalculator = ({ user, setView }) => {
 
   const calculateMacros = () => {
     if (!height || !weight || !age) {
-      alert('키, 몸무게, 나이를 모두 입력해주세요.');
+      showAlert({ message: '키, 몸무게, 나이를 모두 입력해주세요.' });
       return;
     }
 
@@ -2093,7 +2102,7 @@ const MacroCalculator = ({ user, setView }) => {
     const a = parseInt(age);
 
     if (h <= 0 || w <= 0 || a <= 0) {
-      alert('올바른 값을 입력해주세요.');
+      showAlert({ message: '올바른 값을 입력해주세요.' });
       return;
     }
 
@@ -2443,12 +2452,10 @@ const MacroCalculator = ({ user, setView }) => {
 // [교체] ClassBooking 컴포넌트 전체
 const ALL_HOURLY_SLOTS = Array.from({ length: 18 }, (_, i) => `${(i + 6).toString().padStart(2, '0')}:00`);
 const ClassBooking = ({ user, setView }) => {
+  const { showAlert, showConfirm } = useGlobalModal();
   const [selectedDate, setSelectedDate] = useState(null);
   const [bookings, setBookings] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [processing, setProcessing] = useState(false);
-  const [isBookingModalOpen, setIsBookingModalOpen] = useState(false);
-  const [bookingToConfirm, setBookingToConfirm] = useState(null); // { date, time }
   const [settings, setSettings] = useState([]);
   const [holidays, setHolidays] = useState([]);
   const [weekStart, setWeekStart] = useState(() => {
@@ -2577,60 +2584,49 @@ const ClassBooking = ({ user, setView }) => {
   };
 
   const handleBookSlot = (timeSlot) => {
-    if (processing) return;
     if (!isSlotAvailable(timeSlot)) return;
-    setBookingToConfirm({ date: selectedDate, time: timeSlot });
-    setIsBookingModalOpen(true);
-  };
-
-  const confirmBookingAction = async () => {
-    if (!bookingToConfirm) return;
-    setProcessing(true);
-    try {
-      const { error } = await supabase
-        .from('bookings')
-        .insert([{ user_id: user.id, date: bookingToConfirm.date, time: bookingToConfirm.time }])
-        .select();
-
-      if (error) throw error;
-
-      alert("✅ 예약 완료!");
-      const { data: updated } = await supabase.from('bookings').select('*').eq('date', bookingToConfirm.date);
-      setBookings(updated || []);
-
-      try {
-        const { data: adminProfile } = await supabase
-          .from('profiles')
-          .select('onesignal_id')
-          .or('role.eq.admin,email.eq.admin@gmail.com')
-          .limit(1)
-          .maybeSingle();
-        const adminOsId = adminProfile?.onesignal_id;
-        if (adminOsId) {
-          const memberName = user?.user_metadata?.full_name || user?.user_metadata?.name || user?.email || '회원';
-        const msg = `${memberName}님이 ${bookingToConfirm.date} ${bookingToConfirm.time} 수업을 예약했습니다.`;
-          await fetch('https://onesignal.com/api/v1/notifications', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': 'Basic os_v2_app_7vsxhzq33bb27gbyhnmc62binkjbrtc22o3eo3eeeqp3zluqgtusywkaagav3yyj67czyg6ioo2wfwxgvfk75l3o3m7uzagi6cbbhqq',
-            },
-            body: JSON.stringify({
-              app_id: 'fd6573e6-1bd8-43af-9838-3b582f68286a',
-              include_player_ids: [adminOsId],
-              headings: { en: 'New Booking! 📅' },
-              contents: { en: msg },
-            }),
-          });
-        }
-      } catch (_) {}
-    } catch (err) {
-      alert("❌ 예약 실패: " + err.message);
-    } finally {
-      setProcessing(false);
-      setBookingToConfirm(null);
-      setIsBookingModalOpen(false);
-    }
+    const date = selectedDate;
+    showConfirm({
+      title: '수업 예약',
+      message: `${date} ${timeSlot} 수업을 예약하시겠습니까?`,
+      confirmLabel: '예약확인',
+      onConfirm: async () => {
+        const { error } = await supabase
+          .from('bookings')
+          .insert([{ user_id: user.id, date, time: timeSlot }])
+          .select();
+        if (error) throw error;
+        showAlert({ message: "✅ 예약 완료!" });
+        const { data: updated } = await supabase.from('bookings').select('*').eq('date', date);
+        setBookings(updated || []);
+        try {
+          const { data: adminProfile } = await supabase
+            .from('profiles')
+            .select('onesignal_id')
+            .or('role.eq.admin,email.eq.admin@gmail.com')
+            .limit(1)
+            .maybeSingle();
+          const adminOsId = adminProfile?.onesignal_id;
+          if (adminOsId) {
+            const memberName = user?.user_metadata?.full_name || user?.user_metadata?.name || user?.email || '회원';
+            const msg = `${memberName}님이 ${date} ${timeSlot} 수업을 예약했습니다.`;
+            await fetch('https://onesignal.com/api/v1/notifications', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': 'Basic os_v2_app_7vsxhzq33bb27gbyhnmc62binkjbrtc22o3eo3eeeqp3zluqgtusywkaagav3yyj67czyg6ioo2wfwxgvfk75l3o3m7uzagi6cbbhqq',
+              },
+              body: JSON.stringify({
+                app_id: 'fd6573e6-1bd8-43af-9838-3b582f68286a',
+                include_player_ids: [adminOsId],
+                headings: { en: 'New Booking! 📅' },
+                contents: { en: msg },
+              }),
+            });
+          }
+        } catch (_) {}
+      },
+    });
   };
 
   return (
@@ -2711,7 +2707,7 @@ const ClassBooking = ({ user, setView }) => {
                   const available = isSlotAvailable(time);
                   const booked = isSlotBooked(time);
                   const expired = isSlotExpired(selectedDate, time);
-                  const disabled = !available || processing;
+                  const disabled = !available;
                   return (
                     <button
                       key={time}
@@ -2736,38 +2732,6 @@ const ClassBooking = ({ user, setView }) => {
           </>
         )}
       </div>
-      {/* Booking Confirmation Modal */}
-      {isBookingModalOpen && bookingToConfirm && (
-        <div
-          className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm"
-          onClick={() => { setIsBookingModalOpen(false); setBookingToConfirm(null); }}
-        >
-          <div
-            className="bg-zinc-900 border border-yellow-500/30 rounded-2xl shadow-2xl shadow-black/50 p-6 max-w-sm w-full"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <h3 className="text-lg font-bold text-zinc-100 mb-2">수업 예약</h3>
-            <p className="text-zinc-400 text-sm mb-6">
-              {bookingToConfirm.date} {bookingToConfirm.time} 수업을 예약하시겠습니까?
-            </p>
-            <div className="flex gap-3 justify-end">
-              <button
-                onClick={() => { setIsBookingModalOpen(false); setBookingToConfirm(null); }}
-                className="px-4 py-2.5 rounded-xl text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800 transition"
-              >
-                취소
-              </button>
-              <button
-                onClick={confirmBookingAction}
-                disabled={processing}
-                className="px-4 py-2.5 rounded-xl bg-yellow-600 text-black font-bold hover:bg-yellow-500 transition disabled:opacity-50"
-              >
-                {processing ? '처리 중...' : '예약확인'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 };
@@ -2781,6 +2745,7 @@ const toTime24h = (t) => {
 
 // --- [AdminSchedule] 관리자 스케줄 관리 화면 ---
 const AdminSchedule = ({ setView }) => {
+  const { showAlert } = useGlobalModal();
   const [bookings, setBookings] = useState([]);
   const [loading, setLoading] = useState(true);
   const [cancelling, setCancelling] = useState(null);
@@ -2854,9 +2819,9 @@ const AdminSchedule = ({ setView }) => {
       .eq('id', bookingToDelete.id);
 
     if (error) {
-      alert('Error cancelling booking: ' + error.message);
+      showAlert({ message: 'Error cancelling booking: ' + error.message });
     } else {
-      alert('Booking cancelled successfully!');
+      showAlert({ message: 'Booking cancelled successfully!' });
       fetchBookings(); // Refresh list
     }
     setCancelling(null);
@@ -2981,6 +2946,7 @@ const DEFAULT_START = '09:00';
 const DEFAULT_END = '22:00';
 
 const AdminSettings = ({ setView }) => {
+  const { showAlert } = useGlobalModal();
   const [settings, setSettings] = useState(() => Array.from({ length: 7 }, (_, d) => ({
     day_of_week: d, off: d === 0, start_time: DEFAULT_START, end_time: DEFAULT_END, break_times: [],
   })));
@@ -3050,14 +3016,14 @@ const AdminSettings = ({ setView }) => {
     if (!error) {
       setSaveToast(true);
     } else {
-      alert('저장 실패: ' + error.message);
+      showAlert({ message: '저장 실패: ' + error.message });
     }
   };
 
   const addHoliday = async () => {
     if (!newHolidayDate) return;
     const { error } = await supabase.from('trainer_holidays').insert({ date: newHolidayDate, label: newHolidayDate });
-    if (!error) { setNewHolidayDate(''); fetchData(); } else { alert('추가 실패: ' + error.message); }
+    if (!error) { setNewHolidayDate(''); fetchData(); } else { showAlert({ message: '추가 실패: ' + error.message }); }
   };
 
   const removeHoliday = async (id) => {
@@ -3146,15 +3112,16 @@ const AdminSettings = ({ setView }) => {
 
 // --- [AdminHome] 관리자 메인 화면 ---
 const AdminHome = ({ setView, logout }) => {
+  const { showAlert } = useGlobalModal();
   const handleForceSaveID = async () => {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) {
-      alert('로그인 정보가 없습니다. 다시 로그인해 주세요.');
+      showAlert({ message: '로그인 정보가 없습니다. 다시 로그인해 주세요.' });
       return;
     }
     const osId = OneSignal.User?.PushSubscription?.id;
     if (!osId) {
-      alert('OneSignal ID가 감지되지 않습니다. 알림 권한을 허용했는지 확인하세요.');
+      showAlert({ message: 'OneSignal ID가 감지되지 않습니다. 알림 권한을 허용했는지 확인하세요.' });
       return;
     }
     const { error } = await supabase
@@ -3163,7 +3130,7 @@ const AdminHome = ({ setView, logout }) => {
       .eq('id', user.id);
 
     if (error) {
-      alert('DB 저장 실패: ' + error.message);
+      showAlert({ message: 'DB 저장 실패: ' + error.message });
     } else {
       const { data: profile } = await supabase
         .from('profiles')
@@ -3171,9 +3138,9 @@ const AdminHome = ({ setView, logout }) => {
         .eq('id', user.id)
         .single();
       const verified = profile?.onesignal_id === osId;
-      alert(verified
+      showAlert({ message: verified
         ? '성공! 관리자 알림 ID가 저장되었습니다: ' + osId
-        : '저장 완료. (확인: ' + (profile?.onesignal_id || 'null') + ')');
+        : '저장 완료. (확인: ' + (profile?.onesignal_id || 'null') + ')' });
     }
   };
 
@@ -3270,6 +3237,7 @@ const MemberList = ({ setView, setSelectedMemberId }) => {
 
 // --- [MemberDetail] 회원 상세 & 세션 티켓 관리 ---
 const MemberDetail = ({ selectedMemberId, setView }) => {
+    const { showAlert, showConfirm } = useGlobalModal();
     const [u, setU] = useState(null);
     const [batches, setBatches] = useState([]);
     const [addAmount, setAddAmount] = useState('');
@@ -3314,47 +3282,46 @@ const MemberDetail = ({ selectedMemberId, setView }) => {
         ? batches.reduce((sum, batch) => sum + batch.remaining_count, 0)
         : (u?.remaining_sessions || 0);
 
-    const handleAddSession = async () => {
+    const handleAddSession = () => {
         // Validation
         if (!addAmount || isNaN(addAmount)) {
-            return alert('세션 횟수를 입력해주세요.');
+            showAlert({ message: '세션 횟수를 입력해주세요.' });
+            return;
         }
         if (priceInput === null || priceInput === '' || isNaN(priceInput)) {
-            return alert('유효한 단가를 입력해주세요.');
+            showAlert({ message: '유효한 단가를 입력해주세요.' });
+            return;
         }
 
         const sessionAmount = parseInt(addAmount);
         const priceValue = parseInt(priceInput);
 
         if (sessionAmount <= 0) {
-            return alert('세션 횟수는 1 이상이어야 합니다.');
+            showAlert({ message: '세션 횟수는 1 이상이어야 합니다.' });
+            return;
         }
         if (priceValue < 0) {
-            return alert('단가는 0 이상이어야 합니다.');
+            showAlert({ message: '단가는 0 이상이어야 합니다.' });
+            return;
         }
 
-        // Confirmation
         const confirmMessage = `${u.name}님에게\n• 세션 ${sessionAmount}회 추가\n• 단가: ${priceValue.toLocaleString()}원/회\n\n새로운 티켓을 생성하시겠습니까?`;
-        if (!confirm(confirmMessage)) return;
-
-        // Call RPC function to add new session batch
-        setLoading(true);
-        const { data, error } = await supabase.rpc('admin_add_session_batch', {
-            target_user_id: selectedMemberId,
-            sessions_to_add: sessionAmount,
-            price: priceValue
+        showConfirm({
+            title: '티켓 추가',
+            message: confirmMessage,
+            confirmLabel: '생성',
+            onConfirm: async () => {
+                const { error } = await supabase.rpc('admin_add_session_batch', {
+                    target_user_id: selectedMemberId,
+                    sessions_to_add: sessionAmount,
+                    price: priceValue
+                });
+                if (error) throw new Error(error.message);
+                showAlert({ message: `✓ 새 티켓 추가 완료!\n• ${sessionAmount}회\n• ${priceValue.toLocaleString()}원/회` });
+                setAddAmount('');
+                await fetchMemberDetails();
+            }
         });
-
-        if (error) {
-            alert('오류 발생: ' + error.message);
-            setLoading(false);
-        } else {
-            alert(`✓ 새 티켓 추가 완료!\n• ${sessionAmount}회\n• ${priceValue.toLocaleString()}원/회`);
-            setAddAmount(''); 
-            // CRUCIAL: Refresh all data to show the new batch immediately
-            await fetchMemberDetails();
-            setLoading(false);
-        }
     };
 
     if (!u) return <div className="min-h-[100dvh] bg-zinc-950 flex items-center justify-center text-zinc-500">Loading...</div>;
