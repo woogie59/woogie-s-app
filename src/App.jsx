@@ -1318,7 +1318,7 @@ export default function App() {
           {/* 관리자 화면 (session 없이도 접근 가능 - admin backdoor) */}
           {view === 'admin_home' && (
             <AdminRoute session={session}>
-              <AdminHome setView={setView} logout={handleLogout} user={session?.user} />
+              <AdminHome setView={setView} logout={handleLogout} />
             </AdminRoute>
           )}
 
@@ -3075,31 +3075,28 @@ const AdminSettings = ({ setView }) => {
 };
 
 // --- [AdminHome] 관리자 메인 화면 ---
-const AdminHome = ({ setView, logout, user: userProp }) => {
+const AdminHome = ({ setView, logout }) => {
   const handleForceSaveID = async () => {
-    let userId = userProp?.id;
-    if (!userId) {
-      const { data: { user } } = await supabase.auth.getUser();
-      userId = user?.id;
-    }
-    if (!userId) {
-      alert('로그인 후 사용해 주세요.');
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      alert('로그인 정보가 없습니다. 다시 로그인해 주세요.');
       return;
     }
-    const id = OneSignal.User?.PushSubscription?.id;
-    if (!id) {
-      alert('알림 권한이 없거나 ID가 아직 생성되지 않았습니다.');
+    const osId = OneSignal.User?.PushSubscription?.id;
+    if (!osId) {
+      alert('OneSignal ID가 감지되지 않습니다. 알림 권한을 허용했는지 확인하세요.');
       return;
     }
     const { error } = await supabase
       .from('profiles')
-      .update({ onesignal_id: id })
-      .eq('id', userId);
+      .update({ onesignal_id: osId })
+      .eq('id', user.id);
+
     if (error) {
       alert('DB 저장 실패: ' + error.message);
-      return;
+    } else {
+      alert('성공! 관리자 알림 ID가 저장되었습니다: ' + osId);
     }
-    alert('성공! ID가 저장되었습니다: ' + id);
   };
 
   return (
