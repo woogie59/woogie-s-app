@@ -1308,43 +1308,43 @@ export default function App() {
               {/* 로그인 했을 때 보여줄 화면 (일반 회원) */}
               {session && view === 'client_home' && <ClientHome user={session.user} logout={handleLogout} setView={setView} />}
 
-          {/* 관리자 화면 (session 없이도 접근 가능 - admin backdoor) */}
+          {/* 관리자 화면 (admin role 필수) */}
           {view === 'admin_home' && (
-            <AdminRoute session={session}>
+            <AdminRoute session={session} setView={setView}>
               <AdminHome setView={setView} logout={handleLogout} />
             </AdminRoute>
           )}
 
           {/* 회원 목록 */}
           {view === 'member_list' && (
-            <AdminRoute session={session}>
+            <AdminRoute session={session} setView={setView}>
               <MemberList setView={setView} setSelectedMemberId={setSelectedMemberId} />
             </AdminRoute>
           )}
 
           {view === 'admin_settings' && (
-            <AdminRoute session={session}>
+            <AdminRoute session={session} setView={setView}>
               <AdminSettings setView={setView} />
             </AdminRoute>
           )}
 
           {/* 회원 상세 */}
           {view === 'member_detail' && selectedMemberId && (
-            <AdminRoute session={session}>
+            <AdminRoute session={session} setView={setView}>
               <MemberDetail selectedMemberId={selectedMemberId} setView={setView} />
             </AdminRoute>
           )}
 
           {/* QR 스캐너 */}
           {view === 'scanner' && (
-            <AdminRoute session={session}>
+            <AdminRoute session={session} setView={setView}>
               <QRScanner setView={setView} />
             </AdminRoute>
           )}
 
           {/* Unified Management Dashboard (Revenue + Schedule) */}
           {(view === 'revenue' || view === 'admin_schedule') && (
-            <AdminRoute session={session}>
+            <AdminRoute session={session} setView={setView}>
               <div className="min-h-[100dvh] bg-zinc-950 flex flex-col text-white overflow-y-auto pb-20">
                 <div className="p-6 pb-2">
                   <BackButton onClick={() => setView('admin_home')} label="Admin Home" />
@@ -3088,7 +3088,15 @@ const AdminHome = ({ setView, logout }) => {
     if (error) {
       alert('DB 저장 실패: ' + error.message);
     } else {
-      alert('성공! 관리자 알림 ID가 저장되었습니다: ' + osId);
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('onesignal_id')
+        .eq('id', user.id)
+        .single();
+      const verified = profile?.onesignal_id === osId;
+      alert(verified
+        ? '성공! 관리자 알림 ID가 저장되었습니다: ' + osId
+        : '저장 완료. (확인: ' + (profile?.onesignal_id || 'null') + ')');
     }
   };
 
@@ -3468,13 +3476,53 @@ const MemberDetail = ({ selectedMemberId, setView }) => {
 };
 
 // --- [Admin Route] 관리자만 접근 가능한 페이지 ---
-const AdminRoute = ({ children, session }) => {
-  // [미구현] 관리자 권한 확인 로직 필요
-  const isAdmin = true; // 임시로 true 설정
+const AdminRoute = ({ children, session, setView }) => {
+  const [checking, setChecking] = useState(true);
+  const [isAdmin, setIsAdmin] = useState(false);
 
-  if (!isAdmin) {
-    return <p>관리자 권한이 필요합니다.</p>;
+  useEffect(() => {
+    const check = async () => {
+      if (!session?.user?.id) {
+        setView?.('login');
+        setChecking(false);
+        return;
+      }
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('role')
+        .eq('id', session.user.id)
+        .single();
+      setChecking(false);
+      if (error || data?.role !== 'admin') {
+        setIsAdmin(false);
+        setView?.('client_home');
+      } else {
+        setIsAdmin(true);
+      }
+    };
+    check();
+  }, [session?.user?.id, setView]);
+
+  if (checking) {
+    return (
+      <div className="min-h-[100dvh] bg-zinc-950 flex items-center justify-center text-zinc-500">
+        권한 확인 중...
+      </div>
+    );
   }
-
+  if (!isAdmin) {
+    return (
+      <div className="min-h-[100dvh] bg-zinc-950 flex flex-col items-center justify-center p-6 text-white">
+        <p className="text-xl font-bold text-red-500 mb-2">Access Denied</p>
+        <p className="text-zinc-400 text-sm mb-4">관리자 권한이 필요합니다.</p>
+        <button
+          onClick={() => setView?.('client_home')}
+          className="px-6 py-2 bg-zinc-800 rounded-xl hover:bg-zinc-700 transition"
+        >
+          홈으로
+        </button>
+      </div>
+    );
+  }
   return children;
 };
