@@ -1289,390 +1289,241 @@ export default function App() {
 }
 
 // --- [QRScanner] QR 스캔 화면 (체크인 처리) - CAMERA ONLY VERSION ---
+// --- [QRScanner] QR 스캔 화면 (자동 실행 버전) ---
 const QRScanner = ({ setView }) => {
-    const [scanning, setScanning] = useState(false);
-    const [result, setResult] = useState(null);
-    const [cameraError, setCameraError] = useState(null);
-    const [cameraStarted, setCameraStarted] = useState(false);
-    const html5QrCodeRef = useRef(null);
-    const isScanning = useRef(false);
+  const [scanning, setScanning] = useState(false);
+  const [result, setResult] = useState(null);
+  const [cameraError, setCameraError] = useState(null);
+  const [cameraPermission, setCameraPermission] = useState(null); // 권한 상태 추가
+  const html5QrCodeRef = useRef(null);
+  const isScanning = useRef(false);
 
-    // Cleanup on unmount
-    useEffect(() => {
-        return () => {
-            stopCamera();
-        };
-    }, []);
+  // [핵심] 화면이 켜지자마자 카메라 실행 (useEffect)
+  useEffect(() => {
+      // 약간의 딜레이를 주어 DOM(#qr-reader)이 확실히 그려진 후 실행
+      const timer = setTimeout(() => {
+          startCamera();
+      }, 100);
 
-    const startCamera = async () => {
-        console.log('🎬 Starting camera... (isScanning:', isScanning.current, ')');
-        
-        // Prevent multiple starts
-        if (isScanning.current) {
-            console.log('⚠️ Camera already running, skipping start');
-            return;
-        }
-        
-        // Ensure previous instance is cleaned up
-        if (html5QrCodeRef.current) {
-            console.log('🧹 Cleaning up previous instance...');
-            try {
-                await html5QrCodeRef.current.stop();
-                await html5QrCodeRef.current.clear();
-            } catch (cleanupErr) {
-                console.log('⚠️ Cleanup error (may be safe to ignore):', cleanupErr);
-            }
-            html5QrCodeRef.current = null;
-        }
-        
-        // Small delay to ensure DOM is ready
-        await new Promise(resolve => setTimeout(resolve, 100));
-        
-        try {
-            console.log('📷 Initializing Html5Qrcode...');
-            const html5QrCode = new Html5Qrcode("qr-reader");
-            html5QrCodeRef.current = html5QrCode;
+      // 화면 나갈 때 정리
+      return () => {
+          clearTimeout(timer);
+          stopCamera();
+      };
+  }, []);
 
-            console.log('📡 Requesting camera access...');
-            await html5QrCode.start(
-                { 
-                    facingMode: "environment" // Force back camera
-                },
-                {
-                    fps: 30,                    // Faster detection
-                    qrbox: 300,                 // Larger scan area
-                    aspectRatio: 1.0,           // Square aspect ratio
-                    disableFlip: false          // Allow flipped QR codes
-                },
-                onScanSuccess,
-                onScanError
-            );
+  const startCamera = async () => {
+      console.log('🎬 Auto-starting camera...');
+      
+      // 이미 실행 중이면 무시
+      if (isScanning.current) return;
+      
+      // 이전 인스턴스 정리
+      if (html5QrCodeRef.current) {
+          try {
+              await html5QrCodeRef.current.stop();
+              await html5QrCodeRef.current.clear();
+          } catch (e) { /* ignore */ }
+      }
+      
+      try {
+          const html5QrCode = new Html5Qrcode("qr-reader");
+          html5QrCodeRef.current = html5QrCode;
 
-            isScanning.current = true;
-            setCameraStarted(true);
-            setCameraError(null);
-            console.log('✅ Camera started successfully - fps: 30, qrbox: 300x300');
-        } catch (err) {
-            console.error('❌ Camera start error:', err);
-            console.error('Error name:', err.name);
-            console.error('Error message:', err.message);
-            
-            let errorMsg = 'Failed to access camera. ';
-            if (err.name === 'NotAllowedError') {
-                errorMsg += 'Please allow camera permission in your browser settings.';
-            } else if (err.name === 'NotFoundError') {
-                errorMsg += 'No camera found on this device.';
-            } else if (err.name === 'NotReadableError') {
-                errorMsg += 'Camera is already in use by another application.';
-            } else {
-                errorMsg += err.message || 'Unknown error occurred.';
-            }
-            
-            setCameraError(errorMsg);
-            isScanning.current = false;
-            html5QrCodeRef.current = null;
-        }
-    };
+          await html5QrCode.start(
+              { facingMode: "environment" }, // 후면 카메라
+              {
+                  fps: 20,              // 인식 속도
+                  qrbox: { width: 250, height: 250 }, // 스캔 영역
+                  aspectRatio: 1.0,
+                  disableFlip: false
+              },
+              onScanSuccess,
+              (errorMessage) => { /* 스캔 중 에러는 무시 */ }
+          );
 
-    const stopCamera = async () => {
-        console.log('⏹️ Stopping camera...');
-        
-        if (html5QrCodeRef.current) {
-            try {
-                if (isScanning.current) {
-                    await html5QrCodeRef.current.stop();
-                    console.log('✅ Camera stopped successfully');
-                }
-                await html5QrCodeRef.current.clear();
-                html5QrCodeRef.current = null;
-                isScanning.current = false;
-                setCameraStarted(false);
-            } catch (err) {
-                console.error('⚠️ Camera stop error:', err);
-                // Force cleanup even if stop failed
-                html5QrCodeRef.current = null;
-                isScanning.current = false;
-                setCameraStarted(false);
-            }
-        } else {
-            console.log('ℹ️ No camera instance to stop');
-            isScanning.current = false;
-            setCameraStarted(false);
-        }
-    };
+          isScanning.current = true;
+          setCameraError(null);
+          setCameraPermission(true);
+          console.log('✅ Camera started automatically');
+      } catch (err) {
+          console.error('❌ Camera start error:', err);
+          isScanning.current = false;
+          
+          // 에러 메시지 처리
+          let msg = "카메라를 실행할 수 없습니다.";
+          if (err.name === 'NotAllowedError') {
+              msg = "카메라 권한이 거부되었습니다. 브라우저 설정에서 허용해주세요.";
+              setCameraPermission(false);
+          } else if (err.name === 'NotFoundError') {
+              msg = "카메라를 찾을 수 없습니다.";
+          } else if (err.name === 'NotReadableError') {
+              msg = "카메라를 다른 앱이 사용 중입니다. 닫고 다시 시도해주세요.";
+          }
+          setCameraError(msg);
+      }
+  };
 
-    const restartCamera = async () => {
-        console.log('🔄 Restarting camera...');
-        await stopCamera();
-        await new Promise(resolve => setTimeout(resolve, 300)); // Longer delay for cleanup
-        await startCamera();
-    };
+  const stopCamera = async () => {
+      if (html5QrCodeRef.current) {
+          try {
+              if (isScanning.current) {
+                  await html5QrCodeRef.current.stop();
+              }
+              await html5QrCodeRef.current.clear();
+          } catch (e) { console.error(e); }
+          html5QrCodeRef.current = null;
+          isScanning.current = false;
+      }
+  };
 
-    const onScanSuccess = async (decodedText, decodedResult) => {
-        // 🔍 DEBUG: Log raw QR data
-        console.log("═══════════════════════════════════════");
-        console.log("🎯 RAW QR DATA:", decodedText);
-        console.log("📦 Result Object:", decodedResult);
-        console.log("═══════════════════════════════════════");
-        
-        // Immediately stop scanning to prevent double-scan
-        if (html5QrCodeRef.current && isScanning.current) {
-            try {
-                console.log("⏸️ Stopping scanner to prevent double-scan...");
-                await html5QrCodeRef.current.stop();
-                isScanning.current = false;
-                html5QrCodeRef.current = null;
-            } catch (stopErr) {
-                console.error("⚠️ Error stopping scanner:", stopErr);
-            }
-        }
-        
-        setScanning(true);
+  const onScanSuccess = async (decodedText, decodedResult) => {
+      // 중복 스캔 방지
+      if (!isScanning.current) return;
+      
+      // 성공 시 잠시 스캔 중단
+      if (html5QrCodeRef.current) {
+           try {
+              await html5QrCodeRef.current.pause(true); // 화면은 유지하고 스캔만 멈춤
+          } catch (e) {}
+      }
 
-        try {
-            console.log("🔄 Calling RPC: check_in_user with UUID:", decodedText);
-            
-            // Call the RPC function with scanned UUID
-            const { data, error } = await supabase.rpc('check_in_user', {
-                user_uuid: decodedText
-            });
+      console.log("🎯 Scan Success:", decodedText);
+      setScanning(true);
 
-            if (error) {
-                console.error("❌ RPC Error:", error);
-                throw error;
-            }
+      // 1. 햅틱 피드백
+      if (navigator.vibrate) navigator.vibrate(200);
 
-            console.log("✅ RPC Success:", data);
+      try {
+          // 2. Supabase RPC 호출 (출석 처리)
+          const { data, error } = await supabase.rpc('check_in_user', {
+              user_uuid: decodedText
+          });
 
-            // Fetch user name
-            console.log("👤 Fetching user name...");
-            const { data: userData, error: userError } = await supabase
-                .from('profiles')
-                .select('name')
-                .eq('id', decodedText)
-                .single();
+          if (error) throw error;
 
-            if (userError) {
-                console.error("⚠️ User fetch error:", userError);
-            }
+          // 3. 유저 이름 가져오기 (UI 표시용)
+          const { data: userData } = await supabase
+              .from('profiles')
+              .select('name')
+              .eq('id', decodedText)
+              .single();
 
-            const userName = userData?.name || 'Unknown User';
-            console.log("👤 User Name:", userName);
+          // 4. 결과 표시
+          setResult({
+              success: true,
+              userName: userData?.name || '회원',
+              remainingSessions: data.remaining,
+              message: `출석 완료 (잔여: ${data.remaining}회)`
+          });
 
-            // ✅ SUCCESS FEEDBACK
-            console.log("🎉 Triggering success feedback...");
-            
-            // Vibrate device (if supported)
-            if (navigator.vibrate) {
-                navigator.vibrate(200);
-                console.log("📳 Vibration triggered");
-            }
-            
-            // Play success beep (Web Audio API)
-            try {
-                const audioContext = new (window.AudioContext || window.webkitAudioContext)();
-                const oscillator = audioContext.createOscillator();
-                const gainNode = audioContext.createGain();
-                
-                oscillator.connect(gainNode);
-                gainNode.connect(audioContext.destination);
-                
-                oscillator.frequency.value = 800; // Higher pitch for success
-                gainNode.gain.value = 0.3;
-                
-                oscillator.start();
-                oscillator.stop(audioContext.currentTime + 0.1);
-                console.log("🔊 Success beep played");
-            } catch (audioError) {
-                console.log('⚠️ Audio feedback not available:', audioError);
-            }
+      } catch (error) {
+          console.error("Check-in failed:", error);
+          
+          // 실패 햅틱
+          if (navigator.vibrate) navigator.vibrate([100, 50, 100]);
 
-            setResult({
-                success: true,
-                userName: userName,
-                remainingSessions: data.remaining,
-                message: `출석 완료 (남은 횟수: ${data.remaining}회)`
-            });
+          let errMsg = error.message || "출석 처리에 실패했습니다.";
+          if (errMsg.includes("No remaining")) errMsg = "잔여 세션이 없습니다.";
 
-            console.log("✅ Success modal displayed");
+          setResult({
+              success: false,
+              userName: "Error",
+              message: errMsg
+          });
+      } finally {
+          setScanning(false);
+          
+          // 3초 후 결과창 닫고 스캔 재개
+          setTimeout(async () => {
+              setResult(null);
+              if (html5QrCodeRef.current) {
+                  try {
+                      await html5QrCodeRef.current.resume(); // 스캔 재개
+                  } catch (e) {
+                      // resume 실패 시 재시작
+                      await startCamera(); 
+                  }
+              }
+          }, 3000);
+      }
+  };
 
-            // Auto-restart scanner after 3 seconds
-            setTimeout(async () => {
-                console.log("⏱️ 3 seconds passed, restarting camera...");
-                setResult(null);
-                await restartCamera();
-            }, 3000);
-
-        } catch (error) {
-            console.error('═══════════════════════════════════════');
-            console.error('❌ Check-in error:', error);
-            console.error('Error message:', error.message);
-            console.error('Error stack:', error.stack);
-            console.error('═══════════════════════════════════════');
-            
-            // ⚠️ ERROR FEEDBACK
-            // Vibrate twice for error
-            if (navigator.vibrate) {
-                navigator.vibrate([100, 50, 100]);
-                console.log("📳 Error vibration triggered");
-            }
-            
-            // Play error beep (lower pitch)
-            try {
-                const audioContext = new (window.AudioContext || window.webkitAudioContext)();
-                const oscillator = audioContext.createOscillator();
-                const gainNode = audioContext.createGain();
-                
-                oscillator.connect(gainNode);
-                gainNode.connect(audioContext.destination);
-                
-                oscillator.frequency.value = 300; // Lower pitch for error
-                gainNode.gain.value = 0.3;
-                
-                oscillator.start();
-                oscillator.stop(audioContext.currentTime + 0.2);
-                console.log("🔊 Error beep played");
-            } catch (audioError) {
-                console.log('⚠️ Audio feedback not available:', audioError);
-            }
-
-            // Parse error message
-            let errorMessage = error.message || 'Check-in failed';
-            
-            // Handle "No remaining sessions" error
-            if (errorMessage.includes('No remaining sessions')) {
-                errorMessage = '잔여 세션이 없습니다';
-            }
-
-            setResult({
-                success: false,
-                userName: 'Error',
-                message: errorMessage
-            });
-            
-            console.log("❌ Error modal displayed:", errorMessage);
-
-            // Auto-restart scanner after error
-            setTimeout(async () => {
-                console.log("⏱️ 3 seconds passed, restarting camera after error...");
-                setResult(null);
-                await restartCamera();
-            }, 3000);
-        } finally {
-            setScanning(false);
-        }
-    };
-
-    const onScanError = (errorMessage) => {
-        // Most errors are normal "no QR found" during continuous scanning
-        // Only log non-routine errors
-        if (errorMessage && !errorMessage.includes('NotFoundException')) {
-            console.warn('⚠️ QR Scan Error (non-routine):', errorMessage);
-        }
-    };
-
-    const handleRetryCamera = async () => {
-        setCameraError(null);
-        await restartCamera();
-    };
-
-    return (
-      <div className="min-h-[100dvh] bg-black text-white flex flex-col">
-        {/* BACK BUTTON - Fixed at top */}
-        <div className="absolute top-4 left-4 z-50">
-          <BackButton 
-            onClick={async () => {
-              await stopCamera();
-              setView('admin_home');
-            }}
-            label="Back"
-          />
-        </div>
-
-        {/* Camera Scanner - Full Screen */}
-        <div className="flex-1 flex items-center justify-center p-4">
-          {cameraError ? (
-            /* Error State */
-            <div className="bg-red-900/20 border border-red-500 rounded-xl p-8 text-center max-w-md">
-              <XCircle size={64} className="text-red-500 mx-auto mb-4" />
-              <p className="text-red-400 mb-6 text-lg whitespace-pre-line">{cameraError}</p>
-              <button
-                onClick={handleRetryCamera}
-                className="bg-yellow-600 hover:bg-yellow-500 text-black font-bold py-4 px-8 rounded-xl transition-all shadow-lg text-lg"
-              >
-                Retry Camera
-              </button>
-            </div>
-          ) : !cameraStarted ? (
-            /* Start Camera Button (User-initiated) */
-            <div className="bg-zinc-900 border-2 border-yellow-500 rounded-xl p-8 text-center max-w-md">
-              <div className="bg-yellow-500/20 rounded-full w-24 h-24 flex items-center justify-center mx-auto mb-6">
-                <Camera size={48} className="text-yellow-500" />
-              </div>
-              <h3 className="text-2xl font-bold text-white mb-4">Ready to Scan</h3>
-              <p className="text-zinc-400 mb-8 text-sm">
-                Click the button below to start the camera and begin scanning member QR codes.
-              </p>
-              <button
-                onClick={startCamera}
-                className="bg-gradient-to-r from-yellow-600 to-yellow-500 hover:from-yellow-500 hover:to-yellow-400 text-black font-bold py-4 px-8 rounded-xl transition-all shadow-lg text-lg active:scale-95"
-              >
-                📷 Start Camera
-              </button>
-              <p className="text-xs text-zinc-600 mt-4">
-                Camera permission required
-              </p>
-            </div>
-          ) : (
-            /* Camera Active */
-            <div className="w-full max-w-2xl">
-              <div id="qr-reader" className="rounded-2xl overflow-hidden shadow-2xl"></div>
-              <div className="flex items-center justify-center gap-2 mt-4">
-                <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-                <p className="text-center text-sm text-zinc-400">
-                  Camera active • Point at member's QR code
-                </p>
-              </div>
-            </div>
-          )}
-        </div>
-
-        {/* Result Modal */}
-        <AnimatePresence>
-          {result && (
-            <motion.div
-              initial={{ opacity: 0, scale: 0.9 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.9 }}
-              className="fixed inset-0 z-50 flex items-center justify-center p-6 bg-black/90"
-              onClick={() => setResult(null)}
-            >
-              <motion.div
-                className={`bg-zinc-900 border-4 ${result.success ? 'border-green-500' : 'border-red-500'} rounded-3xl p-10 max-w-md w-full text-center`}
-                onClick={e => e.stopPropagation()}
-              >
-                {result.success ? (
-                  <CheckCircle size={80} className="text-green-500 mx-auto mb-6" />
-                ) : (
-                  <XCircle size={80} className="text-red-500 mx-auto mb-6" />
-                )}
-                <h3 className="text-3xl font-bold text-white mb-3">{result.userName}</h3>
-                <p className={`text-base mb-6 ${result.success ? 'text-green-400' : 'text-red-400'}`}>
-                  {result.message}
-                </p>
-                {result.success && (
-                  <div className="bg-zinc-800 rounded-xl p-6 mb-6">
-                    <p className="text-xs text-zinc-500 uppercase tracking-widest mb-2">Remaining Sessions</p>
-                    <p className="text-5xl font-serif text-yellow-500">{result.remainingSessions}</p>
-                  </div>
-                )}
-                <p className="text-xs text-zinc-600">Auto-closing in 3 seconds...</p>
-              </motion.div>
-            </motion.div>
-          )}
-        </AnimatePresence>
+  return (
+    <div className="min-h-[100dvh] bg-black text-white flex flex-col">
+      {/* 뒤로가기 버튼 */}
+      <div className="absolute top-4 left-4 z-50">
+        <BackButton 
+          onClick={async () => {
+            await stopCamera();
+            setView('admin_home');
+          }}
+          label="Back"
+        />
       </div>
-    );
+
+      {/* 카메라 화면 영역 */}
+      <div className="flex-1 flex items-center justify-center bg-black relative">
+          
+          {/* 에러 발생 시 표시 */}
+          {cameraError ? (
+              <div className="text-center p-8 max-w-sm">
+                  <XCircle size={64} className="text-red-500 mx-auto mb-4" />
+                  <p className="text-red-400 mb-6">{cameraError}</p>
+                  <button
+                      onClick={() => { setCameraError(null); startCamera(); }}
+                      className="bg-zinc-800 text-white px-6 py-3 rounded-xl font-bold"
+                  >
+                      다시 시도
+                  </button>
+              </div>
+          ) : (
+              /* 정상 작동 시: div만 있으면 됩니다 (버튼 없음) */
+              <div className="w-full h-full flex flex-col items-center justify-center">
+                  <div id="qr-reader" className="w-full max-w-md overflow-hidden rounded-xl"></div>
+                  
+                  {/* 가이드 텍스트 */}
+                  <div className="absolute bottom-20 bg-black/50 px-4 py-2 rounded-full backdrop-blur-md">
+                      <p className="text-zinc-300 text-sm flex items-center gap-2">
+                          <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+                          QR 코드를 비춰주세요
+                      </p>
+                  </div>
+              </div>
+          )}
+      </div>
+
+      {/* 결과 모달 (성공/실패) */}
+      <AnimatePresence>
+        {result && (
+          <motion.div
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center p-6 bg-black/80 backdrop-blur-sm"
+          >
+            <div className={`bg-zinc-900 border-2 ${result.success ? 'border-green-500' : 'border-red-500'} rounded-3xl p-8 max-w-sm w-full text-center shadow-2xl`}>
+              {result.success ? (
+                <CheckCircle size={60} className="text-green-500 mx-auto mb-4" />
+              ) : (
+                <XCircle size={60} className="text-red-500 mx-auto mb-4" />
+              )}
+              
+              <h3 className="text-2xl font-bold text-white mb-2">{result.userName}</h3>
+              <p className={`text-lg font-bold mb-4 ${result.success ? 'text-green-400' : 'text-red-400'}`}>
+                {result.message}
+              </p>
+
+              {result.success && (
+                 <div className="bg-zinc-800 p-4 rounded-xl">
+                     <p className="text-xs text-zinc-500 uppercase">남은 횟수</p>
+                     <p className="text-4xl font-serif text-yellow-500">{result.remainingSessions}</p>
+                 </div>
+              )}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
 };
 
 // --- [MacroCalculator] 스마트 매크로 계산기 ---
@@ -1970,21 +1821,40 @@ const ClassBooking = ({ user, setView }) => {
   useEffect(() => {
     if (!selectedDate) return;
 
-    const fetchBookings = async () => {
-      setLoading(true);
-      const { data, error } = await supabase
-        .from('bookings')
-        .select('*')
-        .eq('date', selectedDate);
+// [코드 3번] 내 스케줄 불러오기 (수정됨)
+const fetchMyBookings = async () => {
+  if (!user) return;
+  
+  setLoadingBookings(true);
+  try {
+    console.log("📅 Fetching bookings for user:", user.id);
 
-      if (error) {
-        console.error('Error fetching bookings:', error);
-        setBookings([]);
-      } else {
-        setBookings(data || []);
-      }
-      setLoading(false);
-    };
+    // 1. Supabase에서 'bookings' 테이블 조회
+    const { data, error } = await supabase
+      .from('bookings')
+      .select('*') // 모든 컬럼 가져오기
+      .eq('user_id', user.id) // [핵심] 내 아이디와 일치하는 것만 필터링
+      .order('date', { ascending: true }) // 날짜순 정렬
+      .order('time', { ascending: true }); // 시간순 정렬
+
+    if (error) {
+      console.error("❌ Supabase Select Error:", error);
+      throw error;
+    }
+
+    console.log("✅ Bookings loaded:", data);
+
+    // 2. 데이터가 없으면 빈 배열, 있으면 데이터 설정
+    setMyBookings(data || []);
+
+  } catch (err) {
+    console.error('❌ 스케줄 로딩 실패:', err);
+    // 사용자에게 에러를 알리지 않고 조용히 처리 (빈 목록 표시)
+    setMyBookings([]); 
+  } finally {
+    setLoadingBookings(false);
+  }
+};
 
     fetchBookings();
   }, [selectedDate]);
@@ -1995,60 +1865,81 @@ const ClassBooking = ({ user, setView }) => {
   };
 
   // 예약하기
-  const handleBookSlot = async (timeSlot) => {
-    if (booking) return;
-    if (!confirm(`${selectedDate} ${timeSlot} 에 예약하시겠습니까?`)) return;
+// [코드 2번] 예약 처리 함수 (수정됨)
+const handleBookSlot = async (timeSlot) => {
+  // 중복 클릭 방지
+  if (booking) return;
+  
+  // 사용자 확인
+  if (!confirm(`${selectedDate} ${timeSlot} 에 예약하시겠습니까?`)) return;
 
-    setBooking(true);
-    setResult(null);
+  setBooking(true);
+  setResult(null); // 이전 결과 초기화
 
-    try {
-      // Supabase에 직접 INSERT
-      const { data, error } = await supabase
-        .from('bookings')
-        .insert({
+  try {
+    console.log("📝 Booking attempt:", { user_id: user.id, date: selectedDate, time: timeSlot });
+
+    // 1. Supabase에 데이터 삽입 (Result를 반드시 반환받아야 함)
+    const { data, error } = await supabase
+      .from('bookings')
+      .insert([
+        {
           user_id: user.id,
           date: selectedDate,
-          time: timeSlot
-        })
-        .select()
-        .single();
+          time: timeSlot,
+          status: 'confirmed', // status 컬럼이 있다면 추가
+          created_at: new Date()
+        }
+      ])
+      .select(); // .select()가 있어야 실제 저장된 데이터를 돌려받음
 
-      if (error) throw error;
-
-      console.log('✅ Booking inserted successfully:', data);
-
-      // Show success alert
-      alert(`✅ 예약이 완료되었습니다!\n\n날짜: ${selectedDate}\n시간: ${timeSlot}`);
-
-      setResult({
-        success: true,
-        date: selectedDate,
-        time: timeSlot,
-        message: 'Booking confirmed!'
-      });
-
-      // 예약 목록 새로고침
-      const { data: updatedBookings } = await supabase
-        .from('bookings')
-        .select('*')
-        .eq('date', selectedDate);
-      setBookings(updatedBookings || []);
-
-    } catch (error) {
-      console.error('❌ Booking error:', error);
-      
-      // Show error alert
-      alert(`❌ 예약 실패\n\n${error.message || 'Unknown error'}`);
-
-      setResult({
-        success: false,
-        message: error.message || 'Booking failed'
-      });
-    } finally {
-      setBooking(false);
+    // 2. 에러가 있으면 즉시 멈춤 (가짜 성공 방지)
+    if (error) {
+      console.error("❌ Supabase Insert Error:", error);
+      throw error;
     }
-  };
+
+    // 3. 데이터가 비어있어도 실패로 간주
+    if (!data || data.length === 0) {
+      throw new Error("예약 데이터가 저장되지 않았습니다. (RLS 정책 확인 필요)");
+    }
+
+    console.log("✅ Booking saved:", data);
+
+    // 4. 성공 처리
+    // 예약 목록 새로고침 (즉시 반영)
+    const { data: updatedBookings } = await supabase
+      .from('bookings')
+      .select('*')
+      .eq('date', selectedDate);
+      
+    setBookings(updatedBookings || []);
+
+    // 성공 모달 띄우기
+    setResult({
+      success: true,
+      date: selectedDate,
+      time: timeSlot,
+      message: '예약이 확정되었습니다.'
+    });
+
+    // 햅틱 피드백 (모바일)
+    if (navigator.vibrate) navigator.vibrate(200);
+
+  } catch (error) {
+    console.error('❌ Booking Process Failed:', error);
+    
+    // 실패 모달 띄우기
+    setResult({
+      success: false,
+      message: error.message || '예약에 실패했습니다. 관리자에게 문의하세요.'
+    });
+
+    if (navigator.vibrate) navigator.vibrate([100, 50, 100]);
+  } finally {
+    setBooking(false); // 로딩 해제
+  }
+};
 
   return (
     <div className="min-h-[100dvh] bg-zinc-950 text-white p-6 pb-20">
