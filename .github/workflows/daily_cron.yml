@@ -1,0 +1,35 @@
+# =============================================================================
+# Daily PT Reminder - Cron Trigger
+# =============================================================================
+# Invokes the daily-pt-reminder Edge Function every day at 00:00 UTC (09:00 KST).
+# Requires SUPABASE_PROJECT_ID and SUPABASE_SERVICE_ROLE_KEY in repo secrets.
+# =============================================================================
+
+name: Daily PT Reminder
+
+on:
+  schedule:
+    # 00:00 UTC = 09:00 AM KST (Korea Standard Time)
+    - cron: '0 0 * * *'
+  workflow_dispatch:
+    # Allow manual trigger for testing
+
+jobs:
+  invoke-daily-pt-reminder:
+    name: Invoke daily-pt-reminder
+    runs-on: ubuntu-latest
+    steps:
+      - name: Call daily-pt-reminder Edge Function
+        run: |
+          FUNCTION_URL="https://${{ secrets.SUPABASE_PROJECT_ID }}.supabase.co/functions/v1/daily-pt-reminder"
+          echo "Invoking: $FUNCTION_URL"
+          HTTP_STATUS=$(curl -s -o /tmp/response.json -w "%{http_code}" \
+            -X POST "$FUNCTION_URL" \
+            -H "Authorization: Bearer ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}" \
+            -H "Content-Type: application/json")
+          echo "Response status: $HTTP_STATUS"
+          cat /tmp/response.json | head -c 500
+          if [ "$HTTP_STATUS" -ge 400 ]; then
+            echo "::error::Function returned HTTP $HTTP_STATUS"
+            exit 1
+          fi
