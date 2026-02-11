@@ -1293,14 +1293,16 @@ export default function App() {
 }
 
 // [App.jsx] QRScanner 컴포넌트 (호환성 최적화 버전)
+// [App.jsx] QRScanner 컴포넌트 (라이브 + 사진 업로드 하이브리드)
 const QRScanner = ({ setView }) => {
   const [result, setResult] = useState(null);
   const [errorMsg, setErrorMsg] = useState(null);
   const scannerRef = useRef(null);
+  const fileInputRef = useRef(null); // 파일 인풋용 Ref
 
   useEffect(() => {
-      // 브라우저 렌더링 후 0.3초 뒤 실행
-      const timer = setTimeout(() => startScan(), 300);
+      // 라이브 카메라는 보조 수단으로 실행
+      const timer = setTimeout(() => startScan(), 500);
       return () => {
           clearTimeout(timer);
           stopScan();
@@ -1309,7 +1311,6 @@ const QRScanner = ({ setView }) => {
 
   const startScan = async () => {
       try {
-          // 1. 기존 카메라 정리
           if (scannerRef.current) {
               await scannerRef.current.stop().catch(() => {});
               scannerRef.current.clear();
@@ -1318,38 +1319,16 @@ const QRScanner = ({ setView }) => {
           const html5QrCode = new Html5Qrcode("reader");
           scannerRef.current = html5QrCode;
 
-          // 2. 가장 안전한 설정으로 시작
-          const config = {
-              fps: 10,             // 초당 10프레임 (배터리 절약)
-              qrbox: { width: 250, height: 250 }, // 화면 중앙에 가이드 박스 설정 (초점 유도)
-              aspectRatio: 1.0,    // 1:1 비율
-              disableFlip: false   // 좌우반전 허용
-          };
-
-          // 3. 카메라 실행 (복잡한 하드웨어 설정 제거)
+          // 호환성 위주 설정
           await html5QrCode.start(
-              { facingMode: "environment" }, // 후면 카메라만 요청
-              config,
+              { facingMode: "environment" }, 
+              { fps: 10, qrbox: 250, aspectRatio: 1.0 },
               onScanSuccess,
-              (err) => { 
-                  // 인식 시도 중 에러는 무시
-              }
+              () => {}
           );
-          setErrorMsg(null);
       } catch (err) {
-          console.error("Camera Start Fail:", err);
-          // 에러 메시지 세분화
-          if (err.name === 'NotAllowedError') {
-              setErrorMsg("카메라 권한이 거부되었습니다. 설정에서 허용해주세요.");
-          } else if (err.name === 'NotFoundError') {
-              setErrorMsg("카메라를 찾을 수 없습니다.");
-          } else if (err.name === 'NotReadableError') {
-              setErrorMsg("카메라가 이미 사용 중이거나 엑세스할 수 없습니다. (재부팅 권장)");
-          } else if (err.name === 'OverconstrainedError') {
-              setErrorMsg("이 기기에서 지원하지 않는 카메라 설정입니다.");
-          } else {
-              setErrorMsg("카메라 오류: https 접속인지 확인해주세요.");
-          }
+          console.error(err);
+          // 라이브 카메라 실패해도 조용히 넘어감 (사진 모드가 있으니까)
       }
   };
 
@@ -1357,22 +1336,39 @@ const QRScanner = ({ setView }) => {
       if (scannerRef.current) {
           try { await scannerRef.current.stop(); } catch (e) {}
           try { scannerRef.current.clear(); } catch (e) {}
-          scannerRef.current = null;
+      }
+  };
+
+  // [핵심] 사진 파일을 받아서 QR 분석하는 함수
+  const handleFileUpload = async (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+
+      try {
+          // 라이브 스캔 잠시 중지
+          stopScan();
+          
+          const html5QrCode = new Html5Qrcode("reader");
+          const decodedText = await html5QrCode.scanFile(file, true);
+          
+          // 성공 시 처리 로직
+          onScanSuccess(decodedText);
+      } catch (err) {
+          console.error(err);
+          alert("QR 코드를 찾을 수 없습니다. 사진을 더 선명하게 찍어주세요.");
+          // 실패 시 라이브 재개
+          startScan();
       }
   };
 
   const onScanSuccess = async (decodedText) => {
-      if (scannerRef.current) {
-           try { await scannerRef.current.pause(); } catch(e) {}
-      }
       if (navigator.vibrate) navigator.vibrate(200);
 
       try {
-          // RPC 호출
+          // 출석 체크 RPC
           const { data, error } = await supabase.rpc('check_in_user', { user_uuid: decodedText });
           if (error) throw error;
 
-          // 유저 정보 가져오기
           const { data: userData } = await supabase.from('profiles').select('name').eq('id', decodedText).single();
           
           setResult({
@@ -1385,44 +1381,63 @@ const QRScanner = ({ setView }) => {
           if (error.message?.includes("No remaining")) msg = "잔여 세션이 없습니다.";
           setResult({ success: false, message: msg });
       }
-      
-      setTimeout(() => {
-          setResult(null);
-          if (scannerRef.current) {
-              try { scannerRef.current.resume(); } catch(e) { startScan(); }
-          }
-      }, 2000);
   };
 
   return (
       <div className="min-h-[100dvh] bg-black text-white flex flex-col items-center justify-center relative">
           <button 
               onClick={() => { stopScan(); setView('admin_home'); }} 
-              className="absolute top-6 left-6 z-50 bg-zinc-800/80 px-4 py-2 rounded-lg text-sm"
+              className="absolute top-6 left-6 z-50 bg-zinc-800 px-4 py-2 rounded-lg"
           >
               ← 나가기
           </button>
 
-          <div className="w-full max-w-sm px-6">
-              <div id="reader" className="w-full h-[350px] bg-black rounded-2xl overflow-hidden border-2 border-yellow-500"></div>
+          <div className="w-full max-w-sm px-6 flex flex-col items-center">
+              <h3 className="text-yellow-500 font-bold mb-4">QR CHECK-IN</h3>
               
-              {errorMsg ? (
-                  <div className="mt-4 p-4 bg-red-900/50 rounded-xl text-center">
-                      <p className="text-red-300 text-sm mb-2">{errorMsg}</p>
-                      <button onClick={() => { setErrorMsg(null); startScan(); }} className="bg-red-700 px-4 py-2 rounded text-xs font-bold">다시 시도</button>
-                  </div>
-              ) : (
-                  <p className="text-zinc-500 text-center mt-4 text-xs animate-pulse">
-                      QR 코드를 네모 상자에 맞춰주세요
+              {/* 1. 라이브 카메라 영역 */}
+              <div className="relative rounded-2xl overflow-hidden border-2 border-yellow-500/30 bg-zinc-900 w-full mb-6">
+                  <div id="reader" className="w-full h-[300px]"></div>
+                  <p className="absolute bottom-2 w-full text-center text-xs text-zinc-500">
+                      자동 인식이 안 되나요? 👇
                   </p>
-              )}
+              </div>
+
+              {/* 2. [필살기] 사진 찍기 버튼 */}
+              <button 
+                  onClick={() => fileInputRef.current.click()}
+                  className="flex items-center gap-3 bg-yellow-600 hover:bg-yellow-500 text-black font-bold py-4 px-8 rounded-xl shadow-lg active:scale-95 transition-all w-full justify-center"
+              >
+                  <Camera size={24} />
+                  <span>사진 찍어서 인식하기</span>
+              </button>
+              
+              {/* 숨겨진 파일 인풋 (카메라 호출용) */}
+              <input 
+                  type="file" 
+                  ref={fileInputRef}
+                  accept="image/*" 
+                  capture="environment" // 후면 카메라 바로 실행
+                  onChange={handleFileUpload}
+                  className="hidden"
+              />
           </div>
 
+          {/* 결과 모달 */}
           {result && (
               <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/90 p-6">
                   <div className={`w-full max-w-xs p-8 rounded-3xl text-center border ${result.success ? 'bg-zinc-900 border-green-500' : 'bg-zinc-900 border-red-500'}`}>
+                      <div className="mb-4 text-4xl">{result.success ? '✅' : '❌'}</div>
                       <h3 className="text-2xl font-bold text-white mb-2">{result.userName}</h3>
-                      <p className={`text-sm font-bold ${result.success ? 'text-green-400' : 'text-red-400'}`}>{result.message}</p>
+                      <p className={`text-sm font-bold ${result.success ? 'text-green-400' : 'text-red-400'}`}>
+                          {result.message}
+                      </p>
+                      <button 
+                          onClick={() => { setResult(null); startScan(); }}
+                          className="mt-6 bg-zinc-800 px-6 py-3 rounded-xl w-full font-bold"
+                      >
+                          닫기
+                      </button>
                   </div>
               </div>
           )}
