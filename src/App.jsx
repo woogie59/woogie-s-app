@@ -893,9 +893,22 @@ export default function App() {
     return map;
   }, [revenueLogs]);
 
-  const selectedDaySessions = selectedRevenueDay
-    ? (revenueSessionsByDate[selectedRevenueDay] || [])
-    : [];
+  const getSessionTime24h = (log) => {
+    if (log?.session_time_fixed && typeof log.session_time_fixed === 'string') {
+      const match = log.session_time_fixed.match(/^(\d{1,2}):(\d{2})/);
+      if (match) return `${match[1].padStart(2, '0')}:${match[2]}`;
+    }
+    return new Date(log.check_in_at).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', hour12: false });
+  };
+
+  const selectedDaySessions = React.useMemo(() => {
+    const arr = selectedRevenueDay ? (revenueSessionsByDate[selectedRevenueDay] || []) : [];
+    return [...arr].sort((a, b) => {
+      const ta = getSessionTime24h(a);
+      const tb = getSessionTime24h(b);
+      return ta.localeCompare(tb);
+    });
+  }, [selectedRevenueDay, revenueSessionsByDate]);
 
   const revenueCalendarDays = React.useMemo(() => {
     const y = currentRevenueDate.getFullYear();
@@ -918,7 +931,6 @@ export default function App() {
     setSalaryConfig(prev => ({ ...prev, [key]: Number(value) }));
   };
 
-  // Helper to format currency
   const fmt = (num) => num?.toLocaleString() || '0';
 
   const downloadPayrollCSV = () => {
@@ -931,16 +943,19 @@ export default function App() {
 
     const monthLabel = `${currentRevenueDate.getFullYear()}년 ${currentRevenueDate.getMonth() + 1}월`;
     const esc = (v) => `"${String(v).replace(/"/g, '""')}"`;
-    const summaryHeader = ['Month', 'Total Sessions', 'Gross Payout', 'Tax (3.3%)', 'Net Payout'];
-    const summaryData = [monthLabel, totalSessions, grossPayout, taxDeduction, netPayout];
-    const sessionHeader = ['Date', 'Time', 'Member Name', 'Session Price'];
+
+    const row1 = esc(`${monthLabel} Payroll Report`);
+    const row2 = esc(`Total Sessions: ${totalSessions}, Total Sales: ₩${totalSales.toLocaleString()}, Net Payout: ₩${netPayout.toLocaleString()}`);
+    const row3 = '';
+    const headerRow = ['Date', 'Scheduled Time', 'Member Name', 'Price'].map(esc).join(',');
 
     const sessionRows = revenueLogs.map((log) => {
       const d = new Date(log.check_in_at);
-      return [d.toLocaleDateString('ko-KR'), d.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' }), (log.profiles?.name || 'Unknown'), log.session_price_snapshot ?? 0].map(esc).join(',');
+      const time24 = getSessionTime24h(log);
+      return [d.toLocaleDateString('ko-KR'), time24, (log.profiles?.name || 'Unknown'), log.session_price_snapshot ?? 0].map(esc).join(',');
     });
 
-    const csvBody = [summaryHeader.map(esc).join(','), summaryData.map(esc).join(','), '', sessionHeader.map(esc).join(','), ...sessionRows].join('\n');
+    const csvBody = [row1, row2, row3, headerRow, ...sessionRows].join('\n');
     const bom = '\ufeff';
     const blob = new Blob([bom + csvBody], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
@@ -1030,7 +1045,7 @@ export default function App() {
                 <BackButton onClick={() => setView('admin_home')} label="Admin Home" />
 
                 {/* Header & Month Navigation */}
-                <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4 mb-8">
+                <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4 mb-6">
                   <h2 className="text-2xl font-bold text-yellow-500 flex items-center gap-2">
                     <DollarSign size={28} />
                     Payroll Dashboard
@@ -1057,6 +1072,18 @@ export default function App() {
                       <ChevronRight size={24} />
                     </button>
                   </div>
+                </div>
+
+                {/* Total Monthly Sessions - Primary Counter */}
+                <div className="bg-gradient-to-r from-yellow-900/30 to-zinc-900 rounded-xl p-6 mb-6 border-2 border-yellow-500/40">
+                  <div className="flex items-center gap-3 mb-2">
+                    <div className="p-2 rounded-lg bg-yellow-500/20">
+                      <Calendar size={28} className="text-yellow-500" />
+                    </div>
+                    <span className="text-zinc-400 text-sm font-semibold uppercase tracking-wider">Total Monthly Sessions</span>
+                  </div>
+                  <p className="text-5xl font-bold text-yellow-400 tracking-tight">{isRevenueLoading ? '—' : revenueLogs.length}</p>
+                  <p className="text-zinc-500 text-xs mt-1">{currentRevenueDate.getFullYear()}년 {currentRevenueDate.getMonth() + 1}월 attendance_logs 기준</p>
                 </div>
 
                 {/* Summary Cards */}
@@ -1091,13 +1118,13 @@ export default function App() {
                         <p className="text-2xl font-bold text-zinc-200">₩ {fmt(grossPayout)}</p>
                         <p className="text-xs text-zinc-500 mt-1">공제 전</p>
                       </div>
-                      <div className="bg-zinc-900 rounded-xl p-5 border-2 border-yellow-500/50">
+                      <div className="bg-gradient-to-br from-yellow-900/50 to-zinc-900 rounded-xl p-5 border-2 border-yellow-500 shadow-lg shadow-yellow-500/10 ring-2 ring-yellow-500/30">
                         <div className="flex items-center gap-2 mb-2">
-                          <DollarSign size={20} className="text-yellow-500" />
-                          <span className="text-zinc-400 text-sm font-medium uppercase tracking-wider">Net Payout</span>
+                          <DollarSign size={22} className="text-yellow-400" />
+                          <span className="text-yellow-400/90 text-sm font-bold uppercase tracking-wider">실수령액 (Net Payout)</span>
                         </div>
-                        <p className="text-2xl font-bold text-green-400">₩ {fmt(netPayout)}</p>
-                        <p className="text-xs text-yellow-500/80 mt-1">실수령액 (공제 후)</p>
+                        <p className="text-3xl font-bold text-yellow-400">₩ {fmt(netPayout)}</p>
+                        <p className="text-xs text-yellow-500/80 mt-1">공제 후 최종 금액</p>
                       </div>
                     </div>
                   );
@@ -1150,17 +1177,17 @@ export default function App() {
                   </div>
                 </div>
 
-                {/* Final Net Payout Card */}
+                {/* Final Net Payout Card - Most Prominent */}
                 {(() => {
                   const totalSales = revenueLogs.reduce((sum, log) => sum + (log.session_price_snapshot || 0), 0);
                   const gross = salaryConfig.base + totalSales * (salaryConfig.incentiveRate / 100) + salaryConfig.extra;
                   const tax = Math.round(gross * 0.033);
                   const net = gross - tax;
                   return (
-                    <div className="bg-gradient-to-r from-yellow-900/40 to-zinc-900 rounded-xl p-6 mb-8 border-2 border-yellow-500/50">
-                      <h3 className="text-yellow-500 font-bold text-sm uppercase tracking-wider mb-2">실수령액 (Final Net Payout)</h3>
-                      <p className="text-4xl font-bold text-yellow-400">₩ {fmt(net)}</p>
-                      <p className="text-zinc-500 text-sm mt-1">총 급여 ₩{fmt(gross)} − 세금 ₩{fmt(tax)}</p>
+                    <div className="bg-gradient-to-r from-yellow-900/50 via-amber-900/30 to-zinc-900 rounded-xl p-6 mb-8 border-2 border-yellow-500 shadow-xl shadow-yellow-500/20">
+                      <h3 className="text-yellow-400 font-bold text-sm uppercase tracking-wider mb-2">실수령액 (Final Net Payout)</h3>
+                      <p className="text-5xl font-bold text-yellow-400">₩ {fmt(net)}</p>
+                      <p className="text-zinc-400 text-sm mt-1">총 급여 ₩{fmt(gross)} − 세금 ₩{fmt(tax)}</p>
                     </div>
                   );
                 })()}
@@ -1205,8 +1232,10 @@ export default function App() {
                             <span>{cell.value}</span>
                             {cell.count > 0 && (
                               <span
-                                className={`mt-0.5 w-1.5 h-1.5 rounded-full ${
-                                  cell.count >= 3 ? 'bg-yellow-500' : 'bg-yellow-500/50'
+                                className={`mt-0.5 rounded-full ${
+                                  cell.count >= 6 ? 'w-2.5 h-2.5 bg-yellow-500 shadow-sm shadow-yellow-500/50' :
+                                  cell.count >= 3 ? 'w-2 h-2 bg-yellow-500' :
+                                  'w-1.5 h-1.5 bg-yellow-500/60'
                                 }`}
                               />
                             )}
@@ -1222,30 +1251,35 @@ export default function App() {
                   <h3 className="text-zinc-400 text-xs font-semibold uppercase tracking-wider px-4 pt-4 pb-2">
                     {selectedRevenueDay ? `${selectedRevenueDay} 세션 내역` : '날짜를 선택하세요'}
                   </h3>
-                  {selectedRevenueDay ? (
+                  {                    selectedRevenueDay ? (
                     selectedDaySessions.length === 0 ? (
                       <p className="p-6 text-center text-zinc-500 text-sm">해당 날짜에 세션 기록이 없습니다</p>
                     ) : (
-                      <table className="w-full text-left">
-                        <thead className="bg-zinc-800/80">
-                          <tr>
-                            <th className="p-3 text-zinc-400 text-[10px] font-semibold uppercase">Time</th>
-                            <th className="p-3 text-zinc-400 text-[10px] font-semibold uppercase">Member</th>
-                            <th className="p-3 text-zinc-400 text-[10px] font-semibold uppercase text-right">Price</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-zinc-800">
-                          {selectedDaySessions.map((log) => (
-                            <tr key={log.id} className="hover:bg-zinc-800/50">
-                              <td className="p-3 text-zinc-300 text-sm">
-                                {new Date(log.check_in_at).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })}
-                              </td>
-                              <td className="p-3 text-white font-medium text-sm">{log.profiles?.name || 'Unknown'}</td>
-                              <td className="p-3 text-right font-bold text-yellow-500 text-sm">₩ {(log.session_price_snapshot ?? 0).toLocaleString()}</td>
+                      <>
+                        <table className="w-full text-left">
+                          <thead className="bg-zinc-800/80">
+                            <tr>
+                              <th className="p-3 text-zinc-400 text-[10px] font-semibold uppercase">Scheduled Time (24h)</th>
+                              <th className="p-3 text-zinc-400 text-[10px] font-semibold uppercase">Member</th>
+                              <th className="p-3 text-zinc-400 text-[10px] font-semibold uppercase text-right">Price</th>
                             </tr>
-                          ))}
-                        </tbody>
-                      </table>
+                          </thead>
+                          <tbody className="divide-y divide-zinc-800">
+                            {selectedDaySessions.map((log) => (
+                              <tr key={log.id} className="hover:bg-zinc-800/50">
+                                <td className="p-3 text-zinc-300 text-sm font-mono">
+                                  {getSessionTime24h(log)}
+                                </td>
+                                <td className="p-3 text-white font-medium text-sm">{log.profiles?.name || 'Unknown'}</td>
+                                <td className="p-3 text-right font-bold text-yellow-500 text-sm">₩ {(log.session_price_snapshot ?? 0).toLocaleString()}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                        <div className="px-4 py-3 bg-zinc-800/50 border-t border-zinc-800 text-zinc-400 text-sm font-medium">
+                          Total Daily Sessions: {selectedDaySessions.length}
+                        </div>
+                      </>
                     )
                   ) : (
                     <p className="p-6 text-center text-zinc-500 text-sm">달력에서 날짜를 눌러 세션 내역을 확인하세요</p>
@@ -1495,7 +1529,9 @@ const QRScanner = ({ setView }) => {
         remainingSessions: remaining
       });
     } catch (error) {
-      const msg = error?.message?.includes('No remaining') ? '잔여 세션이 없습니다.' : '유효하지 않은 QR입니다.';
+      let msg = '유효하지 않은 QR입니다.';
+      if (error?.message?.includes('No remaining')) msg = '잔여 세션이 없습니다.';
+      else if (error?.message?.includes('오늘 예약된 수업이 없습니다')) msg = '오늘 예약된 수업이 없습니다.';
       setResult({ success: false, message: msg });
       if (navigator.vibrate) navigator.vibrate([100, 50, 100]);
     }
