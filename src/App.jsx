@@ -897,16 +897,16 @@ export default function App() {
     }).then(() => setOneSignalReady(true)).catch(() => {});
   }, []);
 
-  // [OneSignal] Prompt for push, link user, and save Player ID to profiles when subscribed
+  // [OneSignal] Sync onesignal_id to Supabase whenever user logs in
   useEffect(() => {
-    if (!oneSignalReady || !session?.user?.id) return;
+    const user = session?.user;
+    if (!oneSignalReady || !user?.id) return;
 
-    const runOneSignalFlow = async () => {
+    const runOneSignalSync = async () => {
       try {
-        await OneSignal.login(session.user.id);
-        await OneSignal.Slidedown.promptPush();
+        await OneSignal.login(user.id);
       } catch (e) {
-        console.warn('[OneSignal] prompt/login:', e);
+        console.warn('[OneSignal] login:', e);
       }
 
       const savePlayerIdToProfile = async (playerId) => {
@@ -914,12 +914,17 @@ export default function App() {
         const { error } = await supabase
           .from('profiles')
           .update({ onesignal_id: playerId })
-          .eq('id', session.user.id);
+          .eq('id', user.id);
         if (error) console.warn('[OneSignal] Failed to save onesignal_id:', error);
       };
 
-      const id = OneSignal.User?.PushSubscription?.id || OneSignal.User?.onesignalId;
-      if (id) await savePlayerIdToProfile(id);
+      const optedIn = OneSignal.User?.PushSubscription?.optedIn;
+      if (optedIn) {
+        const id = OneSignal.User?.PushSubscription?.id || OneSignal.User?.onesignalId;
+        if (id) await savePlayerIdToProfile(id);
+      } else {
+        await OneSignal.Slidedown.promptPush();
+      }
 
       OneSignal.User?.PushSubscription?.addEventListener?.('change', async (event) => {
         const newId = event?.current?.id || OneSignal.User?.PushSubscription?.id;
@@ -927,8 +932,8 @@ export default function App() {
       });
     };
 
-    runOneSignalFlow();
-  }, [oneSignalReady, session?.user?.id]);
+    runOneSignalSync();
+  }, [oneSignalReady, session?.user]);
 
   // [핵심] 앱이 켜질 때 & 로그인 상태 바뀔 때 실행됨
   useEffect(() => {
