@@ -3075,9 +3075,14 @@ const AdminSettings = ({ setView }) => {
 };
 
 // --- [AdminHome] 관리자 메인 화면 ---
-const AdminHome = ({ setView, logout, user }) => {
+const AdminHome = ({ setView, logout, user: userProp }) => {
   const handleForceSaveID = async () => {
-    if (!user?.id) {
+    let userId = userProp?.id;
+    if (!userId) {
+      const { data: { user } } = await supabase.auth.getUser();
+      userId = user?.id;
+    }
+    if (!userId) {
       alert('로그인 후 사용해 주세요.');
       return;
     }
@@ -3089,7 +3094,7 @@ const AdminHome = ({ setView, logout, user }) => {
     const { error } = await supabase
       .from('profiles')
       .update({ onesignal_id: id })
-      .eq('id', user.id);
+      .eq('id', userId);
     if (error) {
       alert('DB 저장 실패: ' + error.message);
       return;
