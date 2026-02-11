@@ -2358,12 +2358,13 @@ const MacroCalculator = ({ user, setView }) => {
 };
 
 // [교체] ClassBooking 컴포넌트 전체
+const ALL_HOURLY_SLOTS = Array.from({ length: 18 }, (_, i) => `${(i + 6).toString().padStart(2, '0')}:00`);
 const ClassBooking = ({ user, setView }) => {
   const [selectedDate, setSelectedDate] = useState(null);
   const [bookings, setBookings] = useState([]);
   const [loading, setLoading] = useState(false);
   const [processing, setProcessing] = useState(false);
-  const [availability, setAvailability] = useState([]);
+  const [settings, setSettings] = useState([]);
   const [holidays, setHolidays] = useState([]);
   const [weekStart, setWeekStart] = useState(() => {
     const d = new Date();
@@ -2374,7 +2375,6 @@ const ClassBooking = ({ user, setView }) => {
     return mon;
   });
 
-  const TIME_SLOTS = ["10:00", "11:00", "12:00", "13:00", "14:00", "15:00", "16:00", "17:00", "18:00", "19:00", "20:00", "21:00", "22:00"];
 
   const toDateKey = (d) => {
     const x = new Date(d);
@@ -2392,15 +2392,15 @@ const ClassBooking = ({ user, setView }) => {
   };
 
   useEffect(() => {
-    const fetchAvailability = async () => {
-      const { data, error } = await supabase.from('trainer_availability').select('*');
-      setAvailability(error ? [] : (data || []));
+    const fetchSettings = async () => {
+      const { data, error } = await supabase.from('trainer_settings').select('*').order('day_of_week');
+      setSettings(error ? [] : (data || []));
     };
     const fetchHolidays = async () => {
       const { data, error } = await supabase.from('trainer_holidays').select('date');
       setHolidays(error ? [] : (data || []).map((h) => h.date));
     };
-    fetchAvailability();
+    fetchSettings();
     fetchHolidays();
   }, []);
 
@@ -2423,37 +2423,70 @@ const ClassBooking = ({ user, setView }) => {
 
   const isSlotBooked = (time) => bookings.some((b) => b.time === time);
 
-  const isSlotInOffHours = (dateStr, time) => {
+  const getDaySetting = (dateStr) => {
     const d = new Date(dateStr + 'T12:00:00');
     const dayOfWeek = d.getDay();
-    for (const a of availability) {
-      if (a.day_of_week !== dayOfWeek) continue;
-      if (a.is_day_off) return true;
-      const [sh, sm] = (a.start_time || '00:00').toString().split(':').map(Number);
-      const [eh, em] = (a.end_time || '23:59').toString().split(':').map(Number);
-      const [th, tm] = time.split(':').map(Number);
-      const slotMins = th * 60 + tm;
-      const startMins = sh * 60 + sm;
-      const endMins = eh * 60 + em;
+    const row = settings.find((s) => s.day_of_week === dayOfWeek);
+    return row || { off: dayOfWeek === 0, start_time: '09:00', end_time: '22:00', break_times: [] };
+  };
+
+  const isHoliday = (dateStr) => holidays.includes(dateStr);
+
+  const toMins = (t) => {
+    const [h, m] = String(t).split(':').map(Number);
+    return (h || 0) * 60 + (m || 0);
+  };
+
+  const isSlotInBreakTimes = (dateStr, time) => {
+    const daySet = getDaySetting(dateStr);
+    const breakTimes = daySet.break_times || [];
+    const slotMins = toMins(time);
+    for (const bt of breakTimes) {
+      const startMins = toMins(bt.start);
+      const endMins = toMins(bt.end);
       if (slotMins >= startMins && slotMins < endMins) return true;
     }
     return false;
   };
 
-  const isHoliday = (dateStr) => holidays.includes(dateStr);
+  const isSlotInWorkingHours = (dateStr, time) => {
+    const daySet = getDaySetting(dateStr);
+    const startMins = toMins(daySet.start_time || '09:00');
+    const endMins = toMins(daySet.end_time || '22:00');
+    const slotMins = toMins(time);
+    return slotMins >= startMins && slotMins < endMins;
+  };
 
   const isSlotExpired = (dateStr, time) => {
     if (dateStr !== toDateKey(new Date())) return false;
     const now = new Date();
-    const [th, tm] = time.split(':').map(Number);
-    return th < now.getHours() || (th === now.getHours() && tm <= now.getMinutes());
+    const slotMins = toMins(time);
+    const nowMins = now.getHours() * 60 + now.getMinutes();
+    return slotMins <= nowMins;
+  };
+
+  const generateTimeSlots = () => {
+    if (!selectedDate) return [];
+    const dateStr = selectedDate;
+    const daySet = getDaySetting(dateStr);
+
+    if (isHoliday(dateStr)) return [];
+    if (daySet.off) return [];
+
+    return ALL_HOURLY_SLOTS.filter((time) => {
+      if (!isSlotInWorkingHours(dateStr, time)) return false;
+      if (isSlotInBreakTimes(dateStr, time)) return false;
+      return true;
+    });
   };
 
   const isSlotAvailable = (time) => {
     if (!selectedDate) return false;
     if (isSlotBooked(time)) return false;
     if (isHoliday(selectedDate)) return false;
-    if (isSlotInOffHours(selectedDate, time)) return false;
+    if (getDaySetting(selectedDate).off) return false;
+    if (!isSlotInWorkingHours(selectedDate, time)) return false;
+    if (isSlotInBreakTimes(selectedDate, time)) return false;
     if (isSlotExpired(selectedDate, time)) return false;
     return true;
   };
@@ -2539,12 +2572,16 @@ const ClassBooking = ({ user, setView }) => {
         <>
           <h3 className="text-sm text-zinc-400 mb-3 uppercase tracking-widest">예약 가능 시간</h3>
           {isHoliday(selectedDate) ? (
-            <p className="text-center text-zinc-500 py-8">이날은 휴무일입니다.</p>
+            <p className="text-center text-zinc-400 py-8">Today is a trainer&apos;s day off. 💤</p>
+          ) : getDaySetting(selectedDate).off ? (
+            <p className="text-center text-zinc-400 py-8">Today is a trainer&apos;s day off. 💤</p>
           ) : loading ? (
             <p className="text-center text-zinc-600 py-10">Loading...</p>
+          ) : generateTimeSlots().length === 0 ? (
+            <p className="text-center text-zinc-500 py-8">No available slots for this day.</p>
           ) : (
             <div className="grid grid-cols-2 gap-3">
-              {TIME_SLOTS.map((time) => {
+              {generateTimeSlots().map((time) => {
                 const available = isSlotAvailable(time);
                 const booked = isSlotBooked(time);
                 const expired = isSlotExpired(selectedDate, time);
@@ -2738,74 +2775,89 @@ const AdminSchedule = ({ setView }) => {
   );
 };
 
-// --- [AdminSettings] Working Hours & Holidays ---
+// --- [AdminSettings] Working Hours & Holidays (trainer_settings + trainer_holidays) ---
 const DAY_NAMES = ['일', '월', '화', '수', '목', '금', '토'];
+const DEFAULT_START = '09:00';
+const DEFAULT_END = '22:00';
+
 const AdminSettings = ({ setView }) => {
-  const [availability, setAvailability] = useState([]);
+  const [settings, setSettings] = useState(() => Array.from({ length: 7 }, (_, d) => ({
+    day_of_week: d, off: d === 0, start_time: DEFAULT_START, end_time: DEFAULT_END, break_times: [],
+  })));
   const [holidays, setHolidays] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [saveToast, setSaveToast] = useState(false);
   const [newHolidayDate, setNewHolidayDate] = useState('');
-  const [dayOff, setDayOff] = useState({});
   const [newOffDay, setNewOffDay] = useState(1);
   const [newOffStart, setNewOffStart] = useState('12:00');
   const [newOffEnd, setNewOffEnd] = useState('13:00');
-  const [newOffLabel, setNewOffLabel] = useState('');
 
   const fetchData = async () => {
     setLoading(true);
-    const { data: avail, error: e1 } = await supabase.from('trainer_availability').select('*');
+    const { data: sett, error: e1 } = await supabase.from('trainer_settings').select('*').order('day_of_week');
     const { data: hols, error: e2 } = await supabase.from('trainer_holidays').select('*').order('date', { ascending: false });
-    setAvailability(e1 ? [] : (avail || []));
+    if (!e1 && sett && sett.length) {
+      const arr = Array.from({ length: 7 }, (_, d) => {
+        const row = sett.find((s) => s.day_of_week === d);
+        return row ? {
+          day_of_week: d,
+          off: !!row.off,
+          start_time: (row.start_time || DEFAULT_START).toString().slice(0, 5),
+          end_time: (row.end_time || DEFAULT_END).toString().slice(0, 5),
+          break_times: Array.isArray(row.break_times) ? row.break_times : [],
+        } : { day_of_week: d, off: d === 0, start_time: DEFAULT_START, end_time: DEFAULT_END, break_times: [] };
+      });
+      setSettings(arr);
+    }
     setHolidays(e2 ? [] : (hols || []));
-    const off = {};
-    (e1 ? [] : (avail || [])).filter((a) => a.is_day_off).forEach((a) => { off[a.day_of_week] = true; });
-    setDayOff(off);
     setLoading(false);
   };
 
   useEffect(() => { fetchData(); }, []);
+  useEffect(() => { if (saveToast) { const t = setTimeout(() => setSaveToast(false), 2500); return () => clearTimeout(t); } }, [saveToast]);
 
-  const toggleDayOff = async (dow) => {
-    const isOff = dayOff[dow];
-    if (isOff) {
-      const rows = availability.filter((a) => a.day_of_week === dow && a.is_day_off);
-      for (const r of rows) {
-        await supabase.from('trainer_availability').delete().eq('id', r.id);
-      }
-      setDayOff((p) => ({ ...p, [dow]: false }));
+  const updateDay = (dow, fn) => {
+    setSettings((prev) => prev.map((s) => s.day_of_week === dow ? fn(s) : s));
+  };
+
+  const toggleDayOff = (dow) => updateDay(dow, (s) => ({ ...s, off: !s.off }));
+
+  const setDayStartEnd = (dow, start, end) => updateDay(dow, (s) => ({ ...s, start_time: start, end_time: end }));
+
+  const addBreakTime = (dow, start, end) => {
+    updateDay(dow, (s) => ({ ...s, break_times: [...(s.break_times || []), { start, end }] }));
+  };
+
+  const removeBreakTime = (dow, idx) => {
+    updateDay(dow, (s) => ({
+      ...s,
+      break_times: (s.break_times || []).filter((_, i) => i !== idx),
+    }));
+  };
+
+  const saveSettings = async () => {
+    setSaving(true);
+    const rows = settings.map((s) => ({
+      day_of_week: s.day_of_week,
+      off: s.off,
+      start_time: s.start_time,
+      end_time: s.end_time,
+      break_times: s.break_times || [],
+    }));
+    const { error } = await supabase.from('trainer_settings').upsert(rows, { onConflict: 'day_of_week' });
+    setSaving(false);
+    if (!error) {
+      setSaveToast(true);
     } else {
-      const { error } = await supabase.from('trainer_availability').insert({
-        day_of_week: dow,
-        start_time: '00:00',
-        end_time: '23:59',
-        is_day_off: true,
-        label: `${DAY_NAMES[dow]} 휴무`,
-      });
-      if (!error) setDayOff((p) => ({ ...p, [dow]: true }));
+      alert('저장 실패: ' + error.message);
     }
-    fetchData();
-  };
-
-  const addOffHours = async (dow, start, end, label) => {
-    const { error } = await supabase.from('trainer_availability').insert({
-      day_of_week: dow,
-      start_time: start,
-      end_time: end,
-      is_day_off: false,
-      label: label || `${start}-${end}`,
-    });
-    if (!error) fetchData();
-  };
-
-  const removeOffHours = async (id) => {
-    await supabase.from('trainer_availability').delete().eq('id', id);
-    fetchData();
   };
 
   const addHoliday = async () => {
     if (!newHolidayDate) return;
     const { error } = await supabase.from('trainer_holidays').insert({ date: newHolidayDate, label: newHolidayDate });
-    if (!error) { setNewHolidayDate(''); fetchData(); }
+    if (!error) { setNewHolidayDate(''); fetchData(); } else { alert('추가 실패: ' + error.message); }
   };
 
   const removeHoliday = async (id) => {
@@ -2816,36 +2868,46 @@ const AdminSettings = ({ setView }) => {
   if (loading) return <div className="min-h-[100dvh] bg-zinc-950 p-6 text-white"><p className="text-zinc-500">Loading...</p></div>;
 
   return (
-    <div className="min-h-[100dvh] bg-zinc-950 text-white p-6 pb-24">
-      <BackButton onClick={() => setView('admin_home')} label="Admin Home" />
-      <h2 className="text-2xl font-bold text-yellow-500 mb-6">Working Hours & Holidays</h2>
-
-      {/* Recurring Weekly Schedule */}
-      <div className="mb-8">
-        <h3 className="text-yellow-400 font-bold mb-3">📅 주간 휴무 설정</h3>
-        <div className="space-y-2">
-          {[0, 1, 2, 3, 4, 5, 6].map((dow) => (
-            <div key={dow} className="flex items-center justify-between gap-4 p-3 bg-zinc-900 rounded-xl border border-zinc-800">
-              <span className="font-medium w-8">{DAY_NAMES[dow]}</span>
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input type="checkbox" checked={dayOff[dow] || false} onChange={() => toggleDayOff(dow)} className="accent-yellow-500" />
-                <span className="text-sm text-zinc-400">하루 종일 휴무</span>
-              </label>
-            </div>
-          ))}
+    <div className="min-h-[100dvh] bg-zinc-950 text-white p-6 pb-24 relative">
+      {saveToast && (
+        <div className="fixed top-6 left-1/2 -translate-x-1/2 z-50 px-6 py-3 bg-yellow-600 text-black font-bold rounded-xl shadow-lg animate-pulse">
+          Settings Saved ✓
         </div>
-        <p className="text-zinc-500 text-xs mt-2">오프 시간(예: 점심 12:00-13:00)은 아래에서 추가하세요.</p>
-      </div>
+      )}
+      <BackButton onClick={() => setView('admin_home')} label="Admin Home" />
+      <h2 className="text-2xl font-bold text-yellow-500 mb-6">Day Off Settings</h2>
 
-      {/* Add Off Hours */}
+      {/* Weekly Day Off + Working Hours */}
       <div className="mb-8">
-        <h3 className="text-yellow-400 font-bold mb-3">⏰ 오프 타임 추가</h3>
-        <p className="text-zinc-500 text-sm mb-2">요일별 점심 등 고정 휴무 시간</p>
-        <div className="flex flex-wrap gap-2 mb-3">
-          {[1, 2, 3, 4, 5].map((dow) => (
-            <button key={dow} onClick={() => addOffHours(dow, '12:00', '13:00', `${DAY_NAMES[dow]} 점심`)} className="px-3 py-2 bg-zinc-800 rounded-lg text-sm hover:bg-zinc-700">
-              {DAY_NAMES[dow]} 12-13시
-            </button>
+        <h3 className="text-yellow-400 font-bold mb-3">📅 주간 휴무 & 근무시간</h3>
+        <div className="space-y-2 mb-4">
+          {settings.map((s) => (
+            <div key={s.day_of_week} className="p-3 bg-zinc-900 rounded-xl border border-zinc-800">
+              <div className="flex items-center justify-between gap-4 flex-wrap">
+                <span className="font-medium w-8">{DAY_NAMES[s.day_of_week]}</span>
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input type="checkbox" checked={s.off} onChange={() => toggleDayOff(s.day_of_week)} className="accent-yellow-500" />
+                  <span className="text-sm text-zinc-400">하루 종일 휴무</span>
+                </label>
+                {!s.off && (
+                  <div className="flex items-center gap-2 text-sm">
+                    <input type="time" value={s.start_time} onChange={(e) => setDayStartEnd(s.day_of_week, e.target.value, s.end_time)} className="bg-zinc-800 border border-zinc-700 rounded px-2 py-1 text-white" />
+                    <span className="text-zinc-500">~</span>
+                    <input type="time" value={s.end_time} onChange={(e) => setDayStartEnd(s.day_of_week, s.start_time, e.target.value)} className="bg-zinc-800 border border-zinc-700 rounded px-2 py-1 text-white" />
+                  </div>
+                )}
+              </div>
+              {!s.off && (s.break_times || []).length > 0 && (
+                <div className="mt-2 ml-10 flex flex-wrap gap-2">
+                  {(s.break_times || []).map((bt, idx) => (
+                    <span key={idx} className="inline-flex items-center gap-1 px-2 py-1 bg-zinc-800 rounded text-xs">
+                      {bt.start}-{bt.end}
+                      <button onClick={() => removeBreakTime(s.day_of_week, idx)} className="text-red-500 hover:underline">×</button>
+                    </span>
+                  ))}
+                </div>
+              )}
+            </div>
           ))}
         </div>
         <div className="flex flex-wrap items-center gap-2 p-3 bg-zinc-900 rounded-xl border border-zinc-800 mb-3">
@@ -2855,17 +2917,11 @@ const AdminSettings = ({ setView }) => {
           <input type="time" value={newOffStart} onChange={(e) => setNewOffStart(e.target.value)} className="bg-zinc-800 border border-zinc-700 rounded px-3 py-2 text-white text-sm" />
           <span className="text-zinc-500">~</span>
           <input type="time" value={newOffEnd} onChange={(e) => setNewOffEnd(e.target.value)} className="bg-zinc-800 border border-zinc-700 rounded px-3 py-2 text-white text-sm" />
-          <input type="text" placeholder="라벨 (예: 점심)" value={newOffLabel} onChange={(e) => setNewOffLabel(e.target.value)} className="bg-zinc-800 border border-zinc-700 rounded px-3 py-2 text-white text-sm w-24" />
-          <button onClick={() => { addOffHours(newOffDay, newOffStart, newOffEnd, newOffLabel || null); setNewOffLabel(''); }} className="px-4 py-2 bg-yellow-600 text-black font-bold rounded-lg text-sm">추가</button>
+          <button onClick={() => { addBreakTime(newOffDay, newOffStart, newOffEnd); }} className="px-4 py-2 bg-yellow-600 text-black font-bold rounded-lg text-sm">추가</button>
         </div>
-        <div className="mt-3 space-y-2">
-          {availability.filter((a) => !a.is_day_off).map((a) => (
-            <div key={a.id} className="flex items-center justify-between p-2 bg-zinc-800 rounded">
-              <span className="text-sm">{DAY_NAMES[a.day_of_week]} {a.label || `${String(a.start_time).slice(0,5)}-${String(a.end_time).slice(0,5)}`}</span>
-              <button onClick={() => removeOffHours(a.id)} className="text-red-500 text-xs">삭제</button>
-            </div>
-          ))}
-        </div>
+        <button onClick={saveSettings} disabled={saving} className="w-full py-3 bg-yellow-600 text-black font-bold rounded-xl hover:bg-yellow-500 disabled:opacity-50">
+          {saving ? '저장 중...' : '저장 (Save)'}
+        </button>
       </div>
 
       {/* Specific Holidays */}
