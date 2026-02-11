@@ -220,7 +220,7 @@ const LoginView = ({ setView }) => {
 };
 
 // --- [ResetPasswordView] 비밀번호 재설정 화면 ---
-const ResetPasswordView = ({ setView }) => {
+const ResetPasswordView = ({ onClose }) => {
     const [newPassword, setNewPassword] = useState('');
     const [confirmPassword, setConfirmPassword] = useState('');
     const [loading, setLoading] = useState(false);
@@ -264,8 +264,8 @@ const ResetPasswordView = ({ setView }) => {
             // Sign out to force fresh login with new password
             await supabase.auth.signOut();
             
-            // Redirect to login
-            setView('login');
+            // Close the reset view
+            onClose();
         } catch (error) {
             console.error('❌ Password update error:', error);
             alert('오류: ' + error.message);
@@ -275,7 +275,7 @@ const ResetPasswordView = ({ setView }) => {
     };
 
     return (
-      <div className="flex flex-col items-center justify-center min-h-[100dvh] px-6 bg-zinc-950 text-white">
+      <div className="fixed inset-0 z-[100] flex flex-col items-center justify-center px-6 bg-zinc-950 text-white">
         <div className="mb-8 text-center">
           <div className="mb-4">
             <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-yellow-500/10 border-2 border-yellow-500 mb-4">
@@ -315,19 +315,19 @@ const ResetPasswordView = ({ setView }) => {
           </ButtonPrimary>
 
           <button
-            onClick={() => {
-              supabase.auth.signOut();
-              setView('login');
+            onClick={async () => {
+              await supabase.auth.signOut();
+              onClose();
             }}
             className="w-full text-sm text-zinc-500 hover:text-yellow-500 transition-colors mt-4"
           >
-            ← Back to Login
+            ← Cancel
           </button>
         </div>
         
-        {/* Debug info - remove in production */}
+        {/* Debug info */}
         <div className="mt-8 text-xs text-zinc-700 text-center">
-          <p>Recovery session active</p>
+          <p>🔐 Recovery session active</p>
         </div>
       </div>
     );
@@ -667,6 +667,9 @@ export default function App() {
   const [session, setSession] = useState(null); // 현재 로그인 세션
   const [view, setView] = useState('login');
   const [selectedMemberId, setSelectedMemberId] = useState(null); // 선택된 회원 ID
+  
+  // [PASSWORD RESET STATE - OVERRIDES EVERYTHING]
+  const [showResetPassword, setShowResetPassword] = useState(false);
 
   // [Library State]
   const [libraryPosts, setLibraryPosts] = useState([]);
@@ -708,10 +711,10 @@ export default function App() {
       const type = hashParams.get('type');
       
       if (type === 'recovery') {
-        console.log('🔐 PASSWORD RECOVERY DETECTED - Showing reset form');
+        console.log('🔐 PASSWORD RECOVERY DETECTED - Setting showResetPassword=true');
         setSession(session);
-        setView('reset_password');
-        return; // Exit early - don't set any other view
+        setShowResetPassword(true); // OVERRIDE everything
+        return; // Exit early
       }
       
       setSession(session);
@@ -728,10 +731,16 @@ export default function App() {
       
       // CRITICAL: Handle PASSWORD_RECOVERY event FIRST
       if (event === 'PASSWORD_RECOVERY') {
-        console.log('🔐 PASSWORD_RECOVERY EVENT - Forcing reset_password view');
+        console.log('🔐 PASSWORD_RECOVERY EVENT - Setting showResetPassword=true');
         setSession(session);
-        setView('reset_password');
-        return; // Exit early - don't process other conditions
+        setShowResetPassword(true); // OVERRIDE everything
+        return; // Exit early
+      }
+      
+      // If we just finished resetting password, don't process other events
+      if (showResetPassword) {
+        console.log('⚠️ Password reset in progress, ignoring other auth events');
+        return;
       }
       
       setSession(session);
@@ -744,7 +753,7 @@ export default function App() {
     });
 
     return () => subscription.unsubscribe();
-  }, []);
+  }, [showResetPassword]);
 
   const handleLogout = async () => {
       await supabase.auth.signOut();
@@ -876,15 +885,26 @@ export default function App() {
       {!showIntro && (
         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 1 }}>
           
-          {/* 로그인 안 했을 때 보여줄 화면들 */}
-          {!session && view === 'login' && <LoginView setView={setView} />}
-          {!session && view === 'register' && <RegisterView setView={setView} />}
-          
-          {/* 비밀번호 재설정 (recovery session 있을 때) */}
-          {view === 'reset_password' && <ResetPasswordView setView={setView} />}
+          {/* [PASSWORD RESET OVERRIDE] - Shows above everything else */}
+          {showResetPassword && (
+            <ResetPasswordView 
+              onClose={() => {
+                console.log('🔄 Closing reset view, returning to login');
+                setShowResetPassword(false);
+                setView('login');
+              }} 
+            />
+          )}
 
-          {/* 로그인 했을 때 보여줄 화면 (일반 회원) */}
-          {session && view === 'client_home' && <ClientHome user={session.user} logout={handleLogout} setView={setView} />}
+          {/* Normal views - only show if NOT in password reset mode */}
+          {!showResetPassword && (
+            <>
+              {/* 로그인 안 했을 때 보여줄 화면들 */}
+              {!session && view === 'login' && <LoginView setView={setView} />}
+              {!session && view === 'register' && <RegisterView setView={setView} />}
+
+              {/* 로그인 했을 때 보여줄 화면 (일반 회원) */}
+              {session && view === 'client_home' && <ClientHome user={session.user} logout={handleLogout} setView={setView} />}
 
           {/* 관리자 화면 (session 없이도 접근 가능 - admin backdoor) */}
           {view === 'admin_home' && (
@@ -1245,6 +1265,9 @@ export default function App() {
                 </div>
               )}
             </div>
+          )}
+          
+            </>
           )}
           
         </motion.div>
