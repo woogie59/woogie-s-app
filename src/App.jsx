@@ -928,13 +928,13 @@ export default function App() {
     runOneSignalSync();
   }, [oneSignalReady, session?.user]);
 
-  const [authResolving, setAuthResolving] = useState(true);
+  const [loading, setLoading] = useState(true);
 
   const processAuth = async (sessionData) => {
     setSession(sessionData);
     if (!sessionData?.user?.id) {
       setView('login');
-      setAuthResolving(false);
+      setLoading(false);
       return;
     }
     try {
@@ -943,11 +943,21 @@ export default function App() {
         .select('role')
         .eq('id', sessionData.user.id)
         .maybeSingle();
-      setView(data?.role === 'admin' ? 'admin_home' : 'client_home');
+      if (!data && sessionData?.user) {
+        await new Promise((r) => setTimeout(r, 600));
+        const { data: retry } = await supabase
+          .from('profiles')
+          .select('role')
+          .eq('id', sessionData.user.id)
+          .maybeSingle();
+        setView(retry?.role === 'admin' ? 'admin_home' : 'client_home');
+      } else {
+        setView(data?.role === 'admin' ? 'admin_home' : 'client_home');
+      }
     } catch {
       setView('client_home');
     } finally {
-      setAuthResolving(false);
+      setLoading(false);
     }
   };
 
@@ -962,7 +972,7 @@ export default function App() {
       if (type === 'recovery') {
         setSession(session);
         setShowResetPassword(true);
-        setAuthResolving(false);
+        setLoading(false);
         return;
       }
 
@@ -979,7 +989,7 @@ export default function App() {
       if (event === 'PASSWORD_RECOVERY') {
         setSession(session);
         setShowResetPassword(true);
-        setAuthResolving(false);
+        setLoading(false);
         return; // Exit early
       }
       
@@ -1304,12 +1314,13 @@ export default function App() {
           )}
 
           {/* Normal views - only show if NOT in password reset mode */}
-          {!showResetPassword && authResolving && (
-            <div className="min-h-[100dvh] flex items-center justify-center bg-zinc-950 text-zinc-400">
-              잠시만 기다려주세요
+          {!showResetPassword && loading && (
+            <div className="min-h-[100dvh] flex flex-col items-center justify-center bg-zinc-950 text-white gap-4">
+              <h2 className="text-xl font-serif text-yellow-500">THE COACH</h2>
+              <p className="text-zinc-400">준비 중...</p>
             </div>
           )}
-          {!showResetPassword && !authResolving && (
+          {!showResetPassword && !loading && (
             <>
               {/* 로그인 안 했을 때 보여줄 화면들 */}
               {!session && view === 'login' && <LoginView setView={setView} />}

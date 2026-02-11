@@ -65,7 +65,12 @@ const RegisterView = ({ setView }) => {
             }
 
             alert(`🎉 환영합니다, ${form.name}님!\n가입이 완료되었습니다.`);
-            setView('login');
+            const { data: { session } } = await supabase.auth.getSession();
+            if (session) {
+              setView('client_home');
+            } else {
+              setView('login');
+            }
 
         } catch (err) {
             console.error(err);
