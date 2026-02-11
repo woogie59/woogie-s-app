@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { QrCode, Camera, CheckCircle, ChevronRight, BookOpen, LogOut, Plus, User, X, CreditCard, History, Search, ArrowLeft, Edit3, Save, Sparkles, MessageSquare, Calendar, Clock, ChevronLeft, XCircle, Trash2, Edit, Image, DollarSign, Download, Printer } from 'lucide-react';
+import { QrCode, Camera, CheckCircle, ChevronRight, ChevronDown, ChevronUp, BookOpen, LogOut, Plus, User, X, CreditCard, History, Search, ArrowLeft, Edit3, Save, Sparkles, MessageSquare, Calendar, Clock, ChevronLeft, XCircle, Trash2, Edit, Image, DollarSign, Download, Printer } from 'lucide-react';
 import { Html5Qrcode } from 'html5-qrcode';
 
 // [중요] 우리가 만든 Supabase 연결 도구와 페이지 가져오기
@@ -710,6 +710,8 @@ export default function App() {
   const [revenueLogs, setRevenueLogs] = useState([]);
   const [isRevenueLoading, setIsRevenueLoading] = useState(false);
   const [selectedRevenueDay, setSelectedRevenueDay] = useState(null);
+  const [showPayrollCalculator, setShowPayrollCalculator] = useState(false);
+  const [expandedRevenueDates, setExpandedRevenueDates] = useState(new Set());
   
   // Salary Configuration (Persist in LocalStorage)
   const [salaryConfig, setSalaryConfig] = useState(() => {
@@ -901,14 +903,24 @@ export default function App() {
     return new Date(log.check_in_at).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', hour12: false });
   };
 
-  const selectedDaySessions = React.useMemo(() => {
-    const arr = selectedRevenueDay ? (revenueSessionsByDate[selectedRevenueDay] || []) : [];
-    return [...arr].sort((a, b) => {
-      const ta = getSessionTime24h(a);
-      const tb = getSessionTime24h(b);
-      return ta.localeCompare(tb);
+  const revenueDatesSorted = React.useMemo(() => {
+    return Object.keys(revenueSessionsByDate).sort((a, b) => b.localeCompare(a));
+  }, [revenueSessionsByDate]);
+
+  const toggleRevenueDateExpanded = (key) => {
+    setExpandedRevenueDates((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
     });
-  }, [selectedRevenueDay, revenueSessionsByDate]);
+  };
+
+  useEffect(() => {
+    if (revenueDatesSorted.length > 0) {
+      setExpandedRevenueDates(new Set(revenueDatesSorted));
+    }
+  }, [revenueDatesSorted]);
 
   const revenueCalendarDays = React.useMemo(() => {
     const y = currentRevenueDate.getFullYear();
@@ -944,18 +956,33 @@ export default function App() {
     const monthLabel = `${currentRevenueDate.getFullYear()}년 ${currentRevenueDate.getMonth() + 1}월`;
     const esc = (v) => `"${String(v).replace(/"/g, '""')}"`;
 
-    const row1 = esc(`${monthLabel} Payroll Report`);
-    const row2 = esc(`Total Sessions: ${totalSessions}, Total Sales: ₩${totalSales.toLocaleString()}, Net Payout: ₩${netPayout.toLocaleString()}`);
-    const row3 = '';
+    const summaryRows = [
+      esc(`${monthLabel} Payroll Report`),
+      esc(`Total Sessions: ${totalSessions}`),
+      esc(`Total Sales: ₩${totalSales.toLocaleString()}`),
+      esc(`Net Payout: ₩${netPayout.toLocaleString()}`),
+      '',
+      '',
+    ];
+
     const headerRow = ['Date', 'Scheduled Time', 'Member Name', 'Price'].map(esc).join(',');
 
-    const sessionRows = revenueLogs.map((log) => {
+    const sortedLogs = [...revenueLogs].sort((a, b) => new Date(a.check_in_at) - new Date(b.check_in_at));
+    let lastDateKey = '';
+    const dataRows = [];
+    sortedLogs.forEach((log) => {
       const d = new Date(log.check_in_at);
+      const dateKey = toDateKey(log.check_in_at);
+      if (dateKey !== lastDateKey) {
+        lastDateKey = dateKey;
+        const [y, m, day] = dateKey.split('-');
+        dataRows.push(esc(`--- ${y}. ${m}. ${day} ---`));
+      }
       const time24 = getSessionTime24h(log);
-      return [d.toLocaleDateString('ko-KR'), time24, (log.profiles?.name || 'Unknown'), log.session_price_snapshot ?? 0].map(esc).join(',');
+      dataRows.push([d.toLocaleDateString('ko-KR'), time24, (log.profiles?.name || 'Unknown'), log.session_price_snapshot ?? 0].map(esc).join(','));
     });
 
-    const csvBody = [row1, row2, row3, headerRow, ...sessionRows].join('\n');
+    const csvBody = [...summaryRows, headerRow, ...dataRows].join('\n');
     const bom = '\ufeff';
     const blob = new Blob([bom + csvBody], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
@@ -1074,8 +1101,9 @@ export default function App() {
                   </div>
                 </div>
 
-                {/* Total Monthly Sessions - Primary Counter */}
-                <div className="bg-gradient-to-r from-yellow-900/30 to-zinc-900 rounded-xl p-6 mb-6 border-2 border-yellow-500/40">
+                {/* Total Monthly Sessions - Primary Counter (sticky for visibility) */}
+                <div className="sticky top-0 z-10 bg-zinc-950/95 backdrop-blur-sm -mx-6 px-6 pt-2 pb-4 -mt-2 mb-4 border-b border-zinc-800/50">
+                  <div className="bg-gradient-to-r from-yellow-900/30 to-zinc-900 rounded-xl p-6 border-2 border-yellow-500/40">
                   <div className="flex items-center gap-3 mb-2">
                     <div className="p-2 rounded-lg bg-yellow-500/20">
                       <Calendar size={28} className="text-yellow-500" />
@@ -1084,6 +1112,7 @@ export default function App() {
                   </div>
                   <p className="text-5xl font-bold text-yellow-400 tracking-tight">{isRevenueLoading ? '—' : revenueLogs.length}</p>
                   <p className="text-zinc-500 text-xs mt-1">{currentRevenueDate.getFullYear()}년 {currentRevenueDate.getMonth() + 1}월 attendance_logs 기준</p>
+                  </div>
                 </div>
 
                 {/* Summary Cards */}
@@ -1130,8 +1159,18 @@ export default function App() {
                   );
                 })()}
 
-                {/* Salary Calculator */}
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+                {/* Payroll Calculator - Collapsible */}
+                <div className="mb-8">
+                  <button
+                    onClick={() => setShowPayrollCalculator((v) => !v)}
+                    className="w-full flex items-center justify-between gap-4 bg-zinc-900 hover:bg-zinc-800/80 rounded-xl p-4 border border-zinc-800 transition-colors"
+                  >
+                    <span className="font-bold text-yellow-500">💰 월급 계산하기 (Calculate Payroll)</span>
+                    {showPayrollCalculator ? <ChevronUp size={22} className="text-zinc-400" /> : <ChevronDown size={22} className="text-zinc-400" />}
+                  </button>
+                  {showPayrollCalculator && (
+                <div className="mt-3 space-y-4 rounded-xl border border-zinc-800 bg-zinc-900/50 p-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                   <div className="bg-zinc-900 rounded-xl p-4 border border-zinc-800">
                     <label className="text-zinc-400 text-xs block mb-2">Base Salary (기본급)</label>
                     <div className="flex items-center">
@@ -1175,22 +1214,23 @@ export default function App() {
                     </p>
                     <p className="text-xs text-zinc-500 mt-1">자동 계산</p>
                   </div>
-                </div>
-
-                {/* Final Net Payout Card - Most Prominent */}
+                  </div>
                 {(() => {
                   const totalSales = revenueLogs.reduce((sum, log) => sum + (log.session_price_snapshot || 0), 0);
                   const gross = salaryConfig.base + totalSales * (salaryConfig.incentiveRate / 100) + salaryConfig.extra;
                   const tax = Math.round(gross * 0.033);
                   const net = gross - tax;
                   return (
-                    <div className="bg-gradient-to-r from-yellow-900/50 via-amber-900/30 to-zinc-900 rounded-xl p-6 mb-8 border-2 border-yellow-500 shadow-xl shadow-yellow-500/20">
+                    <div className="bg-gradient-to-r from-yellow-900/50 via-amber-900/30 to-zinc-900 rounded-xl p-6 border-2 border-yellow-500 shadow-xl shadow-yellow-500/20">
                       <h3 className="text-yellow-400 font-bold text-sm uppercase tracking-wider mb-2">실수령액 (Final Net Payout)</h3>
                       <p className="text-5xl font-bold text-yellow-400">₩ {fmt(net)}</p>
                       <p className="text-zinc-400 text-sm mt-1">총 급여 ₩{fmt(gross)} − 세금 ₩{fmt(tax)}</p>
                     </div>
                   );
                 })()}
+                </div>
+                  )}
+                </div>
 
                 {/* Download Button */}
                 <div className="flex justify-end mb-4">
@@ -1246,43 +1286,60 @@ export default function App() {
                   </div>
                 </div>
 
-                {/* Daily Details */}
-                <div className="bg-zinc-900 rounded-xl overflow-hidden border border-zinc-800">
-                  <h3 className="text-zinc-400 text-xs font-semibold uppercase tracking-wider px-4 pt-4 pb-2">
-                    {selectedRevenueDay ? `${selectedRevenueDay} 세션 내역` : '날짜를 선택하세요'}
-                  </h3>
-                  {                    selectedRevenueDay ? (
-                    selectedDaySessions.length === 0 ? (
-                      <p className="p-6 text-center text-zinc-500 text-sm">해당 날짜에 세션 기록이 없습니다</p>
-                    ) : (
-                      <>
-                        <table className="w-full text-left">
-                          <thead className="bg-zinc-800/80">
-                            <tr>
-                              <th className="p-3 text-zinc-400 text-[10px] font-semibold uppercase">Scheduled Time (24h)</th>
-                              <th className="p-3 text-zinc-400 text-[10px] font-semibold uppercase">Member</th>
-                              <th className="p-3 text-zinc-400 text-[10px] font-semibold uppercase text-right">Price</th>
-                            </tr>
-                          </thead>
-                          <tbody className="divide-y divide-zinc-800">
-                            {selectedDaySessions.map((log) => (
-                              <tr key={log.id} className="hover:bg-zinc-800/50">
-                                <td className="p-3 text-zinc-300 text-sm font-mono">
-                                  {getSessionTime24h(log)}
-                                </td>
-                                <td className="p-3 text-white font-medium text-sm">{log.profiles?.name || 'Unknown'}</td>
-                                <td className="p-3 text-right font-bold text-yellow-500 text-sm">₩ {(log.session_price_snapshot ?? 0).toLocaleString()}</td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                        <div className="px-4 py-3 bg-zinc-800/50 border-t border-zinc-800 text-zinc-400 text-sm font-medium">
-                          Total Daily Sessions: {selectedDaySessions.length}
-                        </div>
-                      </>
-                    )
+                {/* Grouped Session List by Date (Accordion) */}
+                <div className="space-y-3">
+                  <h3 className="text-zinc-400 text-xs font-semibold uppercase tracking-wider">Sessions by Date</h3>
+                  {isRevenueLoading ? (
+                    <p className="p-8 text-center text-zinc-500 text-sm">Loading...</p>
+                  ) : revenueDatesSorted.length === 0 ? (
+                    <div className="bg-zinc-900 rounded-xl border border-zinc-800 p-8 text-center text-zinc-500 text-sm">이번 달 세션 기록이 없습니다</div>
                   ) : (
-                    <p className="p-6 text-center text-zinc-500 text-sm">달력에서 날짜를 눌러 세션 내역을 확인하세요</p>
+                    revenueDatesSorted.map((dateKey) => {
+                      const sessions = (revenueSessionsByDate[dateKey] || []).slice().sort((a, b) => getSessionTime24h(a).localeCompare(getSessionTime24h(b)));
+                      const isExpanded = expandedRevenueDates.has(dateKey);
+                      const [y, m, d] = dateKey.split('-');
+                      const dateLabel = `${y}. ${m}. ${d}`;
+                      return (
+                        <div key={dateKey} className="bg-zinc-900 rounded-xl border border-zinc-800 overflow-hidden">
+                          <button
+                            onClick={() => toggleRevenueDateExpanded(dateKey)}
+                            className="w-full flex items-center justify-between gap-4 px-4 py-3 hover:bg-zinc-800/50 transition-colors text-left"
+                          >
+                            <div className="flex items-center gap-3">
+                              <Calendar size={18} className="text-yellow-500 shrink-0" />
+                              <span className="font-bold text-white">{dateLabel}</span>
+                              <span className="text-zinc-500 text-sm">({sessions.length} sessions)</span>
+                            </div>
+                            {isExpanded ? <ChevronUp size={20} className="text-zinc-400" /> : <ChevronDown size={20} className="text-zinc-400" />}
+                          </button>
+                          {isExpanded && (
+                            <div className="border-t border-zinc-800">
+                              <table className="w-full text-left">
+                                <thead className="bg-zinc-800/80">
+                                  <tr>
+                                    <th className="p-3 text-zinc-400 text-[10px] font-semibold uppercase">Time (24h)</th>
+                                    <th className="p-3 text-zinc-400 text-[10px] font-semibold uppercase">Member</th>
+                                    <th className="p-3 text-zinc-400 text-[10px] font-semibold uppercase text-right">Price</th>
+                                  </tr>
+                                </thead>
+                                <tbody className="divide-y divide-zinc-800">
+                                  {sessions.map((log) => (
+                                    <tr key={log.id} className="hover:bg-zinc-800/50">
+                                      <td className="p-3 text-zinc-300 text-sm font-mono">{getSessionTime24h(log)}</td>
+                                      <td className="p-3 text-white font-medium text-sm">{log.profiles?.name || 'Unknown'}</td>
+                                      <td className="p-3 text-right font-bold text-yellow-500 text-sm">₩ {(log.session_price_snapshot ?? 0).toLocaleString()}</td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                              <div className="px-4 py-2 bg-zinc-800/50 border-t border-zinc-800 text-zinc-500 text-xs font-medium">
+                                Total: {sessions.length} sessions
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })
                   )}
                 </div>
               </div>
@@ -2088,11 +2145,47 @@ const ClassBooking = ({ user, setView }) => {
   );
 };
 
+const toTime24h = (t) => {
+  if (!t || typeof t !== 'string') return t || '—';
+  const m = t.match(/^(\d{1,2}):(\d{2})/);
+  if (m) return `${m[1].padStart(2, '0')}:${m[2]}`;
+  return t;
+};
+
 // --- [AdminSchedule] 관리자 스케줄 관리 화면 ---
 const AdminSchedule = ({ setView }) => {
   const [bookings, setBookings] = useState([]);
   const [loading, setLoading] = useState(true);
   const [cancelling, setCancelling] = useState(null);
+  const [expandedScheduleDates, setExpandedScheduleDates] = useState(new Set());
+
+  const bookingsByDate = React.useMemo(() => {
+    const map = {};
+    (bookings || []).forEach((b) => {
+      const key = b.date;
+      if (!map[key]) map[key] = [];
+      map[key].push(b);
+    });
+    Object.values(map).forEach((arr) => arr.sort((a, b) => (a.time || '').localeCompare(b.time || '')));
+    return map;
+  }, [bookings]);
+
+  const scheduleDatesSorted = React.useMemo(() => Object.keys(bookingsByDate).sort(), [bookingsByDate]);
+
+  const toggleScheduleDateExpanded = (key) => {
+    setExpandedScheduleDates((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  };
+
+  useEffect(() => {
+    if (scheduleDatesSorted.length > 0) {
+      setExpandedScheduleDates(new Set(scheduleDatesSorted));
+    }
+  }, [scheduleDatesSorted]);
 
   const fetchBookings = async () => {
     setLoading(true);
@@ -2148,44 +2241,60 @@ const AdminSchedule = ({ setView }) => {
         <p className="text-zinc-500 text-center py-10">Loading schedules...</p>
       ) : bookings.length > 0 ? (
         <div className="space-y-3">
-          {bookings.map((booking) => (
-            <div
-              key={booking.id}
-              className="bg-zinc-900 border border-zinc-800 rounded-xl p-4 hover:border-yellow-600/30 transition-colors"
-            >
-              <div className="flex justify-between items-start mb-3">
-                <div className="flex-1">
-                  <h3 className="font-bold text-white text-lg mb-1">
-                    {booking.profiles?.name || 'Unknown User'}
-                  </h3>
-                  <p className="text-zinc-500 text-xs">{booking.profiles?.email || '-'}</p>
-                </div>
+          {scheduleDatesSorted.map((dateKey) => {
+            const dayBookings = bookingsByDate[dateKey] || [];
+            const isExpanded = expandedScheduleDates.has(dateKey);
+            return (
+              <div key={dateKey} className="bg-zinc-900 rounded-xl border border-zinc-800 overflow-hidden">
                 <button
-                  onClick={() => handleCancelBooking(
-                    booking.id,
-                    booking.profiles?.name || 'User',
-                    booking.date,
-                    booking.time
-                  )}
-                  disabled={cancelling === booking.id}
-                  className="p-2 rounded-lg bg-red-600/20 border border-red-600/30 text-red-500 hover:bg-red-600/30 active:scale-95 transition-all disabled:opacity-50"
+                  onClick={() => toggleScheduleDateExpanded(dateKey)}
+                  className="w-full flex items-center justify-between gap-4 px-4 py-3 hover:bg-zinc-800/50 transition-colors text-left"
                 >
-                  <Trash2 size={18} />
+                  <div className="flex items-center gap-3">
+                    <Calendar size={18} className="text-yellow-500 shrink-0" />
+                    <span className="font-bold text-white">{dateKey}</span>
+                    <span className="text-zinc-500 text-sm">({dayBookings.length} bookings)</span>
+                  </div>
+                  {isExpanded ? <ChevronUp size={20} className="text-zinc-400" /> : <ChevronDown size={20} className="text-zinc-400" />}
                 </button>
+                {isExpanded && (
+                  <div className="border-t border-zinc-800 divide-y divide-zinc-800">
+                    {dayBookings.map((booking) => (
+                      <div
+                        key={booking.id}
+                        className="flex justify-between items-center gap-4 p-4 bg-zinc-900/50 hover:bg-zinc-800/30 transition-colors"
+                      >
+                        <div className="flex-1 min-w-0">
+                          <h3 className="font-bold text-white truncate">
+                            {booking.profiles?.name || 'Unknown User'}
+                          </h3>
+                          <p className="text-zinc-500 text-xs truncate">{booking.profiles?.email || '-'}</p>
+                        </div>
+                        <div className="flex items-center gap-3 shrink-0">
+                          <div className="flex items-center gap-2 text-yellow-500 font-mono text-sm">
+                            <Clock size={14} />
+                            <span>{toTime24h(booking.time)}</span>
+                          </div>
+                          <button
+                            onClick={() => handleCancelBooking(
+                              booking.id,
+                              booking.profiles?.name || 'User',
+                              booking.date,
+                              booking.time
+                            )}
+                            disabled={cancelling === booking.id}
+                            className="p-2 rounded-lg bg-red-600/20 border border-red-600/30 text-red-500 hover:bg-red-600/30 active:scale-95 transition-all disabled:opacity-50"
+                          >
+                            <Trash2 size={18} />
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
-              
-              <div className="flex items-center gap-4 text-sm">
-                <div className="flex items-center gap-2 text-yellow-500">
-                  <Calendar size={16} />
-                  <span className="font-medium">{booking.date}</span>
-                </div>
-                <div className="flex items-center gap-2 text-yellow-500">
-                  <Clock size={16} />
-                  <span className="font-serif text-lg">{booking.time}</span>
-                </div>
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       ) : (
         <div className="flex flex-col items-center justify-center py-20 text-center">
