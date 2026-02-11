@@ -47,8 +47,24 @@ const RegisterView = ({ setView }) => {
 
             if (error) throw error;
 
-            // 2. 성공 시 처리
-            alert(`🎉 환영합니다, ${form.name}님!\n가입이 완료되었습니다. 로그인 해주세요.`);
+            const { user } = data;
+            if (user) {
+              const { data: existingProfile } = await supabase
+                .from('profiles')
+                .select('id')
+                .eq('id', user.id)
+                .maybeSingle();
+              if (!existingProfile) {
+                await supabase.from('profiles').insert({
+                  id: user.id,
+                  email: user.email,
+                  name: form.name,
+                  role: 'user',
+                });
+              }
+            }
+
+            alert(`🎉 환영합니다, ${form.name}님!\n가입이 완료되었습니다.`);
             setView('login');
 
         } catch (err) {

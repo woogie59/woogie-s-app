@@ -928,30 +928,45 @@ export default function App() {
     runOneSignalSync();
   }, [oneSignalReady, session?.user]);
 
+  const [authResolving, setAuthResolving] = useState(true);
+
+  const processAuth = async (sessionData) => {
+    setSession(sessionData);
+    if (!sessionData?.user?.id) {
+      setView('login');
+      setAuthResolving(false);
+      return;
+    }
+    try {
+      const { data } = await supabase
+        .from('profiles')
+        .select('role')
+        .eq('id', sessionData.user.id)
+        .maybeSingle();
+      setView(data?.role === 'admin' ? 'admin_home' : 'client_home');
+    } catch {
+      setView('client_home');
+    } finally {
+      setAuthResolving(false);
+    }
+  };
+
   // [핵심] 앱이 켜질 때 & 로그인 상태 바뀔 때 실행됨
   useEffect(() => {
     // 1. Auto-login only if a valid session exists in storage (localStorage when rememberMe, sessionStorage otherwise)
     supabase.auth.getSession().then(({ data: { session } }) => {
       console.log('Initial session check:', session);
-      const hasValidSession = session?.access_token && session?.user;
-      
-      // CRITICAL: Check for recovery type FIRST before anything else
       const hashParams = new URLSearchParams(window.location.hash.substring(1));
       const type = hashParams.get('type');
-      
+
       if (type === 'recovery') {
-        console.log('🔐 PASSWORD RECOVERY DETECTED - Setting showResetPassword=true');
         setSession(session);
-        setShowResetPassword(true); // OVERRIDE everything
-        return; // Exit early
+        setShowResetPassword(true);
+        setAuthResolving(false);
+        return;
       }
-      
-      setSession(session);
-      if (hasValidSession) {
-        setView('client_home');
-      } else if (!session) {
-        setView('login');
-      }
+
+      processAuth(session);
     });
 
     // 2. 로그인/로그아웃 감시자 등록
@@ -962,25 +977,15 @@ export default function App() {
       
       // CRITICAL: Handle PASSWORD_RECOVERY event FIRST
       if (event === 'PASSWORD_RECOVERY') {
-        console.log('🔐 PASSWORD_RECOVERY EVENT - Setting showResetPassword=true');
         setSession(session);
-        setShowResetPassword(true); // OVERRIDE everything
+        setShowResetPassword(true);
+        setAuthResolving(false);
         return; // Exit early
       }
       
-      // If we just finished resetting password, don't process other events
-      if (showResetPassword) {
-        console.log('⚠️ Password reset in progress, ignoring other auth events');
-        return;
-      }
+      if (showResetPassword) return;
       
-      setSession(session);
-      
-      if (session) {
-        setView('client_home');
-      } else {
-        setView('login');
-      }
+      processAuth(session);
     });
 
     return () => subscription.unsubscribe();
@@ -1299,7 +1304,12 @@ export default function App() {
           )}
 
           {/* Normal views - only show if NOT in password reset mode */}
-          {!showResetPassword && (
+          {!showResetPassword && authResolving && (
+            <div className="min-h-[100dvh] flex items-center justify-center bg-zinc-950 text-zinc-400">
+              잠시만 기다려주세요
+            </div>
+          )}
+          {!showResetPassword && !authResolving && (
             <>
               {/* 로그인 안 했을 때 보여줄 화면들 */}
               {!session && view === 'login' && <LoginView setView={setView} />}
