@@ -409,27 +409,31 @@ const ClientHome = ({ user, logout, setView }) => {
     };
   }, [user]);
 
-  // Fetch user's bookings when modal opens
   const fetchMyBookings = async () => {
-    if (!user) return;
-    
+    if (!user) {
+      console.log('[fetchMyBookings] No user, skipping');
+      return;
+    }
+
     setLoadingBookings(true);
     try {
       const { data, error } = await supabase
         .from('bookings')
-        .eq('user_id', user.id)
         .select('*')
+        .eq('user_id', user.id)
         .order('date', { ascending: true })
         .order('time', { ascending: true });
 
+      console.log('[fetchMyBookings] user.id:', user.id, '| data:', data, '| error:', error);
+
       if (error) {
-        console.error('Error fetching bookings:', error);
+        console.error('[fetchMyBookings] Error:', error);
         setMyBookings([]);
       } else {
         setMyBookings(data || []);
       }
     } catch (err) {
-      console.error('Unexpected error fetching bookings:', err);
+      console.error('[fetchMyBookings] Unexpected error:', err);
       setMyBookings([]);
     } finally {
       setLoadingBookings(false);
@@ -1296,65 +1300,77 @@ const QRScanner = ({ setView }) => {
   const scannerRef = useRef(null);
 
   useEffect(() => {
-      // 카메라 권한 요청 및 시작
-      startScan();
-      return () => stopScan();
+      // DOM이 완전히 렌더된 후 카메라 시작
+      const timer = setTimeout(() => {
+          startScan();
+      }, 200);
+      return () => {
+          clearTimeout(timer);
+          stopScan();
+      };
   }, []);
 
   const startScan = async () => {
       try {
-          // 이전 인스턴스 정리
+          // ghost 인스턴스 정리
           if (scannerRef.current) {
-              await scannerRef.current.stop().catch(() => {});
-              scannerRef.current.clear();
+              try {
+                  await scannerRef.current.stop();
+              } catch (e) {}
+              try {
+                  scannerRef.current.clear();
+              } catch (e) {}
+              scannerRef.current = null;
           }
+          await new Promise(r => setTimeout(r, 100));
 
           const html5QrCode = new Html5Qrcode("reader");
           scannerRef.current = html5QrCode;
 
           await html5QrCode.start(
-              { facingMode: "environment" }, 
+              { facingMode: "environment" },
               {
-                  fps: 20, // 프레임 속도 적정값
-                  qrbox: 250, // 스캔 영역
+                  fps: 30,
+                  qrbox: { width: 280, height: 280 },
                   aspectRatio: 1.0,
-                  // [핵심] QR 코드만 집중적으로 찾도록 설정
-                  formatsToSupport: [ 0 ] // 0 is QR_CODE in library constants usually, or let it auto-detect but clearly
+                  disableFlip: false
               },
               onScanSuccess,
-              (err) => { 
-                  // 스캔 중 에러는 무시 (로그 오염 방지)
-              }
+              () => {}
           );
+          setErrorMsg(null);
       } catch (err) {
-          console.error(err);
+          console.error("QR Camera error:", err);
           setErrorMsg("카메라 권한을 허용해주세요.");
       }
   };
 
   const stopScan = async () => {
       if (scannerRef.current) {
-          await scannerRef.current.stop().catch(() => {});
-          scannerRef.current.clear();
+          try {
+              await scannerRef.current.stop();
+          } catch (e) {}
+          try {
+              scannerRef.current.clear();
+          } catch (e) {}
+          scannerRef.current = null;
       }
   };
 
   const onScanSuccess = async (decodedText) => {
-      // 중복 인식 방지
-      if (scannerRef.current) scannerRef.current.pause();
+      console.log("QR 인식됨:", decodedText);
+      if (!scannerRef.current) return;
 
-      // 햅틱
+      try {
+          await scannerRef.current.pause();
+      } catch (e) {}
       if (navigator.vibrate) navigator.vibrate(200);
 
       try {
-          // 출석 처리 RPC 호출
           const { data, error } = await supabase.rpc('check_in_user', { user_uuid: decodedText });
-          
           if (error) throw error;
 
-          // 유저 이름 가져오기
           const { data: userData } = await supabase.from('profiles').select('name').eq('id', decodedText).single();
-          
           setResult({
               success: true,
               userName: userData?.name || '회원',
@@ -1363,15 +1379,19 @@ const QRScanner = ({ setView }) => {
       } catch (error) {
           let msg = "유효하지 않은 QR입니다.";
           if (error.message?.includes("No remaining")) msg = "잔여 세션이 없습니다.";
-          
           setResult({ success: false, message: msg });
           if (navigator.vibrate) navigator.vibrate([50, 50, 50]);
       }
-      
-      // 2초 후 재시작
+
       setTimeout(() => {
           setResult(null);
-          if (scannerRef.current) scannerRef.current.resume();
+          if (scannerRef.current) {
+              try {
+                  scannerRef.current.resume();
+              } catch (e) {
+                  startScan();
+              }
+          }
       }, 2000);
   };
 
@@ -1723,56 +1743,28 @@ const ClassBooking = ({ user, setView }) => {
     return bookings.some(b => b.time === time);
   };
 
-// [수정] ClassBooking 컴포넌트 내부의 handleBookSlot 함수
-// [App.jsx] ClassBooking 컴포넌트 내부 handleBookSlot 함수 교체
-const handleBookSlot = async (timeSlot) => {
-  if (!confirm(`${selectedDate} ${timeSlot} 예약하시겠습니까?`)) return;
+  const handleBookSlot = async (timeSlot) => {
+    if (processing) return;
+    if (!confirm(`${selectedDate} ${timeSlot} 예약하시겠습니까?`)) return;
 
-  setProcessing(true);
-  try {
-      // 이제 DB에 status 컬럼이 있으므로 에러가 안 납니다!
-      const { error } = await supabase.from('bookings').insert([{ 
-          user_id: user.id, 
-          date: selectedDate, 
-          time: timeSlot,
-          status: 'confirmed' 
-      }]);
+    setProcessing(true);
+    try {
+      const { data, error } = await supabase
+        .from('bookings')
+        .insert([{ user_id: user.id, date: selectedDate, time: timeSlot }])
+        .select();
 
       if (error) throw error;
 
       alert("✅ 예약 완료!");
-      
-      // 예약된 슬롯 즉시 반영을 위해 목록 다시 불러오기
-      const { data } = await supabase.from('bookings').select('*').eq('date', selectedDate);
-      setBookings(data || []);
-
-  } catch (err) {
+      const { data: updated } = await supabase.from('bookings').select('*').eq('date', selectedDate);
+      setBookings(updated || []);
+    } catch (err) {
       alert("❌ 예약 실패: " + err.message);
-  } finally {
+    } finally {
       setProcessing(false);
-  }
-};
-
-// [App.jsx] ClientHome 컴포넌트 내부 fetchMyBookings 함수 교체
-const fetchMyBookings = async () => {
-  if (!user) return;
-  setLoadingBookings(true);
-  
-  // RLS 정책(1단계) 덕분에 이제 '내 데이터'가 보일 겁니다.
-  const { data, error } = await supabase
-      .from('bookings')
-      .select('*')
-      .eq('user_id', user.id)
-      .order('date', { ascending: true });
-
-  if (error) {
-      console.error(error);
-  } else {
-      console.log("내 스케줄:", data); // 콘솔에서 데이터 들어오는지 확인 가능
-      setMyBookings(data || []);
-  }
-  setLoadingBookings(false);
-};
+    }
+  };
 
   return (
     <div className="min-h-[100dvh] bg-zinc-950 text-white p-6 pb-20">
@@ -1845,32 +1837,25 @@ const AdminSchedule = ({ setView }) => {
   const [loading, setLoading] = useState(true);
   const [cancelling, setCancelling] = useState(null);
 
-// [수정] ClientHome 컴포넌트 내부의 fetchMyBookings 함수
-const fetchMyBookings = async () => {
-  if (!user) return;
-  
-  setLoadingBookings(true);
-  try {
-    // 단순하게 모든 컬럼 조회 (status 필터링 제거)
-    const { data, error } = await supabase
-      .from('bookings')
-      .select('*')
-      .eq('user_id', user.id)
-      .order('date', { ascending: true })
-      .order('time', { ascending: true });
+  const fetchBookings = async () => {
+    setLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from('bookings')
+        .select('*, profiles(name, email)')
+        .order('date', { ascending: true })
+        .order('time', { ascending: true });
 
-    if (error) throw error;
-
-    console.log("My Schedules:", data);
-    setMyBookings(data || []);
-  } catch (err) {
-    console.error('스케줄 로딩 에러:', err);
-    // 에러가 나도 빈 배열로 처리해서 앱이 죽는 것 방지
-    setMyBookings([]);
-  } finally {
-    setLoadingBookings(false);
-  }
-};
+      console.log('[AdminSchedule] bookings:', data, 'error:', error);
+      if (error) throw error;
+      setBookings(data || []);
+    } catch (err) {
+      console.error('[AdminSchedule] fetch error:', err);
+      setBookings([]);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
     fetchBookings();
