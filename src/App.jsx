@@ -1318,7 +1318,7 @@ export default function App() {
           {/* 관리자 화면 (session 없이도 접근 가능 - admin backdoor) */}
           {view === 'admin_home' && (
             <AdminRoute session={session}>
-              <AdminHome setView={setView} logout={handleLogout} />
+              <AdminHome setView={setView} logout={handleLogout} user={session?.user} />
             </AdminRoute>
           )}
 
@@ -3075,32 +3075,61 @@ const AdminSettings = ({ setView }) => {
 };
 
 // --- [AdminHome] 관리자 메인 화면 ---
-const AdminHome = ({ setView, logout }) => (
-  <div className="min-h-[100dvh] bg-zinc-950 text-white flex flex-col relative pb-safe">
-    <header className="p-6 flex justify-between items-center">
-      <div>
-        <h2 className="text-xl font-serif text-yellow-500">THE COACH</h2>
-        <p className="text-zinc-500 text-xs">Manager Mode</p>
-      </div>
-      <button onClick={logout}><LogOut size={20} className="text-zinc-600 hover:text-white transition-colors" /></button>
-    </header>
-    <div className="flex-1 flex flex-col items-center justify-center px-6 gap-8">
-      <div className="relative group">
-        <div className="absolute -inset-1 bg-gradient-to-r from-yellow-600 to-amber-600 rounded-full blur opacity-25 group-hover:opacity-50 transition duration-1000"></div>
-        <button onClick={() => setView('scanner')} className="relative w-48 h-48 rounded-full bg-zinc-900 border border-zinc-800 flex flex-col items-center justify-center gap-2 active:scale-95 transition-all shadow-2xl">
-          <Camera size={40} className="text-yellow-500" />
-          <span className="text-sm tracking-widest font-medium text-zinc-300">QR SCAN</span>
-        </button>
-      </div>
-      <div className="w-full max-w-xs space-y-2 mt-8">
-         <ButtonGhost onClick={() => setView('member_list')}>CLIENT LIST</ButtonGhost>
-         <ButtonGhost onClick={() => setView('revenue')}>📅 DASHBOARD</ButtonGhost>
-         <ButtonGhost onClick={() => setView('library')}>LIBRARY</ButtonGhost>
-         <ButtonGhost onClick={() => setView('admin_settings')}>⚙️ SETTINGS</ButtonGhost>
+const AdminHome = ({ setView, logout, user }) => {
+  const handleForceSaveID = async () => {
+    if (!user?.id) {
+      alert('로그인 후 사용해 주세요.');
+      return;
+    }
+    const id = OneSignal.User?.PushSubscription?.id;
+    if (!id) {
+      alert('알림 권한이 없거나 ID가 아직 생성되지 않았습니다.');
+      return;
+    }
+    const { error } = await supabase
+      .from('profiles')
+      .update({ onesignal_id: id })
+      .eq('id', user.id);
+    if (error) {
+      alert('DB 저장 실패: ' + error.message);
+      return;
+    }
+    alert('성공! ID가 저장되었습니다: ' + id);
+  };
+
+  return (
+    <div className="min-h-[100dvh] bg-zinc-950 text-white flex flex-col relative pb-safe">
+      <header className="p-6 flex justify-between items-center">
+        <div>
+          <h2 className="text-xl font-serif text-yellow-500">THE COACH</h2>
+          <p className="text-zinc-500 text-xs">Manager Mode</p>
+        </div>
+        <button onClick={logout}><LogOut size={20} className="text-zinc-600 hover:text-white transition-colors" /></button>
+      </header>
+      <div className="flex-1 flex flex-col items-center justify-center px-6 gap-8">
+        <div className="relative group">
+          <div className="absolute -inset-1 bg-gradient-to-r from-yellow-600 to-amber-600 rounded-full blur opacity-25 group-hover:opacity-50 transition duration-1000"></div>
+          <button onClick={() => setView('scanner')} className="relative w-48 h-48 rounded-full bg-zinc-900 border border-zinc-800 flex flex-col items-center justify-center gap-2 active:scale-95 transition-all shadow-2xl">
+            <Camera size={40} className="text-yellow-500" />
+            <span className="text-sm tracking-widest font-medium text-zinc-300">QR SCAN</span>
+          </button>
+        </div>
+        <div className="w-full max-w-xs space-y-2 mt-8">
+           <ButtonGhost onClick={() => setView('member_list')}>CLIENT LIST</ButtonGhost>
+           <ButtonGhost onClick={() => setView('revenue')}>📅 DASHBOARD</ButtonGhost>
+           <ButtonGhost onClick={() => setView('library')}>LIBRARY</ButtonGhost>
+           <ButtonGhost onClick={() => setView('admin_settings')}>⚙️ SETTINGS</ButtonGhost>
+           <button
+             onClick={handleForceSaveID}
+             className="w-full py-3 px-4 rounded-xl text-sm font-medium bg-zinc-800 border border-zinc-700 text-zinc-300 hover:bg-zinc-700 hover:border-yellow-500/30 transition-colors"
+           >
+             🔔 알림 연동 확인
+           </button>
+        </div>
       </div>
     </div>
-  </div>
-);
+  );
+};
 
 // --- [MemberList] 회원 목록 (DB에서 가져옴) ---
 const MemberList = ({ setView, setSelectedMemberId }) => {
