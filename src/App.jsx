@@ -1240,6 +1240,12 @@ export default function App() {
             </AdminRoute>
           )}
 
+          {view === 'admin_settings' && (
+            <AdminRoute session={session}>
+              <AdminSettings setView={setView} />
+            </AdminRoute>
+          )}
+
           {/* 회원 상세 */}
           {view === 'member_detail' && selectedMemberId && (
             <AdminRoute session={session}>
@@ -2313,42 +2319,59 @@ const MacroCalculator = ({ user, setView }) => {
 // [교체] ClassBooking 컴포넌트 전체
 const ClassBooking = ({ user, setView }) => {
   const [selectedDate, setSelectedDate] = useState(null);
-  const [bookings, setBookings] = useState([]); // 초기값 빈 배열 보장
+  const [bookings, setBookings] = useState([]);
   const [loading, setLoading] = useState(false);
   const [processing, setProcessing] = useState(false);
+  const [availability, setAvailability] = useState([]);
+  const [holidays, setHolidays] = useState([]);
+  const [weekStart, setWeekStart] = useState(() => {
+    const d = new Date();
+    const day = d.getDay();
+    const mon = new Date(d);
+    mon.setDate(d.getDate() - (day === 0 ? 6 : day - 1));
+    mon.setHours(0, 0, 0, 0);
+    return mon;
+  });
 
-  // 시간대 설정
   const TIME_SLOTS = ["10:00", "11:00", "12:00", "13:00", "14:00", "15:00", "16:00", "17:00", "18:00", "19:00", "20:00", "21:00", "22:00"];
 
-  // 날짜 생성
-  const generateDates = () => {
-    const dates = [];
-    for (let i = 0; i < 7; i++) {
-      const d = new Date();
-      d.setDate(d.getDate() + i);
-      dates.push(d);
-    }
-    return dates;
+  const toDateKey = (d) => {
+    const x = new Date(d);
+    return `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, '0')}-${String(x.getDate()).padStart(2, '0')}`;
   };
-  const dates = generateDates();
 
-  // 날짜 선택 시 예약된 목록 가져오기
+  const getWeekDates = () => {
+    const arr = [];
+    for (let i = 0; i < 7; i++) {
+      const dd = new Date(weekStart);
+      dd.setDate(weekStart.getDate() + i);
+      arr.push(dd);
+    }
+    return arr;
+  };
+
+  useEffect(() => {
+    const fetchAvailability = async () => {
+      const { data, error } = await supabase.from('trainer_availability').select('*');
+      setAvailability(error ? [] : (data || []));
+    };
+    const fetchHolidays = async () => {
+      const { data, error } = await supabase.from('trainer_holidays').select('date');
+      setHolidays(error ? [] : (data || []).map((h) => h.date));
+    };
+    fetchAvailability();
+    fetchHolidays();
+  }, []);
+
   useEffect(() => {
     if (!selectedDate) return;
-    
     const fetchBookings = async () => {
       setLoading(true);
       try {
-        const { data, error } = await supabase
-          .from('bookings')
-          .select('*')
-          .eq('date', selectedDate);
-          
+        const { data, error } = await supabase.from('bookings').select('*').eq('date', selectedDate);
         if (error) throw error;
-        // 데이터가 없으면 빈 배열로 설정 (앱 죽음 방지)
         setBookings(Array.isArray(data) ? data : []);
       } catch (err) {
-        console.error(err);
         setBookings([]);
       } finally {
         setLoading(false);
@@ -2357,14 +2380,46 @@ const ClassBooking = ({ user, setView }) => {
     fetchBookings();
   }, [selectedDate]);
 
-  // 예약 여부 확인 (안전하게 체크)
-  const isSlotBooked = (time) => {
-    if (!Array.isArray(bookings)) return false;
-    return bookings.some(b => b.time === time);
+  const isSlotBooked = (time) => bookings.some((b) => b.time === time);
+
+  const isSlotInOffHours = (dateStr, time) => {
+    const d = new Date(dateStr + 'T12:00:00');
+    const dayOfWeek = d.getDay();
+    for (const a of availability) {
+      if (a.day_of_week !== dayOfWeek) continue;
+      if (a.is_day_off) return true;
+      const [sh, sm] = (a.start_time || '00:00').toString().split(':').map(Number);
+      const [eh, em] = (a.end_time || '23:59').toString().split(':').map(Number);
+      const [th, tm] = time.split(':').map(Number);
+      const slotMins = th * 60 + tm;
+      const startMins = sh * 60 + sm;
+      const endMins = eh * 60 + em;
+      if (slotMins >= startMins && slotMins < endMins) return true;
+    }
+    return false;
+  };
+
+  const isHoliday = (dateStr) => holidays.includes(dateStr);
+
+  const isSlotExpired = (dateStr, time) => {
+    if (dateStr !== toDateKey(new Date())) return false;
+    const now = new Date();
+    const [th, tm] = time.split(':').map(Number);
+    return th < now.getHours() || (th === now.getHours() && tm <= now.getMinutes());
+  };
+
+  const isSlotAvailable = (time) => {
+    if (!selectedDate) return false;
+    if (isSlotBooked(time)) return false;
+    if (isHoliday(selectedDate)) return false;
+    if (isSlotInOffHours(selectedDate, time)) return false;
+    if (isSlotExpired(selectedDate, time)) return false;
+    return true;
   };
 
   const handleBookSlot = async (timeSlot) => {
     if (processing) return;
+    if (!isSlotAvailable(timeSlot)) return;
     if (!confirm(`${selectedDate} ${timeSlot} 예약하시겠습니까?`)) return;
 
     setProcessing(true);
@@ -2394,52 +2449,81 @@ const ClassBooking = ({ user, setView }) => {
         <h2 className="text-lg font-serif text-yellow-500">CLASS BOOKING</h2>
       </header>
 
-      {/* 날짜 선택 */}
-      <div className="grid grid-cols-7 gap-2 mb-8">
-        {dates.map((date) => {
-          const dateStr = date.toISOString().split('T')[0];
-          const dayNum = date.getDate();
-          const dayName = date.toLocaleDateString('en-US', { weekday: 'short' });
-          const isSelected = selectedDate === dateStr;
-          
-          return (
-            <button
-              key={dateStr}
-              onClick={() => setSelectedDate(dateStr)}
-              className={`p-2 rounded-xl border flex flex-col items-center ${
-                isSelected ? 'bg-yellow-600 border-yellow-500 text-white' : 'bg-zinc-900 border-zinc-800 text-zinc-500'
-              }`}
-            >
-              <span className="text-[10px] uppercase">{dayName}</span>
-              <span className="text-lg font-bold">{dayNum}</span>
-            </button>
-          );
-        })}
+      {/* Week Slider - Mon to Sun */}
+      <div className="mb-4">
+        <div className="flex items-center justify-between mb-2">
+          <button onClick={() => { const p = new Date(weekStart); p.setDate(p.getDate() - 7); setWeekStart(p); }} className="p-1.5 rounded-lg hover:bg-zinc-800 text-zinc-400">
+            <ChevronLeft size={22} />
+          </button>
+          <span className="text-sm text-zinc-400">
+            {getWeekDates()[0].toLocaleDateString('en-US', { weekday: 'short' })} {getWeekDates()[0].getDate()} - {getWeekDates()[6].toLocaleDateString('en-US', { weekday: 'short' })} {getWeekDates()[6].getDate()}
+          </span>
+          <button onClick={() => { const n = new Date(weekStart); n.setDate(n.getDate() + 7); setWeekStart(n); }} className="p-1.5 rounded-lg hover:bg-zinc-800 text-zinc-400">
+            <ChevronRight size={22} />
+          </button>
+        </div>
+        <div className="flex gap-2 overflow-x-auto pb-2">
+          {getWeekDates().map((date) => {
+            const dateStr = toDateKey(date);
+            const dayName = date.toLocaleDateString('en-US', { weekday: 'short' });
+            const dayNum = date.getDate();
+            const isSelected = selectedDate === dateStr;
+            const isToday = dateStr === toDateKey(new Date());
+            const todayKey = toDateKey(new Date());
+            const isPast = dateStr < todayKey;
+            const isHolidayDate = isHoliday(dateStr);
+            return (
+              <button
+                key={dateStr}
+                onClick={() => !isPast && setSelectedDate(dateStr)}
+                disabled={isPast}
+                className={`shrink-0 p-3 rounded-xl border flex flex-col items-center min-w-[64px] ${
+                  isSelected ? 'bg-yellow-600 border-yellow-500 text-white' :
+                  isPast ? 'bg-zinc-900/50 border-zinc-800 text-zinc-600 cursor-not-allowed' :
+                  isHolidayDate ? 'bg-red-900/20 border-red-800/50 text-zinc-500' :
+                  'bg-zinc-900 border-zinc-800 text-zinc-400 hover:border-yellow-600/50'
+                }`}
+              >
+                <span className="text-[10px] uppercase">{dayName}</span>
+                <span className="text-lg font-bold">{dayNum}</span>
+                {isToday && <span className="text-[9px] text-yellow-500 mt-0.5">Today</span>}
+              </button>
+            );
+          })}
+        </div>
       </div>
 
       {/* 시간 선택 */}
       {selectedDate && (
         <>
-          <h3 className="text-sm text-zinc-400 mb-3 uppercase tracking-widest">Available Times</h3>
-          {loading ? (
+          <h3 className="text-sm text-zinc-400 mb-3 uppercase tracking-widest">예약 가능 시간</h3>
+          {isHoliday(selectedDate) ? (
+            <p className="text-center text-zinc-500 py-8">이날은 휴무일입니다.</p>
+          ) : loading ? (
             <p className="text-center text-zinc-600 py-10">Loading...</p>
           ) : (
             <div className="grid grid-cols-2 gap-3">
               {TIME_SLOTS.map((time) => {
+                const available = isSlotAvailable(time);
                 const booked = isSlotBooked(time);
+                const expired = isSlotExpired(selectedDate, time);
+                const disabled = !available || processing;
                 return (
                   <button
                     key={time}
-                    disabled={booked || processing}
+                    disabled={disabled}
                     onClick={() => handleBookSlot(time)}
-                    className={`p-4 rounded-xl border text-lg font-bold flex justify-between items-center ${
-                      booked 
-                        ? 'bg-zinc-900/50 border-zinc-800 text-zinc-700 cursor-not-allowed' 
-                        : 'bg-zinc-900 border-zinc-800 text-white hover:border-yellow-600'
+                    className={`p-4 rounded-xl border text-lg font-bold flex justify-between items-center transition ${
+                      expired ? 'bg-zinc-900/30 border-zinc-800 text-zinc-600 cursor-not-allowed' :
+                      booked ? 'bg-zinc-900/50 border-zinc-800 text-zinc-700 cursor-not-allowed' :
+                      available ? 'bg-zinc-900 border-zinc-800 text-white hover:border-yellow-600' :
+                      'bg-zinc-900/50 border-zinc-800 text-zinc-600 cursor-not-allowed'
                     }`}
                   >
-                    <span>{time}</span>
-                    {booked ? <span className="text-xs text-red-900">BOOKED</span> : <span className="text-green-500">●</span>}
+                    <span className={expired ? 'line-through' : ''}>{time}</span>
+                    {booked && <span className="text-xs text-red-500">예약됨</span>}
+                    {expired && !booked && <span className="text-xs text-zinc-500">지남</span>}
+                    {available && <span className="text-green-500">●</span>}
                   </button>
                 );
               })}
@@ -2613,6 +2697,156 @@ const AdminSchedule = ({ setView }) => {
   );
 };
 
+// --- [AdminSettings] Working Hours & Holidays ---
+const DAY_NAMES = ['일', '월', '화', '수', '목', '금', '토'];
+const AdminSettings = ({ setView }) => {
+  const [availability, setAvailability] = useState([]);
+  const [holidays, setHolidays] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [newHolidayDate, setNewHolidayDate] = useState('');
+  const [dayOff, setDayOff] = useState({});
+  const [newOffDay, setNewOffDay] = useState(1);
+  const [newOffStart, setNewOffStart] = useState('12:00');
+  const [newOffEnd, setNewOffEnd] = useState('13:00');
+  const [newOffLabel, setNewOffLabel] = useState('');
+
+  const fetchData = async () => {
+    setLoading(true);
+    const { data: avail, error: e1 } = await supabase.from('trainer_availability').select('*');
+    const { data: hols, error: e2 } = await supabase.from('trainer_holidays').select('*').order('date', { ascending: false });
+    setAvailability(e1 ? [] : (avail || []));
+    setHolidays(e2 ? [] : (hols || []));
+    const off = {};
+    (e1 ? [] : (avail || [])).filter((a) => a.is_day_off).forEach((a) => { off[a.day_of_week] = true; });
+    setDayOff(off);
+    setLoading(false);
+  };
+
+  useEffect(() => { fetchData(); }, []);
+
+  const toggleDayOff = async (dow) => {
+    const isOff = dayOff[dow];
+    if (isOff) {
+      const rows = availability.filter((a) => a.day_of_week === dow && a.is_day_off);
+      for (const r of rows) {
+        await supabase.from('trainer_availability').delete().eq('id', r.id);
+      }
+      setDayOff((p) => ({ ...p, [dow]: false }));
+    } else {
+      const { error } = await supabase.from('trainer_availability').insert({
+        day_of_week: dow,
+        start_time: '00:00',
+        end_time: '23:59',
+        is_day_off: true,
+        label: `${DAY_NAMES[dow]} 휴무`,
+      });
+      if (!error) setDayOff((p) => ({ ...p, [dow]: true }));
+    }
+    fetchData();
+  };
+
+  const addOffHours = async (dow, start, end, label) => {
+    const { error } = await supabase.from('trainer_availability').insert({
+      day_of_week: dow,
+      start_time: start,
+      end_time: end,
+      is_day_off: false,
+      label: label || `${start}-${end}`,
+    });
+    if (!error) fetchData();
+  };
+
+  const removeOffHours = async (id) => {
+    await supabase.from('trainer_availability').delete().eq('id', id);
+    fetchData();
+  };
+
+  const addHoliday = async () => {
+    if (!newHolidayDate) return;
+    const { error } = await supabase.from('trainer_holidays').insert({ date: newHolidayDate, label: newHolidayDate });
+    if (!error) { setNewHolidayDate(''); fetchData(); }
+  };
+
+  const removeHoliday = async (id) => {
+    await supabase.from('trainer_holidays').delete().eq('id', id);
+    fetchData();
+  };
+
+  if (loading) return <div className="min-h-[100dvh] bg-zinc-950 p-6 text-white"><p className="text-zinc-500">Loading...</p></div>;
+
+  return (
+    <div className="min-h-[100dvh] bg-zinc-950 text-white p-6 pb-24">
+      <BackButton onClick={() => setView('admin_home')} label="Admin Home" />
+      <h2 className="text-2xl font-bold text-yellow-500 mb-6">Working Hours & Holidays</h2>
+
+      {/* Recurring Weekly Schedule */}
+      <div className="mb-8">
+        <h3 className="text-yellow-400 font-bold mb-3">📅 주간 휴무 설정</h3>
+        <div className="space-y-2">
+          {[0, 1, 2, 3, 4, 5, 6].map((dow) => (
+            <div key={dow} className="flex items-center justify-between gap-4 p-3 bg-zinc-900 rounded-xl border border-zinc-800">
+              <span className="font-medium w-8">{DAY_NAMES[dow]}</span>
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input type="checkbox" checked={dayOff[dow] || false} onChange={() => toggleDayOff(dow)} className="accent-yellow-500" />
+                <span className="text-sm text-zinc-400">하루 종일 휴무</span>
+              </label>
+            </div>
+          ))}
+        </div>
+        <p className="text-zinc-500 text-xs mt-2">오프 시간(예: 점심 12:00-13:00)은 아래에서 추가하세요.</p>
+      </div>
+
+      {/* Add Off Hours */}
+      <div className="mb-8">
+        <h3 className="text-yellow-400 font-bold mb-3">⏰ 오프 타임 추가</h3>
+        <p className="text-zinc-500 text-sm mb-2">요일별 점심 등 고정 휴무 시간</p>
+        <div className="flex flex-wrap gap-2 mb-3">
+          {[1, 2, 3, 4, 5].map((dow) => (
+            <button key={dow} onClick={() => addOffHours(dow, '12:00', '13:00', `${DAY_NAMES[dow]} 점심`)} className="px-3 py-2 bg-zinc-800 rounded-lg text-sm hover:bg-zinc-700">
+              {DAY_NAMES[dow]} 12-13시
+            </button>
+          ))}
+        </div>
+        <div className="flex flex-wrap items-center gap-2 p-3 bg-zinc-900 rounded-xl border border-zinc-800 mb-3">
+          <select value={newOffDay} onChange={(e) => setNewOffDay(Number(e.target.value))} className="bg-zinc-800 border border-zinc-700 rounded px-3 py-2 text-white text-sm">
+            {[0, 1, 2, 3, 4, 5, 6].map((d) => <option key={d} value={d}>{DAY_NAMES[d]}</option>)}
+          </select>
+          <input type="time" value={newOffStart} onChange={(e) => setNewOffStart(e.target.value)} className="bg-zinc-800 border border-zinc-700 rounded px-3 py-2 text-white text-sm" />
+          <span className="text-zinc-500">~</span>
+          <input type="time" value={newOffEnd} onChange={(e) => setNewOffEnd(e.target.value)} className="bg-zinc-800 border border-zinc-700 rounded px-3 py-2 text-white text-sm" />
+          <input type="text" placeholder="라벨 (예: 점심)" value={newOffLabel} onChange={(e) => setNewOffLabel(e.target.value)} className="bg-zinc-800 border border-zinc-700 rounded px-3 py-2 text-white text-sm w-24" />
+          <button onClick={() => { addOffHours(newOffDay, newOffStart, newOffEnd, newOffLabel || null); setNewOffLabel(''); }} className="px-4 py-2 bg-yellow-600 text-black font-bold rounded-lg text-sm">추가</button>
+        </div>
+        <div className="mt-3 space-y-2">
+          {availability.filter((a) => !a.is_day_off).map((a) => (
+            <div key={a.id} className="flex items-center justify-between p-2 bg-zinc-800 rounded">
+              <span className="text-sm">{DAY_NAMES[a.day_of_week]} {a.label || `${String(a.start_time).slice(0,5)}-${String(a.end_time).slice(0,5)}`}</span>
+              <button onClick={() => removeOffHours(a.id)} className="text-red-500 text-xs">삭제</button>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Specific Holidays */}
+      <div>
+        <h3 className="text-yellow-400 font-bold mb-3">📆 특정 휴무일</h3>
+        <div className="flex gap-2 mb-4">
+          <input type="date" value={newHolidayDate} onChange={(e) => setNewHolidayDate(e.target.value)} className="bg-zinc-800 border border-zinc-700 rounded-lg px-4 py-2 text-white" />
+          <button onClick={addHoliday} className="bg-yellow-600 text-black font-bold px-4 py-2 rounded-lg">추가</button>
+        </div>
+        <div className="space-y-2">
+          {holidays.slice(0, 20).map((h) => (
+            <div key={h.id} className="flex items-center justify-between p-3 bg-zinc-900 rounded-xl border border-zinc-800">
+              <span className="font-mono">{h.date}</span>
+              <button onClick={() => removeHoliday(h.id)} className="text-red-500 text-sm hover:underline">삭제</button>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+};
+
 // --- [AdminHome] 관리자 메인 화면 ---
 const AdminHome = ({ setView, logout }) => (
   <div className="min-h-[100dvh] bg-zinc-950 text-white flex flex-col relative pb-safe">
@@ -2635,6 +2869,7 @@ const AdminHome = ({ setView, logout }) => (
          <ButtonGhost onClick={() => setView('member_list')}>CLIENT LIST</ButtonGhost>
          <ButtonGhost onClick={() => setView('revenue')}>📅 DASHBOARD</ButtonGhost>
          <ButtonGhost onClick={() => setView('library')}>LIBRARY</ButtonGhost>
+         <ButtonGhost onClick={() => setView('admin_settings')}>⚙️ SETTINGS</ButtonGhost>
       </div>
     </div>
   </div>
