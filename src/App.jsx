@@ -1373,11 +1373,35 @@ const QRScanner = ({ setView }) => {
 
             const userName = userData?.name || 'Unknown User';
 
+            // ✅ SUCCESS FEEDBACK
+            // Vibrate device (if supported)
+            if (navigator.vibrate) {
+                navigator.vibrate(200);
+            }
+            
+            // Play success beep (Web Audio API)
+            try {
+                const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                const oscillator = audioContext.createOscillator();
+                const gainNode = audioContext.createGain();
+                
+                oscillator.connect(gainNode);
+                gainNode.connect(audioContext.destination);
+                
+                oscillator.frequency.value = 800; // Higher pitch for success
+                gainNode.gain.value = 0.3;
+                
+                oscillator.start();
+                oscillator.stop(audioContext.currentTime + 0.1);
+            } catch (audioError) {
+                console.log('Audio feedback not available');
+            }
+
             setResult({
                 success: true,
                 userName: userName,
                 remainingSessions: data.remaining,
-                message: `Check-in successful! ${data.remaining} sessions remaining.`
+                message: `출석 완료 (남은 횟수: ${data.remaining}회)`
             });
 
             // Auto-restart scanner after 3 seconds
@@ -1387,10 +1411,44 @@ const QRScanner = ({ setView }) => {
             }, 3000);
 
         } catch (error) {
+            console.error('Check-in error:', error);
+            
+            // ⚠️ ERROR FEEDBACK
+            // Vibrate twice for error
+            if (navigator.vibrate) {
+                navigator.vibrate([100, 50, 100]);
+            }
+            
+            // Play error beep (lower pitch)
+            try {
+                const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                const oscillator = audioContext.createOscillator();
+                const gainNode = audioContext.createGain();
+                
+                oscillator.connect(gainNode);
+                gainNode.connect(audioContext.destination);
+                
+                oscillator.frequency.value = 300; // Lower pitch for error
+                gainNode.gain.value = 0.3;
+                
+                oscillator.start();
+                oscillator.stop(audioContext.currentTime + 0.2);
+            } catch (audioError) {
+                console.log('Audio feedback not available');
+            }
+
+            // Parse error message
+            let errorMessage = error.message || 'Check-in failed';
+            
+            // Handle "No remaining sessions" error
+            if (errorMessage.includes('No remaining sessions')) {
+                errorMessage = '잔여 세션이 없습니다';
+            }
+
             setResult({
                 success: false,
-                userName: 'Unknown',
-                message: error.message || 'Check-in failed'
+                userName: 'Error',
+                message: errorMessage
             });
             
             // Auto-restart scanner after error
