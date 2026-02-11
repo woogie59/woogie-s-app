@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { QrCode, Camera, CheckCircle, ChevronRight, ChevronDown, ChevronUp, BookOpen, LogOut, Plus, User, X, CreditCard, History, Search, ArrowLeft, Edit3, Save, Sparkles, MessageSquare, Calendar, Clock, ChevronLeft, XCircle, Trash2, Edit, Image, DollarSign, Download, Printer, Eye, EyeOff } from 'lucide-react';
 import { Html5Qrcode } from 'html5-qrcode';
+import OneSignal from 'react-onesignal';
 
 // [중요] 우리가 만든 Supabase 연결 도구와 페이지 가져오기
 import { supabase, REMEMBER_ME_KEY } from './lib/supabaseClient'; 
@@ -886,6 +887,48 @@ export default function App() {
   useEffect(() => {
     localStorage.setItem('salaryConfig', JSON.stringify(salaryConfig));
   }, [salaryConfig]);
+
+  // [OneSignal] Initialize once on app load
+  const [oneSignalReady, setOneSignalReady] = useState(false);
+  useEffect(() => {
+    OneSignal.init({
+      appId: 'fd6573e6-1bd8-43af-9838-3b582f68286a',
+      allowLocalhostAsSecureOrigin: true,
+    }).then(() => setOneSignalReady(true)).catch(() => {});
+  }, []);
+
+  // [OneSignal] Prompt for push, link user, and save Player ID to profiles when subscribed
+  useEffect(() => {
+    if (!oneSignalReady || !session?.user?.id) return;
+
+    const runOneSignalFlow = async () => {
+      try {
+        await OneSignal.login(session.user.id);
+        await OneSignal.Slidedown.promptPush();
+      } catch (e) {
+        console.warn('[OneSignal] prompt/login:', e);
+      }
+
+      const savePlayerIdToProfile = async (playerId) => {
+        if (!playerId) return;
+        const { error } = await supabase
+          .from('profiles')
+          .update({ onesignal_id: playerId })
+          .eq('id', session.user.id);
+        if (error) console.warn('[OneSignal] Failed to save onesignal_id:', error);
+      };
+
+      const id = OneSignal.User?.PushSubscription?.id || OneSignal.User?.onesignalId;
+      if (id) await savePlayerIdToProfile(id);
+
+      OneSignal.User?.PushSubscription?.addEventListener?.('change', async (event) => {
+        const newId = event?.current?.id || OneSignal.User?.PushSubscription?.id;
+        if (newId) await savePlayerIdToProfile(newId);
+      });
+    };
+
+    runOneSignalFlow();
+  }, [oneSignalReady, session?.user?.id]);
 
   // [핵심] 앱이 켜질 때 & 로그인 상태 바뀔 때 실행됨
   useEffect(() => {
