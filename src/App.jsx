@@ -1288,128 +1288,110 @@ export default function App() {
   );
 }
 
-// [수정] QRScanner 컴포넌트 전체 교체
+// [App.jsx] QRScanner 컴포넌트 교체
+// [App.jsx] QRScanner 컴포넌트 교체
 const QRScanner = ({ setView }) => {
-  const [scanning, setScanning] = useState(false);
   const [result, setResult] = useState(null);
-  const [cameraError, setCameraError] = useState(null);
-  const html5QrCodeRef = useRef(null);
-  const isScanning = useRef(false);
+  const [errorMsg, setErrorMsg] = useState(null);
+  const scannerRef = useRef(null);
 
   useEffect(() => {
-      // 카메라 실행
-      const timer = setTimeout(() => startCamera(), 100);
-      return () => {
-          clearTimeout(timer);
-          stopCamera();
-      };
+      // 카메라 권한 요청 및 시작
+      startScan();
+      return () => stopScan();
   }, []);
 
-  const startCamera = async () => {
-      if (isScanning.current) return;
-
-      if (html5QrCodeRef.current) {
-          try { await html5QrCodeRef.current.stop(); await html5QrCodeRef.current.clear(); } catch(e) {}
-      }
-
+  const startScan = async () => {
       try {
-          const html5QrCode = new Html5Qrcode("qr-reader");
-          html5QrCodeRef.current = html5QrCode;
+          // 이전 인스턴스 정리
+          if (scannerRef.current) {
+              await scannerRef.current.stop().catch(() => {});
+              scannerRef.current.clear();
+          }
+
+          const html5QrCode = new Html5Qrcode("reader");
+          scannerRef.current = html5QrCode;
 
           await html5QrCode.start(
-              { facingMode: "environment" },
+              { facingMode: "environment" }, 
               {
-                  fps: 30, // [상향] 10 -> 30 (인식률 개선)
-                  qrbox: 250, // [복구] 명확한 가이드라인 제공
+                  fps: 20, // 프레임 속도 적정값
+                  qrbox: 250, // 스캔 영역
                   aspectRatio: 1.0,
-                  disableFlip: false
+                  // [핵심] QR 코드만 집중적으로 찾도록 설정
+                  formatsToSupport: [ 0 ] // 0 is QR_CODE in library constants usually, or let it auto-detect but clearly
               },
               onScanSuccess,
-              (errorMessage) => { /* 무시 */ }
+              (err) => { 
+                  // 스캔 중 에러는 무시 (로그 오염 방지)
+              }
           );
-          
-          isScanning.current = true;
-          setCameraError(null);
       } catch (err) {
           console.error(err);
-          setCameraError("카메라 권한을 허용해주세요. (https 접속 필수)");
+          setErrorMsg("카메라 권한을 허용해주세요.");
       }
   };
 
-  const stopCamera = async () => {
-      if (html5QrCodeRef.current) {
-          try {
-              if (isScanning.current) await html5QrCodeRef.current.stop();
-              await html5QrCodeRef.current.clear();
-          } catch (e) {}
-          isScanning.current = false;
+  const stopScan = async () => {
+      if (scannerRef.current) {
+          await scannerRef.current.stop().catch(() => {});
+          scannerRef.current.clear();
       }
   };
 
   const onScanSuccess = async (decodedText) => {
-      if (!isScanning.current) return;
-      
-      // 성공 시 햅틱 & 스캔 일시정지
+      // 중복 인식 방지
+      if (scannerRef.current) scannerRef.current.pause();
+
+      // 햅틱
       if (navigator.vibrate) navigator.vibrate(200);
-      try { await html5QrCodeRef.current.pause(); } catch(e) {}
-      
-      setScanning(true);
 
       try {
-          console.log("QR Code:", decodedText);
-          
-          // 1. 출석 처리 RPC
+          // 출석 처리 RPC 호출
           const { data, error } = await supabase.rpc('check_in_user', { user_uuid: decodedText });
+          
           if (error) throw error;
 
-          // 2. 이름 가져오기
+          // 유저 이름 가져오기
           const { data: userData } = await supabase.from('profiles').select('name').eq('id', decodedText).single();
-
+          
           setResult({
               success: true,
               userName: userData?.name || '회원',
-              message: `출석 완료! (잔여: ${data.remaining}회)`,
-              remainingSessions: data.remaining
+              message: `출석 완료 (잔여: ${data.remaining}회)`
           });
       } catch (error) {
-          console.error(error);
-          if (navigator.vibrate) navigator.vibrate([100, 50, 100]);
+          let msg = "유효하지 않은 QR입니다.";
+          if (error.message?.includes("No remaining")) msg = "잔여 세션이 없습니다.";
           
-          let msg = error.message;
-          if (msg.includes("No remaining")) msg = "잔여 세션이 없습니다.";
-          
-          setResult({ success: false, message: msg || "QR 처리 실패" });
-      } finally {
-          // 2초 후 자동 재시작
-          setTimeout(async () => {
-              setResult(null);
-              setScanning(false);
-              if (html5QrCodeRef.current) {
-                  try { await html5QrCodeRef.current.resume(); } catch(e) { startCamera(); }
-              }
-          }, 2000);
+          setResult({ success: false, message: msg });
+          if (navigator.vibrate) navigator.vibrate([50, 50, 50]);
       }
+      
+      // 2초 후 재시작
+      setTimeout(() => {
+          setResult(null);
+          if (scannerRef.current) scannerRef.current.resume();
+      }, 2000);
   };
 
   return (
-      <div className="min-h-[100dvh] bg-black text-white flex flex-col relative">
-          <div className="absolute top-4 left-4 z-50">
-              <button onClick={() => { stopCamera(); setView('admin_home'); }} className="bg-zinc-800 px-4 py-2 rounded-lg text-sm">← 나가기</button>
-          </div>
+      <div className="min-h-[100dvh] bg-black text-white flex flex-col items-center justify-center relative">
+          <button 
+              onClick={() => { stopScan(); setView('admin_home'); }} 
+              className="absolute top-6 left-6 z-50 bg-zinc-800 px-4 py-2 rounded-lg"
+          >
+              ← 나가기
+          </button>
 
-          <div className="flex-1 flex flex-col items-center justify-center p-4">
-              {cameraError ? (
-                  <div className="text-center">
-                      <p className="text-red-500 mb-4">{cameraError}</p>
-                      <button onClick={() => { setCameraError(null); startCamera(); }} className="bg-zinc-800 px-6 py-3 rounded-xl">재시도</button>
-                  </div>
-              ) : (
-                  <div className="w-full max-w-sm relative">
-                      <div id="qr-reader" className="w-full rounded-2xl overflow-hidden border-2 border-yellow-500/50"></div>
-                      <p className="text-center text-zinc-500 text-xs mt-4 animate-pulse">
-                          카메라 초점을 맞춰주세요
-                      </p>
-                  </div>
+          <div className="w-full max-w-sm relative">
+              {/* 스캐너 영역 */}
+              <div id="reader" className="w-full h-[350px] bg-black rounded-2xl overflow-hidden border-2 border-yellow-500"></div>
+              
+              {errorMsg && <p className="text-red-500 text-center mt-4">{errorMsg}</p>}
+              
+              {!errorMsg && !result && (
+                  <p className="text-zinc-500 text-center mt-4 animate-pulse">QR 코드를 사각형 안에 맞춰주세요</p>
               )}
           </div>
 
@@ -1417,15 +1399,16 @@ const QRScanner = ({ setView }) => {
           {result && (
               <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-sm">
                   <div className={`p-8 rounded-2xl text-center border-2 ${result.success ? 'bg-zinc-900 border-green-500' : 'bg-zinc-900 border-red-500'}`}>
-                      <h3 className="text-2xl font-bold mb-2">{result.userName}</h3>
-                      <p className={`text-lg font-bold ${result.success ? 'text-green-400' : 'text-red-400'}`}>{result.message}</p>
+                      <h3 className="text-2xl font-bold mb-2">{result.userName || '알림'}</h3>
+                      <p className={`text-lg font-bold ${result.success ? 'text-green-400' : 'text-red-400'}`}>
+                          {result.message}
+                      </p>
                   </div>
               </div>
           )}
       </div>
   );
 };
-
 // --- [MacroCalculator] 스마트 매크로 계산기 ---
 const MacroCalculator = ({ user, setView }) => {
   const [goal, setGoal] = useState('diet');
@@ -1741,38 +1724,54 @@ const ClassBooking = ({ user, setView }) => {
   };
 
 // [수정] ClassBooking 컴포넌트 내부의 handleBookSlot 함수
+// [App.jsx] ClassBooking 컴포넌트 내부 handleBookSlot 함수 교체
 const handleBookSlot = async (timeSlot) => {
-  if (processing) return;
   if (!confirm(`${selectedDate} ${timeSlot} 예약하시겠습니까?`)) return;
 
   setProcessing(true);
   try {
-    // [수정 포인트] status: 'confirmed' 삭제함 (DB에 컬럼이 없으므로)
-    const { data, error } = await supabase
-      .from('bookings')
-      .insert([{ 
+      // 이제 DB에 status 컬럼이 있으므로 에러가 안 납니다!
+      const { error } = await supabase.from('bookings').insert([{ 
           user_id: user.id, 
           date: selectedDate, 
-          time: timeSlot 
-          // status 컬럼 삭제 완료
-      }])
-      .select();
+          time: timeSlot,
+          status: 'confirmed' 
+      }]);
 
-    if (error) throw error;
+      if (error) throw error;
 
-    alert("✅ 예약이 완료되었습니다.");
-    
-    // 목록 갱신
-    const { data: updated } = await supabase.from('bookings').select('*').eq('date', selectedDate);
-    setBookings(updated || []);
+      alert("✅ 예약 완료!");
+      
+      // 예약된 슬롯 즉시 반영을 위해 목록 다시 불러오기
+      const { data } = await supabase.from('bookings').select('*').eq('date', selectedDate);
+      setBookings(data || []);
 
   } catch (err) {
-    console.error(err);
-    // 에러 메시지 더 자세히 표시
-    alert("❌ 예약 실패: " + (err.message || "알 수 없는 오류"));
+      alert("❌ 예약 실패: " + err.message);
   } finally {
-    setProcessing(false);
+      setProcessing(false);
   }
+};
+
+// [App.jsx] ClientHome 컴포넌트 내부 fetchMyBookings 함수 교체
+const fetchMyBookings = async () => {
+  if (!user) return;
+  setLoadingBookings(true);
+  
+  // RLS 정책(1단계) 덕분에 이제 '내 데이터'가 보일 겁니다.
+  const { data, error } = await supabase
+      .from('bookings')
+      .select('*')
+      .eq('user_id', user.id)
+      .order('date', { ascending: true });
+
+  if (error) {
+      console.error(error);
+  } else {
+      console.log("내 스케줄:", data); // 콘솔에서 데이터 들어오는지 확인 가능
+      setMyBookings(data || []);
+  }
+  setLoadingBookings(false);
 };
 
   return (
