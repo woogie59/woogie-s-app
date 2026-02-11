@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { ArrowLeft, User, Calendar, Mail, Lock } from 'lucide-react';
 import { supabase } from '../lib/supabaseClient';
-import WelcomeModal from '../components/WelcomeModal';
 
 // --- [UI 컴포넌트] 고급스러운 골드 버튼 복구 ---
 const ButtonPrimary = ({ children, onClick, className = "", disabled }) => (
@@ -14,11 +13,9 @@ const ButtonPrimary = ({ children, onClick, className = "", disabled }) => (
   </button>
 );
 
-const RegisterView = ({ setView }) => {
+const RegisterView = ({ setView, onSignupSuccess }) => {
     const [form, setForm] = useState({ email: '', password: '', name: '', dob: '', gender: 'M' });
     const [loading, setLoading] = useState(false);
-    const [showWelcomeModal, setShowWelcomeModal] = useState(false);
-    const [welcomeName, setWelcomeName] = useState('');
 
     // --- 회원가입 로직 ---
     const handleRegisterSubmit = async () => {
@@ -67,8 +64,7 @@ const RegisterView = ({ setView }) => {
               }
             }
 
-            setWelcomeName(form.name);
-            setShowWelcomeModal(true);
+            if (onSignupSuccess) onSignupSuccess(form.name);
 
         } catch (err) {
             console.error(err);
@@ -129,17 +125,6 @@ const RegisterView = ({ setView }) => {
                   </ButtonPrimary>
               </div>
           </div>
-
-          <WelcomeModal
-            isOpen={showWelcomeModal}
-            userName={welcomeName}
-            onStart={() => {
-              setShowWelcomeModal(false);
-              supabase.auth.getSession().then(({ data: { session } }) => {
-                setView(session ? 'client_home' : 'login');
-              });
-            }}
-          />
       </div>
     )
 }

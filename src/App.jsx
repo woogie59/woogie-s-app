@@ -7,6 +7,7 @@ import OneSignal from 'react-onesignal';
 // [중요] 우리가 만든 Supabase 연결 도구와 페이지 가져오기
 import { supabase, REMEMBER_ME_KEY } from './lib/supabaseClient'; 
 import RegisterView from './pages/RegisterView';
+import WelcomeModal from './components/WelcomeModal';
 
 // --- (가짜 데이터 삭제함) ---
 // 이제 INITIAL_USERS 같은 가짜 데이터는 쓰지 않습니다.
@@ -929,11 +930,21 @@ export default function App() {
   }, [oneSignalReady, session?.user]);
 
   const [loading, setLoading] = useState(true);
+  const [signupWelcomePending, setSignupWelcomePending] = useState(false);
+  const [welcomeName, setWelcomeName] = useState('');
+  const viewRef = useRef(view);
+  viewRef.current = view;
 
   const processAuth = async (sessionData) => {
     setSession(sessionData);
     if (!sessionData?.user?.id) {
       setView('login');
+      setLoading(false);
+      return;
+    }
+    if (viewRef.current === 'register') {
+      setSignupWelcomePending(true);
+      setWelcomeName(sessionData.user?.user_metadata?.full_name || sessionData.user?.email || '회원');
       setLoading(false);
       return;
     }
@@ -1314,17 +1325,26 @@ export default function App() {
           )}
 
           {/* Normal views - only show if NOT in password reset mode */}
-          {!showResetPassword && loading && (
+          {!showResetPassword && loading && !signupWelcomePending && (
             <div className="min-h-[100dvh] flex flex-col items-center justify-center bg-zinc-950 text-white gap-4">
               <h2 className="text-xl font-serif text-yellow-500">THE COACH</h2>
               <p className="text-zinc-400">준비 중...</p>
             </div>
           )}
-          {!showResetPassword && !loading && (
+          {signupWelcomePending && (
+            <WelcomeModal
+              isOpen={true}
+              userName={welcomeName}
+              onStart={() => {
+                setSignupWelcomePending(false);
+                setView('client_home');
+              }}
+            />
+          )}
+          {!showResetPassword && !loading && !signupWelcomePending && (
             <>
-              {/* 로그인 안 했을 때 보여줄 화면들 */}
               {!session && view === 'login' && <LoginView setView={setView} />}
-              {!session && view === 'register' && <RegisterView setView={setView} />}
+              {!session && view === 'register' && <RegisterView setView={setView} onSignupSuccess={(name) => { setWelcomeName(name); setSignupWelcomePending(true); }} />}
 
               {/* 로그인 했을 때 보여줄 화면 (일반 회원) */}
               {session && view === 'client_home' && <ClientHome user={session.user} logout={handleLogout} setView={setView} />}
