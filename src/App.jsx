@@ -107,7 +107,7 @@ const LoginView = ({ setView }) => {
         
         try {
             const { error } = await supabase.auth.resetPasswordForEmail(resetEmail, {
-                redirectTo: `${window.location.origin}/reset-password`,
+                redirectTo: `${window.location.origin}`,
             });
             
             if (error) throw error;
@@ -215,6 +215,91 @@ const LoginView = ({ setView }) => {
             </div>
           </div>
         )}
+      </div>
+    );
+};
+
+// --- [ResetPasswordView] 비밀번호 재설정 화면 ---
+const ResetPasswordView = ({ setView }) => {
+    const [newPassword, setNewPassword] = useState('');
+    const [confirmPassword, setConfirmPassword] = useState('');
+    const [loading, setLoading] = useState(false);
+
+    const handleResetPassword = async () => {
+        if (!newPassword) {
+            alert('새 비밀번호를 입력해주세요.');
+            return;
+        }
+
+        if (newPassword.length < 6) {
+            alert('비밀번호는 최소 6자리 이상이어야 합니다.');
+            return;
+        }
+
+        if (newPassword !== confirmPassword) {
+            alert('비밀번호가 일치하지 않습니다.');
+            return;
+        }
+
+        setLoading(true);
+
+        try {
+            const { error } = await supabase.auth.updateUser({
+                password: newPassword
+            });
+
+            if (error) throw error;
+
+            alert('✅ 비밀번호가 변경되었습니다');
+            setView('login');
+        } catch (error) {
+            alert('오류: ' + error.message);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[100dvh] px-6 bg-zinc-950 text-white">
+        <div className="mb-12 text-center">
+          <h2 className="text-3xl font-serif text-yellow-500 mb-2">Reset Password</h2>
+          <p className="text-zinc-500 text-xs tracking-[0.2em] uppercase">Enter Your New Password</p>
+        </div>
+
+        <div className="w-full max-w-sm space-y-4">
+          <div>
+            <label className="text-xs text-zinc-500 ml-1 mb-1 block">New Password</label>
+            <input 
+              type="password" 
+              placeholder="새 비밀번호 (6자리 이상)" 
+              className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-3 text-white focus:border-yellow-600 outline-none transition-colors" 
+              value={newPassword} 
+              onChange={e => setNewPassword(e.target.value)} 
+            />
+          </div>
+
+          <div>
+            <label className="text-xs text-zinc-500 ml-1 mb-1 block">Confirm Password</label>
+            <input 
+              type="password" 
+              placeholder="비밀번호 확인" 
+              className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-3 text-white focus:border-yellow-600 outline-none transition-colors" 
+              value={confirmPassword} 
+              onChange={e => setConfirmPassword(e.target.value)} 
+            />
+          </div>
+          
+          <ButtonPrimary onClick={handleResetPassword} disabled={loading}>
+              {loading ? 'UPDATING...' : 'UPDATE PASSWORD'}
+          </ButtonPrimary>
+
+          <button
+            onClick={() => setView('login')}
+            className="w-full text-sm text-zinc-500 hover:text-yellow-500 transition-colors mt-4"
+          >
+            ← Back to Login
+          </button>
+        </div>
       </div>
     );
 };
@@ -588,18 +673,29 @@ export default function App() {
     // 1. 현재 로그인 정보 가져오기
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
-      if (session) setView('client_home');
+      if (session) {
+        // Check if this is a password recovery session
+        if (window.location.hash.includes('type=recovery')) {
+          setView('reset_password');
+        } else {
+          setView('client_home');
+        }
+      }
     });
 
     // 2. 로그인/로그아웃 감시자 등록
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
+    } = supabase.auth.onAuthStateChange((event, session) => {
       setSession(session);
-      if (session) {
-          setView('client_home');
+      
+      // Handle password recovery
+      if (event === 'PASSWORD_RECOVERY') {
+        setView('reset_password');
+      } else if (session) {
+        setView('client_home');
       } else {
-          setView('login');
+        setView('login');
       }
     });
 
@@ -739,6 +835,9 @@ export default function App() {
           {/* 로그인 안 했을 때 보여줄 화면들 */}
           {!session && view === 'login' && <LoginView setView={setView} />}
           {!session && view === 'register' && <RegisterView setView={setView} />}
+          
+          {/* 비밀번호 재설정 (recovery session 있을 때) */}
+          {view === 'reset_password' && <ResetPasswordView setView={setView} />}
 
           {/* 로그인 했을 때 보여줄 화면 (일반 회원) */}
           {session && view === 'client_home' && <ClientHome user={session.user} logout={handleLogout} setView={setView} />}
