@@ -5,14 +5,33 @@
     color-scheme: dark;
   }
 
+  html,
+  body {
+    height: 100%;
+    overflow: hidden;
+    overscroll-behavior: none;
+  }
+
   body {
     font-family: system-ui, -apple-system, BlinkMacSystemFont, 'SF Pro Text',
       'Segoe UI', sans-serif;
-    @apply min-h-screen bg-[#0f1115] text-zinc-200 antialiased;
+    @apply bg-[#0f1115] text-zinc-200 antialiased;
   }
 
   #root {
-    @apply min-h-screen;
+    height: 100vh;
+    min-height: 100vh;
+    max-height: 100dvh;
+    display: flex;
+    flex-direction: column;
+    overflow-y: auto;
+    overflow-x: hidden;
+    overscroll-behavior: none;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  button {
+    touch-action: manipulation;
   }
 }
 
@@ -37,6 +56,13 @@
   .mask-image-b {
     -webkit-mask-image: linear-gradient(to bottom, #000 72%, transparent 100%);
     mask-image: linear-gradient(to bottom, #000 72%, transparent 100%);
+  }
+
+  /* Scrollable area for lists, bookings, etc. */
+  .scrollable {
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior-y: contain;
   }
 }
 

@@ -1294,7 +1294,7 @@ export default function App() {
   }, [view]);
 
   return (
-    <div className="bg-black min-h-[100dvh] font-sans selection:bg-yellow-500/30 overflow-x-hidden">
+    <div className="bg-black min-h-[100dvh] flex flex-col font-sans selection:bg-yellow-500/30 overflow-x-hidden">
       <AnimatePresence>
         {showIntro && <CinematicIntro onComplete={() => setShowIntro(false)} />}
       </AnimatePresence>
