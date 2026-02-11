@@ -1288,24 +1288,17 @@ export default function App() {
   );
 }
 
-// --- [QRScanner] QR 스캔 화면 (체크인 처리) - CAMERA ONLY VERSION ---
-// --- [QRScanner] QR 스캔 화면 (자동 실행 버전) ---
+// [교체] QRScanner 컴포넌트 전체
 const QRScanner = ({ setView }) => {
   const [scanning, setScanning] = useState(false);
   const [result, setResult] = useState(null);
   const [cameraError, setCameraError] = useState(null);
-  const [cameraPermission, setCameraPermission] = useState(null); // 권한 상태 추가
   const html5QrCodeRef = useRef(null);
   const isScanning = useRef(false);
 
-  // [핵심] 화면이 켜지자마자 카메라 실행 (useEffect)
   useEffect(() => {
-      // 약간의 딜레이를 주어 DOM(#qr-reader)이 확실히 그려진 후 실행
-      const timer = setTimeout(() => {
-          startCamera();
-      }, 100);
-
-      // 화면 나갈 때 정리
+      // DOM 렌더링 후 카메라 실행
+      const timer = setTimeout(() => startCamera(), 100);
       return () => {
           clearTimeout(timer);
           stopCamera();
@@ -1313,216 +1306,118 @@ const QRScanner = ({ setView }) => {
   }, []);
 
   const startCamera = async () => {
-      console.log('🎬 Auto-starting camera...');
-      
-      // 이미 실행 중이면 무시
       if (isScanning.current) return;
-      
+
       // 이전 인스턴스 정리
       if (html5QrCodeRef.current) {
-          try {
-              await html5QrCodeRef.current.stop();
-              await html5QrCodeRef.current.clear();
-          } catch (e) { /* ignore */ }
+          try { await html5QrCodeRef.current.stop(); await html5QrCodeRef.current.clear(); } catch(e) {}
       }
-      
+
       try {
           const html5QrCode = new Html5Qrcode("qr-reader");
           html5QrCodeRef.current = html5QrCode;
 
           await html5QrCode.start(
-              { facingMode: "environment" }, // 후면 카메라
+              { facingMode: "environment" },
               {
-                  fps: 20,              // 인식 속도
-                  qrbox: { width: 250, height: 250 }, // 스캔 영역
+                  fps: 10, // 모바일 부하를 줄이기 위해 10으로 조정
+                  qrbox: undefined, // [핵심] 영역 제한 해제 (전체 화면 스캔)
                   aspectRatio: 1.0,
                   disableFlip: false
               },
               onScanSuccess,
-              (errorMessage) => { /* 스캔 중 에러는 무시 */ }
+              (errorMessage) => { /* 스캔 중 에러 무시 */ }
           );
-
+          
           isScanning.current = true;
           setCameraError(null);
-          setCameraPermission(true);
-          console.log('✅ Camera started automatically');
       } catch (err) {
-          console.error('❌ Camera start error:', err);
-          isScanning.current = false;
-          
-          // 에러 메시지 처리
-          let msg = "카메라를 실행할 수 없습니다.";
-          if (err.name === 'NotAllowedError') {
-              msg = "카메라 권한이 거부되었습니다. 브라우저 설정에서 허용해주세요.";
-              setCameraPermission(false);
-          } else if (err.name === 'NotFoundError') {
-              msg = "카메라를 찾을 수 없습니다.";
-          } else if (err.name === 'NotReadableError') {
-              msg = "카메라를 다른 앱이 사용 중입니다. 닫고 다시 시도해주세요.";
-          }
-          setCameraError(msg);
+          console.error(err);
+          setCameraError("카메라 권한을 허용해주세요.");
       }
   };
 
   const stopCamera = async () => {
       if (html5QrCodeRef.current) {
           try {
-              if (isScanning.current) {
-                  await html5QrCodeRef.current.stop();
-              }
+              if (isScanning.current) await html5QrCodeRef.current.stop();
               await html5QrCodeRef.current.clear();
-          } catch (e) { console.error(e); }
-          html5QrCodeRef.current = null;
+          } catch (e) {}
           isScanning.current = false;
       }
   };
 
-  const onScanSuccess = async (decodedText, decodedResult) => {
-      // 중복 스캔 방지
+  const onScanSuccess = async (decodedText) => {
       if (!isScanning.current) return;
       
-      // 성공 시 잠시 스캔 중단
-      if (html5QrCodeRef.current) {
-           try {
-              await html5QrCodeRef.current.pause(true); // 화면은 유지하고 스캔만 멈춤
-          } catch (e) {}
-      }
-
-      console.log("🎯 Scan Success:", decodedText);
+      // 스캔 성공 시 잠시 멈춤
+      try { await html5QrCodeRef.current.pause(); } catch(e) {}
       setScanning(true);
-
-      // 1. 햅틱 피드백
       if (navigator.vibrate) navigator.vibrate(200);
 
       try {
-          // 2. Supabase RPC 호출 (출석 처리)
-          const { data, error } = await supabase.rpc('check_in_user', {
-              user_uuid: decodedText
-          });
-
+          console.log("Scan Result:", decodedText);
+          
+          // 1. RPC 호출 (출석 차감)
+          const { data, error } = await supabase.rpc('check_in_user', { user_uuid: decodedText });
           if (error) throw error;
 
-          // 3. 유저 이름 가져오기 (UI 표시용)
-          const { data: userData } = await supabase
-              .from('profiles')
-              .select('name')
-              .eq('id', decodedText)
-              .single();
+          // 2. 유저 이름 조회
+          const { data: userData } = await supabase.from('profiles').select('name').eq('id', decodedText).single();
 
-          // 4. 결과 표시
           setResult({
               success: true,
               userName: userData?.name || '회원',
-              remainingSessions: data.remaining,
-              message: `출석 완료 (잔여: ${data.remaining}회)`
+              message: `출석 완료 (잔여: ${data.remaining}회)`,
+              remainingSessions: data.remaining
           });
-
       } catch (error) {
-          console.error("Check-in failed:", error);
-          
-          // 실패 햅틱
+          console.error(error);
           if (navigator.vibrate) navigator.vibrate([100, 50, 100]);
-
-          let errMsg = error.message || "출석 처리에 실패했습니다.";
-          if (errMsg.includes("No remaining")) errMsg = "잔여 세션이 없습니다.";
-
-          setResult({
-              success: false,
-              userName: "Error",
-              message: errMsg
-          });
+          let msg = error.message;
+          if (msg && msg.includes("No remaining")) msg = "잔여 세션이 없습니다.";
+          
+          setResult({ success: false, message: msg || "유효하지 않은 QR코드입니다." });
       } finally {
           setScanning(false);
-          
-          // 3초 후 결과창 닫고 스캔 재개
+          // 2.5초 후 재시작
           setTimeout(async () => {
               setResult(null);
               if (html5QrCodeRef.current) {
-                  try {
-                      await html5QrCodeRef.current.resume(); // 스캔 재개
-                  } catch (e) {
-                      // resume 실패 시 재시작
-                      await startCamera(); 
-                  }
+                  try { await html5QrCodeRef.current.resume(); } catch(e) { startCamera(); }
               }
-          }, 3000);
+          }, 2500);
       }
   };
 
   return (
-    <div className="min-h-[100dvh] bg-black text-white flex flex-col">
-      {/* 뒤로가기 버튼 */}
-      <div className="absolute top-4 left-4 z-50">
-        <BackButton 
-          onClick={async () => {
-            await stopCamera();
-            setView('admin_home');
-          }}
-          label="Back"
-        />
-      </div>
+      <div className="min-h-[100dvh] bg-black text-white flex flex-col items-center justify-center relative">
+          <div className="absolute top-4 left-4 z-50">
+              <button onClick={() => { stopCamera(); setView('admin_home'); }} className="text-zinc-400">← Back</button>
+          </div>
 
-      {/* 카메라 화면 영역 */}
-      <div className="flex-1 flex items-center justify-center bg-black relative">
-          
-          {/* 에러 발생 시 표시 */}
           {cameraError ? (
-              <div className="text-center p-8 max-w-sm">
-                  <XCircle size={64} className="text-red-500 mx-auto mb-4" />
-                  <p className="text-red-400 mb-6">{cameraError}</p>
-                  <button
-                      onClick={() => { setCameraError(null); startCamera(); }}
-                      className="bg-zinc-800 text-white px-6 py-3 rounded-xl font-bold"
-                  >
-                      다시 시도
-                  </button>
+              <div className="text-center p-6">
+                  <p className="text-red-500 mb-4">{cameraError}</p>
+                  <button onClick={() => { setCameraError(null); startCamera(); }} className="bg-zinc-800 px-6 py-3 rounded-xl">재시도</button>
               </div>
           ) : (
-              /* 정상 작동 시: div만 있으면 됩니다 (버튼 없음) */
               <div className="w-full h-full flex flex-col items-center justify-center">
-                  <div id="qr-reader" className="w-full max-w-md overflow-hidden rounded-xl"></div>
-                  
-                  {/* 가이드 텍스트 */}
-                  <div className="absolute bottom-20 bg-black/50 px-4 py-2 rounded-full backdrop-blur-md">
-                      <p className="text-zinc-300 text-sm flex items-center gap-2">
-                          <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-                          QR 코드를 비춰주세요
-                      </p>
+                  <div id="qr-reader" className="w-full max-w-md bg-black"></div>
+                  <p className="mt-4 text-zinc-500 text-sm animate-pulse">QR 코드를 화면에 비춰주세요</p>
+              </div>
+          )}
+
+          {/* 결과 모달 */}
+          {result && (
+              <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-sm p-6">
+                  <div className={`w-full max-w-sm p-8 rounded-3xl border-2 text-center ${result.success ? 'bg-zinc-900 border-green-500' : 'bg-zinc-900 border-red-500'}`}>
+                      <h3 className="text-2xl font-bold mb-2">{result.userName || '알림'}</h3>
+                      <p className={`text-lg font-bold ${result.success ? 'text-green-400' : 'text-red-400'}`}>{result.message}</p>
                   </div>
               </div>
           )}
       </div>
-
-      {/* 결과 모달 (성공/실패) */}
-      <AnimatePresence>
-        {result && (
-          <motion.div
-            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 flex items-center justify-center p-6 bg-black/80 backdrop-blur-sm"
-          >
-            <div className={`bg-zinc-900 border-2 ${result.success ? 'border-green-500' : 'border-red-500'} rounded-3xl p-8 max-w-sm w-full text-center shadow-2xl`}>
-              {result.success ? (
-                <CheckCircle size={60} className="text-green-500 mx-auto mb-4" />
-              ) : (
-                <XCircle size={60} className="text-red-500 mx-auto mb-4" />
-              )}
-              
-              <h3 className="text-2xl font-bold text-white mb-2">{result.userName}</h3>
-              <p className={`text-lg font-bold mb-4 ${result.success ? 'text-green-400' : 'text-red-400'}`}>
-                {result.message}
-              </p>
-
-              {result.success && (
-                 <div className="bg-zinc-800 p-4 rounded-xl">
-                     <p className="text-xs text-zinc-500 uppercase">남은 횟수</p>
-                     <p className="text-4xl font-serif text-yellow-500">{result.remainingSessions}</p>
-                 </div>
-              )}
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </div>
   );
 };
 
@@ -1787,294 +1682,147 @@ const MacroCalculator = ({ user, setView }) => {
   );
 };
 
-// --- [ClassBooking] 클래스 예약 화면 (간소화 버전) ---
+// [교체] ClassBooking 컴포넌트 전체
 const ClassBooking = ({ user, setView }) => {
   const [selectedDate, setSelectedDate] = useState(null);
-  const [bookings, setBookings] = useState([]);
+  const [bookings, setBookings] = useState([]); // 초기값 빈 배열 보장
   const [loading, setLoading] = useState(false);
-  const [booking, setBooking] = useState(false);
-  const [result, setResult] = useState(null);
+  const [processing, setProcessing] = useState(false);
 
-  // 정의된 시간대 (10:00 - 22:00, 1시간 간격)
-  const TIME_SLOTS = [
-    "10:00", "11:00", "12:00", "13:00", "14:00", "15:00",
-    "16:00", "17:00", "18:00", "19:00", "20:00", "21:00", "22:00"
-  ];
+  // 시간대 설정
+  const TIME_SLOTS = ["10:00", "11:00", "12:00", "13:00", "14:00", "15:00", "16:00", "17:00", "18:00", "19:00", "20:00", "21:00", "22:00"];
 
-  // 오늘 날짜 (YYYY-MM-DD)
-  const today = new Date().toISOString().split('T')[0];
-
-  // 다음 7일간의 날짜 생성
+  // 날짜 생성
   const generateDates = () => {
     const dates = [];
     for (let i = 0; i < 7; i++) {
-      const date = new Date();
-      date.setDate(date.getDate() + i);
-      dates.push(date);
+      const d = new Date();
+      d.setDate(d.getDate() + i);
+      dates.push(d);
     }
     return dates;
   };
-
   const dates = generateDates();
 
-  // 날짜 선택 시 해당 날짜의 예약 현황 가져오기
+  // 날짜 선택 시 예약된 목록 가져오기
   useEffect(() => {
     if (!selectedDate) return;
-
-// [코드 3번] 내 스케줄 불러오기 (수정됨)
-const fetchMyBookings = async () => {
-  if (!user) return;
-  
-  setLoadingBookings(true);
-  try {
-    console.log("📅 Fetching bookings for user:", user.id);
-
-    // 1. Supabase에서 'bookings' 테이블 조회
-    const { data, error } = await supabase
-      .from('bookings')
-      .select('*') // 모든 컬럼 가져오기
-      .eq('user_id', user.id) // [핵심] 내 아이디와 일치하는 것만 필터링
-      .order('date', { ascending: true }) // 날짜순 정렬
-      .order('time', { ascending: true }); // 시간순 정렬
-
-    if (error) {
-      console.error("❌ Supabase Select Error:", error);
-      throw error;
-    }
-
-    console.log("✅ Bookings loaded:", data);
-
-    // 2. 데이터가 없으면 빈 배열, 있으면 데이터 설정
-    setMyBookings(data || []);
-
-  } catch (err) {
-    console.error('❌ 스케줄 로딩 실패:', err);
-    // 사용자에게 에러를 알리지 않고 조용히 처리 (빈 목록 표시)
-    setMyBookings([]); 
-  } finally {
-    setLoadingBookings(false);
-  }
-};
-
+    
+    const fetchBookings = async () => {
+      setLoading(true);
+      try {
+        const { data, error } = await supabase
+          .from('bookings')
+          .select('*')
+          .eq('date', selectedDate);
+          
+        if (error) throw error;
+        // 데이터가 없으면 빈 배열로 설정 (앱 죽음 방지)
+        setBookings(Array.isArray(data) ? data : []);
+      } catch (err) {
+        console.error(err);
+        setBookings([]);
+      } finally {
+        setLoading(false);
+      }
+    };
     fetchBookings();
   }, [selectedDate]);
 
-  // 슬롯이 예약되었는지 확인
+  // 예약 여부 확인 (안전하게 체크)
   const isSlotBooked = (time) => {
-    return bookings.some(booking => booking.time === time);
+    if (!Array.isArray(bookings)) return false;
+    return bookings.some(b => b.time === time);
   };
 
-  // 예약하기
-// [코드 2번] 예약 처리 함수 (수정됨)
-const handleBookSlot = async (timeSlot) => {
-  // 중복 클릭 방지
-  if (booking) return;
-  
-  // 사용자 확인
-  if (!confirm(`${selectedDate} ${timeSlot} 에 예약하시겠습니까?`)) return;
+  const handleBookSlot = async (timeSlot) => {
+    if (processing) return;
+    if (!confirm(`${selectedDate} ${timeSlot} 예약하시겠습니까?`)) return;
 
-  setBooking(true);
-  setResult(null); // 이전 결과 초기화
+    setProcessing(true);
+    try {
+      // 1. 예약 데이터 삽입
+      const { data, error } = await supabase
+        .from('bookings')
+        .insert([{ user_id: user.id, date: selectedDate, time: timeSlot, status: 'confirmed' }])
+        .select();
 
-  try {
-    console.log("📝 Booking attempt:", { user_id: user.id, date: selectedDate, time: timeSlot });
+      if (error) throw error;
 
-    // 1. Supabase에 데이터 삽입 (Result를 반드시 반환받아야 함)
-    const { data, error } = await supabase
-      .from('bookings')
-      .insert([
-        {
-          user_id: user.id,
-          date: selectedDate,
-          time: timeSlot,
-          status: 'confirmed', // status 컬럼이 있다면 추가
-          created_at: new Date()
-        }
-      ])
-      .select(); // .select()가 있어야 실제 저장된 데이터를 돌려받음
-
-    // 2. 에러가 있으면 즉시 멈춤 (가짜 성공 방지)
-    if (error) {
-      console.error("❌ Supabase Insert Error:", error);
-      throw error;
-    }
-
-    // 3. 데이터가 비어있어도 실패로 간주
-    if (!data || data.length === 0) {
-      throw new Error("예약 데이터가 저장되지 않았습니다. (RLS 정책 확인 필요)");
-    }
-
-    console.log("✅ Booking saved:", data);
-
-    // 4. 성공 처리
-    // 예약 목록 새로고침 (즉시 반영)
-    const { data: updatedBookings } = await supabase
-      .from('bookings')
-      .select('*')
-      .eq('date', selectedDate);
+      alert("✅ 예약이 완료되었습니다.");
       
-    setBookings(updatedBookings || []);
+      // 2. 예약 목록 즉시 갱신
+      const { data: updated } = await supabase.from('bookings').select('*').eq('date', selectedDate);
+      setBookings(updated || []);
 
-    // 성공 모달 띄우기
-    setResult({
-      success: true,
-      date: selectedDate,
-      time: timeSlot,
-      message: '예약이 확정되었습니다.'
-    });
-
-    // 햅틱 피드백 (모바일)
-    if (navigator.vibrate) navigator.vibrate(200);
-
-  } catch (error) {
-    console.error('❌ Booking Process Failed:', error);
-    
-    // 실패 모달 띄우기
-    setResult({
-      success: false,
-      message: error.message || '예약에 실패했습니다. 관리자에게 문의하세요.'
-    });
-
-    if (navigator.vibrate) navigator.vibrate([100, 50, 100]);
-  } finally {
-    setBooking(false); // 로딩 해제
-  }
-};
+    } catch (err) {
+      alert("❌ 예약 실패: " + err.message);
+    } finally {
+      setProcessing(false);
+    }
+  };
 
   return (
     <div className="min-h-[100dvh] bg-zinc-950 text-white p-6 pb-20">
       <BackButton onClick={() => setView('client_home')} label="Home" />
       
-      <header className="flex items-center justify-center mb-6">
+      <header className="text-center mb-6">
         <h2 className="text-lg font-serif text-yellow-500">CLASS BOOKING</h2>
       </header>
 
-      {/* Date Selector */}
-      <div className="mb-6">
-        <h3 className="text-sm text-zinc-400 uppercase tracking-widest mb-3">Select Date</h3>
-        <div className="grid grid-cols-7 gap-2">
-          {dates.map((date) => {
-            const dateStr = date.toISOString().split('T')[0];
-            const dayName = date.toLocaleDateString('en-US', { weekday: 'short' });
-            const dayNum = date.getDate();
-            const isSelected = selectedDate === dateStr;
-
-            return (
-              <button
-                key={dateStr}
-                onClick={() => setSelectedDate(dateStr)}
-                className={`p-3 rounded-xl border transition-all ${
-                  isSelected
-                    ? 'bg-yellow-600 border-yellow-500 text-white'
-                    : 'bg-zinc-900 border-zinc-800 text-zinc-400 hover:border-yellow-600/50'
-                }`}
-              >
-                <div className="text-[10px] uppercase">{dayName}</div>
-                <div className="text-lg font-bold">{dayNum}</div>
-              </button>
-            );
-          })}
-        </div>
+      {/* 날짜 선택 */}
+      <div className="grid grid-cols-7 gap-2 mb-8">
+        {dates.map((date) => {
+          const dateStr = date.toISOString().split('T')[0];
+          const dayNum = date.getDate();
+          const dayName = date.toLocaleDateString('en-US', { weekday: 'short' });
+          const isSelected = selectedDate === dateStr;
+          
+          return (
+            <button
+              key={dateStr}
+              onClick={() => setSelectedDate(dateStr)}
+              className={`p-2 rounded-xl border flex flex-col items-center ${
+                isSelected ? 'bg-yellow-600 border-yellow-500 text-white' : 'bg-zinc-900 border-zinc-800 text-zinc-500'
+              }`}
+            >
+              <span className="text-[10px] uppercase">{dayName}</span>
+              <span className="text-lg font-bold">{dayNum}</span>
+            </button>
+          );
+        })}
       </div>
 
-      {/* Time Slots */}
+      {/* 시간 선택 */}
       {selectedDate && (
-        <div>
-          <h3 className="text-sm text-zinc-400 uppercase tracking-widest mb-3">
-            Available Times - {selectedDate}
-          </h3>
-          
+        <>
+          <h3 className="text-sm text-zinc-400 mb-3 uppercase tracking-widest">Available Times</h3>
           {loading ? (
-            <p className="text-zinc-500 text-center py-10">Loading times...</p>
+            <p className="text-center text-zinc-600 py-10">Loading...</p>
           ) : (
             <div className="grid grid-cols-2 gap-3">
-              {TIME_SLOTS.map((timeSlot) => {
-                const isBooked = isSlotBooked(timeSlot);
-                
+              {TIME_SLOTS.map((time) => {
+                const booked = isSlotBooked(time);
                 return (
                   <button
-                    key={timeSlot}
-                    onClick={() => !isBooked && handleBookSlot(timeSlot)}
-                    disabled={isBooked || booking}
-                    className={`p-4 rounded-xl border font-bold text-lg transition-all ${
-                      isBooked
-                        ? 'bg-zinc-900/50 border-zinc-800 text-zinc-600 cursor-not-allowed'
-                        : 'bg-zinc-900 border-zinc-800 text-white hover:border-yellow-600/50 active:scale-95'
+                    key={time}
+                    disabled={booked || processing}
+                    onClick={() => handleBookSlot(time)}
+                    className={`p-4 rounded-xl border text-lg font-bold flex justify-between items-center ${
+                      booked 
+                        ? 'bg-zinc-900/50 border-zinc-800 text-zinc-700 cursor-not-allowed' 
+                        : 'bg-zinc-900 border-zinc-800 text-white hover:border-yellow-600'
                     }`}
                   >
-                    <div className="flex items-center justify-between">
-                      <Clock size={20} className={isBooked ? 'text-zinc-700' : 'text-yellow-500'} />
-                      <span>{timeSlot}</span>
-                      {isBooked ? (
-                        <span className="text-xs text-red-500">BOOKED</span>
-                      ) : (
-                        <CheckCircle size={20} className="text-green-500" />
-                      )}
-                    </div>
+                    <span>{time}</span>
+                    {booked ? <span className="text-xs text-red-900">BOOKED</span> : <span className="text-green-500">●</span>}
                   </button>
                 );
               })}
             </div>
           )}
-        </div>
+        </>
       )}
-
-      {/* Empty State */}
-      {!selectedDate && (
-        <div className="flex flex-col items-center justify-center py-20 text-center">
-          <Calendar size={64} className="text-zinc-700 mb-4" />
-          <h3 className="text-xl font-bold text-zinc-500 mb-2">Select a Date</h3>
-          <p className="text-sm text-zinc-600">Choose a date above to view available time slots</p>
-        </div>
-      )}
-
-      {/* Result Modal */}
-      <AnimatePresence>
-        {result && (
-          <motion.div
-            initial={{ opacity: 0, scale: 0.9 }}
-            animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0, scale: 0.9 }}
-            className="fixed inset-0 z-50 flex items-center justify-center p-6 bg-black/90"
-            onClick={() => setResult(null)}
-          >
-            <motion.div
-              className={`bg-zinc-900 border-2 ${result.success ? 'border-green-500' : 'border-red-500'} rounded-2xl p-8 max-w-sm w-full text-center`}
-              onClick={e => e.stopPropagation()}
-            >
-              {result.success ? (
-                <>
-                  <CheckCircle size={64} className="text-green-500 mx-auto mb-4" />
-                  <h3 className="text-2xl font-bold text-white mb-2">Booking Confirmed!</h3>
-                  <div className="bg-zinc-800 rounded-xl p-4 mb-4">
-                    <div className="flex items-center justify-center gap-2 text-yellow-500 mb-2">
-                      <Calendar size={20} />
-                      <span className="text-lg font-bold">{result.date}</span>
-                    </div>
-                    <div className="flex items-center justify-center gap-2 text-yellow-500">
-                      <Clock size={20} />
-                      <span className="text-2xl font-serif">{result.time}</span>
-                    </div>
-                  </div>
-                  <p className="text-sm text-green-400 mb-4">{result.message}</p>
-                </>
-              ) : (
-                <>
-                  <XCircle size={64} className="text-red-500 mx-auto mb-4" />
-                  <h3 className="text-2xl font-bold text-white mb-2">Booking Failed</h3>
-                  <p className="text-sm text-red-400 mb-4">{result.message}</p>
-                </>
-              )}
-              <button
-                onClick={() => setResult(null)}
-                className="w-full bg-yellow-600 text-white font-bold py-3 rounded-lg hover:bg-yellow-500 active:scale-95 transition-all"
-              >
-                CLOSE
-              </button>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
     </div>
   );
 };
