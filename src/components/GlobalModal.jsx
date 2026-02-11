@@ -12,16 +12,15 @@ const GlobalModal = ({ isOpen, title, message, type = 'alert', onConfirm, onClos
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           transition={{ duration: 0.2 }}
-          className="fixed inset-0 z-[200] flex items-end justify-center sm:items-center p-4 bg-black/70 backdrop-blur-md"
-          onClick={(e) => { if (e.target === e.currentTarget) onClose?.(); }}
+          className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/60"
+          style={{ backdropFilter: 'blur(8px)' }}
         >
           <motion.div
-            initial={{ opacity: 0, y: 80 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: 24 }}
-            transition={{ duration: 0.3, ease: [0.25, 0.46, 0.45, 0.94] }}
-            onClick={(e) => e.stopPropagation()}
-            className="w-full max-w-md bg-zinc-900/95 border border-yellow-600/30 rounded-2xl shadow-2xl shadow-black/50 p-6 sm:rounded-2xl backdrop-blur-xl"
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.98 }}
+            transition={{ duration: 0.25, ease: [0.25, 0.46, 0.45, 0.94] }}
+            className="w-full max-w-md bg-zinc-900/95 border border-yellow-600/30 rounded-2xl shadow-2xl shadow-black/50 p-6 backdrop-blur-xl"
           >
             {title && (
               <h3 className="text-lg font-serif text-yellow-500 mb-2">{title}</h3>
@@ -34,7 +33,7 @@ const GlobalModal = ({ isOpen, title, message, type = 'alert', onConfirm, onClos
                 <button
                   onClick={onClose}
                   disabled={loading}
-                  className="px-5 py-2.5 rounded-xl text-zinc-400 hover:text-white hover:bg-zinc-800 transition-all font-medium"
+                  className="px-6 py-3 rounded-xl text-zinc-400 hover:text-white hover:bg-zinc-800 transition-all font-medium min-w-[80px]"
                 >
                   {cancelLabel ?? '취소'}
                 </button>
@@ -46,7 +45,7 @@ const GlobalModal = ({ isOpen, title, message, type = 'alert', onConfirm, onClos
                   else onClose?.();
                 }}
                 disabled={loading}
-                className="px-5 py-2.5 rounded-xl font-medium text-white bg-gradient-to-r from-amber-600 to-yellow-600 hover:from-amber-500 hover:to-yellow-500 active:scale-[0.98] transition-all shadow-lg shadow-amber-900/20 border border-yellow-600/30 disabled:opacity-60"
+                className="px-6 py-3 rounded-xl font-medium text-white bg-gradient-to-r from-amber-600 to-yellow-600 hover:from-amber-500 hover:to-yellow-500 active:scale-[0.98] transition-all shadow-lg shadow-amber-900/20 border border-yellow-600/30 disabled:opacity-60 min-w-[80px]"
               >
                 {loading ? '처리 중...' : (confirmLabel ?? (isConfirm ? '확인' : '확인'))}
               </button>

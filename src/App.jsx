@@ -490,11 +490,12 @@ const ClientHome = ({ user, logout, setView }) => {
     if (error) {
       showAlert({ message: '취소 실패: ' + error.message });
     } else {
-      fetchMyBookings(); // Refresh list
+      setIsDeleteModalOpen(false);
+      setBookingToDelete(null);
+      setCancelling(null);
+      fetchMyBookings();
+      showAlert({ message: '취소가 완료되었습니다.', confirmLabel: '확인' });
     }
-    setCancelling(null);
-    setBookingToDelete(null);
-    setIsDeleteModalOpen(false);
   };
 
   const handleOpenSchedule = () => {
@@ -804,37 +805,45 @@ const ClientHome = ({ user, logout, setView }) => {
       </AnimatePresence>
 
       {/* Delete Confirmation Modal */}
-      {isDeleteModalOpen && bookingToDelete && (
-        <div
-          className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm"
-          onClick={() => { setIsDeleteModalOpen(false); setBookingToDelete(null); }}
-        >
-          <div
-            className="bg-zinc-900 border border-yellow-500/30 rounded-2xl shadow-2xl shadow-black/50 p-6 max-w-sm w-full"
-            onClick={(e) => e.stopPropagation()}
+      <AnimatePresence>
+        {isDeleteModalOpen && bookingToDelete && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60"
+            style={{ backdropFilter: 'blur(8px)' }}
           >
-            <h3 className="text-lg font-bold text-zinc-100 mb-2">예약 취소</h3>
-            <p className="text-zinc-400 text-sm mb-6">
-              {bookingToDelete.date} {bookingToDelete.time} 수업 예약을 취소할까요?
-            </p>
-            <div className="flex gap-3 justify-end">
-              <button
-                onClick={() => { setIsDeleteModalOpen(false); setBookingToDelete(null); }}
-                className="px-4 py-2.5 rounded-xl text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800 transition"
-              >
-                취소
-              </button>
-              <button
-                onClick={confirmDeleteAction}
-                disabled={cancelling === bookingToDelete.id}
-                className="px-4 py-2.5 rounded-xl bg-yellow-600 text-black font-bold hover:bg-yellow-500 transition disabled:opacity-50"
-              >
-                {cancelling === bookingToDelete.id ? '처리 중...' : '예, 취소할게요'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.98 }}
+              transition={{ duration: 0.25, ease: [0.25, 0.46, 0.45, 0.94] }}
+              className="bg-zinc-900 border border-yellow-500/30 rounded-2xl shadow-2xl shadow-black/50 p-6 max-w-sm w-full"
+            >
+              <h3 className="text-lg font-serif text-yellow-500 mb-2">예약 취소</h3>
+              <p className="text-zinc-400 text-sm mb-6">
+                {bookingToDelete.date} {bookingToDelete.time} 수업 예약을 취소할까요?
+              </p>
+              <div className="flex gap-3 justify-end">
+                <button
+                  onClick={() => { setIsDeleteModalOpen(false); setBookingToDelete(null); }}
+                  className="px-6 py-3 rounded-xl text-zinc-400 hover:text-white hover:bg-zinc-800 transition-all font-medium min-w-[80px]"
+                >
+                  취소
+                </button>
+                <button
+                  onClick={confirmDeleteAction}
+                  disabled={cancelling === bookingToDelete.id}
+                  className="px-6 py-3 rounded-xl bg-yellow-600 text-black font-bold hover:bg-yellow-500 transition-all disabled:opacity-50 min-w-[80px]"
+                >
+                  {cancelling === bookingToDelete.id ? '처리 중...' : '예, 취소할게요'}
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 };
@@ -2596,7 +2605,7 @@ const ClassBooking = ({ user, setView }) => {
           .insert([{ user_id: user.id, date, time: timeSlot }])
           .select();
         if (error) throw error;
-        showAlert({ message: "✅ 예약 완료!" });
+        showAlert({ message: "예약이 완료되었습니다!", confirmLabel: "확인" });
         const { data: updated } = await supabase.from('bookings').select('*').eq('date', date);
         setBookings(updated || []);
         try {
@@ -2821,12 +2830,12 @@ const AdminSchedule = ({ setView }) => {
     if (error) {
       showAlert({ message: 'Error cancelling booking: ' + error.message });
     } else {
-      showAlert({ message: 'Booking cancelled successfully!' });
-      fetchBookings(); // Refresh list
+      setIsCancelModalOpen(false);
+      setBookingToDelete(null);
+      setCancelling(null);
+      fetchBookings();
+      showAlert({ message: '취소가 완료되었습니다.', confirmLabel: '확인' });
     }
-    setCancelling(null);
-    setBookingToDelete(null);
-    setIsCancelModalOpen(false);
   };
 
   return (
@@ -2905,37 +2914,45 @@ const AdminSchedule = ({ setView }) => {
       )}
 
       {/* Cancel Confirmation Modal */}
-      {isCancelModalOpen && bookingToDelete && (
-        <div
-          className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm"
-          onClick={() => { setIsCancelModalOpen(false); setBookingToDelete(null); }}
-        >
-          <div
-            className="bg-zinc-900 border border-yellow-500/30 rounded-2xl shadow-2xl shadow-black/50 p-6 max-w-sm w-full"
-            onClick={(e) => e.stopPropagation()}
+      <AnimatePresence>
+        {isCancelModalOpen && bookingToDelete && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60"
+            style={{ backdropFilter: 'blur(8px)' }}
           >
-            <h3 className="text-lg font-bold text-zinc-100 mb-2">예약 취소</h3>
-            <p className="text-zinc-400 text-sm mb-6">
-              {bookingToDelete.userName}님의 {bookingToDelete.date} {bookingToDelete.time} 예약을 취소할까요?
-            </p>
-            <div className="flex gap-3 justify-end">
-              <button
-                onClick={() => { setIsCancelModalOpen(false); setBookingToDelete(null); }}
-                className="px-4 py-2.5 rounded-xl text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800 transition"
-              >
-                취소
-              </button>
-              <button
-                onClick={confirmCancelAction}
-                disabled={cancelling === bookingToDelete.id}
-                className="px-4 py-2.5 rounded-xl bg-yellow-600 text-black font-bold hover:bg-yellow-500 transition disabled:opacity-50"
-              >
-                {cancelling === bookingToDelete.id ? '처리 중...' : '예, 취소할게요'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.98 }}
+              transition={{ duration: 0.25, ease: [0.25, 0.46, 0.45, 0.94] }}
+              className="bg-zinc-900 border border-yellow-500/30 rounded-2xl shadow-2xl shadow-black/50 p-6 max-w-sm w-full"
+            >
+              <h3 className="text-lg font-serif text-yellow-500 mb-2">예약 취소</h3>
+              <p className="text-zinc-400 text-sm mb-6">
+                {bookingToDelete.userName}님의 {bookingToDelete.date} {bookingToDelete.time} 예약을 취소할까요?
+              </p>
+              <div className="flex gap-3 justify-end">
+                <button
+                  onClick={() => { setIsCancelModalOpen(false); setBookingToDelete(null); }}
+                  className="px-6 py-3 rounded-xl text-zinc-400 hover:text-white hover:bg-zinc-800 transition-all font-medium min-w-[80px]"
+                >
+                  취소
+                </button>
+                <button
+                  onClick={confirmCancelAction}
+                  disabled={cancelling === bookingToDelete.id}
+                  className="px-6 py-3 rounded-xl bg-yellow-600 text-black font-bold hover:bg-yellow-500 transition-all disabled:opacity-50 min-w-[80px]"
+                >
+                  {cancelling === bookingToDelete.id ? '처리 중...' : '예, 취소할게요'}
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 };

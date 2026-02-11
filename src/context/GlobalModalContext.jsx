@@ -49,8 +49,9 @@ export const GlobalModalProvider = ({ children }) => {
       }
       setModal((m) => ({ ...m, loading: true }));
       try {
-        await onConfirm();
-        closeModal();
+        await onConfirm(closeModal);
+        setModal((m) => ({ ...m, loading: false }));
+        // Don't auto-close: caller may show a follow-up modal (e.g. success alert)
       } catch (err) {
         closeModal();
         showAlert({ message: err?.message || '오류가 발생했습니다.' });
