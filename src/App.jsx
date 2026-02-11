@@ -1314,41 +1314,41 @@ const QRScanner = ({ setView }) => {
 
   const startScan = async () => {
       try {
-          // 청소 먼저
           if (scannerRef.current) {
-              await scannerRef.current.stop().catch(() => {});
-              scannerRef.current.clear();
+              try { await scannerRef.current.stop(); } catch (e) {}
+              try { scannerRef.current.clear(); } catch (e) {}
+              scannerRef.current = null;
           }
+          await new Promise(r => setTimeout(r, 100));
 
           const html5QrCode = new Html5Qrcode("reader");
           scannerRef.current = html5QrCode;
 
-          // [핵심] 모든 고급 설정을 뺀 '순정' 설정
-          const config = {
-              fps: 10,             // 1초에 10번만 검사 (폰 발열 방지 및 안정성)
-              qrbox: 250,          // 스캔 영역 지정 (초점 유도)
-              aspectRatio: 1.0,    // 정사각형 비율
-              disableFlip: false   // 좌우반전 자동 대응
+          const scanConfig = {
+              fps: 15,
+              qrbox: undefined,
+              aspectRatio: 1.0,
+              disableFlip: false
           };
 
           await html5QrCode.start(
-              { facingMode: "environment" }, // 후면 카메라 사용
-              config,
+              { facingMode: "environment" },
+              scanConfig,
               onScanSuccess,
-              (err) => { 
-                  // 인식 실패 에러는 무시 (계속 시도 중이므로)
-              }
+              () => {}
           );
+          setErrorMsg(null);
       } catch (err) {
-          console.error(err);
-          setErrorMsg("카메라 권한을 허용해주세요. (또는 HTTPS 접속 확인)");
+          console.error("QR Camera error:", err);
+          setErrorMsg("카메라 권한을 허용해주세요. (HTTPS 필요)");
       }
   };
 
   const stopScan = async () => {
       if (scannerRef.current) {
-          await scannerRef.current.stop().catch(() => {});
-          scannerRef.current.clear();
+          try { await scannerRef.current.stop(); } catch (e) {}
+          try { scannerRef.current.clear(); } catch (e) {}
+          scannerRef.current = null;
       }
   };
 
@@ -1406,17 +1406,12 @@ const QRScanner = ({ setView }) => {
               </button>
           </div>
 
-          <div className="w-full max-w-sm px-6">
+          <div className="w-full max-w-md px-4">
               <h3 className="text-center text-yellow-500 font-bold mb-4">QR SCANNER</h3>
               
-              {/* 스캐너 화면 */}
-              <div className="relative rounded-3xl overflow-hidden border-2 border-yellow-500/50 shadow-2xl bg-black">
-                  <div id="reader" className="w-full h-[350px]"></div>
-                  
-                  {/* 가이드라인 오버레이 */}
-                  <div className="absolute inset-0 border-[40px] border-black/50 pointer-events-none flex items-center justify-center">
-                      <div className="w-64 h-64 border-2 border-white/30 rounded-xl"></div>
-                  </div>
+              {/* 스캐너 화면 - 오버레이 제거, 고정 높이로 라이브러리 안정화 */}
+              <div className="rounded-2xl overflow-hidden border-2 border-yellow-500/50 bg-black" style={{ minHeight: 360 }}>
+                  <div id="reader" className="w-full" style={{ minHeight: 340 }}></div>
               </div>
 
               {errorMsg ? (
