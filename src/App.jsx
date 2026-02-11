@@ -1295,17 +1295,15 @@ export default function App() {
 // [App.jsx] QRScanner 컴포넌트 교체
 // [App.jsx] QRScanner 컴포넌트 교체
 // [App.jsx] QRScanner 컴포넌트 (호환성 최적화 '순정' 버전)
+// [App.jsx] QRScanner 컴포넌트 (네이티브 가속 모드 적용)
 const QRScanner = ({ setView }) => {
   const [result, setResult] = useState(null);
   const [errorMsg, setErrorMsg] = useState(null);
   const scannerRef = useRef(null);
 
   useEffect(() => {
-      // 화면이 켜지면 0.5초 뒤에 카메라 시동 (안정성 확보)
-      const timer = setTimeout(() => {
-          startScan();
-      }, 500);
-
+      // 화면 렌더링 안정화 후 실행
+      const timer = setTimeout(() => startScan(), 500);
       return () => {
           clearTimeout(timer);
           stopScan();
@@ -1314,33 +1312,43 @@ const QRScanner = ({ setView }) => {
 
   const startScan = async () => {
       try {
+          // 청소
           if (scannerRef.current) {
-              try { await scannerRef.current.stop(); } catch (e) {}
-              try { scannerRef.current.clear(); } catch (e) {}
-              scannerRef.current = null;
+              await scannerRef.current.stop().catch(() => {});
+              scannerRef.current.clear();
           }
-          await new Promise(r => setTimeout(r, 100));
 
           const html5QrCode = new Html5Qrcode("reader");
           scannerRef.current = html5QrCode;
 
-          const scanConfig = {
-              fps: 15,
-              qrbox: undefined,
+          // [최종 해결책] 
+          // 1. 하드웨어 가속(useBarCodeDetectorIfSupported) 활성화
+          // 2. 고화질(width/height) 강제 요청 -> 초점이 더 잘 맞음
+          const config = {
+              fps: 10, 
+              qrbox: 250,
               aspectRatio: 1.0,
-              disableFlip: false
+              disableFlip: false,
+              experimentalFeatures: {
+                  useBarCodeDetectorIfSupported: true // [핵심] 폰 자체의 QR 리더기 사용
+              }
           };
 
           await html5QrCode.start(
-              { facingMode: "environment" },
-              scanConfig,
+              { 
+                  facingMode: "environment",
+                  // 고해상도 요청 (흐릿함 방지)
+                  width: { min: 640, ideal: 1280, max: 1920 },
+                  height: { min: 480, ideal: 720, max: 1080 }
+              }, 
+              config,
               onScanSuccess,
-              () => {}
+              (err) => { /* 인식 시도 중 에러 무시 */ }
           );
           setErrorMsg(null);
       } catch (err) {
-          console.error("QR Camera error:", err);
-          setErrorMsg("카메라 권한을 허용해주세요. (HTTPS 필요)");
+          console.error(err);
+          setErrorMsg("카메라 권한을 확인해주세요.");
       }
   };
 
@@ -1353,22 +1361,19 @@ const QRScanner = ({ setView }) => {
   };
 
   const onScanSuccess = async (decodedText) => {
-      // 성공 시 즉시 멈춤 (중복 방지)
+      // 성공 시 화면 일시정지 (중복 방지)
       if (scannerRef.current) {
            try { await scannerRef.current.pause(); } catch(e) {}
       }
-      
       if (navigator.vibrate) navigator.vibrate(200);
 
       try {
-          console.log("✅ QR Code Detected:", decodedText);
+          console.log("QR Detected:", decodedText);
           
-          // 1. 출석 RPC 실행
+          // Supabase RPC 호출
           const { data, error } = await supabase.rpc('check_in_user', { user_uuid: decodedText });
-          
           if (error) throw error;
 
-          // 2. 유저 정보 가져오기
           const { data: userData } = await supabase.from('profiles').select('name').eq('id', decodedText).single();
           
           setResult({
@@ -1377,59 +1382,54 @@ const QRScanner = ({ setView }) => {
               message: `출석 완료 (잔여: ${data.remaining}회)`
           });
       } catch (error) {
-          console.error(error);
           let msg = "유효하지 않은 QR입니다.";
           if (error.message?.includes("No remaining")) msg = "잔여 세션이 없습니다.";
-          
           setResult({ success: false, message: msg });
-          if (navigator.vibrate) navigator.vibrate([100, 100]);
       }
       
-      // 3초 뒤 재시작
+      // 2초 후 재시작
       setTimeout(() => {
           setResult(null);
           if (scannerRef.current) {
               try { scannerRef.current.resume(); } catch(e) { startScan(); }
           }
-      }, 3000);
+      }, 2000);
   };
 
   return (
       <div className="min-h-[100dvh] bg-black text-white flex flex-col items-center justify-center relative">
-          {/* 뒤로가기 버튼 */}
-          <div className="absolute top-6 left-6 z-50">
-              <button 
-                  onClick={() => { stopScan(); setView('admin_home'); }} 
-                  className="bg-zinc-800/80 backdrop-blur px-4 py-2 rounded-lg text-sm border border-zinc-700"
-              >
-                  ← 나가기
-              </button>
-          </div>
+          <button 
+              onClick={() => { stopScan(); setView('admin_home'); }} 
+              className="absolute top-6 left-6 z-50 bg-zinc-800/80 px-4 py-2 rounded-lg text-sm"
+          >
+              ← 나가기
+          </button>
 
-          <div className="w-full max-w-md px-4">
+          <div className="w-full max-w-md px-6">
               <h3 className="text-center text-yellow-500 font-bold mb-4">QR SCANNER</h3>
               
-              {/* 스캐너 화면 - 오버레이 제거, 고정 높이로 라이브러리 안정화 */}
-              <div className="rounded-2xl overflow-hidden border-2 border-yellow-500/50 bg-black" style={{ minHeight: 360 }}>
-                  <div id="reader" className="w-full" style={{ minHeight: 340 }}></div>
+              <div className="relative rounded-2xl overflow-hidden border-2 border-yellow-500/50 bg-black">
+                  <div id="reader" className="w-full h-[400px]"></div>
+                  {/* 가이드라인 */}
+                  <div className="absolute inset-0 border-[50px] border-black/40 pointer-events-none flex items-center justify-center">
+                      <div className="w-56 h-56 border-2 border-white/30 rounded-lg"></div>
+                  </div>
               </div>
 
               {errorMsg ? (
-                  <p className="text-red-500 text-center mt-6 text-sm">{errorMsg}</p>
+                  <p className="text-red-500 text-center mt-6">{errorMsg}</p>
               ) : (
                   <p className="text-zinc-500 text-center mt-6 text-xs animate-pulse">
-                      카메라 권한 사용 중...<br/>QR 코드를 사각형 안에 비춰주세요
+                      QR 코드를 중앙 사각형에 비춰주세요
                   </p>
               )}
           </div>
 
-          {/* 결과 모달 */}
+          {/* 결과창 */}
           {result && (
-              <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/90 backdrop-blur-md p-6">
+              <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/90 p-6">
                   <div className={`w-full max-w-xs p-8 rounded-3xl text-center border ${result.success ? 'bg-zinc-900 border-green-500' : 'bg-zinc-900 border-red-500'}`}>
-                      <div className="mb-4 text-4xl">
-                          {result.success ? '✅' : '❌'}
-                      </div>
+                      <div className="mb-4 text-4xl">{result.success ? '✅' : '❌'}</div>
                       <h3 className="text-2xl font-bold text-white mb-2">{result.userName}</h3>
                       <p className={`text-sm font-bold ${result.success ? 'text-green-400' : 'text-red-400'}`}>
                           {result.message}
