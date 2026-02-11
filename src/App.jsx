@@ -730,9 +730,12 @@ export default function App() {
   const [selectedPost, setSelectedPost] = useState(null);
   const [showPostDetail, setShowPostDetail] = useState(false);
 
-  // [Smart Revenue State]
+  // [Smart Revenue / Dashboard State]
   const [currentRevenueDate, setCurrentRevenueDate] = useState(new Date());
+  const [dashboardFocusDate, setDashboardFocusDate] = useState(new Date());
+  const [dashboardViewMode, setDashboardViewMode] = useState('day');
   const [revenueLogs, setRevenueLogs] = useState([]);
+  const [dashboardBookings, setDashboardBookings] = useState([]);
   const [isRevenueLoading, setIsRevenueLoading] = useState(false);
   const [selectedRevenueDay, setSelectedRevenueDay] = useState(null);
   const [showPayrollCalculator, setShowPayrollCalculator] = useState(false);
@@ -874,28 +877,29 @@ export default function App() {
     }
   }, [view]);
 
-  // [Smart Revenue Logic]
   const fetchRevenueData = async () => {
     if (!supabase) return;
     setIsRevenueLoading(true);
-    
     const year = currentRevenueDate.getFullYear();
     const month = currentRevenueDate.getMonth();
-    const startDate = new Date(year, month, 1).toISOString();
-    const endDate = new Date(year, month + 1, 0, 23, 59, 59).toISOString();
+    const startDate = new Date(year, month, 1);
+    const endDate = new Date(year, month + 1, 0, 23, 59, 59);
+    const startISO = startDate.toISOString();
+    const endISO = endDate.toISOString();
+    const startKey = `${year}-${String(month + 1).padStart(2, '0')}-01`;
+    const endKey = `${year}-${String(month + 1).padStart(2, '0')}-${String(endDate.getDate()).padStart(2, '0')}`;
 
     try {
-      const { data, error } = await supabase
-        .from('attendance_logs')
-        .select('*, profiles(name)')
-        .gte('check_in_at', startDate)
-        .lte('check_in_at', endDate)
-        .order('check_in_at', { ascending: false });
-
-      if (error) throw error;
-      setRevenueLogs(data || []);
+      const [{ data: logsData, error: logsErr }, { data: bookingsData, error: bookingsErr }] = await Promise.all([
+        supabase.from('attendance_logs').select('*, profiles(name)').gte('check_in_at', startISO).lte('check_in_at', endISO).order('check_in_at', { ascending: false }),
+        supabase.from('bookings').select('*, profiles(name, email)').gte('date', startKey).lte('date', endKey).order('date', { ascending: true }).order('time', { ascending: true }),
+      ]);
+      if (logsErr) throw logsErr;
+      if (bookingsErr) throw bookingsErr;
+      setRevenueLogs(logsData || []);
+      setDashboardBookings(bookingsData || []);
     } catch (err) {
-      console.error('Error fetching revenue:', err);
+      console.error('Error fetching dashboard:', err);
     } finally {
       setIsRevenueLoading(false);
     }
@@ -939,9 +943,69 @@ export default function App() {
     return new Date(log.check_in_at).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', hour12: false });
   };
 
+  const normalizeTime24h = (t) => {
+    if (!t || typeof t !== 'string') return '';
+    const m = String(t).match(/(\d{1,2}):(\d{2})/);
+    return m ? `${String(m[1]).padStart(2, '0')}:${m[2]}` : t;
+  };
+
+  const mergedItemsByDate = React.useMemo(() => {
+    const logsByUserTime = {};
+    revenueLogs.forEach((log) => {
+      const key = toDateKey(log.check_in_at);
+      const time = normalizeTime24h(getSessionTime24h(log));
+      const k = `${key}|${log.user_id}|${time}`;
+      logsByUserTime[k] = log;
+    });
+    const result = {};
+    dashboardBookings.forEach((b) => {
+      const key = b.date;
+      if (!result[key]) result[key] = [];
+      const time = normalizeTime24h(b.time);
+      const matchKey = `${key}|${b.user_id}|${time}`;
+      const matchedLog = logsByUserTime[matchKey];
+      const isCompleted = !!matchedLog;
+      result[key].push({
+        type: 'booking',
+        booking: b,
+        log: matchedLog || null,
+        status: isCompleted ? 'Completed' : 'Scheduled',
+        userName: b.profiles?.name || 'Unknown',
+        time: time || b.time,
+        price: matchedLog?.session_price_snapshot ?? null,
+      });
+    });
+    revenueLogs.forEach((log) => {
+      const key = toDateKey(log.check_in_at);
+      const time = normalizeTime24h(getSessionTime24h(log));
+      const hasBooking = dashboardBookings.some((b) => b.date === key && b.user_id === log.user_id && normalizeTime24h(b.time) === time);
+      if (!hasBooking) {
+        if (!result[key]) result[key] = [];
+        result[key].push({ type: 'log', booking: null, log, status: 'Completed', userName: log.profiles?.name || 'Unknown', time, price: log.session_price_snapshot });
+      }
+    });
+    Object.keys(result).forEach((k) => result[k].sort((a, b) => (a.time || '').localeCompare(b.time || '')));
+    return result;
+  }, [revenueLogs, dashboardBookings]);
+
   const revenueDatesSorted = React.useMemo(() => {
-    return Object.keys(revenueSessionsByDate).sort((a, b) => b.localeCompare(a));
-  }, [revenueSessionsByDate]);
+    const allKeys = new Set([...Object.keys(revenueSessionsByDate), ...Object.keys(mergedItemsByDate)]);
+    return Array.from(allKeys).sort((a, b) => b.localeCompare(a));
+  }, [revenueSessionsByDate, mergedItemsByDate]);
+
+  const getWeekDates = (d) => {
+    const date = new Date(d);
+    const day = date.getDay();
+    const monday = new Date(date);
+    monday.setDate(date.getDate() - (day === 0 ? 6 : day - 1));
+    const week = [];
+    for (let i = 0; i < 7; i++) {
+      const dd = new Date(monday);
+      dd.setDate(monday.getDate() + i);
+      week.push(toDateKey(dd));
+    }
+    return week;
+  };
 
   const revenueCalendarDays = React.useMemo(() => {
     const y = currentRevenueDate.getFullYear();
@@ -1020,6 +1084,24 @@ export default function App() {
     }
   }, [view, currentRevenueDate]);
 
+  useEffect(() => {
+    if ((view === 'revenue' || view === 'admin_schedule') && dashboardViewMode === 'day') {
+      const fd = dashboardFocusDate;
+      const cd = currentRevenueDate;
+      if (fd.getMonth() !== cd.getMonth() || fd.getFullYear() !== cd.getFullYear()) {
+        setCurrentRevenueDate(new Date(fd));
+      }
+    }
+  }, [dashboardFocusDate, dashboardViewMode]);
+
+  useEffect(() => {
+    if (view === 'revenue' || view === 'admin_schedule') {
+      const now = new Date();
+      setDashboardViewMode('day');
+      setDashboardFocusDate(now);
+    }
+  }, [view]);
+
   return (
     <div className="bg-black min-h-[100dvh] font-sans selection:bg-yellow-500/30 overflow-x-hidden">
       <AnimatePresence>
@@ -1081,209 +1163,274 @@ export default function App() {
           {/* Unified Management Dashboard (Revenue + Schedule) */}
           {(view === 'revenue' || view === 'admin_schedule') && (
             <AdminRoute session={session}>
-              <div className="min-h-[100dvh] bg-zinc-950 flex flex-col p-6 text-white overflow-y-auto pb-24">
-                <BackButton onClick={() => setView('admin_home')} label="Admin Home" />
+              <div className="min-h-[100dvh] bg-zinc-950 flex flex-col text-white overflow-y-auto pb-20">
+                <div className="p-6 pb-2">
+                  <BackButton onClick={() => setView('admin_home')} label="Admin Home" />
 
-                {/* Header: Month Navigator + Eye Toggle */}
-                <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4 mb-6">
-                  <div className="flex items-center gap-3 bg-zinc-900 px-4 py-3 rounded-xl border border-zinc-800">
-                    <button
-                      onClick={() => changeMonth(-1)}
-                      className="p-1.5 rounded-lg hover:bg-zinc-800 text-zinc-400 hover:text-yellow-500 transition"
-                      aria-label="Previous month"
-                    >
-                      <ChevronLeft size={24} />
-                    </button>
-                    <div className="flex items-center gap-2 min-w-[140px] justify-center">
-                      <Calendar size={20} className="text-yellow-500" />
-                      <span className="text-lg font-bold">
-                        {currentRevenueDate.toLocaleDateString('en-US', { month: 'short' })} {currentRevenueDate.getFullYear()}
-                      </span>
-                    </div>
-                    <button
-                      onClick={() => changeMonth(1)}
-                      className="p-1.5 rounded-lg hover:bg-zinc-800 text-zinc-400 hover:text-yellow-500 transition"
-                      aria-label="Next month"
-                    >
-                      <ChevronRight size={24} />
-                    </button>
+                  {/* Segmented Control: Day | Week | Month */}
+                  <div className="flex gap-1 p-1 bg-zinc-900 rounded-xl border border-zinc-800 w-fit mb-4">
+                    {(['day', 'week', 'month']).map((mode) => (
+                      <button
+                        key={mode}
+                        onClick={() => setDashboardViewMode(mode)}
+                        className={`px-4 py-2 rounded-lg text-sm font-medium transition capitalize ${
+                          dashboardViewMode === mode ? 'bg-yellow-500 text-black' : 'text-zinc-400 hover:text-white'
+                        }`}
+                      >
+                        {mode === 'day' ? 'Day' : mode === 'week' ? 'Week' : 'Month'}
+                      </button>
+                    ))}
                   </div>
-                  <button
-                    onClick={() => setIsManagerMode((v) => !v)}
-                    className={`flex items-center gap-2 px-4 py-3 rounded-xl border transition-all duration-300 ${
-                      isManagerMode
-                        ? 'bg-yellow-500/20 border-yellow-500 text-yellow-500'
-                        : 'bg-zinc-900 border-zinc-700 text-zinc-500 hover:border-zinc-600'
-                    }`}
-                    title={isManagerMode ? 'Manager Mode: Financial data visible' : 'Click to show financial data'}
-                  >
-                    {isManagerMode ? <Eye size={22} /> : <EyeOff size={22} />}
-                    <span className="text-sm font-medium">{isManagerMode ? 'Manager Mode' : 'Private'}</span>
-                  </button>
-                </div>
 
-                {/* Total Monthly Sessions - Always visible (non-sensitive) */}
-                <div className="mb-6 transition-opacity duration-300">
-                  <div className="bg-gradient-to-r from-yellow-900/30 to-zinc-900 rounded-xl p-6 border-2 border-yellow-500/40">
-                    <div className="flex items-center gap-3 mb-2">
-                      <div className="p-2 rounded-lg bg-yellow-500/20">
-                        <Calendar size={28} className="text-yellow-500" />
+                  {/* Header: Navigator + Eye Toggle */}
+                  <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4 mb-4">
+                    <div className="flex items-center gap-3 bg-zinc-900 px-4 py-3 rounded-xl border border-zinc-800">
+                      <button
+                        onClick={() => {
+                          const d = new Date(dashboardViewMode === 'day' ? dashboardFocusDate : currentRevenueDate);
+                          if (dashboardViewMode === 'day') { d.setDate(d.getDate() - 1); setDashboardFocusDate(d); }
+                          else if (dashboardViewMode === 'week') { d.setDate(d.getDate() - 7); setDashboardFocusDate(d); setCurrentRevenueDate(d); }
+                          else changeMonth(-1);
+                        }}
+                        className="p-1.5 rounded-lg hover:bg-zinc-800 text-zinc-400 hover:text-yellow-500 transition"
+                      >
+                        <ChevronLeft size={24} />
+                      </button>
+                      <div className="flex items-center gap-2 min-w-[140px] justify-center">
+                        <Calendar size={20} className="text-yellow-500" />
+                        <span className="text-lg font-bold">
+                          {dashboardViewMode === 'day' && formatDateHeader(toDateKey(dashboardFocusDate))}
+                          {dashboardViewMode === 'week' && `Week of ${formatDateHeader(getWeekDates(dashboardFocusDate)[0])}`}
+                          {dashboardViewMode === 'month' && `${currentRevenueDate.toLocaleDateString('en-US', { month: 'short' })} ${currentRevenueDate.getFullYear()}`}
+                        </span>
                       </div>
-                      <span className="text-zinc-400 text-sm font-semibold uppercase tracking-wider">Total Monthly Sessions</span>
+                      <button
+                        onClick={() => {
+                          const d = new Date(dashboardViewMode === 'day' ? dashboardFocusDate : currentRevenueDate);
+                          if (dashboardViewMode === 'day') { d.setDate(d.getDate() + 1); setDashboardFocusDate(d); }
+                          else if (dashboardViewMode === 'week') { d.setDate(d.getDate() + 7); setDashboardFocusDate(d); setCurrentRevenueDate(d); }
+                          else changeMonth(1);
+                        }}
+                        className="p-1.5 rounded-lg hover:bg-zinc-800 text-zinc-400 hover:text-yellow-500 transition"
+                      >
+                        <ChevronRight size={24} />
+                      </button>
                     </div>
-                    <p className="text-5xl font-bold text-yellow-400 tracking-tight">{isRevenueLoading ? '—' : revenueLogs.length}</p>
-                    <p className="text-zinc-500 text-xs mt-1">{currentRevenueDate.getFullYear()}년 {currentRevenueDate.getMonth() + 1}월</p>
+                    <button
+                      onClick={() => setIsManagerMode((v) => !v)}
+                      className={`flex items-center gap-2 px-4 py-3 rounded-xl border transition-all duration-300 ${
+                        isManagerMode ? 'bg-yellow-500/20 border-yellow-500 text-yellow-500' : 'bg-zinc-900 border-zinc-700 text-zinc-500 hover:border-zinc-600'
+                      }`}
+                    >
+                      {isManagerMode ? <Eye size={22} /> : <EyeOff size={22} />}
+                      <span className="text-sm font-medium">{isManagerMode ? 'Manager' : 'Private'}</span>
+                    </button>
                   </div>
                 </div>
 
-                {/* Financial Section - Only in Manager Mode */}
-                {isManagerMode && (
-                  <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.3 }} className="mb-8">
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
-                      {(() => {
-                        const totalSessions = revenueLogs.length;
-                        const totalSales = revenueLogs.reduce((sum, log) => sum + (log.session_price_snapshot || 0), 0);
-                        const commission = totalSales * (salaryConfig.incentiveRate / 100);
-                        const grossPayout = salaryConfig.base + commission + salaryConfig.extra;
-                        const taxDeduction = Math.round(grossPayout * 0.033);
-                        const netPayout = grossPayout - taxDeduction;
+                {/* ========== DAY VIEW ========== */}
+                {dashboardViewMode === 'day' && (() => {
+                  const dayKey = toDateKey(dashboardFocusDate);
+                  const items = mergedItemsByDate[dayKey] || [];
+                  const completed = items.filter((x) => x.status === 'Completed').length;
+                  const total = items.length;
+                  const now = new Date();
+                  const nowMinutes = now.getHours() * 60 + now.getMinutes();
+                  const isToday = toDateKey(now) === dayKey;
+                  let nextUpIndex = -1;
+                  let nowLineIndex = -1;
+                  if (isToday && items.length > 0) {
+                    for (let i = 0; i < items.length; i++) {
+                      const [h, m] = (items[i].time || '00:00').split(':').map(Number);
+                      if (h * 60 + m > nowMinutes) { nextUpIndex = i; nowLineIndex = i; break; }
+                    }
+                    if (nextUpIndex < 0) nowLineIndex = items.length;
+                  }
+                  return (
+                    <div className="px-6 flex-1">
+                      <div className="mb-6">
+                        <h2 className="text-2xl font-bold text-yellow-500 mb-1">{formatDateHeader(dayKey)}</h2>
+                        {total > 0 && (
+                          <div className="flex items-center gap-2">
+                            <div className="flex-1 h-2 bg-zinc-800 rounded-full overflow-hidden">
+                              <div className="h-full bg-yellow-500 rounded-full transition-all" style={{ width: total ? `${(completed / total) * 100}%` : 0 }} />
+                            </div>
+                            <span className="text-zinc-400 text-sm whitespace-nowrap">{completed}/{total} Done</span>
+                          </div>
+                        )}
+                      </div>
+                      {items.length === 0 ? (
+                        <div className="flex flex-col items-center justify-center py-16 text-center">
+                          <Calendar size={64} className="text-zinc-700 mb-4" />
+                          <p className="text-zinc-500 font-medium">No classes today</p>
+                          <p className="text-zinc-600 text-sm mt-1">Take a breather 💪</p>
+                        </div>
+                      ) : (
+                        <div className="space-y-3 relative">
+                          {items.map((item, idx) => {
+                            const isNextUp = isToday && idx === nextUpIndex;
+                            const showNowBefore = isToday && nowLineIndex >= 0 && idx === nowLineIndex;
+                            const showNowAfter = isToday && nowLineIndex === items.length && idx === items.length - 1;
+                            return (
+                              <React.Fragment key={item.booking?.id || item.log?.id || idx}>
+                                {showNowBefore && (
+                                  <div className="flex items-center gap-2 py-2">
+                                    <div className="flex-1 h-px bg-red-500" />
+                                    <span className="text-red-400 text-xs font-mono">Now</span>
+                                    <div className="flex-1 h-px bg-red-500" />
+                                  </div>
+                                )}
+                              <div
+                                key={item.booking?.id || item.log?.id || idx}
+                                className={`rounded-xl border p-4 transition-all ${
+                                  item.status === 'Completed'
+                                    ? 'bg-yellow-500/10 border-yellow-500/50'
+                                    : 'bg-zinc-900 border-zinc-800'
+                                } ${isNextUp ? 'ring-2 ring-yellow-400 shadow-lg shadow-yellow-500/20' : ''}`}
+                              >
+                                <div className="flex items-center justify-between gap-4">
+                                  <span className="text-zinc-300 font-mono font-medium">{item.time}</span>
+                                  <span className="flex-1 text-white font-medium truncate text-center">{item.userName}</span>
+                                  {isManagerMode && item.price != null && (
+                                    <span className="text-yellow-500 font-bold text-sm">₩ {(item.price ?? 0).toLocaleString()}</span>
+                                  )}
+                                </div>
+                                {isNextUp && <p className="text-yellow-400 text-xs mt-2">↑ Next up</p>}
+                              </div>
+                              {showNowAfter && (
+                                <div className="flex items-center gap-2 py-2">
+                                  <div className="flex-1 h-px bg-red-500" />
+                                  <span className="text-red-400 text-xs font-mono">Now</span>
+                                  <div className="flex-1 h-px bg-red-500" />
+                                </div>
+                              )}
+                              </React.Fragment>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()}
+
+                {/* ========== WEEK VIEW ========== */}
+                {dashboardViewMode === 'week' && (
+                  <div className="px-6 flex-1 space-y-2">
+                    {getWeekDates(dashboardFocusDate).map((dateKey) => {
+                      const items = mergedItemsByDate[dateKey] || [];
+                      const completed = items.filter((x) => x.status === 'Completed').length;
+                      if (items.length === 0) {
                         return (
-                          <>
-                            <div className="bg-zinc-900 rounded-xl p-5 border border-zinc-800">
-                              <span className="text-zinc-400 text-xs font-medium uppercase">Total Sales</span>
-                              <p className="text-2xl font-bold text-yellow-400 mt-1">₩ {fmt(totalSales)}</p>
-                            </div>
-                            <div className="bg-gradient-to-br from-yellow-900/50 to-zinc-900 rounded-xl p-5 border-2 border-yellow-500">
-                              <span className="text-yellow-400/90 text-xs font-bold uppercase">Net Payout</span>
-                              <p className="text-2xl font-bold text-yellow-400 mt-1">₩ {fmt(netPayout)}</p>
-                            </div>
-                          </>
+                          <div key={dateKey} className="bg-zinc-900/50 rounded-xl border border-zinc-800/50 px-4 py-2 flex items-center justify-between">
+                            <span className="text-zinc-600 text-sm">{formatDateHeader(dateKey)}</span>
+                            <span className="text-zinc-700 text-xs">—</span>
+                          </div>
                         );
-                      })()}
-                    </div>
-                    <div className="flex flex-wrap gap-3 mb-4">
-                      <button
-                        onClick={() => setShowPayrollCalculator((v) => !v)}
-                        className="flex items-center gap-2 bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 rounded-xl px-4 py-3 text-yellow-500 font-medium transition"
-                      >
-                        <span>🧮</span> {showPayrollCalculator ? 'Close Calculator' : 'Open Calculator'}
-                      </button>
-                      <button
-                        onClick={downloadPayrollCSV}
-                        className="flex items-center gap-2 bg-yellow-600 hover:bg-yellow-500 text-black font-bold px-4 py-3 rounded-xl transition"
-                      >
-                        <Download size={18} />
-                        Download Excel Report
-                      </button>
-                    </div>
-                    {showPayrollCalculator && (
-                      <div className="space-y-4 rounded-xl border border-zinc-800 bg-zinc-900/50 p-4 mt-2">
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                          <div>
-                            <label className="text-zinc-400 text-xs block mb-2">Base Salary</label>
-                            <input type="number" value={salaryConfig.base} onChange={(e) => handleConfigChange('base', e.target.value)}
-                              className="w-full bg-zinc-800/50 border border-zinc-700 rounded-lg px-4 py-3 text-white" />
+                      }
+                      return (
+                        <div key={dateKey} className="bg-zinc-900 rounded-xl border border-zinc-800 overflow-hidden">
+                          <div className="px-4 py-2 bg-zinc-800/80 font-bold text-white flex items-center justify-between">
+                            <span>{formatDateHeader(dateKey)}</span>
+                            <span className="text-zinc-400 text-sm font-normal">{items.length} classes {completed > 0 && `(${completed} done)`}</span>
                           </div>
-                          <div>
-                            <label className="text-zinc-400 text-xs block mb-2">Incentive %</label>
-                            <input type="number" value={salaryConfig.incentiveRate} onChange={(e) => handleConfigChange('incentiveRate', e.target.value)}
-                              className="w-full bg-zinc-800/50 border border-zinc-700 rounded-lg px-4 py-3 text-yellow-400" />
-                          </div>
-                          <div>
-                            <label className="text-zinc-400 text-xs block mb-2">Bonus</label>
-                            <input type="number" value={salaryConfig.extra} onChange={(e) => handleConfigChange('extra', e.target.value)}
-                              className="w-full bg-zinc-800/50 border border-zinc-700 rounded-lg px-4 py-3 text-green-400" />
+                          <div className="divide-y divide-zinc-800">
+                            {items.slice(0, 4).map((item, idx) => (
+                              <div key={idx} className={`flex items-center justify-between gap-4 px-4 py-2 ${item.status === 'Completed' ? 'bg-yellow-500/5' : ''}`}>
+                                <span className="text-zinc-400 font-mono text-sm">{item.time}</span>
+                                <span className="flex-1 text-white text-sm truncate text-center">{item.userName}</span>
+                                {isManagerMode && item.price != null && <span className="text-yellow-500 text-xs">₩{(item.price ?? 0).toLocaleString()}</span>}
+                              </div>
+                            ))}
+                            {items.length > 4 && <div className="px-4 py-2 text-zinc-500 text-xs">+{items.length - 4} more</div>}
                           </div>
                         </div>
-                        {(() => {
-                          const totalSales = revenueLogs.reduce((sum, log) => sum + (log.session_price_snapshot || 0), 0);
-                          const gross = salaryConfig.base + totalSales * (salaryConfig.incentiveRate / 100) + salaryConfig.extra;
-                          const tax = Math.round(gross * 0.033);
-                          const net = gross - tax;
-                          return (
-                            <div className="bg-gradient-to-r from-yellow-900/50 to-zinc-900 rounded-xl p-4 border border-yellow-500/50">
-                              <p className="text-yellow-400 font-bold">실수령액: ₩{fmt(net)}</p>
-                              <p className="text-zinc-500 text-sm">총 급여 ₩{fmt(gross)} − 세금 ₩{fmt(tax)}</p>
-                            </div>
-                          );
-                        })()}
+                      );
+                    })}
+                  </div>
+                )}
+
+                {/* ========== MONTH VIEW ========== */}
+                {dashboardViewMode === 'month' && (
+                  <div className="px-6 flex-1">
+                    <div className="bg-zinc-900 rounded-xl p-4 mb-6 border border-zinc-800">
+                      <div className="grid grid-cols-7 gap-1">
+                        {['일', '월', '화', '수', '목', '금', '토'].map((d) => (
+                          <div key={d} className="text-center text-zinc-500 text-[10px] font-medium py-1">{d}</div>
+                        ))}
+                        {isRevenueLoading ? (
+                          <div className="col-span-7 py-8 text-center text-zinc-500 text-sm">Loading...</div>
+                        ) : (
+                          revenueCalendarDays.map((cell, i) =>
+                            cell.type === 'pad' ? (
+                              <div key={`pad-${i}`} className="aspect-square" />
+                            ) : (
+                              <button
+                                key={cell.key}
+                                onClick={() => { setSelectedRevenueDay(selectedRevenueDay === cell.key ? null : cell.key); setDashboardFocusDate(new Date(cell.key + 'T12:00:00')); setDashboardViewMode('day'); }}
+                                className={`aspect-square rounded-lg flex flex-col items-center justify-center text-sm font-medium transition min-h-[36px] ${
+                                  selectedRevenueDay === cell.key ? 'bg-yellow-500 text-black ring-2 ring-yellow-400' : 'bg-zinc-800/50 hover:bg-zinc-700 text-white'
+                                }`}
+                              >
+                                <span>{cell.value}</span>
+                                {(mergedItemsByDate[cell.key] || []).length > 0 && (
+                                  <span className={`mt-0.5 rounded-full ${(mergedItemsByDate[cell.key] || []).length >= 6 ? 'w-2.5 h-2.5' : (mergedItemsByDate[cell.key] || []).length >= 3 ? 'w-2 h-2' : 'w-1.5 h-1.5'} bg-yellow-500`} />
+                                )}
+                              </button>
+                            )
+                          )
+                        )}
+                      </div>
+                    </div>
+                    {selectedRevenueDay && (
+                      <div className="space-y-2 mb-6">
+                        {(mergedItemsByDate[selectedRevenueDay] || []).map((item, idx) => (
+                          <div key={idx} className={`flex items-center justify-between gap-4 px-4 py-3 rounded-xl border ${item.status === 'Completed' ? 'bg-yellow-500/10 border-yellow-500/50' : 'bg-zinc-900 border-zinc-800'}`}>
+                            <span className="font-mono text-zinc-300">{item.time}</span>
+                            <span className="flex-1 text-white text-center truncate">{item.userName}</span>
+                            {isManagerMode && item.price != null && <span className="text-yellow-500 font-bold">₩{(item.price ?? 0).toLocaleString()}</span>}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Financial Section - Manager Mode Only */}
+                {isManagerMode && (
+                  <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="px-6 mb-4">
+                    <div className="grid grid-cols-2 gap-4 mb-4">
+                      <div className="bg-zinc-900 rounded-xl p-4 border border-zinc-800">
+                        <span className="text-zinc-400 text-xs">Total Sales</span>
+                        <p className="text-xl font-bold text-yellow-400">₩ {fmt(revenueLogs.reduce((s, l) => s + (l.session_price_snapshot || 0), 0))}</p>
+                      </div>
+                      <div className="bg-zinc-900 rounded-xl p-4 border border-yellow-500/50">
+                        <span className="text-yellow-400/90 text-xs">Net Payout</span>
+                        <p className="text-xl font-bold text-yellow-400">₩ {fmt((() => { const g = salaryConfig.base + revenueLogs.reduce((s, l) => s + (l.session_price_snapshot || 0), 0) * (salaryConfig.incentiveRate / 100) + salaryConfig.extra; return g - Math.round(g * 0.033); })())}</p>
+                      </div>
+                    </div>
+                    <div className="flex gap-3">
+                      <button onClick={() => setShowPayrollCalculator((v) => !v)} className="flex items-center gap-2 bg-zinc-800 px-4 py-2 rounded-xl text-yellow-500 text-sm">🧮 Calculator</button>
+                      <button onClick={downloadPayrollCSV} className="flex items-center gap-2 bg-yellow-600 px-4 py-2 rounded-xl text-black font-bold text-sm">📥 Report</button>
+                    </div>
+                    {showPayrollCalculator && (
+                      <div className="mt-4 p-4 rounded-xl border border-zinc-800 bg-zinc-900/50 grid grid-cols-3 gap-4">
+                        <div><label className="text-zinc-500 text-xs">Base</label><input type="number" value={salaryConfig.base} onChange={(e) => handleConfigChange('base', e.target.value)} className="w-full bg-zinc-800 rounded px-3 py-2 text-white" /></div>
+                        <div><label className="text-zinc-500 text-xs">Incentive %</label><input type="number" value={salaryConfig.incentiveRate} onChange={(e) => handleConfigChange('incentiveRate', e.target.value)} className="w-full bg-zinc-800 rounded px-3 py-2 text-yellow-400" /></div>
+                        <div><label className="text-zinc-500 text-xs">Bonus</label><input type="number" value={salaryConfig.extra} onChange={(e) => handleConfigChange('extra', e.target.value)} className="w-full bg-zinc-800 rounded px-3 py-2 text-green-400" /></div>
                       </div>
                     )}
                   </motion.div>
                 )}
 
-                {/* Calendar Section */}
-                <div className="bg-zinc-900 rounded-xl p-4 mb-6 border border-zinc-800">
-                  <h3 className="text-zinc-400 text-xs font-semibold uppercase tracking-wider mb-3">Sessions by Day</h3>
-                  <div className="grid grid-cols-7 gap-1">
-                    {['일', '월', '화', '수', '목', '금', '토'].map((d) => (
-                      <div key={d} className="text-center text-zinc-500 text-[10px] font-medium py-1">{d}</div>
-                    ))}
-                    {isRevenueLoading ? (
-                      <div className="col-span-7 py-8 text-center text-zinc-500 text-sm">Loading...</div>
-                    ) : (
-                      revenueCalendarDays.map((cell, i) =>
-                        cell.type === 'pad' ? (
-                          <div key={`pad-${i}`} className="aspect-square" />
-                        ) : (
-                          <button
-                            key={cell.key}
-                            onClick={() => setSelectedRevenueDay(selectedRevenueDay === cell.key ? null : cell.key)}
-                            className={`aspect-square rounded-lg flex flex-col items-center justify-center text-sm font-medium transition min-h-[36px] ${
-                              selectedRevenueDay === cell.key ? 'bg-yellow-500 text-black ring-2 ring-yellow-400' : 'bg-zinc-800/50 hover:bg-zinc-700 text-white'
-                            }`}
-                          >
-                            <span>{cell.value}</span>
-                            {cell.count > 0 && (
-                              <span className={`mt-0.5 rounded-full ${cell.count >= 6 ? 'w-2.5 h-2.5 bg-yellow-500' : cell.count >= 3 ? 'w-2 h-2 bg-yellow-500' : 'w-1.5 h-1.5 bg-yellow-500/60'}`} />
-                            )}
-                          </button>
-                        )
-                      )
+                {/* Sticky Footer - Total Monthly Sessions (unobtrusive) */}
+                <div className="sticky bottom-0 left-0 right-0 py-3 px-6 bg-zinc-950/95 border-t border-zinc-800/50 text-center">
+                  <p className="text-zinc-500 text-xs">
+                    Total Monthly Sessions: <span className="text-yellow-500 font-semibold">{isRevenueLoading ? '—' : revenueLogs.length}</span>
+                    {isManagerMode && (
+                      <span className="ml-4">Revenue: ₩{fmt(revenueLogs.reduce((s, l) => s + (l.session_price_snapshot || 0), 0))}</span>
                     )}
-                  </div>
+                  </p>
                 </div>
-
-                {/* Session List - Grouped by Date, filtered by calendar selection */}
-                {(() => {
-                  const datesToShow = selectedRevenueDay ? [selectedRevenueDay] : revenueDatesSorted;
-                  return (
-                    <div className="space-y-3">
-                      <h3 className="text-zinc-400 text-xs font-semibold uppercase tracking-wider">
-                        {selectedRevenueDay ? `${selectedRevenueDay} 세션` : 'All Sessions'}
-                      </h3>
-                      {isRevenueLoading ? (
-                        <p className="p-8 text-center text-zinc-500 text-sm">Loading...</p>
-                      ) : datesToShow.length === 0 ? (
-                        <div className="bg-zinc-900 rounded-xl border border-zinc-800 p-8 text-center text-zinc-500 text-sm">이번 달 세션 기록이 없습니다</div>
-                      ) : (
-                        datesToShow.map((dateKey) => {
-                          const sessions = (revenueSessionsByDate[dateKey] || []).slice().sort((a, b) => getSessionTime24h(a).localeCompare(getSessionTime24h(b)));
-                          const headerLabel = `${formatDateHeader(dateKey)} - ${sessions.length} Sessions`;
-                          return (
-                            <div key={dateKey} className="bg-zinc-900 rounded-xl border border-zinc-800 overflow-hidden">
-                              <div className="px-4 py-3 bg-zinc-800/80 border-b border-zinc-700 font-bold text-white flex items-center gap-2">
-                                <Calendar size={18} className="text-yellow-500 shrink-0" />
-                                {headerLabel}
-                              </div>
-                              <div className="divide-y divide-zinc-800">
-                                {sessions.map((log) => (
-                                  <div key={log.id} className="flex items-center justify-between gap-4 px-4 py-3 hover:bg-zinc-800/50 transition-colors">
-                                    <span className="text-zinc-300 text-sm font-mono">{getSessionTime24h(log)}</span>
-                                    <span className="flex-1 text-white font-medium text-sm truncate text-center">{log.profiles?.name || 'Unknown'}</span>
-                                    {isManagerMode && (
-                                      <span className="text-yellow-500 font-bold text-sm shrink-0">₩ {(log.session_price_snapshot ?? 0).toLocaleString()}</span>
-                                    )}
-                                  </div>
-                                ))}
-                              </div>
-                            </div>
-                          );
-                        })
-                      )}
-                    </div>
-                  );
-                })()}
               </div>
             </AdminRoute>
           )}
