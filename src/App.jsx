@@ -1529,9 +1529,10 @@ const QRScanner = ({ setView }) => {
         remainingSessions: remaining
       });
     } catch (error) {
-      let msg = '유효하지 않은 QR입니다.';
-      if (error?.message?.includes('No remaining')) msg = '잔여 세션이 없습니다.';
-      else if (error?.message?.includes('오늘 예약된 수업이 없습니다')) msg = '오늘 예약된 수업이 없습니다.';
+      const errMsg = error?.message ?? '';
+      let msg = 'QR 인식 오류: 다시 시도해주세요.';
+      if (errMsg.includes('NO_BOOKING_FOUND')) msg = '오늘 예약된 수업이 없습니다. 예약을 먼저 진행해주세요.';
+      else if (errMsg.includes('NO_SESSIONS_LEFT') || errMsg.includes('No remaining')) msg = '남은 세션이 없습니다. 티켓을 먼저 충전해주세요.';
       setResult({ success: false, message: msg });
       if (navigator.vibrate) navigator.vibrate([100, 50, 100]);
     }
@@ -1642,17 +1643,26 @@ const QRScanner = ({ setView }) => {
               initial={{ scale: 0.9 }}
               animate={{ scale: 1 }}
               exit={{ scale: 0.9 }}
-              className={`w-full max-w-xs p-8 rounded-2xl text-center border-2 ${result.success ? 'bg-zinc-900 border-green-500' : 'bg-zinc-900 border-red-500'}`}
+              className={`w-full max-w-sm p-8 rounded-2xl text-center border-2 ${result.success ? 'bg-zinc-900 border-green-500' : 'bg-zinc-900 border-red-500'}`}
             >
               {result.success ? (
-                <CheckCircle size={64} className="text-green-500 mx-auto mb-4" />
+                <>
+                  <CheckCircle size={64} className="text-green-500 mx-auto mb-4" />
+                  <h3 className="text-xl font-bold text-white mb-2">{result.userName || '알림'}</h3>
+                  <p className="font-bold text-green-400">{result.message}</p>
+                  {result.remainingSessions != null && (
+                    <p className="text-yellow-500 text-sm mt-2">남은 횟수: {result.remainingSessions}회</p>
+                  )}
+                </>
               ) : (
-                <XCircle size={64} className="text-red-500 mx-auto mb-4" />
-              )}
-              <h3 className="text-xl font-bold text-white mb-2">{result.userName || '알림'}</h3>
-              <p className={`font-bold ${result.success ? 'text-green-400' : 'text-red-400'}`}>{result.message}</p>
-              {result.success && result.remainingSessions != null && (
-                <p className="text-yellow-500 text-sm mt-2">남은 횟수: {result.remainingSessions}회</p>
+                <>
+                  <XCircle size={64} className="text-red-500 mx-auto mb-4" />
+                  <h3 className="text-lg font-bold text-red-400 mb-3">출석 실패</h3>
+                  <p className="text-base font-semibold text-white leading-relaxed bg-red-950/50 border border-red-500/50 rounded-xl px-4 py-4">
+                    {result.message}
+                  </p>
+                  <p className="text-zinc-500 text-xs mt-3">위 사유를 회원에게 안내해주세요</p>
+                </>
               )}
               <button
                 onClick={() => {
