@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { QrCode, Camera, CheckCircle, ChevronRight, BookOpen, LogOut, Plus, User, X, CreditCard, History, Search, ArrowLeft, Edit3, Save, Sparkles, MessageSquare, Calendar, Clock, ChevronLeft, XCircle, Trash2, Edit, Image, DollarSign, Download } from 'lucide-react';
+import { QrCode, Camera, CheckCircle, ChevronRight, BookOpen, LogOut, Plus, User, X, CreditCard, History, Search, ArrowLeft, Edit3, Save, Sparkles, MessageSquare, Calendar, Clock, ChevronLeft, XCircle, Trash2, Edit, Image, DollarSign, Download, Printer } from 'lucide-react';
 import { Html5Qrcode } from 'html5-qrcode';
 
 // [중요] 우리가 만든 Supabase 연결 도구와 페이지 가져오기
@@ -886,17 +886,27 @@ export default function App() {
   const fmt = (num) => num?.toLocaleString() || '0';
 
   const downloadPayrollCSV = () => {
-    const headers = ['Date', 'Time', 'Member', 'Price'];
-    const rows = revenueLogs.map((log) => {
+    const totalSessions = revenueLogs.length;
+    const totalSales = revenueLogs.reduce((sum, log) => sum + (log.session_price_snapshot || 0), 0);
+    const commission = totalSales * (salaryConfig.incentiveRate / 100);
+    const grossPayout = salaryConfig.base + commission + salaryConfig.extra;
+    const taxDeduction = Math.round(grossPayout * 0.033);
+    const netPayout = grossPayout - taxDeduction;
+
+    const monthLabel = `${currentRevenueDate.getFullYear()}년 ${currentRevenueDate.getMonth() + 1}월`;
+    const esc = (v) => `"${String(v).replace(/"/g, '""')}"`;
+    const summaryHeader = ['Month', 'Total Sessions', 'Gross Payout', 'Tax (3.3%)', 'Net Payout'];
+    const summaryData = [monthLabel, totalSessions, grossPayout, taxDeduction, netPayout];
+    const sessionHeader = ['Date', 'Time', 'Member Name', 'Session Price'];
+
+    const sessionRows = revenueLogs.map((log) => {
       const d = new Date(log.check_in_at);
-      const date = d.toLocaleDateString('ko-KR');
-      const time = d.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-      const member = (log.profiles?.name || 'Unknown').replace(/"/g, '""');
-      const price = String(log.session_price_snapshot ?? 0);
-      return `"${date}","${time}","${member}","${price}"`;
+      return [d.toLocaleDateString('ko-KR'), d.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', second: '2-digit' }), (log.profiles?.name || 'Unknown'), log.session_price_snapshot ?? 0].map(esc).join(',');
     });
-    const csv = [headers.join(','), ...rows].join('\n');
-    const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8;' });
+
+    const csvBody = [summaryHeader.map(esc).join(','), summaryData.map(esc).join(','), '', sessionHeader.map(esc).join(','), ...sessionRows].join('\n');
+    const bom = '\ufeff';
+    const blob = new Blob([bom + csvBody], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
@@ -1016,10 +1026,13 @@ export default function App() {
                 {/* Summary Cards */}
                 {(() => {
                   const totalSessions = revenueLogs.length;
-                  const totalRevenue = revenueLogs.reduce((sum, log) => sum + (log.session_price_snapshot || 0), 0);
-                  const estimatedCommission = totalRevenue * (salaryConfig.incentiveRate / 100);
+                  const totalSales = revenueLogs.reduce((sum, log) => sum + (log.session_price_snapshot || 0), 0);
+                  const commission = totalSales * (salaryConfig.incentiveRate / 100);
+                  const grossPayout = salaryConfig.base + commission + salaryConfig.extra;
+                  const taxDeduction = Math.round(grossPayout * 0.033);
+                  const netPayout = grossPayout - taxDeduction;
                   return (
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
                       <div className="bg-zinc-900 rounded-xl p-5 border border-zinc-800">
                         <div className="flex items-center gap-2 mb-2">
                           <Calendar size={20} className="text-yellow-500" />
@@ -1030,18 +1043,88 @@ export default function App() {
                       <div className="bg-zinc-900 rounded-xl p-5 border border-zinc-800">
                         <div className="flex items-center gap-2 mb-2">
                           <DollarSign size={20} className="text-yellow-500" />
-                          <span className="text-zinc-400 text-sm font-medium uppercase tracking-wider">Total Revenue</span>
+                          <span className="text-zinc-400 text-sm font-medium uppercase tracking-wider">Total Sales</span>
                         </div>
-                        <p className="text-2xl font-bold text-yellow-400">₩ {fmt(totalRevenue)}</p>
+                        <p className="text-2xl font-bold text-yellow-400">₩ {fmt(totalSales)}</p>
                       </div>
-                      <div className="bg-zinc-900 rounded-xl p-5 border border-yellow-500/30">
+                      <div className="bg-zinc-900 rounded-xl p-5 border border-zinc-800">
                         <div className="flex items-center gap-2 mb-2">
                           <CreditCard size={20} className="text-yellow-500" />
-                          <span className="text-zinc-400 text-sm font-medium uppercase tracking-wider">Est. Trainer Commission</span>
+                          <span className="text-zinc-400 text-sm font-medium uppercase tracking-wider">Gross Payout</span>
                         </div>
-                        <p className="text-2xl font-bold text-green-400">₩ {fmt(estimatedCommission)}</p>
-                        <p className="text-xs text-zinc-500 mt-1">({salaryConfig.incentiveRate}% of revenue)</p>
+                        <p className="text-2xl font-bold text-zinc-200">₩ {fmt(grossPayout)}</p>
+                        <p className="text-xs text-zinc-500 mt-1">공제 전</p>
                       </div>
+                      <div className="bg-zinc-900 rounded-xl p-5 border-2 border-yellow-500/50">
+                        <div className="flex items-center gap-2 mb-2">
+                          <DollarSign size={20} className="text-yellow-500" />
+                          <span className="text-zinc-400 text-sm font-medium uppercase tracking-wider">Net Payout</span>
+                        </div>
+                        <p className="text-2xl font-bold text-green-400">₩ {fmt(netPayout)}</p>
+                        <p className="text-xs text-yellow-500/80 mt-1">실수령액 (공제 후)</p>
+                      </div>
+                    </div>
+                  );
+                })()}
+
+                {/* Salary Calculator */}
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+                  <div className="bg-zinc-900 rounded-xl p-4 border border-zinc-800">
+                    <label className="text-zinc-400 text-xs block mb-2">Base Salary (기본급)</label>
+                    <div className="flex items-center">
+                      <span className="text-zinc-500 mr-2">₩</span>
+                      <input
+                        type="number"
+                        value={salaryConfig.base}
+                        onChange={(e) => handleConfigChange('base', e.target.value)}
+                        className="w-full bg-zinc-800/50 border border-zinc-700 rounded-lg px-4 py-3 text-white text-lg font-semibold focus:border-yellow-500 focus:ring-1 focus:ring-yellow-500/50 outline-none min-w-0"
+                      />
+                    </div>
+                  </div>
+                  <div className="bg-zinc-900 rounded-xl p-4 border border-zinc-800">
+                    <label className="text-zinc-400 text-xs block mb-2">Incentive Rate (인센티브 %)</label>
+                    <div className="flex items-center">
+                      <input
+                        type="number"
+                        value={salaryConfig.incentiveRate}
+                        onChange={(e) => handleConfigChange('incentiveRate', e.target.value)}
+                        className="w-full bg-zinc-800/50 border border-zinc-700 rounded-lg px-4 py-3 text-yellow-400 text-lg font-semibold focus:border-yellow-500 focus:ring-1 focus:ring-yellow-500/50 outline-none min-w-0"
+                      />
+                      <span className="text-zinc-500 ml-2">%</span>
+                    </div>
+                  </div>
+                  <div className="bg-zinc-900 rounded-xl p-4 border border-zinc-800">
+                    <label className="text-zinc-400 text-xs block mb-2">Extra Bonus (추가 보너스)</label>
+                    <div className="flex items-center">
+                      <span className="text-zinc-500 mr-2">₩</span>
+                      <input
+                        type="number"
+                        value={salaryConfig.extra}
+                        onChange={(e) => handleConfigChange('extra', e.target.value)}
+                        className="w-full bg-zinc-800/50 border border-zinc-700 rounded-lg px-4 py-3 text-green-400 text-lg font-semibold focus:border-yellow-500 focus:ring-1 focus:ring-yellow-500/50 outline-none min-w-0"
+                      />
+                    </div>
+                  </div>
+                  <div className="bg-zinc-900 rounded-xl p-4 border border-zinc-800">
+                    <label className="text-zinc-400 text-xs block mb-2">Tax Deduction (세금 3.3%)</label>
+                    <p className="text-xl font-bold text-zinc-400">
+                      ₩ {fmt(Math.round((salaryConfig.base + (revenueLogs.reduce((s, l) => s + (l.session_price_snapshot || 0), 0) * (salaryConfig.incentiveRate / 100)) + salaryConfig.extra) * 0.033))}
+                    </p>
+                    <p className="text-xs text-zinc-500 mt-1">자동 계산</p>
+                  </div>
+                </div>
+
+                {/* Final Net Payout Card */}
+                {(() => {
+                  const totalSales = revenueLogs.reduce((sum, log) => sum + (log.session_price_snapshot || 0), 0);
+                  const gross = salaryConfig.base + totalSales * (salaryConfig.incentiveRate / 100) + salaryConfig.extra;
+                  const tax = Math.round(gross * 0.033);
+                  const net = gross - tax;
+                  return (
+                    <div className="bg-gradient-to-r from-yellow-900/40 to-zinc-900 rounded-xl p-6 mb-8 border-2 border-yellow-500/50">
+                      <h3 className="text-yellow-500 font-bold text-sm uppercase tracking-wider mb-2">실수령액 (Final Net Payout)</h3>
+                      <p className="text-4xl font-bold text-yellow-400">₩ {fmt(net)}</p>
+                      <p className="text-zinc-500 text-sm mt-1">총 급여 ₩{fmt(gross)} − 세금 ₩{fmt(tax)}</p>
                     </div>
                   );
                 })()}
@@ -1050,9 +1133,9 @@ export default function App() {
                 <div className="flex justify-end mb-4">
                   <button
                     onClick={downloadPayrollCSV}
-                    disabled={revenueLogs.length === 0}
-                    className="bg-yellow-600 hover:bg-yellow-500 disabled:bg-zinc-700 disabled:cursor-not-allowed text-black font-bold px-5 py-3 rounded-xl flex items-center gap-2 transition"
+                    className="bg-yellow-600 hover:bg-yellow-500 text-black font-bold px-5 py-3 rounded-xl flex items-center gap-2 transition min-h-[48px]"
                   >
+                    <Printer size={20} />
                     <Download size={20} />
                     Download Monthly Report
                   </button>
