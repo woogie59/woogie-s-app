@@ -2634,15 +2634,17 @@ const ClassBooking = ({ user, setView }) => {
   };
 
   return (
-    <div className="h-full min-h-[100dvh] bg-zinc-950 text-white flex flex-col overflow-hidden max-w-full" style={{ height: '100%' }}>
+    <div className="bg-zinc-950 text-white flex flex-col overflow-hidden max-w-full h-[100dvh]" style={{ height: '100dvh' }}>
       {/* Fixed header & day selector */}
       <div className="shrink-0 p-6 pb-4">
-        <BackButton onClick={() => setView('client_home')} label="Home" />
-        <header className="text-center mb-6">
-          <h2 className="text-lg font-serif text-yellow-500">CLASS BOOKING</h2>
-        </header>
-        {/* Week Slider - Mon to Sun */}
-        <div className="max-w-full">
+        <div className="touch-none">
+          <BackButton onClick={() => setView('client_home')} label="Home" />
+          <header className="text-center mb-6">
+            <h2 className="text-lg font-serif text-yellow-500">CLASS BOOKING</h2>
+          </header>
+        </div>
+        {/* Week Slider - Mon to Sun - pan-x allows horizontal scroll, blocks vertical bounce */}
+        <div className="max-w-full" style={{ touchAction: 'pan-x' }}>
           <div className="flex items-center justify-between mb-2">
             <button onClick={() => { const p = new Date(weekStart); p.setDate(p.getDate() - 7); setWeekStart(p); }} className="p-1.5 rounded-lg hover:bg-zinc-800 text-zinc-400">
               <ChevronLeft size={22} />
@@ -2686,10 +2688,10 @@ const ClassBooking = ({ user, setView }) => {
         </div>
       </div>
 
-      {/* Isolated scroll area for time slots */}
+      {/* Isolated scroll area - ONLY this section scrolls */}
       <div
         id="time-slots-container"
-        className="flex-1 overflow-y-auto overscroll-contain min-h-0 px-6 pb-20"
+        className="flex-1 min-h-0 overflow-y-auto overscroll-y-none px-6 pb-20"
         style={{ WebkitOverflowScrolling: 'touch' }}
       >
         {selectedDate && (

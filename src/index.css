@@ -11,6 +11,13 @@
     width: 100%;
     overflow: hidden;
     overscroll-behavior: none;
+    overscroll-behavior-y: none;
+    overscroll-behavior-x: none;
+  }
+
+  body.modal-open {
+    position: fixed;
+    width: 100%;
   }
 
   body {
@@ -69,6 +76,13 @@
     overflow-y: auto;
     -webkit-overflow-scrolling: touch;
     overscroll-behavior-y: contain;
+  }
+
+  /* Strict scroll isolation - prevents rubber-band bounce (use on time-slots, etc.) */
+  .scroll-isolate {
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior-y: none;
   }
 }
 
