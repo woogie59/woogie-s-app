@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { QrCode, Camera, CheckCircle, ChevronRight, BookOpen, LogOut, Plus, User, X, CreditCard, History, Search, ArrowLeft, Edit3, Save, Sparkles, MessageSquare, Calendar, Clock, ChevronLeft, XCircle, Trash2, Edit, Image } from 'lucide-react';
+import { QrCode, Camera, CheckCircle, ChevronRight, BookOpen, LogOut, Plus, User, X, CreditCard, History, Search, ArrowLeft, Edit3, Save, Sparkles, MessageSquare, Calendar, Clock, ChevronLeft, XCircle, Trash2, Edit, Image, DollarSign, Download } from 'lucide-react';
 import { Html5Qrcode } from 'html5-qrcode';
 
 // [중요] 우리가 만든 Supabase 연결 도구와 페이지 가져오기
@@ -885,9 +885,24 @@ export default function App() {
   // Helper to format currency
   const fmt = (num) => num?.toLocaleString() || '0';
 
-  // Excel download handler
-  const handleDownloadExcel = () => {
-    alert('Excel export feature coming soon! For now, you can copy the data from the table.');
+  const downloadPayrollCSV = () => {
+    const headers = ['Date', 'Time', 'Member', 'Price'];
+    const rows = revenueLogs.map((log) => {
+      const d = new Date(log.check_in_at);
+      const date = d.toLocaleDateString('ko-KR');
+      const time = d.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+      const member = (log.profiles?.name || 'Unknown').replace(/"/g, '""');
+      const price = String(log.session_price_snapshot ?? 0);
+      return `"${date}","${time}","${member}","${price}"`;
+    });
+    const csv = [headers.join(','), ...rows].join('\n');
+    const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `payroll_${currentRevenueDate.getFullYear()}-${String(currentRevenueDate.getMonth() + 1).padStart(2, '0')}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
   };
 
   // Auto-fetch when revenue date changes
@@ -962,121 +977,126 @@ export default function App() {
             </AdminRoute>
           )}
 
-          {/* 매출 관리 & 급여 계산기 */}
+          {/* Payroll / Revenue Dashboard */}
           {view === 'revenue' && (
             <AdminRoute session={session}>
               <div className="min-h-[100dvh] bg-zinc-950 flex flex-col p-6 text-white overflow-y-auto pb-24">
                 <BackButton onClick={() => setView('admin_home')} label="Admin Home" />
-                
-                {/* Header & Date */}
-                <div className="flex justify-between items-center mb-6">
-                  <h2 className="text-2xl font-bold text-yellow-500">💰 SALARY CALCULATOR</h2>
-                  <div className="flex items-center gap-4 bg-zinc-900 px-4 py-2 rounded-lg border border-zinc-800">
-                    <button onClick={() => changeMonth(-1)} className="text-xl font-bold hover:text-yellow-500">◀</button>
-                    <span className="text-lg font-bold w-24 text-center">
-                      {currentRevenueDate.getFullYear()}. {currentRevenueDate.getMonth() + 1}
-                    </span>
-                    <button onClick={() => changeMonth(1)} className="text-xl font-bold hover:text-yellow-500">▶</button>
-                  </div>
-                </div>
 
-                {/* Calculator Inputs (The Excel Replacement) */}
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-                  
-                  {/* 1. Base Salary */}
-                  <div className="bg-zinc-900 p-4 rounded-lg border border-zinc-800">
-                    <label className="text-zinc-400 text-xs block mb-1">Base Salary (Basic)</label>
-                    <div className="flex items-center text-xl font-bold">
-                      <span className="text-zinc-500 mr-2">₩</span>
-                      <input 
-                        type="number" 
-                        value={salaryConfig.base}
-                        onChange={(e) => handleConfigChange('base', e.target.value)}
-                        className="bg-transparent w-full outline-none text-white border-b border-zinc-700 focus:border-yellow-500 transition"
-                      />
-                    </div>
-                  </div>
-
-                  {/* 2. PT Revenue & Incentive Rate */}
-                  <div className="bg-zinc-900 p-4 rounded-lg border border-zinc-800">
-                    <div className="flex justify-between mb-1">
-                      <label className="text-zinc-400 text-xs">PT Revenue ({revenueLogs.length} sessions)</label>
-                      <div className="flex items-center text-xs gap-1">
-                        <span>Rate:</span>
-                        <input 
-                          type="number" 
-                          value={salaryConfig.incentiveRate}
-                          onChange={(e) => handleConfigChange('incentiveRate', e.target.value)}
-                          className="bg-zinc-800 w-10 text-center rounded text-yellow-500 font-bold outline-none"
-                        />
-                        <span>%</span>
-                      </div>
-                    </div>
-                    <div className="text-xl font-bold text-yellow-400">
-                      + ₩ {fmt(revenueLogs.reduce((sum, log) => sum + (log.session_price_snapshot || 0), 0) * (salaryConfig.incentiveRate / 100))}
-                      <span className="text-xs text-zinc-500 font-normal ml-2 block">
-                        (Total: ₩ {fmt(revenueLogs.reduce((sum, log) => sum + (log.session_price_snapshot || 0), 0))})
+                {/* Header & Month Navigation */}
+                <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4 mb-8">
+                  <h2 className="text-2xl font-bold text-yellow-500 flex items-center gap-2">
+                    <DollarSign size={28} />
+                    Payroll Dashboard
+                  </h2>
+                  <div className="flex items-center gap-3 bg-zinc-900 px-4 py-3 rounded-xl border border-zinc-800">
+                    <button
+                      onClick={() => changeMonth(-1)}
+                      className="p-1.5 rounded-lg hover:bg-zinc-800 text-zinc-400 hover:text-yellow-500 transition"
+                      aria-label="Previous month"
+                    >
+                      <ChevronLeft size={24} />
+                    </button>
+                    <div className="flex items-center gap-2 min-w-[140px] justify-center">
+                      <Calendar size={20} className="text-yellow-500" />
+                      <span className="text-lg font-bold">
+                        {currentRevenueDate.getFullYear()}년 {currentRevenueDate.getMonth() + 1}월
                       </span>
                     </div>
-                  </div>
-
-                  {/* 3. Extra Income */}
-                  <div className="bg-zinc-900 p-4 rounded-lg border border-zinc-800">
-                    <label className="text-zinc-400 text-xs block mb-1">Extra / Bonus</label>
-                    <div className="flex items-center text-xl font-bold text-green-400">
-                      <span className="text-zinc-500 mr-2">+ ₩</span>
-                      <input 
-                        type="number" 
-                        value={salaryConfig.extra}
-                        onChange={(e) => handleConfigChange('extra', e.target.value)}
-                        className="bg-transparent w-full outline-none text-green-400 border-b border-zinc-700 focus:border-green-500 transition"
-                      />
-                    </div>
-                  </div>
-
-                  {/* 4. Final Payout */}
-                  <div className="bg-gradient-to-br from-yellow-900/50 to-zinc-900 p-4 rounded-lg border border-yellow-500 shadow-lg flex flex-col justify-center">
-                    <label className="text-yellow-200 text-xs block mb-1">FINAL PAYOUT</label>
-                    <div className="text-3xl font-bold text-yellow-400">
-                      ₩ {fmt(salaryConfig.base + (revenueLogs.reduce((sum, log) => sum + (log.session_price_snapshot || 0), 0) * (salaryConfig.incentiveRate / 100)) + salaryConfig.extra)}
-                    </div>
+                    <button
+                      onClick={() => changeMonth(1)}
+                      className="p-1.5 rounded-lg hover:bg-zinc-800 text-zinc-400 hover:text-yellow-500 transition"
+                      aria-label="Next month"
+                    >
+                      <ChevronRight size={24} />
+                    </button>
                   </div>
                 </div>
 
-                {/* Excel Download Button */}
+                {/* Summary Cards */}
+                {(() => {
+                  const totalSessions = revenueLogs.length;
+                  const totalRevenue = revenueLogs.reduce((sum, log) => sum + (log.session_price_snapshot || 0), 0);
+                  const estimatedCommission = totalRevenue * (salaryConfig.incentiveRate / 100);
+                  return (
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+                      <div className="bg-zinc-900 rounded-xl p-5 border border-zinc-800">
+                        <div className="flex items-center gap-2 mb-2">
+                          <Calendar size={20} className="text-yellow-500" />
+                          <span className="text-zinc-400 text-sm font-medium uppercase tracking-wider">Total Sessions</span>
+                        </div>
+                        <p className="text-2xl font-bold text-white">{totalSessions}</p>
+                      </div>
+                      <div className="bg-zinc-900 rounded-xl p-5 border border-zinc-800">
+                        <div className="flex items-center gap-2 mb-2">
+                          <DollarSign size={20} className="text-yellow-500" />
+                          <span className="text-zinc-400 text-sm font-medium uppercase tracking-wider">Total Revenue</span>
+                        </div>
+                        <p className="text-2xl font-bold text-yellow-400">₩ {fmt(totalRevenue)}</p>
+                      </div>
+                      <div className="bg-zinc-900 rounded-xl p-5 border border-yellow-500/30">
+                        <div className="flex items-center gap-2 mb-2">
+                          <CreditCard size={20} className="text-yellow-500" />
+                          <span className="text-zinc-400 text-sm font-medium uppercase tracking-wider">Est. Trainer Commission</span>
+                        </div>
+                        <p className="text-2xl font-bold text-green-400">₩ {fmt(estimatedCommission)}</p>
+                        <p className="text-xs text-zinc-500 mt-1">({salaryConfig.incentiveRate}% of revenue)</p>
+                      </div>
+                    </div>
+                  );
+                })()}
+
+                {/* Download Button */}
                 <div className="flex justify-end mb-4">
-                  <button 
-                    onClick={handleDownloadExcel}
-                    className="bg-green-700 hover:bg-green-600 text-white px-4 py-2 rounded font-bold text-sm shadow flex items-center gap-2"
+                  <button
+                    onClick={downloadPayrollCSV}
+                    disabled={revenueLogs.length === 0}
+                    className="bg-yellow-600 hover:bg-yellow-500 disabled:bg-zinc-700 disabled:cursor-not-allowed text-black font-bold px-5 py-3 rounded-xl flex items-center gap-2 transition"
                   >
-                    📥 DOWNLOAD EXCEL REPORT
+                    <Download size={20} />
+                    Download Monthly Report
                   </button>
                 </div>
 
-                {/* Attendance Table */}
-                <div className="bg-zinc-900 rounded-lg overflow-hidden border border-zinc-800">
-                  <table className="w-full text-left border-collapse">
-                    <thead className="bg-zinc-800 text-zinc-400 text-xs uppercase">
+                {/* Payroll Table */}
+                <div className="bg-zinc-900 rounded-xl overflow-hidden border border-zinc-800">
+                  <table className="w-full text-left">
+                    <thead className="bg-zinc-800/80">
                       <tr>
-                        <th className="p-3">Date</th>
-                        <th className="p-3">Member</th>
-                        <th className="p-3 text-right">Price</th>
+                        <th className="p-4 text-zinc-400 text-xs font-semibold uppercase tracking-wider">Date</th>
+                        <th className="p-4 text-zinc-400 text-xs font-semibold uppercase tracking-wider">Time</th>
+                        <th className="p-4 text-zinc-400 text-xs font-semibold uppercase tracking-wider">Member Name</th>
+                        <th className="p-4 text-zinc-400 text-xs font-semibold uppercase tracking-wider text-right">Session Price</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-zinc-800 text-sm">
+                    <tbody className="divide-y divide-zinc-800">
                       {isRevenueLoading ? (
-                        <tr><td colSpan="3" className="p-6 text-center text-zinc-500">Loading...</td></tr>
+                        <tr>
+                          <td colSpan="4" className="p-12 text-center text-zinc-500">
+                            Loading...
+                          </td>
+                        </tr>
                       ) : revenueLogs.length === 0 ? (
-                        <tr><td colSpan="3" className="p-6 text-center text-zinc-500">No records found for this month.</td></tr>
+                        <tr>
+                          <td colSpan="4" className="p-12 text-center">
+                            <div className="flex flex-col items-center gap-3 text-zinc-500">
+                              <Calendar size={48} className="text-zinc-600" />
+                              <p className="font-medium">No records found for this month</p>
+                              <p className="text-sm">Attendance logs will appear here once check-ins are recorded.</p>
+                            </div>
+                          </td>
+                        </tr>
                       ) : (
                         revenueLogs.map((log) => (
-                          <tr key={log.id} className="hover:bg-zinc-800/50">
-                            <td className="p-3">
-                              <div className="font-bold text-white">{new Date(log.check_in_at).toLocaleDateString('ko-KR')}</div>
-                              <div className="text-zinc-500 text-xs">{new Date(log.check_in_at).toLocaleTimeString('ko-KR', {hour:'2-digit', minute:'2-digit'})}</div>
+                          <tr key={log.id} className="hover:bg-zinc-800/50 transition">
+                            <td className="p-4 text-white font-medium">
+                              {new Date(log.check_in_at).toLocaleDateString('ko-KR')}
                             </td>
-                            <td className="p-3 text-zinc-300">{log.profiles?.name || 'Unknown'}</td>
-                            <td className="p-3 text-right font-bold text-yellow-500">₩ {log.session_price_snapshot?.toLocaleString()}</td>
+                            <td className="p-4 text-zinc-300">
+                              {new Date(log.check_in_at).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+                            </td>
+                            <td className="p-4 text-zinc-200">{log.profiles?.name || 'Unknown'}</td>
+                            <td className="p-4 text-right font-bold text-yellow-500">₩ {(log.session_price_snapshot ?? 0).toLocaleString()}</td>
                           </tr>
                         ))
                       )}
