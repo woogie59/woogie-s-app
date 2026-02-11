@@ -709,6 +709,7 @@ export default function App() {
   const [currentRevenueDate, setCurrentRevenueDate] = useState(new Date());
   const [revenueLogs, setRevenueLogs] = useState([]);
   const [isRevenueLoading, setIsRevenueLoading] = useState(false);
+  const [selectedRevenueDay, setSelectedRevenueDay] = useState(null);
   
   // Salary Configuration (Persist in LocalStorage)
   const [salaryConfig, setSalaryConfig] = useState(() => {
@@ -870,12 +871,47 @@ export default function App() {
     }
   };
 
-  // Helper to handle month changes
   const changeMonth = (delta) => {
     const newDate = new Date(currentRevenueDate);
     newDate.setMonth(newDate.getMonth() + delta);
     setCurrentRevenueDate(newDate);
+    setSelectedRevenueDay(null);
   };
+
+  const toDateKey = (d) => {
+    const x = new Date(d);
+    return `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, '0')}-${String(x.getDate()).padStart(2, '0')}`;
+  };
+
+  const revenueSessionsByDate = React.useMemo(() => {
+    const map = {};
+    revenueLogs.forEach((log) => {
+      const key = toDateKey(log.check_in_at);
+      if (!map[key]) map[key] = [];
+      map[key].push(log);
+    });
+    return map;
+  }, [revenueLogs]);
+
+  const selectedDaySessions = selectedRevenueDay
+    ? (revenueSessionsByDate[selectedRevenueDay] || [])
+    : [];
+
+  const revenueCalendarDays = React.useMemo(() => {
+    const y = currentRevenueDate.getFullYear();
+    const m = currentRevenueDate.getMonth();
+    const first = new Date(y, m, 1);
+    const last = new Date(y, m + 1, 0);
+    const startPad = first.getDay();
+    const daysInMonth = last.getDate();
+    const cells = [];
+    for (let i = 0; i < startPad; i++) cells.push({ type: 'pad', value: null });
+    for (let d = 1; d <= daysInMonth; d++) {
+      const key = `${y}-${String(m + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+      cells.push({ type: 'day', value: d, key, count: (revenueSessionsByDate[key] || []).length });
+    }
+    return cells;
+  }, [currentRevenueDate, revenueSessionsByDate]);
 
   // Helper to handle input changes
   const handleConfigChange = (key, value) => {
@@ -901,7 +937,7 @@ export default function App() {
 
     const sessionRows = revenueLogs.map((log) => {
       const d = new Date(log.check_in_at);
-      return [d.toLocaleDateString('ko-KR'), d.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', second: '2-digit' }), (log.profiles?.name || 'Unknown'), log.session_price_snapshot ?? 0].map(esc).join(',');
+      return [d.toLocaleDateString('ko-KR'), d.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' }), (log.profiles?.name || 'Unknown'), log.session_price_snapshot ?? 0].map(esc).join(',');
     });
 
     const csvBody = [summaryHeader.map(esc).join(','), summaryData.map(esc).join(','), '', sessionHeader.map(esc).join(','), ...sessionRows].join('\n');
@@ -1141,50 +1177,79 @@ export default function App() {
                   </button>
                 </div>
 
-                {/* Payroll Table */}
+                {/* Monthly Calendar */}
+                <div className="bg-zinc-900 rounded-xl p-4 mb-6 border border-zinc-800">
+                  <h3 className="text-zinc-400 text-xs font-semibold uppercase tracking-wider mb-3">Sessions by Day</h3>
+                  <div className="grid grid-cols-7 gap-1">
+                    {['일', '월', '화', '수', '목', '금', '토'].map((d) => (
+                      <div key={d} className="text-center text-zinc-500 text-[10px] font-medium py-1">
+                        {d}
+                      </div>
+                    ))}
+                    {isRevenueLoading ? (
+                      <div className="col-span-7 py-8 text-center text-zinc-500 text-sm">Loading...</div>
+                    ) : (
+                      revenueCalendarDays.map((cell, i) =>
+                        cell.type === 'pad' ? (
+                          <div key={`pad-${i}`} className="aspect-square" />
+                        ) : (
+                          <button
+                            key={cell.key}
+                            onClick={() => setSelectedRevenueDay(selectedRevenueDay === cell.key ? null : cell.key)}
+                            className={`aspect-square rounded-lg flex flex-col items-center justify-center text-sm font-medium transition min-h-[36px] ${
+                              selectedRevenueDay === cell.key
+                                ? 'bg-yellow-500 text-black ring-2 ring-yellow-400'
+                                : 'bg-zinc-800/50 hover:bg-zinc-700 text-white'
+                            }`}
+                          >
+                            <span>{cell.value}</span>
+                            {cell.count > 0 && (
+                              <span
+                                className={`mt-0.5 w-1.5 h-1.5 rounded-full ${
+                                  cell.count >= 3 ? 'bg-yellow-500' : 'bg-yellow-500/50'
+                                }`}
+                              />
+                            )}
+                          </button>
+                        )
+                      )
+                    )}
+                  </div>
+                </div>
+
+                {/* Daily Details */}
                 <div className="bg-zinc-900 rounded-xl overflow-hidden border border-zinc-800">
-                  <table className="w-full text-left">
-                    <thead className="bg-zinc-800/80">
-                      <tr>
-                        <th className="p-4 text-zinc-400 text-xs font-semibold uppercase tracking-wider">Date</th>
-                        <th className="p-4 text-zinc-400 text-xs font-semibold uppercase tracking-wider">Time</th>
-                        <th className="p-4 text-zinc-400 text-xs font-semibold uppercase tracking-wider">Member Name</th>
-                        <th className="p-4 text-zinc-400 text-xs font-semibold uppercase tracking-wider text-right">Session Price</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-zinc-800">
-                      {isRevenueLoading ? (
-                        <tr>
-                          <td colSpan="4" className="p-12 text-center text-zinc-500">
-                            Loading...
-                          </td>
-                        </tr>
-                      ) : revenueLogs.length === 0 ? (
-                        <tr>
-                          <td colSpan="4" className="p-12 text-center">
-                            <div className="flex flex-col items-center gap-3 text-zinc-500">
-                              <Calendar size={48} className="text-zinc-600" />
-                              <p className="font-medium">No records found for this month</p>
-                              <p className="text-sm">Attendance logs will appear here once check-ins are recorded.</p>
-                            </div>
-                          </td>
-                        </tr>
-                      ) : (
-                        revenueLogs.map((log) => (
-                          <tr key={log.id} className="hover:bg-zinc-800/50 transition">
-                            <td className="p-4 text-white font-medium">
-                              {new Date(log.check_in_at).toLocaleDateString('ko-KR')}
-                            </td>
-                            <td className="p-4 text-zinc-300">
-                              {new Date(log.check_in_at).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
-                            </td>
-                            <td className="p-4 text-zinc-200">{log.profiles?.name || 'Unknown'}</td>
-                            <td className="p-4 text-right font-bold text-yellow-500">₩ {(log.session_price_snapshot ?? 0).toLocaleString()}</td>
+                  <h3 className="text-zinc-400 text-xs font-semibold uppercase tracking-wider px-4 pt-4 pb-2">
+                    {selectedRevenueDay ? `${selectedRevenueDay} 세션 내역` : '날짜를 선택하세요'}
+                  </h3>
+                  {selectedRevenueDay ? (
+                    selectedDaySessions.length === 0 ? (
+                      <p className="p-6 text-center text-zinc-500 text-sm">해당 날짜에 세션 기록이 없습니다</p>
+                    ) : (
+                      <table className="w-full text-left">
+                        <thead className="bg-zinc-800/80">
+                          <tr>
+                            <th className="p-3 text-zinc-400 text-[10px] font-semibold uppercase">Time</th>
+                            <th className="p-3 text-zinc-400 text-[10px] font-semibold uppercase">Member</th>
+                            <th className="p-3 text-zinc-400 text-[10px] font-semibold uppercase text-right">Price</th>
                           </tr>
-                        ))
-                      )}
-                    </tbody>
-                  </table>
+                        </thead>
+                        <tbody className="divide-y divide-zinc-800">
+                          {selectedDaySessions.map((log) => (
+                            <tr key={log.id} className="hover:bg-zinc-800/50">
+                              <td className="p-3 text-zinc-300 text-sm">
+                                {new Date(log.check_in_at).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })}
+                              </td>
+                              <td className="p-3 text-white font-medium text-sm">{log.profiles?.name || 'Unknown'}</td>
+                              <td className="p-3 text-right font-bold text-yellow-500 text-sm">₩ {(log.session_price_snapshot ?? 0).toLocaleString()}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    )
+                  ) : (
+                    <p className="p-6 text-center text-zinc-500 text-sm">달력에서 날짜를 눌러 세션 내역을 확인하세요</p>
+                  )}
                 </div>
               </div>
             </AdminRoute>
