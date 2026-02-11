@@ -129,13 +129,6 @@ const LoginView = ({ setView }) => {
     };
 
     const handleLogin = async () => {
-        // [관리자 뒷문] admin / 1234 입력 시 강제 이동
-        if (email === 'admin' && pw === '1234') {
-            alert('관리자 모드로 진입합니다.');
-            setView('admin_home'); // 화면을 강제로 관리자 홈으로 바꿈
-            return;
-        }
-
         setLoading(true);
         try {
           localStorage.setItem(REMEMBER_ME_KEY, rememberMe ? 'true' : 'false');
