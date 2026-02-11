@@ -367,6 +367,8 @@ const ClientHome = ({ user, logout, setView }) => {
   const [myBookings, setMyBookings] = useState([]);
   const [loadingBookings, setLoadingBookings] = useState(false);
   const [cancelling, setCancelling] = useState(null);
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [bookingToDelete, setBookingToDelete] = useState(null); // { id, date, time }
   const [currentWeekStart, setCurrentWeekStart] = useState(() => {
     const d = new Date();
     const day = d.getDay();
@@ -473,14 +475,18 @@ const ClientHome = ({ user, logout, setView }) => {
     }
   };
 
-  const handleCancelBooking = async (bookingId, date, time) => {
-    if (!confirm(`${date} ${time} 수업 예약을 취소할까요?`)) return;
+  const handleCancelBooking = (bookingId, date, time) => {
+    setBookingToDelete({ id: bookingId, date, time });
+    setIsDeleteModalOpen(true);
+  };
 
-    setCancelling(bookingId);
+  const confirmDeleteAction = async () => {
+    if (!bookingToDelete) return;
+    setCancelling(bookingToDelete.id);
     const { error } = await supabase
       .from('bookings')
       .delete()
-      .eq('id', bookingId);
+      .eq('id', bookingToDelete.id);
 
     if (error) {
       alert('취소 실패: ' + error.message);
@@ -488,6 +494,8 @@ const ClientHome = ({ user, logout, setView }) => {
       fetchMyBookings(); // Refresh list
     }
     setCancelling(null);
+    setBookingToDelete(null);
+    setIsDeleteModalOpen(false);
   };
 
   const handleOpenSchedule = () => {
@@ -795,6 +803,39 @@ const ClientHome = ({ user, logout, setView }) => {
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* Delete Confirmation Modal */}
+      {isDeleteModalOpen && bookingToDelete && (
+        <div
+          className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm"
+          onClick={() => { setIsDeleteModalOpen(false); setBookingToDelete(null); }}
+        >
+          <div
+            className="bg-zinc-900 border border-yellow-500/30 rounded-2xl shadow-2xl shadow-black/50 p-6 max-w-sm w-full"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 className="text-lg font-bold text-zinc-100 mb-2">예약 취소</h3>
+            <p className="text-zinc-400 text-sm mb-6">
+              {bookingToDelete.date} {bookingToDelete.time} 수업 예약을 취소할까요?
+            </p>
+            <div className="flex gap-3 justify-end">
+              <button
+                onClick={() => { setIsDeleteModalOpen(false); setBookingToDelete(null); }}
+                className="px-4 py-2.5 rounded-xl text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800 transition"
+              >
+                취소
+              </button>
+              <button
+                onClick={confirmDeleteAction}
+                disabled={cancelling === bookingToDelete.id}
+                className="px-4 py-2.5 rounded-xl bg-yellow-600 text-black font-bold hover:bg-yellow-500 transition disabled:opacity-50"
+              >
+                {cancelling === bookingToDelete.id ? '처리 중...' : '예, 취소할게요'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
