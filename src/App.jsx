@@ -2634,101 +2634,105 @@ const ClassBooking = ({ user, setView }) => {
   };
 
   return (
-    <div className="h-full min-h-[100dvh] bg-zinc-950 text-white flex flex-col overflow-hidden max-w-full">
-      <div className="flex-1 overflow-y-auto overscroll-contain min-h-0 p-6 pb-20" style={{ WebkitOverflowScrolling: 'touch' }}>
-      <BackButton onClick={() => setView('client_home')} label="Home" />
-      
-      <header className="text-center mb-6">
-        <h2 className="text-lg font-serif text-yellow-500">CLASS BOOKING</h2>
-      </header>
-
-      {/* Week Slider - Mon to Sun */}
-      <div className="mb-4 max-w-full">
-        <div className="flex items-center justify-between mb-2">
-          <button onClick={() => { const p = new Date(weekStart); p.setDate(p.getDate() - 7); setWeekStart(p); }} className="p-1.5 rounded-lg hover:bg-zinc-800 text-zinc-400">
-            <ChevronLeft size={22} />
-          </button>
-          <span className="text-sm text-zinc-400">
-            {getWeekDates()[0].toLocaleDateString('en-US', { weekday: 'short' })} {getWeekDates()[0].getDate()} - {getWeekDates()[6].toLocaleDateString('en-US', { weekday: 'short' })} {getWeekDates()[6].getDate()}
-          </span>
-          <button onClick={() => { const n = new Date(weekStart); n.setDate(n.getDate() + 7); setWeekStart(n); }} className="p-1.5 rounded-lg hover:bg-zinc-800 text-zinc-400">
-            <ChevronRight size={22} />
-          </button>
-        </div>
-        <div className="flex gap-2 overflow-x-auto overflow-y-hidden overscroll-x-none pb-2 max-w-full">
-          {getWeekDates().map((date) => {
-            const dateStr = toDateKey(date);
-            const dayName = date.toLocaleDateString('en-US', { weekday: 'short' });
-            const dayNum = date.getDate();
-            const isSelected = selectedDate === dateStr;
-            const isToday = dateStr === toDateKey(new Date());
-            const todayKey = toDateKey(new Date());
-            const isPast = dateStr < todayKey;
-            const isHolidayDate = isHoliday(dateStr);
-            return (
-              <button
-                key={dateStr}
-                onClick={() => !isPast && setSelectedDate(dateStr)}
-                disabled={isPast}
-                className={`shrink-0 p-3 rounded-xl border flex flex-col items-center min-w-[64px] ${
-                  isSelected ? 'bg-yellow-600 border-yellow-500 text-white' :
-                  isPast ? 'bg-zinc-900/50 border-zinc-800 text-zinc-600 cursor-not-allowed' :
-                  isHolidayDate ? 'bg-red-900/20 border-red-800/50 text-zinc-500' :
-                  'bg-zinc-900 border-zinc-800 text-zinc-400 hover:border-yellow-600/50'
-                }`}
-              >
-                <span className="text-[10px] uppercase">{dayName}</span>
-                <span className="text-lg font-bold">{dayNum}</span>
-                {isToday && <span className="text-[9px] text-yellow-500 mt-0.5">Today</span>}
-              </button>
-            );
-          })}
+    <div className="h-full min-h-[100dvh] bg-zinc-950 text-white flex flex-col overflow-hidden max-w-full" style={{ height: '100%' }}>
+      {/* Fixed header & day selector */}
+      <div className="shrink-0 p-6 pb-4">
+        <BackButton onClick={() => setView('client_home')} label="Home" />
+        <header className="text-center mb-6">
+          <h2 className="text-lg font-serif text-yellow-500">CLASS BOOKING</h2>
+        </header>
+        {/* Week Slider - Mon to Sun */}
+        <div className="max-w-full">
+          <div className="flex items-center justify-between mb-2">
+            <button onClick={() => { const p = new Date(weekStart); p.setDate(p.getDate() - 7); setWeekStart(p); }} className="p-1.5 rounded-lg hover:bg-zinc-800 text-zinc-400">
+              <ChevronLeft size={22} />
+            </button>
+            <span className="text-sm text-zinc-400">
+              {getWeekDates()[0].toLocaleDateString('en-US', { weekday: 'short' })} {getWeekDates()[0].getDate()} - {getWeekDates()[6].toLocaleDateString('en-US', { weekday: 'short' })} {getWeekDates()[6].getDate()}
+            </span>
+            <button onClick={() => { const n = new Date(weekStart); n.setDate(n.getDate() + 7); setWeekStart(n); }} className="p-1.5 rounded-lg hover:bg-zinc-800 text-zinc-400">
+              <ChevronRight size={22} />
+            </button>
+          </div>
+          <div className="flex gap-2 overflow-x-auto overflow-y-hidden overscroll-x-none pb-2 max-w-full">
+            {getWeekDates().map((date) => {
+              const dateStr = toDateKey(date);
+              const dayName = date.toLocaleDateString('en-US', { weekday: 'short' });
+              const dayNum = date.getDate();
+              const isSelected = selectedDate === dateStr;
+              const isToday = dateStr === toDateKey(new Date());
+              const todayKey = toDateKey(new Date());
+              const isPast = dateStr < todayKey;
+              const isHolidayDate = isHoliday(dateStr);
+              return (
+                <button
+                  key={dateStr}
+                  onClick={() => !isPast && setSelectedDate(dateStr)}
+                  disabled={isPast}
+                  className={`shrink-0 p-3 rounded-xl border flex flex-col items-center min-w-[64px] ${
+                    isSelected ? 'bg-yellow-600 border-yellow-500 text-white' :
+                    isPast ? 'bg-zinc-900/50 border-zinc-800 text-zinc-600 cursor-not-allowed' :
+                    isHolidayDate ? 'bg-red-900/20 border-red-800/50 text-zinc-500' :
+                    'bg-zinc-900 border-zinc-800 text-zinc-400 hover:border-yellow-600/50'
+                  }`}
+                >
+                  <span className="text-[10px] uppercase">{dayName}</span>
+                  <span className="text-lg font-bold">{dayNum}</span>
+                  {isToday && <span className="text-[9px] text-yellow-500 mt-0.5">Today</span>}
+                </button>
+              );
+            })}
+          </div>
         </div>
       </div>
 
-      {/* 시간 선택 */}
-      {selectedDate && (
-        <>
-          <h3 className="text-sm text-zinc-400 mb-3 uppercase tracking-widest">예약 가능 시간</h3>
-          {isHoliday(selectedDate) ? (
-            <p className="text-center text-zinc-400 py-8">Today is a trainer&apos;s day off. 💤</p>
-          ) : getDaySetting(selectedDate).off ? (
-            <p className="text-center text-zinc-400 py-8">Today is a trainer&apos;s day off. 💤</p>
-          ) : loading ? (
-            <p className="text-center text-zinc-600 py-10">Loading...</p>
-          ) : generateTimeSlots().length === 0 ? (
-            <p className="text-center text-zinc-500 py-8">No available slots for this day.</p>
-          ) : (
-            <div className="grid grid-cols-2 gap-3 max-w-full w-full">
-              {generateTimeSlots().map((time) => {
-                const available = isSlotAvailable(time);
-                const booked = isSlotBooked(time);
-                const expired = isSlotExpired(selectedDate, time);
-                const disabled = !available || processing;
-                return (
-                  <button
-                    key={time}
-                    disabled={disabled}
-                    onClick={() => handleBookSlot(time)}
-                    className={`p-4 rounded-xl border text-lg font-bold flex justify-between items-center transition ${
-                      expired ? 'bg-zinc-900/30 border-zinc-800 text-zinc-600 cursor-not-allowed' :
-                      booked ? 'bg-zinc-900/50 border-zinc-800 text-zinc-700 cursor-not-allowed' :
-                      available ? 'bg-zinc-900 border-zinc-800 text-white hover:border-yellow-600' :
-                      'bg-zinc-900/50 border-zinc-800 text-zinc-600 cursor-not-allowed'
-                    }`}
-                  >
-                    <span className={expired ? 'line-through' : ''}>{time}</span>
-                    {booked && <span className="text-xs text-red-500">예약됨</span>}
-                    {expired && !booked && <span className="text-xs text-zinc-500">지남</span>}
-                    {available && <span className="text-green-500">●</span>}
-                  </button>
-                );
-              })}
-            </div>
-          )}
-        </>
-      )}
-
+      {/* Isolated scroll area for time slots */}
+      <div
+        id="time-slots-container"
+        className="flex-1 overflow-y-auto overscroll-contain min-h-0 px-6 pb-20"
+        style={{ WebkitOverflowScrolling: 'touch' }}
+      >
+        {selectedDate && (
+          <>
+            <h3 className="text-sm text-zinc-400 mb-3 uppercase tracking-widest">예약 가능 시간</h3>
+            {isHoliday(selectedDate) ? (
+              <p className="text-center text-zinc-400 py-8">Today is a trainer&apos;s day off. 💤</p>
+            ) : getDaySetting(selectedDate).off ? (
+              <p className="text-center text-zinc-400 py-8">Today is a trainer&apos;s day off. 💤</p>
+            ) : loading ? (
+              <p className="text-center text-zinc-600 py-10">Loading...</p>
+            ) : generateTimeSlots().length === 0 ? (
+              <p className="text-center text-zinc-500 py-8">No available slots for this day.</p>
+            ) : (
+              <div className="grid grid-cols-2 gap-3 max-w-full w-full pb-2">
+                {generateTimeSlots().map((time) => {
+                  const available = isSlotAvailable(time);
+                  const booked = isSlotBooked(time);
+                  const expired = isSlotExpired(selectedDate, time);
+                  const disabled = !available || processing;
+                  return (
+                    <button
+                      key={time}
+                      disabled={disabled}
+                      onClick={() => handleBookSlot(time)}
+                      className={`p-4 rounded-xl border text-lg font-bold flex justify-between items-center transition ${
+                        expired ? 'bg-zinc-900/30 border-zinc-800 text-zinc-600 cursor-not-allowed' :
+                        booked ? 'bg-zinc-900/50 border-zinc-800 text-zinc-700 cursor-not-allowed' :
+                        available ? 'bg-zinc-900 border-zinc-800 text-white hover:border-yellow-600' :
+                        'bg-zinc-900/50 border-zinc-800 text-zinc-600 cursor-not-allowed'
+                      }`}
+                    >
+                      <span className={expired ? 'line-through' : ''}>{time}</span>
+                      {booked && <span className="text-xs text-red-500">예약됨</span>}
+                      {expired && !booked && <span className="text-xs text-zinc-500">지남</span>}
+                      {available && <span className="text-green-500">●</span>}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </>
+        )}
       </div>
       {/* Booking Confirmation Modal */}
       {isBookingModalOpen && bookingToConfirm && (
