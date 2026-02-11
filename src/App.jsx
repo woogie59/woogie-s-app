@@ -2364,6 +2364,8 @@ const ClassBooking = ({ user, setView }) => {
   const [bookings, setBookings] = useState([]);
   const [loading, setLoading] = useState(false);
   const [processing, setProcessing] = useState(false);
+  const [isBookingModalOpen, setIsBookingModalOpen] = useState(false);
+  const [bookingToConfirm, setBookingToConfirm] = useState(null); // { date, time }
   const [settings, setSettings] = useState([]);
   const [holidays, setHolidays] = useState([]);
   const [weekStart, setWeekStart] = useState(() => {
@@ -2491,27 +2493,33 @@ const ClassBooking = ({ user, setView }) => {
     return true;
   };
 
-  const handleBookSlot = async (timeSlot) => {
+  const handleBookSlot = (timeSlot) => {
     if (processing) return;
     if (!isSlotAvailable(timeSlot)) return;
-    if (!confirm(`${selectedDate} ${timeSlot} 예약하시겠습니까?`)) return;
+    setBookingToConfirm({ date: selectedDate, time: timeSlot });
+    setIsBookingModalOpen(true);
+  };
 
+  const confirmBookingAction = async () => {
+    if (!bookingToConfirm) return;
     setProcessing(true);
     try {
-      const { data, error } = await supabase
+      const { error } = await supabase
         .from('bookings')
-        .insert([{ user_id: user.id, date: selectedDate, time: timeSlot }])
+        .insert([{ user_id: user.id, date: bookingToConfirm.date, time: bookingToConfirm.time }])
         .select();
 
       if (error) throw error;
 
       alert("✅ 예약 완료!");
-      const { data: updated } = await supabase.from('bookings').select('*').eq('date', selectedDate);
+      const { data: updated } = await supabase.from('bookings').select('*').eq('date', bookingToConfirm.date);
       setBookings(updated || []);
     } catch (err) {
       alert("❌ 예약 실패: " + err.message);
     } finally {
       setProcessing(false);
+      setBookingToConfirm(null);
+      setIsBookingModalOpen(false);
     }
   };
 
@@ -2609,6 +2617,39 @@ const ClassBooking = ({ user, setView }) => {
           )}
         </>
       )}
+
+      {/* Booking Confirmation Modal */}
+      {isBookingModalOpen && bookingToConfirm && (
+        <div
+          className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm"
+          onClick={() => { setIsBookingModalOpen(false); setBookingToConfirm(null); }}
+        >
+          <div
+            className="bg-zinc-900 border border-yellow-500/30 rounded-2xl shadow-2xl shadow-black/50 p-6 max-w-sm w-full"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 className="text-lg font-bold text-zinc-100 mb-2">수업 예약</h3>
+            <p className="text-zinc-400 text-sm mb-6">
+              {bookingToConfirm.date} {bookingToConfirm.time} 수업을 예약하시겠습니까?
+            </p>
+            <div className="flex gap-3 justify-end">
+              <button
+                onClick={() => { setIsBookingModalOpen(false); setBookingToConfirm(null); }}
+                className="px-4 py-2.5 rounded-xl text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800 transition"
+              >
+                취소
+              </button>
+              <button
+                onClick={confirmBookingAction}
+                disabled={processing}
+                className="px-4 py-2.5 rounded-xl bg-yellow-600 text-black font-bold hover:bg-yellow-500 transition disabled:opacity-50"
+              >
+                {processing ? '처리 중...' : '예약확인'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
@@ -2625,6 +2666,8 @@ const AdminSchedule = ({ setView }) => {
   const [bookings, setBookings] = useState([]);
   const [loading, setLoading] = useState(true);
   const [cancelling, setCancelling] = useState(null);
+  const [isCancelModalOpen, setIsCancelModalOpen] = useState(false);
+  const [bookingToDelete, setBookingToDelete] = useState(null); // { id, userName, date, time }
   const [expandedScheduleDates, setExpandedScheduleDates] = useState(new Set());
 
   const bookingsByDate = React.useMemo(() => {
@@ -2679,14 +2722,18 @@ const AdminSchedule = ({ setView }) => {
     fetchBookings();
   }, []);
 
-  const handleCancelBooking = async (bookingId, userName, date, time) => {
-    if (!confirm(`Cancel booking for ${userName} on ${date} at ${time}?`)) return;
+  const handleCancelBooking = (bookingId, userName, date, time) => {
+    setBookingToDelete({ id: bookingId, userName, date, time });
+    setIsCancelModalOpen(true);
+  };
 
-    setCancelling(bookingId);
+  const confirmCancelAction = async () => {
+    if (!bookingToDelete) return;
+    setCancelling(bookingToDelete.id);
     const { error } = await supabase
       .from('bookings')
       .delete()
-      .eq('id', bookingId);
+      .eq('id', bookingToDelete.id);
 
     if (error) {
       alert('Error cancelling booking: ' + error.message);
@@ -2695,6 +2742,8 @@ const AdminSchedule = ({ setView }) => {
       fetchBookings(); // Refresh list
     }
     setCancelling(null);
+    setBookingToDelete(null);
+    setIsCancelModalOpen(false);
   };
 
   return (
@@ -2769,6 +2818,39 @@ const AdminSchedule = ({ setView }) => {
           <Calendar size={64} className="text-zinc-700 mb-4" />
           <h3 className="text-xl font-bold text-zinc-500 mb-2">No Bookings</h3>
           <p className="text-sm text-zinc-600">No scheduled classes yet</p>
+        </div>
+      )}
+
+      {/* Cancel Confirmation Modal */}
+      {isCancelModalOpen && bookingToDelete && (
+        <div
+          className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm"
+          onClick={() => { setIsCancelModalOpen(false); setBookingToDelete(null); }}
+        >
+          <div
+            className="bg-zinc-900 border border-yellow-500/30 rounded-2xl shadow-2xl shadow-black/50 p-6 max-w-sm w-full"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 className="text-lg font-bold text-zinc-100 mb-2">예약 취소</h3>
+            <p className="text-zinc-400 text-sm mb-6">
+              {bookingToDelete.userName}님의 {bookingToDelete.date} {bookingToDelete.time} 예약을 취소할까요?
+            </p>
+            <div className="flex gap-3 justify-end">
+              <button
+                onClick={() => { setIsCancelModalOpen(false); setBookingToDelete(null); }}
+                className="px-4 py-2.5 rounded-xl text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800 transition"
+              >
+                취소
+              </button>
+              <button
+                onClick={confirmCancelAction}
+                disabled={cancelling === bookingToDelete.id}
+                className="px-4 py-2.5 rounded-xl bg-yellow-600 text-black font-bold hover:bg-yellow-500 transition disabled:opacity-50"
+              >
+                {cancelling === bookingToDelete.id ? '처리 중...' : '예, 취소할게요'}
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>
