@@ -4,7 +4,7 @@ import { QrCode, Camera, CheckCircle, ChevronRight, ChevronDown, ChevronUp, Book
 import { Html5Qrcode } from 'html5-qrcode';
 
 // [중요] 우리가 만든 Supabase 연결 도구와 페이지 가져오기
-import { supabase } from './lib/supabaseClient'; 
+import { supabase, REMEMBER_ME_KEY } from './lib/supabaseClient'; 
 import RegisterView from './pages/RegisterView';
 
 // --- (가짜 데이터 삭제함) ---
@@ -98,6 +98,13 @@ const LoginView = ({ setView }) => {
     const [loading, setLoading] = useState(false);
     const [showForgotPassword, setShowForgotPassword] = useState(false);
     const [resetEmail, setResetEmail] = useState('');
+    const [rememberMe, setRememberMe] = useState(() => {
+      try {
+        return localStorage.getItem(REMEMBER_ME_KEY) !== 'false';
+      } catch {
+        return true;
+      }
+    });
 
     const handleForgotPassword = async () => {
         if (!resetEmail) {
@@ -129,17 +136,19 @@ const LoginView = ({ setView }) => {
         }
 
         setLoading(true);
-        // 일반 회원은 Supabase 인증 사용
-        const { data, error } = await supabase.auth.signInWithPassword({
+        try {
+          localStorage.setItem(REMEMBER_ME_KEY, rememberMe ? 'true' : 'false');
+          const { data, error } = await supabase.auth.signInWithPassword({
             email: email,
             password: pw,
-        });
-        setLoading(false);
-
-        if (error) {
+          });
+          if (error) {
             alert('로그인 실패: ' + error.message);
-        } else {
-            console.log("로그인 성공!", data);
+          } else {
+            console.log('로그인 성공!', data);
+          }
+        } finally {
+          setLoading(false);
         }
     };
 
@@ -167,6 +176,22 @@ const LoginView = ({ setView }) => {
                 value={pw} 
                 onChange={e => setPw(e.target.value)} 
               />
+
+              <label className="flex items-center gap-3 cursor-pointer select-none group py-1">
+                <input
+                  type="checkbox"
+                  checked={rememberMe}
+                  onChange={(e) => {
+                    const checked = e.target.checked;
+                    setRememberMe(checked);
+                    try {
+                      localStorage.setItem(REMEMBER_ME_KEY, checked ? 'true' : 'false');
+                    } catch {}
+                  }}
+                  className="w-5 h-5 rounded border-2 border-zinc-600 bg-zinc-900 text-yellow-500 focus:ring-2 focus:ring-yellow-500/50 focus:ring-offset-0 focus:ring-offset-zinc-950 cursor-pointer accent-yellow-500 checked:border-yellow-500"
+                />
+                <span className="text-zinc-400 group-hover:text-zinc-300 text-sm font-medium">자동 로그인 유지</span>
+              </label>
               
               <ButtonPrimary onClick={handleLogin}>
                   {loading ? 'CHECKING...' : 'ENTER'}
@@ -726,9 +751,10 @@ export default function App() {
 
   // [핵심] 앱이 켜질 때 & 로그인 상태 바뀔 때 실행됨
   useEffect(() => {
-    // 1. 현재 로그인 정보 가져오기
+    // 1. Auto-login only if a valid session exists in storage (localStorage when rememberMe, sessionStorage otherwise)
     supabase.auth.getSession().then(({ data: { session } }) => {
       console.log('Initial session check:', session);
+      const hasValidSession = session?.access_token && session?.user;
       
       // CRITICAL: Check for recovery type FIRST before anything else
       const hashParams = new URLSearchParams(window.location.hash.substring(1));
@@ -742,8 +768,10 @@ export default function App() {
       }
       
       setSession(session);
-      if (session) {
+      if (hasValidSession) {
         setView('client_home');
+      } else if (!session) {
+        setView('login');
       }
     });
 
