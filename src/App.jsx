@@ -1319,11 +1319,12 @@ const QRScanner = ({ setView }) => {
 
       const { data: userData } = await supabase.from('profiles').select('name').eq('id', decodedText).single();
 
+      const remaining = data?.[0]?.remaining ?? 0;
       setResult({
         success: true,
         userName: userData?.name || '회원',
-        message: `출석 완료 (잔여: ${data?.remaining ?? 0}회)`,
-        remainingSessions: data?.remaining
+        message: `출석 완료 (잔여: ${remaining}회)`,
+        remainingSessions: remaining
       });
     } catch (error) {
       const msg = error?.message?.includes('No remaining') ? '잔여 세션이 없습니다.' : '유효하지 않은 QR입니다.';
