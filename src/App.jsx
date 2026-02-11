@@ -367,6 +367,14 @@ const ClientHome = ({ user, logout, setView }) => {
   const [myBookings, setMyBookings] = useState([]);
   const [loadingBookings, setLoadingBookings] = useState(false);
   const [cancelling, setCancelling] = useState(null);
+  const [currentWeekStart, setCurrentWeekStart] = useState(() => {
+    const d = new Date();
+    const day = d.getDay();
+    const monday = new Date(d);
+    monday.setDate(d.getDate() - (day === 0 ? 6 : day - 1));
+    monday.setHours(0, 0, 0, 0);
+    return monday;
+  });
 
   // 화면이 켜지면 DB에서 내 정보를 가져옴
   useEffect(() => {
@@ -466,7 +474,7 @@ const ClientHome = ({ user, logout, setView }) => {
   };
 
   const handleCancelBooking = async (bookingId, date, time) => {
-    if (!confirm(`Cancel booking on ${date} at ${time}?`)) return;
+    if (!confirm(`${date} ${time} 수업 예약을 취소할까요?`)) return;
 
     setCancelling(bookingId);
     const { error } = await supabase
@@ -475,9 +483,8 @@ const ClientHome = ({ user, logout, setView }) => {
       .eq('id', bookingId);
 
     if (error) {
-      alert('Error cancelling booking: ' + error.message);
+      alert('취소 실패: ' + error.message);
     } else {
-      alert('Booking cancelled successfully!');
       fetchMyBookings(); // Refresh list
     }
     setCancelling(null);
@@ -485,7 +492,59 @@ const ClientHome = ({ user, logout, setView }) => {
 
   const handleOpenSchedule = () => {
     setShowScheduleModal(true);
+    const d = new Date();
+    const day = d.getDay();
+    const monday = new Date(d);
+    monday.setDate(d.getDate() - (day === 0 ? 6 : day - 1));
+    monday.setHours(0, 0, 0, 0);
+    setCurrentWeekStart(monday);
     fetchMyBookings();
+  };
+
+  const toDateKey = (d) => {
+    const x = new Date(d);
+    return `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, '0')}-${String(x.getDate()).padStart(2, '0')}`;
+  };
+
+  const getWeekDates = (weekStart) => {
+    const arr = [];
+    for (let i = 0; i < 7; i++) {
+      const dd = new Date(weekStart);
+      dd.setDate(weekStart.getDate() + i);
+      arr.push({ date: dd, key: toDateKey(dd) });
+    }
+    return arr;
+  };
+
+  const todayKey = toDateKey(new Date());
+
+  const bookingsInWeek = React.useMemo(() => {
+    const week = getWeekDates(currentWeekStart);
+    const start = week[0].key;
+    const end = week[6].key;
+    return (myBookings || []).filter((b) => b.date >= start && b.date <= end);
+  }, [myBookings, currentWeekStart]);
+
+  const bookingsByDay = React.useMemo(() => {
+    const map = {};
+    bookingsInWeek.forEach((b) => {
+      if (!map[b.date]) map[b.date] = [];
+      map[b.date].push(b);
+    });
+    Object.values(map).forEach((arr) => arr.sort((a, b) => (a.time || '').localeCompare(b.time || '')));
+    return map;
+  }, [bookingsInWeek]);
+
+  const formatTime24h = (t) => {
+    if (!t || typeof t !== 'string') return t || '—';
+    const m = String(t).match(/(\d{1,2}):(\d{2})/);
+    return m ? `${m[1].padStart(2, '0')}:${m[2]}` : t;
+  };
+
+  const weekLabel = () => {
+    const start = getWeekDates(currentWeekStart)[0].date;
+    const end = getWeekDates(currentWeekStart)[6].date;
+    return `${start.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} - ${end.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`;
   };
 
   return (
@@ -617,7 +676,7 @@ const ClientHome = ({ user, logout, setView }) => {
         )}
       </AnimatePresence>
 
-      {/* My Schedule Modal */}
+      {/* My Schedule Modal - Weekly Agenda View */}
       <AnimatePresence>
         {showScheduleModal && (
           <motion.div
@@ -631,71 +690,106 @@ const ClientHome = ({ user, logout, setView }) => {
               initial={{ scale: 0.9, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.9, opacity: 0 }}
-              className="bg-zinc-900 border-2 border-yellow-500 rounded-2xl p-6 max-w-md w-full max-h-[80vh] overflow-y-auto"
+              className="bg-zinc-900 border-2 border-yellow-500 rounded-2xl p-6 max-w-md w-full max-h-[85vh] flex flex-col"
               onClick={e => e.stopPropagation()}
             >
-              {/* Header */}
-              <div className="flex justify-between items-center mb-6">
+              <div className="flex justify-between items-center mb-4">
                 <h3 className="text-xl font-serif text-yellow-500">MY SCHEDULE</h3>
-                <button 
-                  onClick={() => setShowScheduleModal(false)}
-                  className="text-zinc-500 hover:text-white transition-colors"
-                >
+                <button onClick={() => setShowScheduleModal(false)} className="text-zinc-500 hover:text-white transition-colors">
                   <X size={24} />
                 </button>
               </div>
 
-              {/* Bookings List */}
-              {loadingBookings ? (
-                <p className="text-zinc-500 text-center py-10">Loading...</p>
-              ) : myBookings.length > 0 ? (
-                <div className="space-y-3 mb-4">
-                  {myBookings.map((booking) => (
-                    <div
-                      key={booking.id}
-                      className="bg-zinc-800 border border-zinc-700 rounded-xl p-4"
-                    >
-                      <div className="flex justify-between items-start mb-3">
-                        <div className="flex-1">
-                          <div className="flex items-center gap-3 mb-2">
-                            <div className="flex items-center gap-2 text-yellow-500">
-                              <Calendar size={16} />
-                              <span className="font-medium">{booking.date}</span>
-                            </div>
-                            <div className="flex items-center gap-2 text-yellow-500">
-                              <Clock size={16} />
-                              <span className="font-serif text-lg">{booking.time}</span>
-                            </div>
-                          </div>
-                          <p className="text-zinc-500 text-xs">
-                            Booked on {new Date(booking.created_at).toLocaleDateString()}
-                          </p>
+              {/* Week Navigator */}
+              <div className="flex items-center justify-between gap-4 mb-4">
+                <button
+                  onClick={() => {
+                    const prev = new Date(currentWeekStart);
+                    prev.setDate(prev.getDate() - 7);
+                    setCurrentWeekStart(prev);
+                  }}
+                  className="p-2 rounded-lg hover:bg-zinc-800 text-zinc-400 hover:text-yellow-500 transition"
+                >
+                  <ChevronLeft size={24} />
+                </button>
+                <span className="text-sm font-bold text-white min-w-[180px] text-center">
+                  {weekLabel()}
+                </span>
+                <button
+                  onClick={() => {
+                    const next = new Date(currentWeekStart);
+                    next.setDate(next.getDate() + 7);
+                    setCurrentWeekStart(next);
+                  }}
+                  className="p-2 rounded-lg hover:bg-zinc-800 text-zinc-400 hover:text-yellow-500 transition"
+                >
+                  <ChevronRight size={24} />
+                </button>
+              </div>
+
+              {/* Weekly Timeline - 7 days */}
+              <div className="flex-1 overflow-y-auto space-y-2 min-h-0">
+                {loadingBookings ? (
+                  <p className="text-zinc-500 text-center py-10">Loading...</p>
+                ) : (
+                  getWeekDates(currentWeekStart).map(({ date, key }) => {
+                    const dayBookings = bookingsByDay[key] || [];
+                    const isToday = key === todayKey;
+                    const dayName = date.toLocaleDateString('en-US', { weekday: 'short' });
+                    const dateStr = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+                    return (
+                      <div
+                        key={key}
+                        className={`rounded-xl border overflow-hidden ${
+                          isToday ? 'bg-yellow-500/10 border-yellow-500/60' : 'bg-zinc-800/50 border-zinc-700'
+                        }`}
+                      >
+                        <div className={`px-4 py-2 flex items-center justify-between ${isToday ? 'bg-yellow-500/20' : 'bg-zinc-800/80'}`}>
+                          <span className="font-bold text-white">
+                            {dayName} {dateStr}
+                          </span>
+                          {isToday && (
+                            <span className="text-xs font-bold text-yellow-500 bg-yellow-500/30 px-2 py-0.5 rounded">Today</span>
+                          )}
                         </div>
-                        <button
-                          onClick={() => handleCancelBooking(booking.id, booking.date, booking.time)}
-                          disabled={cancelling === booking.id}
-                          className="p-2 rounded-lg bg-red-600/20 border border-red-600/30 text-red-500 hover:bg-red-600/30 active:scale-95 transition-all disabled:opacity-50"
-                        >
-                          <Trash2 size={18} />
-                        </button>
+                        {dayBookings.length === 0 ? (
+                          <div className="px-4 py-3 text-zinc-500 text-sm">Rest Day 💤</div>
+                        ) : (
+                          <div className="divide-y divide-zinc-700">
+                            {dayBookings.map((booking) => (
+                              <div key={booking.id} className="flex items-center justify-between gap-3 px-4 py-3">
+                                <div className="flex-1">
+                                  <span className="text-2xl font-mono font-bold text-yellow-500">
+                                    {formatTime24h(booking.time)}
+                                  </span>
+                                </div>
+                                <button
+                                  onClick={() => handleCancelBooking(booking.id, booking.date, booking.time)}
+                                  disabled={cancelling === booking.id}
+                                  className="p-2 rounded-lg bg-red-600/20 border border-red-600/30 text-red-500 hover:bg-red-600/30 active:scale-95 transition-all disabled:opacity-50"
+                                  title="Cancel booking"
+                                >
+                                  <Trash2 size={18} />
+                                </button>
+                              </div>
+                            ))}
+                          </div>
+                        )}
                       </div>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="flex flex-col items-center justify-center py-10 text-center">
-                  <Calendar size={64} className="text-zinc-700 mb-4" />
-                  <h4 className="text-lg font-bold text-zinc-500 mb-2">No Bookings</h4>
-                  <p className="text-sm text-zinc-600">You haven't booked any classes yet</p>
-                </div>
+                    );
+                  })
+                )}
+              </div>
+
+              {bookingsInWeek.length === 0 && !loadingBookings && (
+                <p className="text-zinc-600 text-xs text-center mt-2">이번 주 예약이 없어요. CLASS BOOKING에서 예약해보세요!</p>
               )}
 
-              {/* Close Button */}
               <button
                 onClick={() => setShowScheduleModal(false)}
-                className="w-full bg-yellow-600 text-white font-bold py-3 rounded-lg hover:bg-yellow-500 active:scale-95 transition-all"
+                className="w-full mt-4 bg-yellow-600 text-black font-bold py-3 rounded-xl hover:bg-yellow-500 active:scale-95 transition-all"
               >
-                CLOSE
+                닫기
               </button>
             </motion.div>
           </motion.div>
