@@ -1293,34 +1293,54 @@ const QRScanner = ({ setView }) => {
     const [scanning, setScanning] = useState(false);
     const [result, setResult] = useState(null);
     const [cameraError, setCameraError] = useState(null);
+    const [cameraStarted, setCameraStarted] = useState(false);
     const html5QrCodeRef = useRef(null);
     const isScanning = useRef(false);
 
-    // Start camera immediately when component mounts
+    // Cleanup on unmount
     useEffect(() => {
-        startCamera();
-
-        // Cleanup on unmount
         return () => {
             stopCamera();
         };
     }, []);
 
     const startCamera = async () => {
-        if (isScanning.current) return;
+        console.log('🎬 Starting camera... (isScanning:', isScanning.current, ')');
+        
+        // Prevent multiple starts
+        if (isScanning.current) {
+            console.log('⚠️ Camera already running, skipping start');
+            return;
+        }
+        
+        // Ensure previous instance is cleaned up
+        if (html5QrCodeRef.current) {
+            console.log('🧹 Cleaning up previous instance...');
+            try {
+                await html5QrCodeRef.current.stop();
+                await html5QrCodeRef.current.clear();
+            } catch (cleanupErr) {
+                console.log('⚠️ Cleanup error (may be safe to ignore):', cleanupErr);
+            }
+            html5QrCodeRef.current = null;
+        }
+        
+        // Small delay to ensure DOM is ready
+        await new Promise(resolve => setTimeout(resolve, 100));
         
         try {
+            console.log('📷 Initializing Html5Qrcode...');
             const html5QrCode = new Html5Qrcode("qr-reader");
             html5QrCodeRef.current = html5QrCode;
 
+            console.log('📡 Requesting camera access...');
             await html5QrCode.start(
                 { 
-                    facingMode: "environment", // Force back camera
-                    focusMode: "continuous"     // Continuous autofocus
+                    facingMode: "environment" // Force back camera
                 },
                 {
-                    fps: 30,                    // Faster detection (was 10)
-                    qrbox: 300,                 // Larger scan area (was 250)
+                    fps: 30,                    // Faster detection
+                    qrbox: 300,                 // Larger scan area
                     aspectRatio: 1.0,           // Square aspect ratio
                     disableFlip: false          // Allow flipped QR codes
                 },
@@ -1329,29 +1349,62 @@ const QRScanner = ({ setView }) => {
             );
 
             isScanning.current = true;
+            setCameraStarted(true);
             setCameraError(null);
             console.log('✅ Camera started successfully - fps: 30, qrbox: 300x300');
         } catch (err) {
             console.error('❌ Camera start error:', err);
-            setCameraError('Failed to access camera. Please allow camera permission.');
+            console.error('Error name:', err.name);
+            console.error('Error message:', err.message);
+            
+            let errorMsg = 'Failed to access camera. ';
+            if (err.name === 'NotAllowedError') {
+                errorMsg += 'Please allow camera permission in your browser settings.';
+            } else if (err.name === 'NotFoundError') {
+                errorMsg += 'No camera found on this device.';
+            } else if (err.name === 'NotReadableError') {
+                errorMsg += 'Camera is already in use by another application.';
+            } else {
+                errorMsg += err.message || 'Unknown error occurred.';
+            }
+            
+            setCameraError(errorMsg);
+            isScanning.current = false;
+            html5QrCodeRef.current = null;
         }
     };
 
     const stopCamera = async () => {
-        if (html5QrCodeRef.current && isScanning.current) {
+        console.log('⏹️ Stopping camera...');
+        
+        if (html5QrCodeRef.current) {
             try {
-                await html5QrCodeRef.current.stop();
+                if (isScanning.current) {
+                    await html5QrCodeRef.current.stop();
+                    console.log('✅ Camera stopped successfully');
+                }
+                await html5QrCodeRef.current.clear();
                 html5QrCodeRef.current = null;
                 isScanning.current = false;
+                setCameraStarted(false);
             } catch (err) {
-                console.error('Camera stop error:', err);
+                console.error('⚠️ Camera stop error:', err);
+                // Force cleanup even if stop failed
+                html5QrCodeRef.current = null;
+                isScanning.current = false;
+                setCameraStarted(false);
             }
+        } else {
+            console.log('ℹ️ No camera instance to stop');
+            isScanning.current = false;
+            setCameraStarted(false);
         }
     };
 
     const restartCamera = async () => {
+        console.log('🔄 Restarting camera...');
         await stopCamera();
-        await new Promise(resolve => setTimeout(resolve, 100));
+        await new Promise(resolve => setTimeout(resolve, 300)); // Longer delay for cleanup
         await startCamera();
     };
 
@@ -1361,9 +1414,6 @@ const QRScanner = ({ setView }) => {
         console.log("🎯 RAW QR DATA:", decodedText);
         console.log("📦 Result Object:", decodedResult);
         console.log("═══════════════════════════════════════");
-        
-        // 🚨 TEMPORARY DEBUG ALERT
-        window.alert("✅ 인식됨: " + decodedText);
         
         // Immediately stop scanning to prevent double-scan
         if (html5QrCodeRef.current && isScanning.current) {
@@ -1542,9 +1592,10 @@ const QRScanner = ({ setView }) => {
         {/* Camera Scanner - Full Screen */}
         <div className="flex-1 flex items-center justify-center p-4">
           {cameraError ? (
+            /* Error State */
             <div className="bg-red-900/20 border border-red-500 rounded-xl p-8 text-center max-w-md">
               <XCircle size={64} className="text-red-500 mx-auto mb-4" />
-              <p className="text-red-400 mb-6 text-lg">{cameraError}</p>
+              <p className="text-red-400 mb-6 text-lg whitespace-pre-line">{cameraError}</p>
               <button
                 onClick={handleRetryCamera}
                 className="bg-yellow-600 hover:bg-yellow-500 text-black font-bold py-4 px-8 rounded-xl transition-all shadow-lg text-lg"
@@ -1552,12 +1603,36 @@ const QRScanner = ({ setView }) => {
                 Retry Camera
               </button>
             </div>
-          ) : (
-            <div className="w-full max-w-2xl">
-              <div id="qr-reader" className="rounded-2xl overflow-hidden"></div>
-              <p className="text-center text-sm text-zinc-400 mt-4">
-                📷 Camera active • Point at member's QR code
+          ) : !cameraStarted ? (
+            /* Start Camera Button (User-initiated) */
+            <div className="bg-zinc-900 border-2 border-yellow-500 rounded-xl p-8 text-center max-w-md">
+              <div className="bg-yellow-500/20 rounded-full w-24 h-24 flex items-center justify-center mx-auto mb-6">
+                <Camera size={48} className="text-yellow-500" />
+              </div>
+              <h3 className="text-2xl font-bold text-white mb-4">Ready to Scan</h3>
+              <p className="text-zinc-400 mb-8 text-sm">
+                Click the button below to start the camera and begin scanning member QR codes.
               </p>
+              <button
+                onClick={startCamera}
+                className="bg-gradient-to-r from-yellow-600 to-yellow-500 hover:from-yellow-500 hover:to-yellow-400 text-black font-bold py-4 px-8 rounded-xl transition-all shadow-lg text-lg active:scale-95"
+              >
+                📷 Start Camera
+              </button>
+              <p className="text-xs text-zinc-600 mt-4">
+                Camera permission required
+              </p>
+            </div>
+          ) : (
+            /* Camera Active */
+            <div className="w-full max-w-2xl">
+              <div id="qr-reader" className="rounded-2xl overflow-hidden shadow-2xl"></div>
+              <div className="flex items-center justify-center gap-2 mt-4">
+                <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+                <p className="text-center text-sm text-zinc-400">
+                  Camera active • Point at member's QR code
+                </p>
+              </div>
             </div>
           )}
         </div>
@@ -1941,6 +2016,11 @@ const ClassBooking = ({ user, setView }) => {
 
       if (error) throw error;
 
+      console.log('✅ Booking inserted successfully:', data);
+
+      // Show success alert
+      alert(`✅ 예약이 완료되었습니다!\n\n날짜: ${selectedDate}\n시간: ${timeSlot}`);
+
       setResult({
         success: true,
         date: selectedDate,
@@ -1956,6 +2036,11 @@ const ClassBooking = ({ user, setView }) => {
       setBookings(updatedBookings || []);
 
     } catch (error) {
+      console.error('❌ Booking error:', error);
+      
+      // Show error alert
+      alert(`❌ 예약 실패\n\n${error.message || 'Unknown error'}`);
+
       setResult({
         success: false,
         message: error.message || 'Booking failed'
