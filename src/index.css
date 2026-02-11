@@ -8,6 +8,7 @@
   html,
   body {
     height: 100%;
+    width: 100%;
     overflow: hidden;
     overscroll-behavior: none;
   }
@@ -20,14 +21,19 @@
 
   #root {
     height: 100vh;
+    width: 100vw;
     min-height: 100vh;
     max-height: 100dvh;
     display: flex;
     flex-direction: column;
-    overflow-y: auto;
-    overflow-x: hidden;
+    overflow: hidden;
     overscroll-behavior: none;
-    -webkit-overflow-scrolling: touch;
+  }
+
+  *,
+  *::before,
+  *::after {
+    box-sizing: border-box;
   }
 
   button {

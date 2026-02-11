@@ -1670,11 +1670,11 @@ export default function App() {
 
           {/* 라이브러리 (지식 베이스) */}
           {(session || view === 'admin_home' || view === 'library') && view === 'library' && (
-            <div className="min-h-[100dvh] bg-zinc-950 flex flex-col p-6 text-white overflow-y-auto pb-24">
-              {/* BACK BUTTON */}
+            <div className="min-h-[100dvh] h-full max-w-full bg-zinc-950 flex flex-col overflow-hidden">
+              <div className="flex-1 overflow-y-auto overscroll-contain min-h-0 p-6 pb-24" style={{ WebkitOverflowScrolling: 'touch' }}>
               <BackButton onClick={() => setView(session?.user ? 'client_home' : 'admin_home')} label="Home" />
               
-              <div className="flex justify-between items-center mb-6">
+              <div className="flex flex-wrap justify-between items-center gap-3 mb-6 max-w-full">
                 <h2 className="text-2xl font-bold text-yellow-500">📚 KNOWLEDGE BASE</h2>
                 {(session?.user?.email === 'admin' || !session) && (
                   <button 
@@ -1687,7 +1687,7 @@ export default function App() {
               </div>
 
               {/* CATEGORY TABS */}
-              <div className="flex gap-2 mb-4 overflow-x-auto">
+              <div className="flex flex-wrap gap-2 mb-4 overflow-x-auto overscroll-x-none max-w-full">
                 {['All', 'Exercise', 'Diet', 'Routine'].map(cat => (
                   <button
                     key={cat}
@@ -1704,17 +1704,17 @@ export default function App() {
               </div>
 
               {/* SEARCH BAR WITH BUTTON */}
-              <div className="flex gap-2 mb-6">
+              <div className="flex flex-wrap gap-2 mb-6 w-full max-w-full">
                 <input
                   type="text"
                   placeholder="Search posts..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="flex-1 bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-3 text-white focus:border-yellow-500 outline-none"
+                  className="flex-1 min-w-0 bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-3 text-white focus:border-yellow-500 outline-none w-full"
                 />
                 <button
                   onClick={handleSearch}
-                  className="bg-yellow-600 hover:bg-yellow-500 text-black font-bold px-6 py-3 rounded-xl transition-all flex items-center gap-2"
+                  className="shrink-0 bg-yellow-600 hover:bg-yellow-500 text-black font-bold px-6 py-3 rounded-xl transition-all flex items-center gap-2"
                 >
                   <Search size={20} />
                   Search
@@ -1729,7 +1729,7 @@ export default function App() {
                   {(session?.user?.email === 'admin' || !session) && <p className="text-sm mt-2">Click "+ NEW POST" to add content.</p>}
                 </div>
               ) : (
-                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 w-full max-w-full">
                   {filteredPosts.map((post) => (
                     <button
                       key={post.id}
@@ -1754,6 +1754,7 @@ export default function App() {
                 </div>
               )}
 
+              </div>
               {/* POST DETAIL MODAL */}
               <AnimatePresence>
                 {showPostDetail && selectedPost && (
@@ -2633,7 +2634,8 @@ const ClassBooking = ({ user, setView }) => {
   };
 
   return (
-    <div className="min-h-[100dvh] bg-zinc-950 text-white p-6 pb-20">
+    <div className="h-full min-h-[100dvh] bg-zinc-950 text-white flex flex-col overflow-hidden max-w-full">
+      <div className="flex-1 overflow-y-auto overscroll-contain min-h-0 p-6 pb-20" style={{ WebkitOverflowScrolling: 'touch' }}>
       <BackButton onClick={() => setView('client_home')} label="Home" />
       
       <header className="text-center mb-6">
@@ -2641,7 +2643,7 @@ const ClassBooking = ({ user, setView }) => {
       </header>
 
       {/* Week Slider - Mon to Sun */}
-      <div className="mb-4">
+      <div className="mb-4 max-w-full">
         <div className="flex items-center justify-between mb-2">
           <button onClick={() => { const p = new Date(weekStart); p.setDate(p.getDate() - 7); setWeekStart(p); }} className="p-1.5 rounded-lg hover:bg-zinc-800 text-zinc-400">
             <ChevronLeft size={22} />
@@ -2653,7 +2655,7 @@ const ClassBooking = ({ user, setView }) => {
             <ChevronRight size={22} />
           </button>
         </div>
-        <div className="flex gap-2 overflow-x-auto pb-2">
+        <div className="flex gap-2 overflow-x-auto overflow-y-hidden overscroll-x-none pb-2 max-w-full">
           {getWeekDates().map((date) => {
             const dateStr = toDateKey(date);
             const dayName = date.toLocaleDateString('en-US', { weekday: 'short' });
@@ -2697,7 +2699,7 @@ const ClassBooking = ({ user, setView }) => {
           ) : generateTimeSlots().length === 0 ? (
             <p className="text-center text-zinc-500 py-8">No available slots for this day.</p>
           ) : (
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-2 gap-3 max-w-full w-full">
               {generateTimeSlots().map((time) => {
                 const available = isSlotAvailable(time);
                 const booked = isSlotBooked(time);
@@ -2727,6 +2729,7 @@ const ClassBooking = ({ user, setView }) => {
         </>
       )}
 
+      </div>
       {/* Booking Confirmation Modal */}
       {isBookingModalOpen && bookingToConfirm && (
         <div
