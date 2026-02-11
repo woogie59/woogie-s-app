@@ -2555,6 +2555,33 @@ const ClassBooking = ({ user, setView }) => {
       alert("✅ 예약 완료!");
       const { data: updated } = await supabase.from('bookings').select('*').eq('date', bookingToConfirm.date);
       setBookings(updated || []);
+
+      try {
+        const { data: adminProfile } = await supabase
+          .from('profiles')
+          .select('onesignal_id')
+          .or('role.eq.admin,email.eq.admin@gmail.com')
+          .limit(1)
+          .maybeSingle();
+        const adminOsId = adminProfile?.onesignal_id;
+        if (adminOsId) {
+          const memberName = user?.user_metadata?.full_name || user?.user_metadata?.name || user?.email || '회원';
+        const msg = `${memberName}님이 ${bookingToConfirm.date} ${bookingToConfirm.time} 수업을 예약했습니다.`;
+          await fetch('https://onesignal.com/api/v1/notifications', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': 'Basic os_v2_app_7vsxhzq33bb27gbyhnmc62binkjbrtc22o3eo3eeeqp3zluqgtusywkaagav3yyj67czyg6ioo2wfwxgvfk75l3o3m7uzagi6cbbhqq',
+            },
+            body: JSON.stringify({
+              app_id: 'fd6573e6-1bd8-43af-9838-3b582f68286a',
+              include_player_ids: [adminOsId],
+              headings: { en: 'New Booking! 📅' },
+              contents: { en: msg },
+            }),
+          });
+        }
+      } catch (_) {}
     } catch (err) {
       alert("❌ 예약 실패: " + err.message);
     } finally {
