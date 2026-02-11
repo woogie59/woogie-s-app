@@ -1529,10 +1529,16 @@ const QRScanner = ({ setView }) => {
         remainingSessions: remaining
       });
     } catch (error) {
+      console.log('QR Check-in error (full object):', error);
       const errMsg = error?.message ?? '';
-      let msg = 'QR 인식 오류: 다시 시도해주세요.';
-      if (errMsg.includes('NO_BOOKING_FOUND')) msg = '오늘 예약된 수업이 없습니다. 예약을 먼저 진행해주세요.';
-      else if (errMsg.includes('NO_SESSIONS_LEFT') || errMsg.includes('No remaining')) msg = '남은 세션이 없습니다. 티켓을 먼저 충전해주세요.';
+      let msg;
+      if (errMsg.includes('ERR_NO_BOOKING_TODAY')) {
+        msg = '오늘 예약된 내역을 찾을 수 없습니다. (DB 날짜 형식을 확인하세요)';
+      } else if (errMsg.includes('ERR_NO_SESSIONS') || errMsg.includes('NO_SESSIONS_LEFT') || errMsg.includes('No remaining')) {
+        msg = '남은 세션이 없습니다.';
+      } else {
+        msg = errMsg || 'QR 인식 오류: 다시 시도해주세요.';
+      }
       setResult({ success: false, message: msg });
       if (navigator.vibrate) navigator.vibrate([100, 50, 100]);
     }
