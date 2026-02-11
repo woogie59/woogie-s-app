@@ -84,5 +84,14 @@
     -webkit-overflow-scrolling: touch;
     overscroll-behavior-y: none;
   }
+
+  /* Subtle skeleton pulse (opacity 0.5 to 1) - not distracting */
+  @keyframes skeleton-pulse {
+    0%, 100% { opacity: 0.5; }
+    50% { opacity: 1; }
+  }
+  .animate-skeleton-pulse {
+    animation: skeleton-pulse 2s ease-in-out infinite;
+  }
 }
 

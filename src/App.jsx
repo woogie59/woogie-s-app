@@ -8,6 +8,7 @@ import OneSignal from 'react-onesignal';
 import { supabase, REMEMBER_ME_KEY } from './lib/supabaseClient'; 
 import RegisterView from './pages/RegisterView';
 import WelcomeModal from './components/WelcomeModal';
+import Skeleton from './components/Skeleton';
 import { useGlobalModal } from './context/GlobalModalContext';
 
 // --- (가짜 데이터 삭제함) ---
@@ -561,9 +562,16 @@ const ClientHome = ({ user, logout, setView }) => {
         <div>
           <h2 className="text-xl font-serif text-yellow-500">THE COACH</h2>
           {/* 진짜 이름 표시 */}
-          <p className="text-zinc-500 text-xs">
-            {loading ? 'Loading...' : `${profile?.name || '회원'} 님`}
-          </p>
+          {loading ? (
+            <div className="flex items-center gap-3 mt-1">
+              <Skeleton className="h-6 w-6 rounded-full shrink-0" />
+              <Skeleton className="h-6 w-32" />
+            </div>
+          ) : (
+            <p className="text-zinc-500 text-xs">
+              {profile?.name || '회원'} 님
+            </p>
+          )}
         </div>
         <button onClick={logout}><LogOut size={20} className="text-zinc-600 hover:text-white transition-colors" /></button>
       </header>
@@ -592,10 +600,14 @@ const ClientHome = ({ user, logout, setView }) => {
          {/* [핵심] 진짜 남은 횟수 표시 */}
          <div className="absolute bottom-6 left-6 text-left">
              <p className="text-zinc-500 text-[10px] tracking-widest uppercase mb-1">Total Remaining</p>
-             <p className="text-2xl font-serif text-white">
-               {loading ? '-' : (profile?.remaining_sessions || 0)} 
-               <span className="text-xs font-sans text-zinc-500 ml-1">Sessions</span>
-             </p>
+             {loading ? (
+               <Skeleton className="h-8 w-16" />
+             ) : (
+               <p className="text-2xl font-serif text-white">
+                 {profile?.remaining_sessions || 0} 
+                 <span className="text-xs font-sans text-zinc-500 ml-1">Sessions</span>
+               </p>
+             )}
          </div>
         <button onClick={() => setView('admin_home')}>Admin Home</button>
       </div>
@@ -2847,7 +2859,24 @@ const AdminSchedule = ({ setView }) => {
       </header>
 
       {loading ? (
-        <p className="text-zinc-500 text-center py-10">Loading schedules...</p>
+        <div className="space-y-3">
+          {[1, 2, 3, 4, 5].map((i) => (
+            <div key={i} className="bg-zinc-900/50 rounded-xl border border-zinc-800 overflow-hidden p-4">
+              <div className="flex items-center justify-between gap-4">
+                <div className="flex items-center gap-3">
+                  <Skeleton className="h-5 w-5 rounded shrink-0" />
+                  <Skeleton className="h-5 w-24" />
+                  <Skeleton className="h-4 w-20" />
+                </div>
+                <Skeleton className="h-5 w-5 rounded shrink-0" />
+              </div>
+              <div className="mt-3 space-y-2">
+                <Skeleton className="h-4 w-full" />
+                <Skeleton className="h-4 w-[75%]" />
+              </div>
+            </div>
+          ))}
+        </div>
       ) : bookings.length > 0 ? (
         <div className="space-y-3">
           {scheduleDatesSorted.map((dateKey) => {
@@ -3224,7 +3253,23 @@ const MemberList = ({ setView, setSelectedMemberId }) => {
         </header>
         <div className="space-y-4">
           {loading ? (
-              <p className="text-zinc-500 text-center py-10">Loading clients...</p>
+              <div className="space-y-4">
+                {[1, 2, 3, 4, 5].map((i) => (
+                  <div key={i} className="bg-zinc-900/50 rounded-xl border border-zinc-800 p-4 flex justify-between items-center">
+                    <div className="space-y-2">
+                      <Skeleton className="h-5 w-32" />
+                      <Skeleton className="h-3 w-48" />
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <div className="text-right space-y-1">
+                        <Skeleton className="h-3 w-12 ml-auto" />
+                        <Skeleton className="h-5 w-8 ml-auto" />
+                      </div>
+                      <Skeleton className="h-5 w-5 rounded shrink-0" />
+                    </div>
+                  </div>
+                ))}
+              </div>
           ) : users.length > 0 ? (
               users.map(u => (
                 <div key={u.id} onClick={() => { setSelectedMemberId(u.id); setView('member_detail'); }} className="bg-zinc-900 p-4 rounded-xl border border-zinc-800 flex justify-between items-center active:bg-zinc-800 hover:border-yellow-600/30 transition-colors cursor-pointer">
