@@ -1292,18 +1292,15 @@ export default function App() {
   );
 }
 
-// [App.jsx] QRScanner 컴포넌트 교체
-// [App.jsx] QRScanner 컴포넌트 교체
-// [App.jsx] QRScanner 컴포넌트 (호환성 최적화 '순정' 버전)
-// [App.jsx] QRScanner 컴포넌트 (네이티브 가속 모드 적용)
+// [App.jsx] QRScanner 컴포넌트 (호환성 최적화 버전)
 const QRScanner = ({ setView }) => {
   const [result, setResult] = useState(null);
   const [errorMsg, setErrorMsg] = useState(null);
   const scannerRef = useRef(null);
 
   useEffect(() => {
-      // 화면 렌더링 안정화 후 실행
-      const timer = setTimeout(() => startScan(), 500);
+      // 브라우저 렌더링 후 0.3초 뒤 실행
+      const timer = setTimeout(() => startScan(), 300);
       return () => {
           clearTimeout(timer);
           stopScan();
@@ -1312,7 +1309,7 @@ const QRScanner = ({ setView }) => {
 
   const startScan = async () => {
       try {
-          // 청소
+          // 1. 기존 카메라 정리
           if (scannerRef.current) {
               await scannerRef.current.stop().catch(() => {});
               scannerRef.current.clear();
@@ -1321,34 +1318,38 @@ const QRScanner = ({ setView }) => {
           const html5QrCode = new Html5Qrcode("reader");
           scannerRef.current = html5QrCode;
 
-          // [최종 해결책] 
-          // 1. 하드웨어 가속(useBarCodeDetectorIfSupported) 활성화
-          // 2. 고화질(width/height) 강제 요청 -> 초점이 더 잘 맞음
+          // 2. 가장 안전한 설정으로 시작
           const config = {
-              fps: 10, 
-              qrbox: 250,
-              aspectRatio: 1.0,
-              disableFlip: false,
-              experimentalFeatures: {
-                  useBarCodeDetectorIfSupported: true // [핵심] 폰 자체의 QR 리더기 사용
-              }
+              fps: 10,             // 초당 10프레임 (배터리 절약)
+              qrbox: { width: 250, height: 250 }, // 화면 중앙에 가이드 박스 설정 (초점 유도)
+              aspectRatio: 1.0,    // 1:1 비율
+              disableFlip: false   // 좌우반전 허용
           };
 
+          // 3. 카메라 실행 (복잡한 하드웨어 설정 제거)
           await html5QrCode.start(
-              { 
-                  facingMode: "environment",
-                  // 고해상도 요청 (흐릿함 방지)
-                  width: { min: 640, ideal: 1280, max: 1920 },
-                  height: { min: 480, ideal: 720, max: 1080 }
-              }, 
+              { facingMode: "environment" }, // 후면 카메라만 요청
               config,
               onScanSuccess,
-              (err) => { /* 인식 시도 중 에러 무시 */ }
+              (err) => { 
+                  // 인식 시도 중 에러는 무시
+              }
           );
           setErrorMsg(null);
       } catch (err) {
-          console.error(err);
-          setErrorMsg("카메라 권한을 확인해주세요.");
+          console.error("Camera Start Fail:", err);
+          // 에러 메시지 세분화
+          if (err.name === 'NotAllowedError') {
+              setErrorMsg("카메라 권한이 거부되었습니다. 설정에서 허용해주세요.");
+          } else if (err.name === 'NotFoundError') {
+              setErrorMsg("카메라를 찾을 수 없습니다.");
+          } else if (err.name === 'NotReadableError') {
+              setErrorMsg("카메라가 이미 사용 중이거나 엑세스할 수 없습니다. (재부팅 권장)");
+          } else if (err.name === 'OverconstrainedError') {
+              setErrorMsg("이 기기에서 지원하지 않는 카메라 설정입니다.");
+          } else {
+              setErrorMsg("카메라 오류: https 접속인지 확인해주세요.");
+          }
       }
   };
 
@@ -1361,19 +1362,17 @@ const QRScanner = ({ setView }) => {
   };
 
   const onScanSuccess = async (decodedText) => {
-      // 성공 시 화면 일시정지 (중복 방지)
       if (scannerRef.current) {
            try { await scannerRef.current.pause(); } catch(e) {}
       }
       if (navigator.vibrate) navigator.vibrate(200);
 
       try {
-          console.log("QR Detected:", decodedText);
-          
-          // Supabase RPC 호출
+          // RPC 호출
           const { data, error } = await supabase.rpc('check_in_user', { user_uuid: decodedText });
           if (error) throw error;
 
+          // 유저 정보 가져오기
           const { data: userData } = await supabase.from('profiles').select('name').eq('id', decodedText).single();
           
           setResult({
@@ -1387,7 +1386,6 @@ const QRScanner = ({ setView }) => {
           setResult({ success: false, message: msg });
       }
       
-      // 2초 후 재시작
       setTimeout(() => {
           setResult(null);
           if (scannerRef.current) {
@@ -1405,35 +1403,26 @@ const QRScanner = ({ setView }) => {
               ← 나가기
           </button>
 
-          <div className="w-full max-w-md px-6">
-              <h3 className="text-center text-yellow-500 font-bold mb-4">QR SCANNER</h3>
+          <div className="w-full max-w-sm px-6">
+              <div id="reader" className="w-full h-[350px] bg-black rounded-2xl overflow-hidden border-2 border-yellow-500"></div>
               
-              <div className="relative rounded-2xl overflow-hidden border-2 border-yellow-500/50 bg-black">
-                  <div id="reader" className="w-full h-[400px]"></div>
-                  {/* 가이드라인 */}
-                  <div className="absolute inset-0 border-[50px] border-black/40 pointer-events-none flex items-center justify-center">
-                      <div className="w-56 h-56 border-2 border-white/30 rounded-lg"></div>
-                  </div>
-              </div>
-
               {errorMsg ? (
-                  <p className="text-red-500 text-center mt-6">{errorMsg}</p>
+                  <div className="mt-4 p-4 bg-red-900/50 rounded-xl text-center">
+                      <p className="text-red-300 text-sm mb-2">{errorMsg}</p>
+                      <button onClick={() => { setErrorMsg(null); startScan(); }} className="bg-red-700 px-4 py-2 rounded text-xs font-bold">다시 시도</button>
+                  </div>
               ) : (
-                  <p className="text-zinc-500 text-center mt-6 text-xs animate-pulse">
-                      QR 코드를 중앙 사각형에 비춰주세요
+                  <p className="text-zinc-500 text-center mt-4 text-xs animate-pulse">
+                      QR 코드를 네모 상자에 맞춰주세요
                   </p>
               )}
           </div>
 
-          {/* 결과창 */}
           {result && (
               <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/90 p-6">
                   <div className={`w-full max-w-xs p-8 rounded-3xl text-center border ${result.success ? 'bg-zinc-900 border-green-500' : 'bg-zinc-900 border-red-500'}`}>
-                      <div className="mb-4 text-4xl">{result.success ? '✅' : '❌'}</div>
                       <h3 className="text-2xl font-bold text-white mb-2">{result.userName}</h3>
-                      <p className={`text-sm font-bold ${result.success ? 'text-green-400' : 'text-red-400'}`}>
-                          {result.message}
-                      </p>
+                      <p className={`text-sm font-bold ${result.success ? 'text-green-400' : 'text-red-400'}`}>{result.message}</p>
                   </div>
               </div>
           )}
