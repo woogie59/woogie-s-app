@@ -1292,117 +1292,238 @@ export default function App() {
   );
 }
 
-// [App.jsx] QRScanner 컴포넌트 (호환성 최적화 버전)
-// [App.jsx] QRScanner 컴포넌트 (라이브 + 사진 업로드 하이브리드)
-c// [최종 병기] 화질 보정형 QR 분석 엔진
+// --- [QRScanner] Hybrid: Live Camera + Photo Upload ---
 const QRScanner = ({ setView }) => {
   const [result, setResult] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [cameraError, setCameraError] = useState(null);
+  const [liveMode, setLiveMode] = useState(false);
   const fileInputRef = useRef(null);
+  const scannerRef = useRef(null);
+  const fileScannerRef = useRef(null);
 
-  // [핵심] 사진 파일을 받아서 극한까지 분석하는 함수
+  const processScanResult = async (decodedText) => {
+    if (!decodedText || typeof decodedText !== 'string') return;
+
+    if (navigator.vibrate) navigator.vibrate(200);
+
+    try {
+      const { data, error } = await supabase.rpc('check_in_user', { user_uuid: decodedText });
+      if (error) throw error;
+
+      const { data: userData } = await supabase.from('profiles').select('name').eq('id', decodedText).single();
+
+      setResult({
+        success: true,
+        userName: userData?.name || '회원',
+        message: `출석 완료 (잔여: ${data?.remaining ?? 0}회)`,
+        remainingSessions: data?.remaining
+      });
+    } catch (error) {
+      const msg = error?.message?.includes('No remaining') ? '잔여 세션이 없습니다.' : '유효하지 않은 QR입니다.';
+      setResult({ success: false, message: msg });
+      if (navigator.vibrate) navigator.vibrate([100, 50, 100]);
+    }
+  };
+
   const handleFileUpload = async (e) => {
-      const file = e.target.files[0];
-      if (!file) return;
+    const file = e.target.files?.[0];
+    if (!file) return;
 
-      setLoading(true);
-      try {
-          const html5QrCode = new Html5Qrcode("reader");
-          
-          // 1차 시도: 원본 사진 분석
+    setLoading(true);
+    setCameraError(null);
+
+    try {
+      if (!fileScannerRef.current) {
+        fileScannerRef.current = new Html5Qrcode('file-reader');
+      }
+      const decodedText = await fileScannerRef.current.scanFile(file, true);
+      await processScanResult(decodedText);
+    } catch (err) {
+      console.error('Photo scan error:', err);
+      alert('QR 인식 실패: 사진을 밝은 곳에서, 흔들리지 않게 찍어주세요.');
+    } finally {
+      setLoading(false);
+      e.target.value = '';
+    }
+  };
+
+  const startLiveScan = async () => {
+    if (scannerRef.current) return;
+
+    setCameraError(null);
+    setLiveMode(true);
+
+    try {
+      await new Promise(r => setTimeout(r, 250));
+      const readerEl = document.getElementById('reader');
+      if (!readerEl) throw new Error('Scanner element not ready');
+      const html5QrCode = new Html5Qrcode('reader');
+      scannerRef.current = html5QrCode;
+
+      await html5QrCode.start(
+        { facingMode: 'environment' },
+        { fps: 10, qrbox: 250, aspectRatio: 1.0 },
+        async (decodedText) => {
           try {
-              const decodedText = await html5QrCode.scanFile(file, false);
-              onScanSuccess(decodedText);
-          } catch (firstErr) {
-              console.log("1차 시도 실패, 보정 후 2차 시도...");
-              
-              // 2차 시도: 엔진을 '정밀 모드'로 전환하여 재분석
-              // 이미지의 명암을 조절하여 QR 점들을 선명하게 만듭니다.
-              const decodedText = await html5QrCode.scanFileV2(file, true);
-              onScanSuccess(decodedText);
-          }
-      } catch (err) {
-          console.error(err);
-          alert("QR 인식 실패: 사진을 더 밝은 곳에서, 흔들리지 않게 찍어주세요. (컴퓨터 화면이라면 빛 반사에 주의해주세요)");
-      } finally {
-          setLoading(false);
-          // 인풋 초기화 (같은 사진 다시 찍기 가능하게)
-          e.target.value = '';
-      }
+            await html5QrCode.pause();
+          } catch (e) {}
+          await processScanResult(decodedText);
+          setTimeout(async () => {
+            setResult(null);
+            if (scannerRef.current) {
+              try {
+                await scannerRef.current.resume();
+              } catch (e) {
+                setLiveMode(false);
+                scannerRef.current = null;
+              }
+            }
+          }, 2500);
+        },
+        () => {}
+      );
+    } catch (err) {
+      console.error('Camera start error:', err);
+      setCameraError('카메라 권한을 허용해주세요.');
+      setLiveMode(false);
+    }
   };
 
-  const onScanSuccess = async (decodedText) => {
-      if (navigator.vibrate) navigator.vibrate(200);
+  const stopLiveScan = async () => {
+    if (scannerRef.current) {
       try {
-          const { data, error } = await supabase.rpc('check_in_user', { user_uuid: decodedText });
-          if (error) throw error;
-
-          const { data: userData } = await supabase.from('profiles').select('name').eq('id', decodedText).single();
-          
-          setResult({
-              success: true,
-              userName: userData?.name || '회원',
-              message: `출석 완료 (잔여: ${data.remaining}회)`
-          });
-      } catch (error) {
-          let msg = error.message?.includes("No remaining") ? "잔여 세션이 없습니다." : "유효하지 않은 QR입니다.";
-          setResult({ success: false, message: msg });
-      }
+        await scannerRef.current.stop();
+      } catch (e) {}
+      try {
+        scannerRef.current.clear();
+      } catch (e) {}
+      scannerRef.current = null;
+    }
+    setLiveMode(false);
+    setCameraError(null);
   };
+
+  useEffect(() => {
+    return () => {
+      if (scannerRef.current) {
+        scannerRef.current.stop().catch(() => {});
+        scannerRef.current.clear();
+        scannerRef.current = null;
+      }
+      if (fileScannerRef.current) {
+        try {
+          fileScannerRef.current.clear();
+        } catch (e) {}
+        fileScannerRef.current = null;
+      }
+    };
+  }, []);
 
   return (
-      <div className="min-h-[100dvh] bg-black text-white flex flex-col items-center justify-center p-6 relative">
-          <button onClick={() => setView('admin_home')} className="absolute top-6 left-6 text-zinc-400 border border-zinc-800 px-4 py-2 rounded-lg">← Back</button>
+    <div className="min-h-[100dvh] bg-zinc-950 text-white flex flex-col items-center justify-center p-6 relative">
+      <button
+        onClick={async () => {
+          await stopLiveScan();
+          setView('admin_home');
+        }}
+        className="absolute top-6 left-6 z-50 text-zinc-400 hover:text-white border border-zinc-700 px-4 py-2 rounded-xl bg-zinc-900/80"
+      >
+        ← Back
+      </button>
 
-          <div className="w-full max-w-sm text-center">
-              <div className="mb-10">
-                  <div className="w-20 h-20 bg-yellow-500/10 border-2 border-yellow-500 rounded-full flex items-center justify-center mx-auto mb-4">
-                      <Camera size={40} className="text-yellow-500" />
-                  </div>
-                  <h2 className="text-2xl font-bold text-white mb-2">QR CHECK-IN</h2>
-                  <p className="text-zinc-500 text-sm">가장 확실한 인식을 위해<br/>사진 촬영 방식을 사용합니다.</p>
-              </div>
-
-              {/* 분석 중 로딩 표시 */}
-              {loading ? (
-                  <div className="py-10 flex flex-col items-center">
-                      <div className="w-10 h-10 border-4 border-yellow-500 border-t-transparent rounded-full animate-spin mb-4"></div>
-                      <p className="text-yellow-500 font-bold">인공지능 분석 중...</p>
-                  </div>
-              ) : (
-                  <button 
-                      onClick={() => fileInputRef.current.click()}
-                      className="w-full bg-yellow-600 hover:bg-yellow-500 text-black font-extrabold py-5 rounded-2xl shadow-2xl active:scale-95 transition-all text-lg flex items-center justify-center gap-3"
-                  >
-                      <Camera size={24} />
-                      출석 체크 시작 (사진 촬영)
-                  </button>
-              )}
-
-              <input 
-                  type="file" 
-                  ref={fileInputRef}
-                  accept="image/*" 
-                  capture="environment" 
-                  onChange={handleFileUpload}
-                  className="hidden"
-              />
-
-              <div id="reader" className="hidden"></div> {/* 라이브러리 작동용 숨김 div */}
+      <div className="w-full max-w-sm text-center">
+        <div className="mb-8">
+          <div className="w-20 h-20 bg-yellow-500/10 border-2 border-yellow-500 rounded-full flex items-center justify-center mx-auto mb-4">
+            <Camera size={40} className="text-yellow-500" />
           </div>
+          <h2 className="text-2xl font-bold text-yellow-500 mb-2">QR CHECK-IN</h2>
+          <p className="text-zinc-500 text-sm">사진 촬영이 가장 안정적입니다</p>
+        </div>
 
-          {/* 결과창 (이전과 동일) */}
-          {result && (
-              <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/95 p-6 backdrop-blur-md">
-                  <div className={`w-full max-w-xs p-10 rounded-[2rem] text-center border-2 ${result.success ? 'bg-zinc-900 border-green-500' : 'bg-zinc-900 border-red-500'}`}>
-                      <div className="text-5xl mb-6">{result.success ? '✅' : '❌'}</div>
-                      <h3 className="text-2xl font-bold text-white mb-2">{result.userName}</h3>
-                      <p className={`font-bold ${result.success ? 'text-green-400' : 'text-red-400'}`}>{result.message}</p>
-                      <button onClick={() => setResult(null)} className="mt-8 bg-zinc-800 text-white px-8 py-3 rounded-xl w-full font-bold">확인</button>
-                  </div>
+        {loading ? (
+          <div className="py-10 flex flex-col items-center">
+            <div className="w-10 h-10 border-4 border-yellow-500 border-t-transparent rounded-full animate-spin mb-4" />
+            <p className="text-yellow-500 font-bold">분석 중...</p>
+          </div>
+        ) : liveMode ? (
+          <div className="w-full">
+            <div className="rounded-2xl overflow-hidden border-2 border-yellow-500/50 bg-black mb-4">
+              <div id="reader" className="w-full min-h-[280px]" />
+            </div>
+            {cameraError ? (
+              <div className="mb-4">
+                <p className="text-red-500 text-sm mb-3">{cameraError}</p>
+                <button onClick={stopLiveScan} className="text-zinc-400 text-sm underline">
+                  닫기
+                </button>
               </div>
-          )}
+            ) : (
+              <p className="text-zinc-500 text-xs mb-4">QR 코드를 화면에 맞춰주세요</p>
+            )}
+            <button
+              onClick={stopLiveScan}
+              className="w-full bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 py-3 rounded-xl text-sm"
+            >
+              카메라 닫기
+            </button>
+          </div>
+        ) : (
+          <>
+            <button
+              onClick={() => fileInputRef.current?.click()}
+              className="w-full bg-yellow-600 hover:bg-yellow-500 text-black font-bold py-5 rounded-2xl shadow-lg active:scale-[0.98] transition-all text-lg flex items-center justify-center gap-3 mb-4"
+            >
+              <Camera size={24} />
+              Take a Photo to Scan
+            </button>
+
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              capture="environment"
+              onChange={handleFileUpload}
+              className="hidden"
+            />
+
+            <button
+              onClick={startLiveScan}
+              className="w-full bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 text-zinc-300 py-3 rounded-xl text-sm"
+            >
+              Try Live Camera
+            </button>
+          </>
+        )}
+
+        <div id="file-reader" className="fixed -left-[9999px] w-[300px] h-[300px]" aria-hidden="true" />
       </div>
+
+      {result && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/95 p-6 backdrop-blur-sm">
+          <div
+            className={`w-full max-w-xs p-8 rounded-2xl text-center border-2 ${result.success ? 'bg-zinc-900 border-green-500' : 'bg-zinc-900 border-red-500'}`}
+          >
+            {result.success ? (
+              <CheckCircle size={64} className="text-green-500 mx-auto mb-4" />
+            ) : (
+              <XCircle size={64} className="text-red-500 mx-auto mb-4" />
+            )}
+            <h3 className="text-xl font-bold text-white mb-2">{result.userName || '알림'}</h3>
+            <p className={`font-bold ${result.success ? 'text-green-400' : 'text-red-400'}`}>{result.message}</p>
+            {result.success && result.remainingSessions != null && (
+              <p className="text-yellow-500 text-sm mt-2">남은 횟수: {result.remainingSessions}회</p>
+            )}
+            <button
+              onClick={() => setResult(null)}
+              className="mt-6 w-full bg-zinc-800 hover:bg-zinc-700 text-white py-3 rounded-xl font-bold"
+            >
+              확인
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
   );
 };
 // --- [MacroCalculator] 스마트 매크로 계산기 ---
