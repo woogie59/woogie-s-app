@@ -32,30 +32,40 @@ const formatSessionDate = (checkInAt) => {
 
 const SessionHistoryModal = ({ user, onClose }) => {
   const [logs, setLogs] = useState([]);
+  const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     if (!user?.id) return;
 
-    const fetchLogs = async () => {
+    const fetchData = async () => {
       setLoading(true);
-      const { data, error } = await supabase
-        .from('attendance_logs')
-        .select('*')
-        .eq('user_id', user.id)
-        .order('check_in_at', { ascending: false });
+      const [logsRes, profileRes] = await Promise.all([
+        supabase
+          .from('attendance_logs')
+          .select('*')
+          .eq('user_id', user.id)
+          .order('check_in_at', { ascending: false }),
+        supabase.from('profiles').select('remaining_sessions').eq('id', user.id).single(),
+      ]);
 
-      if (error) {
-        console.error('SessionHistoryModal fetch error:', error);
+      if (logsRes.error) {
+        console.error('SessionHistoryModal fetch error:', logsRes.error);
         setLogs([]);
       } else {
-        setLogs(data || []);
+        setLogs(logsRes.data || []);
       }
+      setProfile(profileRes.data ?? null);
       setLoading(false);
     };
 
-    fetchLogs();
+    fetchData();
   }, [user?.id]);
+
+  const usedCount = logs.length;
+  const remainingCount = profile?.remaining_sessions ?? user?.remaining_sessions ?? 0;
+  const totalCount = usedCount + remainingCount;
+  const progressPercentage = totalCount > 0 ? (usedCount / totalCount) * 100 : 0;
 
   const { weeklyData, maxCount } = useMemo(() => {
     const now = new Date();
@@ -118,6 +128,32 @@ const SessionHistoryModal = ({ user, onClose }) => {
               </div>
             ) : (
               <>
+                {/* Session Summary Card */}
+                <div className="bg-zinc-800/50 rounded-2xl p-6 mb-6">
+                  <div className="h-2 bg-zinc-700 rounded-full overflow-hidden">
+                    <motion.div
+                      initial={{ width: 0 }}
+                      animate={{ width: `${progressPercentage}%` }}
+                      transition={{ duration: 0.6, ease: 'easeOut' }}
+                      className="h-full bg-yellow-500 rounded-full"
+                    />
+                  </div>
+                  <div className="flex justify-between mt-4">
+                    <div>
+                      <p className="text-xs text-zinc-500 uppercase tracking-wider">TOTAL</p>
+                      <p className="text-xl text-white font-medium">{totalCount.toLocaleString()}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-zinc-500 uppercase tracking-wider">DONE</p>
+                      <p className="text-xl text-white font-medium">{usedCount.toLocaleString()}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-yellow-500/80 uppercase tracking-wider">LEFT</p>
+                      <p className="text-xl text-yellow-500 font-bold">{remainingCount.toLocaleString()}</p>
+                    </div>
+                  </div>
+                </div>
+
                 {/* Weekly Bar Chart */}
                 <div>
                   <p className="text-xs text-zinc-500 uppercase tracking-widest mb-3">Weekly Rhythm</p>
