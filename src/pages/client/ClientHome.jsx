@@ -1,10 +1,11 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { QrCode, LogOut, X, Sparkles, ChevronLeft, ChevronRight, Trash2 } from 'lucide-react';
+import { QrCode, LogOut, X, Sparkles, ChevronLeft, ChevronRight, Trash2, History } from 'lucide-react';
 import { supabase } from '../../lib/supabaseClient';
 import { useGlobalModal } from '../../context/GlobalModalContext';
 import ButtonGhost from '../../components/ui/ButtonGhost';
 import Skeleton from '../../components/ui/Skeleton';
+import SessionHistoryModal from '../../features/members/SessionHistoryModal';
 
 const toDateKey = (d) => {
   const x = new Date(d);
@@ -32,6 +33,7 @@ const ClientHome = ({ user, logout, setView }) => {
   const [cancelling, setCancelling] = useState(null);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [bookingToDelete, setBookingToDelete] = useState(null);
+  const [showHistory, setShowHistory] = useState(false);
   const [currentWeekStart, setCurrentWeekStart] = useState(() => {
     const d = new Date();
     const day = d.getDay();
@@ -228,17 +230,27 @@ const ClientHome = ({ user, logout, setView }) => {
           <ButtonGhost onClick={() => setView('macro_calculator')}>MACRO CALCULATOR</ButtonGhost>
         </div>
 
-        <div className="absolute bottom-6 left-6 text-left">
+        <button
+          onClick={() => setShowHistory(true)}
+          className="absolute bottom-6 left-6 text-left cursor-pointer group"
+        >
           <p className="text-zinc-500 text-[10px] tracking-widest uppercase mb-1">Total Remaining</p>
           {loading ? (
             <Skeleton className="h-8 w-16" />
           ) : (
-            <p className="text-2xl font-serif text-white">
-              {profile?.remaining_sessions || 0}
-              <span className="text-xs font-sans text-zinc-500 ml-1">Sessions</span>
-            </p>
+            <div className="flex items-center gap-2">
+              <p className="text-2xl font-serif text-white group-hover:text-yellow-500 transition-colors">
+                {profile?.remaining_sessions || 0}
+                <span className="text-xs font-sans text-zinc-500 ml-1 group-hover:text-zinc-400 transition-colors">
+                  Sessions
+                </span>
+              </p>
+              <span className="text-zinc-600 group-hover:text-yellow-500/80 transition-colors flex items-center gap-1 text-[10px] uppercase tracking-wider">
+                <History size={12} /> History
+              </span>
+            </div>
           )}
-        </div>
+        </button>
         <button onClick={() => setView('admin_home')}>Admin Home</button>
       </div>
 
@@ -439,6 +451,13 @@ const ClientHome = ({ user, logout, setView }) => {
               </button>
             </motion.div>
           </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Session History Modal */}
+      <AnimatePresence>
+        {showHistory && (
+          <SessionHistoryModal user={user} onClose={() => setShowHistory(false)} />
         )}
       </AnimatePresence>
 
