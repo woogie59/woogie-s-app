@@ -12,6 +12,8 @@ const MemberDetail = ({ selectedMemberId, setView }) => {
   const [priceInput, setPriceInput] = useState(0);
   const [loading, setLoading] = useState(false);
   const [loadingBatches, setLoadingBatches] = useState(true);
+  const [noteContent, setNoteContent] = useState('');
+  const [isSavingNote, setIsSavingNote] = useState(false);
 
   const fetchMemberDetails = async () => {
     const { data: userData } = await supabase.from('profiles').select('*').eq('id', selectedMemberId).single();
@@ -32,6 +34,16 @@ const MemberDetail = ({ selectedMemberId, setView }) => {
     } else {
       setBatches(batchData || []);
     }
+
+    const { data: noteData } = await supabase
+      .from('trainer_notes')
+      .select('content')
+      .eq('user_id', selectedMemberId)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    setNoteContent(noteData?.content ?? '');
+
     setLoadingBatches(false);
   };
 
@@ -41,6 +53,23 @@ const MemberDetail = ({ selectedMemberId, setView }) => {
 
   const totalRemaining =
     batches.length > 0 ? batches.reduce((sum, batch) => sum + batch.remaining_count, 0) : u?.remaining_sessions || 0;
+
+  const handleSaveNote = async () => {
+    setIsSavingNote(true);
+    try {
+      const { error } = await supabase.from('trainer_notes').insert({
+        user_id: selectedMemberId,
+        content: noteContent,
+      });
+      if (error) throw error;
+      showAlert({ message: 'Saved!' });
+    } catch (err) {
+      console.error('Save note error:', err);
+      showAlert({ message: '저장 실패: ' + (err?.message || 'Unknown error') });
+    } finally {
+      setIsSavingNote(false);
+    }
+  };
 
   const handleAddSession = () => {
     if (!addAmount || isNaN(addAmount)) {
@@ -248,6 +277,24 @@ const MemberDetail = ({ selectedMemberId, setView }) => {
               <p className="text-sm text-zinc-300">{u.gender === 'M' ? 'Male' : 'Female'}</p>
             </div>
           </div>
+        </div>
+
+        <div className="pt-6 border-t border-zinc-800 space-y-4">
+          <h3 className="text-sm font-bold text-zinc-400 flex items-center gap-2">🔒 SECRET CRM (Private)</h3>
+          <textarea
+            value={noteContent}
+            onChange={(e) => setNoteContent(e.target.value)}
+            placeholder="회원의 특이사항, 성취도 분석, 재등록 전략을 기록하세요."
+            rows={6}
+            className="w-full bg-zinc-900 border border-zinc-800 rounded-xl p-4 text-white placeholder-zinc-500 focus:border-yellow-600 outline-none transition-colors resize-none"
+          />
+          <button
+            onClick={handleSaveNote}
+            disabled={isSavingNote}
+            className="w-full bg-zinc-800 hover:bg-yellow-600 text-white font-bold py-3 rounded-lg text-sm transition-all disabled:opacity-50"
+          >
+            {isSavingNote ? '저장 중...' : 'Save Note'}
+          </button>
         </div>
       </div>
     </div>
