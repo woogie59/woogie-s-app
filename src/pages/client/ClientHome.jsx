@@ -281,24 +281,23 @@ const ClientHome = ({ user, logout, setView }) => {
                 </button>
               </div>
 
-              <div className="bg-white p-6 rounded-xl mb-6 flex items-center justify-center min-h-[280px] border-2 border-zinc-200">
+              <div className="bg-zinc-100 border-2 border-yellow-500/20 rounded-3xl p-8 mb-6 flex items-center justify-center min-h-[280px] shadow-[0_0_15px_rgba(234,179,8,0.2)]">
                 <div className="text-center">
                   {user?.id ? (
                     <img
                       src={`https://api.qrserver.com/v1/create-qr-code/?data=${encodeURIComponent(user.id)}&size=200x200&format=png`}
                       alt="Check-in QR Code"
-                      className="mx-auto mb-3 border-2 border-zinc-300 rounded-lg"
+                      className="mx-auto rounded-lg"
                     />
                   ) : (
-                    <div className="w-[200px] h-[200px] bg-zinc-200 rounded-lg flex items-center justify-center mx-auto mb-3">
+                    <div className="w-[200px] h-[200px] bg-zinc-200 rounded-lg flex items-center justify-center mx-auto">
                       <span className="text-zinc-500 text-sm">Loading...</span>
                     </div>
                   )}
-                  <p className="text-xs text-zinc-600 font-mono break-all px-4">{user?.id || 'Loading...'}</p>
                 </div>
               </div>
 
-              <div className="bg-zinc-800 rounded-xl p-4 mb-4">
+              <div className="bg-zinc-800 rounded-xl p-5 mb-4 mt-1">
                 <div className="flex justify-between items-center mb-2">
                   <span className="text-zinc-400 text-sm">Name</span>
                   <span className="text-white font-bold">{profile?.name || 'Loading...'}</span>
@@ -322,7 +321,7 @@ const ClientHome = ({ user, logout, setView }) => {
 
               <button
                 onClick={() => setShowQRModal(false)}
-                className="w-full mt-6 bg-yellow-600 text-white font-bold py-3 rounded-lg hover:bg-yellow-500 active:scale-95 transition-all"
+                className="w-full mt-6 bg-yellow-600 text-black font-bold py-3 rounded-xl hover:bg-yellow-500 active:scale-95 transition-all shadow-lg shadow-yellow-600/20"
               >
                 CLOSE
               </button>
