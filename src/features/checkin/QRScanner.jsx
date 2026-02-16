@@ -21,11 +21,24 @@ const QRScanner = ({ setView }) => {
       const { data: userData } = await supabase.from('profiles').select('name').eq('id', decodedText).single();
 
       const remaining = data?.[0]?.remaining ?? 0;
+      const userName = userData?.name || '회원';
+      const isGoldenTime = remaining === 6;
+
+      if (isGoldenTime) {
+        await supabase.functions.invoke('send-admin-alert', {
+          body: {
+            heading: '⚠️ 재등록 골든타임 (D-6)',
+            message: `${userName}님이 6회 남았습니다. 성취도 분석을 준비하세요!`,
+          },
+        });
+      }
+
       setResult({
         success: true,
-        userName: userData?.name || '회원',
+        userName,
         message: `출석 완료 (잔여: ${remaining}회)`,
         remainingSessions: remaining,
+        isGoldenTime,
       });
     } catch (error) {
       console.log('QR Check-in error (full object):', error);
@@ -156,6 +169,11 @@ const QRScanner = ({ setView }) => {
                   <p className="font-bold text-green-400">{result.message}</p>
                   {result.remainingSessions != null && (
                     <p className="text-yellow-500 text-sm mt-2">남은 횟수: {result.remainingSessions}회</p>
+                  )}
+                  {result.isGoldenTime && (
+                    <p className="text-amber-400 text-sm mt-3 font-medium bg-amber-500/10 border border-amber-500/30 rounded-lg px-4 py-2">
+                      🔥 성취도 분석이 필요한 시점입니다! (관리자 알림 전송됨)
+                    </p>
                   )}
                 </>
               ) : (
