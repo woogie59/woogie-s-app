@@ -1,117 +1,79 @@
-// =============================================================================
-// send-admin-alert Edge Function
-// =============================================================================
-// Sends a OneSignal push notification to the admin when triggered (e.g.
-// Retention Golden Time: member has 6 sessions remaining).
-// Called from client via supabase.functions.invoke('send-admin-alert', { body: {...} })
-// =============================================================================
-
+import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-
-const ONESIGNAL_API = "https://onesignal.com/api/v1/notifications";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-Deno.serve(async (req: Request) => {
-  // Handle CORS preflight
+serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
   }
 
   try {
-    const supabaseUrl = Deno.env.get("SUPABASE_URL");
-    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
-    const appId = Deno.env.get("ONESIGNAL_APP_ID");
-    const restApiKey = Deno.env.get("ONESIGNAL_REST_API_KEY");
+    // Hardcoded V2 API Key and App ID
+    const ONESIGNAL_API_KEY =
+      "os_v2_app_7vsxhzq33bb27gbyhnmc62binkr6s52sbk2ewleerfu5r5ljdki6fetuejrgnni3iscroha7omz6hd23wrdhqllmzmompdmmkkvflpq";
+    const ONESIGNAL_APP_ID = "fd6573e6-1bd8-43af-9838-3b582f68286a";
 
-    if (!supabaseUrl || !supabaseServiceKey) {
-      return new Response(
-        JSON.stringify({ error: "Missing Supabase env vars" }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } },
-      );
-    }
+    const supabase = createClient(
+      Deno.env.get("SUPABASE_URL") ?? "",
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? ""
+    );
 
-    if (!appId || !restApiKey) {
-      return new Response(
-        JSON.stringify({ error: "Missing OneSignal env vars (ONESIGNAL_APP_ID, ONESIGNAL_REST_API_KEY)" }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } },
-      );
-    }
+    const { message, heading } = await req.json();
 
-    const { heading, message } = (await req.json()) as { heading?: string; message?: string };
-    if (!heading || !message) {
-      return new Response(
-        JSON.stringify({ error: "Missing heading or message in body" }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } },
-      );
-    }
-
-    const supabase = createClient(supabaseUrl, supabaseServiceKey);
-
-    // Fetch admin's OneSignal ID from profiles (role = 'admin')
-    const { data: adminProfile, error: adminError } = await supabase
+    // 1. Find Admin User
+    const { data: adminProfile } = await supabase
       .from("profiles")
       .select("onesignal_id")
       .eq("role", "admin")
-      .not("onesignal_id", "is", null)
       .limit(1)
       .maybeSingle();
 
-    if (adminError) {
-      console.error("[send-admin-alert] Admin fetch error:", adminError);
-      return new Response(
-        JSON.stringify({ error: adminError.message }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } },
-      );
+    if (!adminProfile?.onesignal_id) {
+      console.error("Admin ID Not Found");
+      throw new Error("관리자 ID를 찾을 수 없습니다.");
     }
 
-    const adminOsId = (adminProfile as { onesignal_id: string } | null)?.onesignal_id;
-    if (!adminOsId) {
-      return new Response(
-        JSON.stringify({ error: "No admin with onesignal_id found" }),
-        { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } },
-      );
-    }
+    console.log(`Sending alert to Admin ID: ${adminProfile.onesignal_id}`);
 
-    // Send OneSignal notification
-    const oneSignalRes = await fetch(ONESIGNAL_API, {
+    // 2. Send Notification via OneSignal
+    const res = await fetch("https://onesignal.com/api/v1/notifications", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        Authorization: `Basic ${restApiKey}`,
+        // FIXED: Using 'Key' instead of 'Basic' for V2 keys
+        Authorization: `Key ${ONESIGNAL_API_KEY}`,
       },
       body: JSON.stringify({
-        app_id: appId,
-        include_player_ids: [adminOsId],
-        headings: { en: heading },
+        app_id: ONESIGNAL_APP_ID,
+        include_player_ids: [adminProfile.onesignal_id],
+        headings: { en: heading || "📢 알림" },
         contents: { en: message },
       }),
     });
 
-    const oneSignalData = await oneSignalRes.json().catch(() => ({}));
+    const data = await res.json();
+    console.log("OneSignal Response:", data);
 
-    if (!oneSignalRes.ok) {
-      console.error("[send-admin-alert] OneSignal error:", oneSignalData);
-      return new Response(
-        JSON.stringify({
-          error: oneSignalData.errors?.[0] ?? oneSignalData.message ?? `OneSignal HTTP ${oneSignalRes.status}`,
-        }),
-        { status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" } },
-      );
+    if (data.errors) {
+      throw new Error(JSON.stringify(data.errors));
     }
 
+    return new Response(JSON.stringify(data), {
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+      status: 200,
+    });
+  } catch (error) {
+    console.error("Final Error:", (error as Error).message);
     return new Response(
-      JSON.stringify({ ok: true, notification_id: oneSignalData.id }),
-      { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
-    );
-  } catch (err) {
-    console.error("[send-admin-alert] Error:", err);
-    return new Response(
-      JSON.stringify({ error: String(err) }),
-      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      JSON.stringify({ error: (error as Error).message }),
+      {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 400,
+      }
     );
   }
 });
