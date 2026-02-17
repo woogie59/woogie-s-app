@@ -281,16 +281,16 @@ const ClientHome = ({ user, logout, setView }) => {
                 </button>
               </div>
 
-              <div className="bg-zinc-100 border-2 border-yellow-500/20 rounded-3xl p-8 mb-6 flex items-center justify-center min-h-[280px] shadow-[0_0_15px_rgba(234,179,8,0.2)]">
+              <div className="bg-transparent border border-yellow-500/30 rounded-3xl p-8 mb-6 flex items-center justify-center min-h-[280px] shadow-[0_0_25px_-5px_rgba(234,179,8,0.3)]">
                 <div className="text-center">
                   {user?.id ? (
                     <img
-                      src={`https://api.qrserver.com/v1/create-qr-code/?data=${encodeURIComponent(user.id)}&size=200x200&format=png`}
+                      src={`https://api.qrserver.com/v1/create-qr-code/?data=${encodeURIComponent(user.id)}&size=200x200&format=png&color=EAB308&bgcolor=18181b`}
                       alt="Check-in QR Code"
                       className="mx-auto rounded-lg"
                     />
                   ) : (
-                    <div className="w-[200px] h-[200px] bg-zinc-200 rounded-lg flex items-center justify-center mx-auto">
+                    <div className="w-[200px] h-[200px] bg-zinc-800/50 rounded-lg flex items-center justify-center mx-auto border border-zinc-700">
                       <span className="text-zinc-500 text-sm">Loading...</span>
                     </div>
                   )}
