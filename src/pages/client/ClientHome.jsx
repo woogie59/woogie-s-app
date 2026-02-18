@@ -281,23 +281,26 @@ const ClientHome = ({ user, logout, setView }) => {
                 </button>
               </div>
 
-              <div className="bg-transparent border border-yellow-500/30 rounded-3xl p-8 mb-6 flex items-center justify-center min-h-[280px] shadow-[0_0_25px_-5px_rgba(234,179,8,0.3)]">
-                <div className="text-center">
+              <div className="flex flex-col items-center mb-6">
+                <p className="text-[10px] text-yellow-500 tracking-[0.2em] uppercase font-medium mb-3">
+                  MEMBERSHIP PASS
+                </p>
+                <div className="bg-[#FFFEF5] border border-yellow-500/30 rounded-2xl p-8 shadow-2xl shadow-black/50 flex items-center justify-center w-full max-w-[280px]">
                   {user?.id ? (
                     <img
-                      src={`https://api.qrserver.com/v1/create-qr-code/?data=${encodeURIComponent(user.id)}&size=200x200&format=png&color=EAB308&bgcolor=18181b`}
+                      src={`https://api.qrserver.com/v1/create-qr-code/?data=${encodeURIComponent(user.id)}&size=200x200&format=png&color=18181b&bgcolor=fffef5`}
                       alt="Check-in QR Code"
-                      className="mx-auto rounded-lg"
+                      className="rounded-lg"
                     />
                   ) : (
-                    <div className="w-[200px] h-[200px] bg-zinc-800/50 rounded-lg flex items-center justify-center mx-auto border border-zinc-700">
+                    <div className="w-[200px] h-[200px] bg-zinc-200/80 rounded-lg flex items-center justify-center border border-zinc-300">
                       <span className="text-zinc-500 text-sm">Loading...</span>
                     </div>
                   )}
                 </div>
               </div>
 
-              <div className="bg-zinc-800 rounded-xl p-5 mb-4 mt-1">
+              <div className="bg-zinc-800 rounded-xl p-5 mb-4">
                 <div className="flex justify-between items-center mb-2">
                   <span className="text-zinc-400 text-sm">Name</span>
                   <span className="text-white font-bold">{profile?.name || 'Loading...'}</span>
