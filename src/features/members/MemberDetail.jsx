@@ -3,22 +3,20 @@ import { CreditCard, History, Plus, Calendar, Sparkles } from 'lucide-react';
 import { supabase } from '../../lib/supabaseClient';
 import { useGlobalModal } from '../../context/GlobalModalContext';
 import BackButton from '../../components/ui/BackButton';
+import AddSessionModal from './AddSessionModal';
 
 const MemberDetail = ({ selectedMemberId, setView }) => {
   const { showAlert, showConfirm } = useGlobalModal();
   const [u, setU] = useState(null);
   const [batches, setBatches] = useState([]);
-  const [addAmount, setAddAmount] = useState('');
-  const [priceInput, setPriceInput] = useState(0);
-  const [loading, setLoading] = useState(false);
   const [loadingBatches, setLoadingBatches] = useState(true);
   const [noteContent, setNoteContent] = useState('');
   const [isSavingNote, setIsSavingNote] = useState(false);
+  const [showAddModal, setShowAddModal] = useState(false);
 
   const fetchMemberDetails = async () => {
     const { data: userData } = await supabase.from('profiles').select('*').eq('id', selectedMemberId).single();
     setU(userData);
-    setPriceInput(userData?.price_per_session || 0);
 
     setLoadingBatches(true);
     const { data: batchData, error: batchError } = await supabase
@@ -69,47 +67,6 @@ const MemberDetail = ({ selectedMemberId, setView }) => {
     } finally {
       setIsSavingNote(false);
     }
-  };
-
-  const handleAddSession = () => {
-    if (!addAmount || isNaN(addAmount)) {
-      showAlert({ message: '세션 횟수를 입력해주세요.' });
-      return;
-    }
-    if (priceInput === null || priceInput === '' || isNaN(priceInput)) {
-      showAlert({ message: '유효한 단가를 입력해주세요.' });
-      return;
-    }
-
-    const sessionAmount = parseInt(addAmount);
-    const priceValue = parseInt(priceInput);
-
-    if (sessionAmount <= 0) {
-      showAlert({ message: '세션 횟수는 1 이상이어야 합니다.' });
-      return;
-    }
-    if (priceValue < 0) {
-      showAlert({ message: '단가는 0 이상이어야 합니다.' });
-      return;
-    }
-
-    const confirmMessage = `${u.name}님에게\n• 세션 ${sessionAmount}회 추가\n• 단가: ${priceValue.toLocaleString()}원/회\n\n새로운 티켓을 생성하시겠습니까?`;
-    showConfirm({
-      title: '티켓 추가',
-      message: confirmMessage,
-      confirmLabel: '생성',
-      onConfirm: async () => {
-        const { error } = await supabase.rpc('admin_add_session_batch', {
-          target_user_id: selectedMemberId,
-          sessions_to_add: sessionAmount,
-          price: priceValue,
-        });
-        if (error) throw new Error(error.message);
-        showAlert({ message: `✓ 새 티켓 추가 완료!\n• ${sessionAmount}회\n• ${priceValue.toLocaleString()}원/회` });
-        setAddAmount('');
-        await fetchMemberDetails();
-      },
-    });
   };
 
   if (!u)
@@ -224,41 +181,16 @@ const MemberDetail = ({ selectedMemberId, setView }) => {
             Add New Session Pack
           </h3>
 
-          <div className="space-y-3">
-            <div>
-              <label className="text-xs text-zinc-400 uppercase tracking-wider block mb-2">Sessions to Add</label>
-              <input
-                type="number"
-                placeholder="예: 10"
-                className="w-full bg-zinc-950 border border-zinc-800 rounded-lg p-3 text-white focus:border-yellow-600 outline-none transition-colors"
-                value={addAmount}
-                onChange={(e) => setAddAmount(e.target.value)}
-              />
-            </div>
-
-            <div>
-              <label className="text-xs text-zinc-400 uppercase tracking-wider block mb-2">Unit Price (KRW)</label>
-              <input
-                type="number"
-                placeholder="예: 50000"
-                className="w-full bg-zinc-950 border border-zinc-800 rounded-lg p-3 text-white focus:border-yellow-600 outline-none transition-colors"
-                value={priceInput}
-                onChange={(e) => setPriceInput(e.target.value)}
-              />
-            </div>
-          </div>
-
           <button
-            onClick={handleAddSession}
-            disabled={loading}
+            onClick={() => setShowAddModal(true)}
             className="w-full bg-yellow-600 text-white font-bold py-3 rounded-lg text-sm hover:bg-yellow-500 active:scale-95 transition-all disabled:opacity-50"
           >
-            {loading ? '처리 중...' : 'ADD SESSION PACK'}
+            OPEN SESSION PACK FORM
           </button>
 
           <p className="text-xs text-zinc-500 flex items-start gap-2">
             <Sparkles size={14} className="mt-0.5 flex-shrink-0" />
-            <span>새 티켓이 추가되며, 가장 오래된 티켓부터 소진됩니다 (FIFO)</span>
+            <span>계산은 시스템이 자동으로 수행해 입력 실수를 방지합니다. (Remaining, Price/Session 자동 계산)</span>
           </p>
         </div>
 
@@ -297,6 +229,14 @@ const MemberDetail = ({ selectedMemberId, setView }) => {
           </button>
         </div>
       </div>
+
+      {showAddModal && (
+        <AddSessionModal
+          userId={selectedMemberId}
+          onClose={() => setShowAddModal(false)}
+          onSaved={fetchMemberDetails}
+        />
+      )}
     </div>
   );
 };
