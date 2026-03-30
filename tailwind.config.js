@@ -6,14 +6,15 @@ export default {
   theme: {
     extend: {
       colors: {
-        'coach-bg': '#0f1115',
-        'coach-gold': {
-          500: '#d4af37',
-          300: '#f9e5af',
+        'coach-bg': '#FFFFFF',
+        // "Premium Performance Lab" brand accent (athletic green).
+        'coach-accent': {
+          500: '#059669', // emerald-600
+          300: '#10b981', // emerald-500
         },
       },
       backgroundImage: {
-        'gold-gradient': 'linear-gradient(135deg, #d4af37, #f9e5af)',
+        'accent-gradient': 'linear-gradient(135deg, #10b981, #059669)',
       },
     },
   },

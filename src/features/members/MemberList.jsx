@@ -19,19 +19,19 @@ const MemberList = ({ setView, setSelectedMemberId }) => {
   }, []);
 
   return (
-    <div className="min-h-[100dvh] bg-zinc-950 text-white p-6">
+    <div className="min-h-[100dvh] bg-white text-slate-900 p-6">
       <BackButton onClick={() => setView('admin_home')} label="Admin Home" />
 
       <header className="flex items-center justify-between mb-8">
         <div></div>
-        <h2 className="text-lg font-serif text-yellow-500">CLIENTS</h2>
+        <h2 className="text-lg font-serif text-emerald-600">CLIENTS</h2>
         <div className="w-6"></div>
       </header>
       <div className="space-y-4">
         {loading ? (
           <div className="space-y-4">
             {[1, 2, 3, 4, 5].map((i) => (
-              <div key={i} className="bg-zinc-900/50 rounded-xl border border-zinc-800 p-4 flex justify-between items-center">
+              <div key={i} className="bg-gray-50 rounded-xl border border-gray-200 p-4 flex justify-between items-center">
                 <div className="space-y-2">
                   <Skeleton className="h-5 w-32" />
                   <Skeleton className="h-3 w-48" />
@@ -54,23 +54,23 @@ const MemberList = ({ setView, setSelectedMemberId }) => {
                 setSelectedMemberId(u.id);
                 setView('member_detail');
               }}
-              className="bg-zinc-900 p-4 rounded-xl border border-zinc-800 flex justify-between items-center active:bg-zinc-800 hover:border-yellow-600/30 transition-colors cursor-pointer"
+              className="bg-white p-4 rounded-xl border border-gray-200 flex justify-between items-center active:bg-gray-100 hover:border-emerald-600/30 transition-colors cursor-pointer"
             >
               <div>
-                <h3 className="font-bold text-lg text-white">{u.name}</h3>
-                <p className="text-zinc-500 text-xs mt-1">{u.email}</p>
+                <h3 className="font-bold text-lg text-slate-900">{u.name}</h3>
+                <p className="text-gray-500 text-xs mt-1">{u.email}</p>
               </div>
               <div className="flex items-center gap-4">
                 <div className="text-right">
-                  <span className="block text-[10px] text-zinc-500 uppercase tracking-wider">Remaining</span>
-                  <span className="text-lg font-serif text-yellow-500">{u.remaining_sessions}</span>
+                  <span className="block text-[10px] text-gray-500 uppercase tracking-wider">Remaining</span>
+                  <span className="text-lg font-serif text-emerald-600">{u.remaining_sessions}</span>
                 </div>
-                <ChevronRight size={20} className="text-zinc-600" />
+                <ChevronRight size={20} className="text-gray-400" />
               </div>
             </div>
           ))
         ) : (
-          <div className="text-zinc-500 text-center py-10 flex flex-col items-center gap-2">
+          <div className="text-gray-500 text-center py-10 flex flex-col items-center gap-2">
             <User size={40} className="opacity-20" />
             <p>등록된 회원이 없습니다.</p>
           </div>

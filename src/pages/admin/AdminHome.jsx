@@ -34,25 +34,25 @@ const AdminHome = ({ setView, logout }) => {
   };
 
   return (
-    <div className="min-h-[100dvh] bg-zinc-950 text-white flex flex-col relative pb-safe">
+    <div className="min-h-[100dvh] bg-white text-slate-900 flex flex-col relative pb-safe">
       <header className="p-6 flex justify-between items-center">
         <div>
-          <h2 className="text-xl font-serif text-yellow-500">THE COACH</h2>
-          <p className="text-zinc-500 text-xs">Manager Mode</p>
+          <h2 className="text-xl font-serif text-emerald-600">THE COACH</h2>
+          <p className="text-gray-500 text-xs">Manager Mode</p>
         </div>
         <button onClick={logout}>
-          <LogOut size={20} className="text-zinc-600 hover:text-white transition-colors" />
+          <LogOut size={20} className="text-gray-600 hover:text-slate-900 transition-colors" />
         </button>
       </header>
       <div className="flex-1 flex flex-col items-center justify-center px-6 gap-8">
         <div className="relative group">
-          <div className="absolute -inset-1 bg-gradient-to-r from-yellow-600 to-amber-600 rounded-full blur opacity-25 group-hover:opacity-50 transition duration-1000"></div>
+          <div className="absolute -inset-1 bg-gradient-to-r from-emerald-600 to-green-600 rounded-full blur opacity-25 group-hover:opacity-50 transition duration-1000"></div>
           <button
             onClick={() => setView('scanner')}
-            className="relative w-48 h-48 rounded-full bg-zinc-900 border border-zinc-800 flex flex-col items-center justify-center gap-2 active:scale-95 transition-all shadow-2xl"
+            className="relative w-48 h-48 rounded-full bg-white border border-gray-200 flex flex-col items-center justify-center gap-2 active:scale-95 transition-all shadow-md"
           >
-            <Camera size={40} className="text-yellow-500" />
-            <span className="text-sm tracking-widest font-medium text-zinc-300">QR SCAN</span>
+            <Camera size={40} className="text-emerald-600" />
+            <span className="text-sm tracking-widest font-medium text-gray-600">QR SCAN</span>
           </button>
         </div>
         <div className="w-full max-w-xs space-y-2 mt-8">
@@ -62,7 +62,7 @@ const AdminHome = ({ setView, logout }) => {
           <ButtonGhost onClick={() => setView('admin_settings')}>⚙️ SETTINGS</ButtonGhost>
           <button
             onClick={handleForceSaveID}
-            className="w-full py-3 px-4 rounded-xl text-sm font-medium bg-zinc-800 border border-zinc-700 text-zinc-300 hover:bg-zinc-700 hover:border-yellow-500/30 transition-colors"
+            className="w-full py-3 px-4 rounded-xl text-sm font-medium bg-gray-100 border border-gray-200 text-gray-600 hover:bg-gray-50 hover:border-emerald-600/30 transition-colors"
           >
             🔔 알림 연동 확인
           </button>

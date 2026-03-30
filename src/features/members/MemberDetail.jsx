@@ -71,44 +71,44 @@ const MemberDetail = ({ selectedMemberId, setView }) => {
 
   if (!u)
     return (
-      <div className="min-h-[100dvh] bg-zinc-950 flex items-center justify-center text-zinc-500">Loading...</div>
+      <div className="min-h-[100dvh] bg-white flex items-center justify-center text-gray-500">Loading...</div>
     );
 
   return (
-    <div className="min-h-[100dvh] bg-zinc-950 text-white p-6 pb-20 relative">
+    <div className="min-h-[100dvh] bg-white text-slate-900 p-6 pb-20 relative">
       <BackButton onClick={() => setView('member_list')} label="Client List" />
 
       <header className="flex items-center justify-center mb-6">
-        <h2 className="text-lg font-serif text-yellow-500">{u?.name}</h2>
+        <h2 className="text-lg font-serif text-emerald-600">{u?.name}</h2>
       </header>
 
       <div className="space-y-6">
-        <div className="bg-gradient-to-br from-zinc-800 to-zinc-900 p-6 rounded-2xl border border-zinc-700/50 relative overflow-hidden shadow-xl">
+        <div className="bg-gradient-to-br from-gray-50 to-gray-100 p-6 rounded-2xl border border-gray-200 relative overflow-hidden shadow-md">
           <div className="relative z-10">
             <div className="flex justify-between items-end mb-2">
-              <span className="text-zinc-400 text-sm tracking-widest uppercase">Total Remaining</span>
-              <span className="text-4xl font-serif text-yellow-500">{totalRemaining}</span>
+              <span className="text-gray-500 text-sm tracking-widest uppercase">Total Remaining</span>
+              <span className="text-4xl font-serif text-emerald-600">{totalRemaining}</span>
             </div>
-            <p className="text-zinc-500 text-xs">{u.email}</p>
+            <p className="text-gray-600 text-xs">{u.email}</p>
             {batches.length > 0 && (
-              <p className="text-zinc-600 text-xs mt-1">
+              <p className="text-gray-600 text-xs mt-1">
                 {batches.length} active ticket{batches.length > 1 ? 's' : ''}
               </p>
             )}
           </div>
           <div className="absolute top-0 right-0 p-4 opacity-10">
-            <CreditCard size={100} className="text-white" />
+            <CreditCard size={100} className="text-emerald-600" />
           </div>
         </div>
 
-        <div className="bg-zinc-900 border border-zinc-800 p-5 rounded-xl space-y-4">
-          <h3 className="text-sm font-bold text-white flex items-center gap-2">
-            <History size={16} className="text-yellow-500" />
+        <div className="bg-white border border-gray-200 p-5 rounded-xl space-y-4 shadow-sm">
+          <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+            <History size={16} className="text-emerald-600" />
             Active Session Packs
           </h3>
 
           {loadingBatches ? (
-            <p className="text-zinc-500 text-center py-6">Loading tickets...</p>
+            <p className="text-gray-500 text-center py-6">Loading tickets...</p>
           ) : batches.length > 0 ? (
             <div className="space-y-3">
               {batches.map((batch, index) => {
@@ -121,31 +121,31 @@ const MemberDetail = ({ selectedMemberId, setView }) => {
                 return (
                   <div
                     key={batch.id}
-                    className={`bg-zinc-950 rounded-lg p-4 transition-all ${
-                      isInUse ? 'border-2 border-yellow-600/70 bg-yellow-600/5' : 'border border-zinc-800'
+                    className={`bg-white rounded-lg p-4 transition-all ${
+                      isInUse ? 'border-2 border-emerald-600/60 bg-emerald-600/5' : 'border border-gray-200'
                     }`}
                   >
                     <div className="flex justify-between items-start mb-3">
                       <div className="flex-1">
                         <div className="flex items-center gap-2 mb-2">
-                          <Calendar size={14} className={isInUse ? 'text-yellow-500' : 'text-zinc-500'} />
-                          <span className="text-sm text-zinc-400">{batchDate}</span>
+                          <Calendar size={14} className={isInUse ? 'text-emerald-600' : 'text-gray-500'} />
+                          <span className="text-sm text-gray-500">{batchDate}</span>
                           {isInUse && (
-                            <span className="text-xs bg-yellow-600 text-black font-bold px-2 py-0.5 rounded">IN USE</span>
+                            <span className="text-xs bg-emerald-600 text-white font-bold px-2 py-0.5 rounded">IN USE</span>
                           )}
                         </div>
 
                         <div className="flex items-center gap-6">
                           <div>
-                            <span className="text-xs text-zinc-500 block mb-1">🎫 Status</span>
-                            <span className="text-lg font-bold text-white">
+                            <span className="text-xs text-gray-500 block mb-1">🎫 Status</span>
+                            <span className="text-lg font-bold text-slate-900">
                               {batch.remaining_count} / {batch.total_count}
                             </span>
                           </div>
-                          <div className="h-10 w-px bg-zinc-800"></div>
+                          <div className="h-10 w-px bg-gray-200"></div>
                           <div>
-                            <span className="text-xs text-zinc-500 block mb-1">💰 Price</span>
-                            <span className="text-lg font-serif text-yellow-500">
+                            <span className="text-xs text-gray-500 block mb-1">💰 Price</span>
+                            <span className="text-lg font-serif text-emerald-600">
                               {batch.price_per_session.toLocaleString()}
                               <span className="text-xs ml-1">원</span>
                             </span>
@@ -154,9 +154,9 @@ const MemberDetail = ({ selectedMemberId, setView }) => {
                       </div>
                     </div>
 
-                    <div className="w-full bg-zinc-800 rounded-full h-2 overflow-hidden">
+                    <div className="w-full bg-gray-200 rounded-full h-2 overflow-hidden">
                       <div
-                        className={`h-full rounded-full transition-all ${isInUse ? 'bg-yellow-600' : 'bg-zinc-700'}`}
+                        className={`h-full rounded-full transition-all ${isInUse ? 'bg-emerald-600' : 'bg-gray-300'}`}
                         style={{ width: `${(batch.remaining_count / batch.total_count) * 100}%` }}
                       ></div>
                     </div>
@@ -165,65 +165,65 @@ const MemberDetail = ({ selectedMemberId, setView }) => {
               })}
             </div>
           ) : (
-            <div className="text-center py-8 border border-zinc-800 rounded-lg bg-zinc-950">
-              <CreditCard size={40} className="mx-auto mb-3 opacity-20 text-zinc-600" />
-              <p className="text-sm text-zinc-500 mb-1">No detailed purchase history available</p>
+            <div className="text-center py-8 border border-gray-200 rounded-lg bg-gray-50 shadow-sm">
+              <CreditCard size={40} className="mx-auto mb-3 opacity-20 text-gray-400" />
+              <p className="text-sm text-gray-600 mb-1">No detailed purchase history available</p>
               {u.remaining_sessions > 0 && (
-                <p className="text-xs text-zinc-600">(Showing legacy balance: {u.remaining_sessions} sessions)</p>
+                <p className="text-xs text-gray-600">(Showing legacy balance: {u.remaining_sessions} sessions)</p>
               )}
             </div>
           )}
         </div>
 
-        <div className="bg-zinc-900 border border-zinc-800 p-5 rounded-xl space-y-4">
-          <h3 className="text-sm font-bold text-white flex items-center gap-2">
-            <Plus size={16} className="text-yellow-500" />
+        <div className="bg-white border border-gray-200 p-5 rounded-xl space-y-4 shadow-sm">
+          <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+            <Plus size={16} className="text-emerald-600" />
             Add New Session Pack
           </h3>
 
           <button
             onClick={() => setShowAddModal(true)}
-            className="w-full bg-yellow-600 text-white font-bold py-3 rounded-lg text-sm hover:bg-yellow-500 active:scale-95 transition-all disabled:opacity-50"
+            className="w-full bg-emerald-600 text-white font-bold py-3 rounded-lg text-sm hover:bg-emerald-500 active:scale-95 transition-all disabled:opacity-50"
           >
             OPEN SESSION PACK FORM
           </button>
 
-          <p className="text-xs text-zinc-500 flex items-start gap-2">
+          <p className="text-xs text-gray-600 flex items-start gap-2">
             <Sparkles size={14} className="mt-0.5 flex-shrink-0" />
             <span>계산은 시스템이 자동으로 수행해 입력 실수를 방지합니다. (Remaining, Price/Session 자동 계산)</span>
           </p>
         </div>
 
-        <div className="pt-6 border-t border-zinc-800 space-y-4">
+        <div className="pt-6 border-t border-gray-200 space-y-4">
           <div>
-            <label className="text-xs text-zinc-500 uppercase tracking-widest block mb-1">Goal</label>
-            <p className="text-sm text-zinc-300 bg-zinc-900 p-3 rounded-lg border border-zinc-800">{u.goal || '등록된 목표가 없습니다.'}</p>
+            <label className="text-xs text-gray-600 uppercase tracking-widest block mb-1">Goal</label>
+            <p className="text-sm text-gray-700 bg-white p-3 rounded-lg border border-gray-200">{u.goal || '등록된 목표가 없습니다.'}</p>
           </div>
           <div className="flex gap-4">
             <div className="flex-1">
-              <label className="text-xs text-zinc-500 uppercase tracking-widest block mb-1">Birth</label>
-              <p className="text-sm text-zinc-300">{u.dob || '-'}</p>
+              <label className="text-xs text-gray-600 uppercase tracking-widest block mb-1">Birth</label>
+              <p className="text-sm text-gray-700">{u.dob || '-'}</p>
             </div>
             <div className="flex-1">
-              <label className="text-xs text-zinc-500 uppercase tracking-widest block mb-1">Gender</label>
-              <p className="text-sm text-zinc-300">{u.gender === 'M' ? 'Male' : 'Female'}</p>
+              <label className="text-xs text-gray-600 uppercase tracking-widest block mb-1">Gender</label>
+              <p className="text-sm text-gray-700">{u.gender === 'M' ? 'Male' : 'Female'}</p>
             </div>
           </div>
         </div>
 
-        <div className="pt-6 border-t border-zinc-800 space-y-4">
-          <h3 className="text-sm font-bold text-zinc-400 flex items-center gap-2">🔒 SECRET CRM (Private)</h3>
+        <div className="pt-6 border-t border-gray-200 space-y-4">
+          <h3 className="text-sm font-bold text-gray-600 flex items-center gap-2">🔒 SECRET CRM (Private)</h3>
           <textarea
             value={noteContent}
             onChange={(e) => setNoteContent(e.target.value)}
             placeholder="회원의 특이사항, 성취도 분석, 재등록 전략을 기록하세요."
             rows={6}
-            className="w-full bg-zinc-900 border border-zinc-800 rounded-xl p-4 text-white placeholder-zinc-500 focus:border-yellow-600 outline-none transition-colors resize-none"
+            className="w-full bg-white border border-gray-200 rounded-xl p-4 text-slate-900 placeholder-gray-400 focus:border-emerald-600 outline-none transition-colors resize-none"
           />
           <button
             onClick={handleSaveNote}
             disabled={isSavingNote}
-            className="w-full bg-zinc-800 hover:bg-yellow-600 text-white font-bold py-3 rounded-lg text-sm transition-all disabled:opacity-50"
+            className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-3 rounded-lg text-sm transition-all disabled:opacity-50"
           >
             {isSavingNote ? '저장 중...' : 'Save Note'}
           </button>

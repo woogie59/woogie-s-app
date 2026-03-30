@@ -19,6 +19,15 @@ const clampInt = (v: unknown) => {
   return Math.max(0, Math.floor(n));
 };
 
+type NumericInput = '' | string;
+
+const toNumericInput = (n: unknown): NumericInput => {
+  const v = clampInt(n);
+  return v === 0 ? '' : String(v);
+};
+
+const toNumberOrZero = (v: NumericInput) => (v === '' ? 0 : clampInt(v));
+
 export default function AddSessionModal({
   userId,
   onClose,
@@ -28,20 +37,24 @@ export default function AddSessionModal({
   initialUsedSessions = 0,
 }: Props) {
   const { showAlert } = useGlobalModal();
-  const [totalPrice, setTotalPrice] = useState<number>(clampInt(initialTotalPrice));
-  const [totalSessions, setTotalSessions] = useState<number>(clampInt(initialTotalSessions));
-  const [usedSessions, setUsedSessions] = useState<number>(clampInt(initialUsedSessions));
+  const [totalPrice, setTotalPrice] = useState<NumericInput>(toNumericInput(initialTotalPrice));
+  const [totalSessions, setTotalSessions] = useState<NumericInput>(toNumericInput(initialTotalSessions));
+  const [usedSessions, setUsedSessions] = useState<NumericInput>(toNumericInput(initialUsedSessions));
   const [saving, setSaving] = useState(false);
 
   const { remainingSessions, pricePerSession, error } = useMemo(() => {
-    const remainingSessions = Math.max(0, totalSessions - usedSessions);
-    const pricePerSession = totalSessions > 0 ? Math.round(totalPrice / totalSessions) : 0;
+    const totalPriceN = toNumberOrZero(totalPrice);
+    const totalSessionsN = toNumberOrZero(totalSessions);
+    const usedSessionsN = toNumberOrZero(usedSessions);
+
+    const remainingSessions = Math.max(0, totalSessionsN - usedSessionsN);
+    const pricePerSession = totalSessionsN > 0 ? Math.round(totalPriceN / totalSessionsN) : 0;
 
     let error = '';
     if (!userId) error = 'Missing user id.';
-    else if (totalSessions <= 0) error = 'Total Sessions must be at least 1.';
-    else if (usedSessions > totalSessions) error = 'Used Sessions cannot be greater than Total Sessions.';
-    else if (totalPrice < 0) error = 'Total Price cannot be negative.';
+    else if (totalSessionsN <= 0) error = 'Total Sessions must be at least 1.';
+    else if (usedSessionsN > totalSessionsN) error = 'Used Sessions cannot be greater than Total Sessions.';
+    else if (totalPriceN < 0) error = 'Total Price cannot be negative.';
 
     return { remainingSessions, pricePerSession, error };
   }, [totalPrice, totalSessions, usedSessions, userId]);
@@ -55,9 +68,11 @@ export default function AddSessionModal({
     }
     setSaving(true);
     try {
+      const totalPriceN = toNumberOrZero(totalPrice);
+      const totalSessionsN = toNumberOrZero(totalSessions);
       const { error: insertError } = await supabase.from('session_batches').insert({
         user_id: userId,
-        total_count: totalSessions,
+        total_count: totalSessionsN,
         remaining_count: remainingSessions,
         price_per_session: pricePerSession,
       });
@@ -80,7 +95,7 @@ export default function AddSessionModal({
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
-        className="fixed inset-0 z-[100] flex items-end justify-center sm:items-center sm:p-6 bg-black/80"
+        className="fixed inset-0 z-[100] flex items-end justify-center sm:items-center sm:p-6 bg-gray-900/20"
         onClick={onClose}
       >
         <motion.div
@@ -88,17 +103,17 @@ export default function AddSessionModal({
           animate={{ y: 0, opacity: 1, scale: 1 }}
           exit={{ y: 40, opacity: 0, scale: 0.98 }}
           transition={{ type: 'spring', damping: 24, stiffness: 220 }}
-          className="w-full max-w-md bg-zinc-900 border border-yellow-500/20 rounded-2xl shadow-2xl shadow-black/50 p-6"
+          className="w-full max-w-md bg-white border border-emerald-600/20 rounded-2xl shadow-xl shadow-black/10 p-6"
           onClick={(e) => e.stopPropagation()}
         >
           <div className="flex items-center justify-between mb-5">
             <div>
-              <p className="text-[10px] tracking-[0.2em] uppercase text-zinc-500">Admin</p>
-              <h3 className="text-xl font-serif text-yellow-500">Add Session Pack</h3>
+              <p className="text-[10px] tracking-[0.2em] uppercase text-gray-500">Admin</p>
+              <h3 className="text-xl font-serif text-emerald-600">Add Session Pack</h3>
             </div>
             <button
               onClick={onClose}
-              className="p-2 rounded-lg text-zinc-500 hover:text-white hover:bg-zinc-800 transition"
+              className="p-2 rounded-lg text-gray-500 hover:text-emerald-700 hover:bg-gray-100 transition"
               aria-label="Close"
             >
               <X size={20} />
@@ -107,13 +122,13 @@ export default function AddSessionModal({
 
           <div className="space-y-4">
             <div>
-              <label className="text-xs text-zinc-400 uppercase tracking-wider block mb-2">Total Price</label>
+              <label className="text-xs text-gray-600 uppercase tracking-wider block mb-2">Total Price</label>
               <input
                 type="number"
                 inputMode="numeric"
-                className="w-full bg-zinc-950 border border-zinc-800 rounded-xl p-3 text-white focus:border-yellow-600 outline-none transition-colors"
+                className="w-full bg-gray-50 border border-gray-200 rounded-xl p-3 text-slate-900 focus:border-emerald-600 outline-none transition-colors"
                 value={totalPrice}
-                onChange={(e) => setTotalPrice(clampInt(e.target.value))}
+                onChange={(e) => setTotalPrice(e.target.value === '' ? '' : String(clampInt(e.target.value)))}
                 placeholder="e.g. 500000"
                 min={0}
               />
@@ -121,51 +136,53 @@ export default function AddSessionModal({
 
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="text-xs text-zinc-400 uppercase tracking-wider block mb-2">Total Sessions</label>
+                <label className="text-xs text-gray-600 uppercase tracking-wider block mb-2">Total Sessions</label>
                 <input
                   type="number"
                   inputMode="numeric"
-                  className={`w-full bg-zinc-950 border rounded-xl p-3 text-white outline-none transition-colors ${
-                    error && totalSessions <= 0 ? 'border-red-500/70 focus:border-red-500' : 'border-zinc-800 focus:border-yellow-600'
+                  className={`w-full bg-gray-50 border rounded-xl p-3 text-slate-900 outline-none transition-colors ${
+                    error && toNumberOrZero(totalSessions) <= 0 ? 'border-red-500/70 focus:border-red-500' : 'border-gray-200 focus:border-emerald-600'
                   }`}
                   value={totalSessions}
-                  onChange={(e) => setTotalSessions(clampInt(e.target.value))}
+                  onChange={(e) => setTotalSessions(e.target.value === '' ? '' : String(clampInt(e.target.value)))}
                   placeholder="e.g. 10"
                   min={0}
                 />
               </div>
               <div>
-                <label className="text-xs text-zinc-400 uppercase tracking-wider block mb-2">Used Sessions</label>
+                <label className="text-xs text-gray-600 uppercase tracking-wider block mb-2">Used Sessions</label>
                 <input
                   type="number"
                   inputMode="numeric"
-                  className={`w-full bg-zinc-950 border rounded-xl p-3 text-white outline-none transition-colors ${
-                    usedSessions > totalSessions ? 'border-red-500/70 focus:border-red-500' : 'border-zinc-800 focus:border-yellow-600'
+                  className={`w-full bg-gray-50 border rounded-xl p-3 text-slate-900 outline-none transition-colors ${
+                    toNumberOrZero(usedSessions) > toNumberOrZero(totalSessions)
+                      ? 'border-red-500/70 focus:border-red-500'
+                      : 'border-gray-200 focus:border-emerald-600'
                   }`}
                   value={usedSessions}
-                  onChange={(e) => setUsedSessions(clampInt(e.target.value))}
+                  onChange={(e) => setUsedSessions(e.target.value === '' ? '' : String(clampInt(e.target.value)))}
                   placeholder="0"
                   min={0}
                 />
               </div>
             </div>
 
-            <div className="bg-zinc-800/40 border border-zinc-700/60 rounded-2xl p-4">
-              <p className="text-[10px] tracking-[0.2em] uppercase text-zinc-500 mb-3">Auto-calculated</p>
+            <div className="bg-gray-50 border border-gray-200 rounded-2xl p-4">
+              <p className="text-[10px] tracking-[0.2em] uppercase text-gray-500 mb-3">Auto-calculated</p>
               <div className="grid grid-cols-2 gap-3">
-                <div className="bg-zinc-950/50 border border-zinc-800 rounded-xl p-3">
-                  <p className="text-xs text-zinc-500 mb-1">Remaining Sessions</p>
-                  <p className="text-lg font-serif text-white">{fmt(remainingSessions)}</p>
+                <div className="bg-white border border-gray-200 rounded-xl p-3">
+                  <p className="text-xs text-gray-500 mb-1">Remaining Sessions</p>
+                  <p className="text-lg font-serif text-slate-900">{fmt(remainingSessions)}</p>
                 </div>
-                <div className="bg-zinc-950/50 border border-zinc-800 rounded-xl p-3">
-                  <p className="text-xs text-zinc-500 mb-1">Price / Session</p>
-                  <p className="text-lg font-serif text-white">{fmt(pricePerSession)}</p>
+                <div className="bg-white border border-gray-200 rounded-xl p-3">
+                  <p className="text-xs text-gray-500 mb-1">Price / Session</p>
+                  <p className="text-lg font-serif text-slate-900">{fmt(pricePerSession)}</p>
                 </div>
               </div>
             </div>
 
             {error && (
-              <div className="bg-red-950/40 border border-red-500/30 rounded-xl px-4 py-3 text-sm text-red-200">
+              <div className="bg-red-50 border border-red-200 rounded-xl px-4 py-3 text-sm text-red-700">
                 {error}
               </div>
             )}
@@ -173,14 +190,14 @@ export default function AddSessionModal({
             <button
               onClick={handleSave}
               disabled={!!error || saving}
-              className="w-full bg-yellow-600 text-black font-bold py-3 rounded-xl hover:bg-yellow-500 active:scale-[0.99] transition disabled:opacity-50 disabled:hover:bg-yellow-600"
+              className="w-full bg-emerald-600 text-white font-bold py-3 rounded-xl hover:bg-emerald-500 active:scale-[0.99] transition disabled:opacity-50 disabled:hover:bg-emerald-600"
             >
               {saving ? 'Saving...' : 'Save Session Pack'}
             </button>
 
-            <p className="text-xs text-zinc-500 leading-relaxed">
-              Remaining Sessions is computed as <span className="text-zinc-300">Total Sessions − Used Sessions</span>. Price per session is{' '}
-              <span className="text-zinc-300">Total Price ÷ Total Sessions</span>.
+            <p className="text-xs text-gray-600 leading-relaxed">
+              Remaining Sessions is computed as <span className="text-gray-900">Total Sessions − Used Sessions</span>. Price per session is{' '}
+              <span className="text-gray-900">Total Price ÷ Total Sessions</span>.
             </p>
           </div>
         </motion.div>

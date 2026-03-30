@@ -6,7 +6,7 @@ import React from 'react';
  */
 const Skeleton = ({ className = '' }) => (
   <div
-    className={`bg-zinc-800/50 rounded-md animate-skeleton-pulse ${className}`}
+    className={`bg-gray-200/60 rounded-md animate-skeleton-pulse ${className}`}
   />
 );
 

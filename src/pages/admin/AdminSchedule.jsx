@@ -95,17 +95,17 @@ const AdminSchedule = ({ setView }) => {
   };
 
   return (
-    <div className="min-h-[100dvh] bg-zinc-950 text-white p-6 pb-20">
+    <div className="min-h-[100dvh] bg-white text-slate-900 p-6 pb-20">
       <BackButton onClick={() => setView('admin_home')} label="Admin Home" />
 
       <header className="flex items-center justify-center mb-6">
-        <h2 className="text-lg font-serif text-yellow-500">ALL SCHEDULES</h2>
+        <h2 className="text-lg font-serif text-emerald-600">ALL SCHEDULES</h2>
       </header>
 
       {loading ? (
         <div className="space-y-3">
           {[1, 2, 3, 4, 5].map((i) => (
-            <div key={i} className="bg-zinc-900/50 rounded-xl border border-zinc-800 overflow-hidden p-4">
+            <div key={i} className="bg-gray-50 rounded-xl border border-gray-200 overflow-hidden p-4 shadow-sm">
               <div className="flex items-center justify-between gap-4">
                 <div className="flex items-center gap-3">
                   <Skeleton className="h-5 w-5 rounded shrink-0" />
@@ -127,31 +127,31 @@ const AdminSchedule = ({ setView }) => {
             const dayBookings = bookingsByDate[dateKey] || [];
             const isExpanded = expandedScheduleDates.has(dateKey);
             return (
-              <div key={dateKey} className="bg-zinc-900 rounded-xl border border-zinc-800 overflow-hidden">
+              <div key={dateKey} className="bg-white rounded-xl border border-gray-200 overflow-hidden shadow-sm">
                 <button
                   onClick={() => toggleScheduleDateExpanded(dateKey)}
-                  className="w-full flex items-center justify-between gap-4 px-4 py-3 hover:bg-zinc-800/50 transition-colors text-left"
+                  className="w-full flex items-center justify-between gap-4 px-4 py-3 hover:bg-gray-100/70 transition-colors text-left"
                 >
                   <div className="flex items-center gap-3">
-                    <Calendar size={18} className="text-yellow-500 shrink-0" />
-                    <span className="font-bold text-white">{dateKey}</span>
-                    <span className="text-zinc-500 text-sm">({dayBookings.length} bookings)</span>
+                    <Calendar size={18} className="text-emerald-600 shrink-0" />
+                    <span className="font-bold text-slate-900">{dateKey}</span>
+                    <span className="text-gray-500 text-sm">({dayBookings.length} bookings)</span>
                   </div>
-                  {isExpanded ? <ChevronUp size={20} className="text-zinc-400" /> : <ChevronDown size={20} className="text-zinc-400" />}
+                  {isExpanded ? <ChevronUp size={20} className="text-gray-400" /> : <ChevronDown size={20} className="text-gray-400" />}
                 </button>
                 {isExpanded && (
-                  <div className="border-t border-zinc-800 divide-y divide-zinc-800">
+                  <div className="border-t border-gray-200 divide-y divide-gray-200">
                     {dayBookings.map((booking) => (
                       <div
                         key={booking.id}
-                        className="flex justify-between items-center gap-4 p-4 bg-zinc-900/50 hover:bg-zinc-800/30 transition-colors"
+                        className="flex justify-between items-center gap-4 p-4 bg-gray-50/70 hover:bg-gray-100 transition-colors"
                       >
                         <div className="flex-1 min-w-0">
-                          <h3 className="font-bold text-white truncate">{booking.profiles?.name || 'Unknown User'}</h3>
-                          <p className="text-zinc-500 text-xs truncate">{booking.profiles?.email || '-'}</p>
+                          <h3 className="font-bold text-slate-900 truncate">{booking.profiles?.name || 'Unknown User'}</h3>
+                          <p className="text-gray-500 text-xs truncate">{booking.profiles?.email || '-'}</p>
                         </div>
                         <div className="flex items-center gap-3 shrink-0">
-                          <div className="flex items-center gap-2 text-yellow-500 font-mono text-sm">
+                          <div className="flex items-center gap-2 text-emerald-600 font-mono text-sm">
                             <Clock size={14} />
                             <span>{toTime24h(booking.time)}</span>
                           </div>
@@ -165,7 +165,7 @@ const AdminSchedule = ({ setView }) => {
                               )
                             }
                             disabled={cancelling === booking.id}
-                            className="p-2 rounded-lg bg-red-600/20 border border-red-600/30 text-red-500 hover:bg-red-600/30 active:scale-95 transition-all disabled:opacity-50"
+                            className="p-2 rounded-lg bg-red-50 border border-red-200 text-red-700 hover:bg-red-100 active:scale-95 transition-all disabled:opacity-50"
                           >
                             <Trash2 size={18} />
                           </button>
@@ -180,9 +180,9 @@ const AdminSchedule = ({ setView }) => {
         </div>
       ) : (
         <div className="flex flex-col items-center justify-center py-20 text-center">
-          <Calendar size={64} className="text-zinc-700 mb-4" />
-          <h3 className="text-xl font-bold text-zinc-500 mb-2">No Bookings</h3>
-          <p className="text-sm text-zinc-600">No scheduled classes yet</p>
+          <Calendar size={64} className="text-gray-300 mb-4" />
+          <h3 className="text-xl font-bold text-gray-500 mb-2">No Bookings</h3>
+          <p className="text-sm text-gray-600">No scheduled classes yet</p>
         </div>
       )}
 
@@ -192,7 +192,7 @@ const AdminSchedule = ({ setView }) => {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60"
+            className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-gray-900/20"
             style={{ backdropFilter: 'blur(8px)' }}
           >
             <motion.div
@@ -200,10 +200,10 @@ const AdminSchedule = ({ setView }) => {
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.98 }}
               transition={{ duration: 0.25, ease: [0.25, 0.46, 0.45, 0.94] }}
-              className="bg-zinc-900 border border-yellow-500/30 rounded-2xl shadow-2xl shadow-black/50 p-6 max-w-sm w-full"
+              className="bg-white border border-emerald-600/20 rounded-2xl shadow-xl shadow-black/10 p-6 max-w-sm w-full"
             >
-              <h3 className="text-lg font-serif text-yellow-500 mb-2">예약 취소</h3>
-              <p className="text-zinc-400 text-sm mb-6">
+              <h3 className="text-lg font-serif text-emerald-600 mb-2">예약 취소</h3>
+              <p className="text-gray-600 text-sm mb-6">
                 {bookingToDelete.userName}님의 {bookingToDelete.date} {bookingToDelete.time} 예약을 취소할까요?
               </p>
               <div className="flex gap-3 justify-end">
@@ -212,14 +212,14 @@ const AdminSchedule = ({ setView }) => {
                     setIsCancelModalOpen(false);
                     setBookingToDelete(null);
                   }}
-                  className="px-6 py-3 rounded-xl text-zinc-400 hover:text-white hover:bg-zinc-800 transition-all font-medium min-w-[80px]"
+                  className="px-6 py-3 rounded-xl text-gray-600 hover:text-emerald-700 hover:bg-gray-100 transition-all font-medium min-w-[80px]"
                 >
                   취소
                 </button>
                 <button
                   onClick={confirmCancelAction}
                   disabled={cancelling === bookingToDelete.id}
-                  className="px-6 py-3 rounded-xl bg-yellow-600 text-black font-bold hover:bg-yellow-500 transition-all disabled:opacity-50 min-w-[80px]"
+                  className="px-6 py-3 rounded-xl bg-emerald-600 text-white font-bold hover:bg-emerald-500 transition-all disabled:opacity-50 min-w-[80px]"
                 >
                   {cancelling === bookingToDelete.id ? '처리 중...' : '예, 취소할게요'}
                 </button>

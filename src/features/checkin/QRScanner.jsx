@@ -22,7 +22,8 @@ const QRScanner = ({ setView }) => {
 
       const remaining = data?.[0]?.remaining ?? 0;
       const userName = userData?.name || '회원';
-      const isGoldenTime = remaining === 6;
+      // Golden Time (D-6): 6회 이하로 남았을 때 관리자 알림 강조
+      const isGoldenTime = remaining <= 6;
 
       if (isGoldenTime) {
         await supabase.functions.invoke('send-admin-alert', {
@@ -118,32 +119,32 @@ const QRScanner = ({ setView }) => {
   }, []);
 
   return (
-    <div className="min-h-[100dvh] bg-zinc-950 text-white flex flex-col relative">
+    <div className="min-h-[100dvh] bg-white text-slate-900 flex flex-col relative">
       <button
         onClick={async () => {
           await stopScanner();
           setView('admin_home');
         }}
-        className="absolute top-6 left-6 z-50 text-zinc-400 hover:text-white border border-zinc-700 px-4 py-2 rounded-xl bg-zinc-900/80"
+        className="absolute top-6 left-6 z-50 text-gray-600 hover:text-emerald-700 border border-gray-200 px-4 py-2 rounded-xl bg-white/80 backdrop-blur"
       >
         ← Back
       </button>
 
       <div className="flex-1 flex flex-col items-center justify-center p-6">
-        <h2 className="text-2xl font-bold text-yellow-500 mb-4">QR CHECK-IN</h2>
-        <p className="text-zinc-500 text-sm mb-6">회원 QR 코드를 카메라에 맞춰주세요</p>
+        <h2 className="text-2xl font-bold text-emerald-600 mb-4">QR CHECK-IN</h2>
+        <p className="text-gray-500 text-sm mb-6">회원 QR 코드를 카메라에 맞춰주세요</p>
 
         {cameraError ? (
           <div className="w-full max-w-sm text-center">
-            <p className="text-red-500 mb-4">{cameraError}</p>
-            <button onClick={startScanner} className="bg-yellow-600 text-black font-bold py-3 px-6 rounded-xl">
+            <p className="text-red-600 mb-4">{cameraError}</p>
+            <button onClick={startScanner} className="bg-emerald-600 text-white font-bold py-3 px-6 rounded-xl">
               재시도
             </button>
           </div>
         ) : (
           <div className="w-full max-w-md">
-            <div id="reader" className="rounded-2xl overflow-hidden border-2 border-yellow-500/50" />
-            <p className="text-zinc-500 text-xs text-center mt-4">스캔 영역 안에 QR을 맞춰주세요</p>
+            <div id="reader" className="rounded-2xl overflow-hidden border-2 border-emerald-600/50" />
+            <p className="text-gray-500 text-xs text-center mt-4">스캔 영역 안에 QR을 맞춰주세요</p>
           </div>
         )}
       </div>
@@ -160,30 +161,32 @@ const QRScanner = ({ setView }) => {
               initial={{ scale: 0.9 }}
               animate={{ scale: 1 }}
               exit={{ scale: 0.9 }}
-              className={`w-full max-w-sm p-8 rounded-2xl text-center border-2 ${result.success ? 'bg-zinc-900 border-green-500' : 'bg-zinc-900 border-red-500'}`}
+              className={`w-full max-w-sm p-8 rounded-2xl text-center border-2 ${
+                result.success ? 'bg-white border-emerald-600/60' : 'bg-white border-red-200'
+              }`}
             >
               {result.success ? (
                 <>
-                  <CheckCircle size={64} className="text-green-500 mx-auto mb-4" />
-                  <h3 className="text-xl font-bold text-white mb-2">{result.userName || '알림'}</h3>
-                  <p className="font-bold text-green-400">{result.message}</p>
+                  <CheckCircle size={64} className="text-emerald-600 mx-auto mb-4" />
+                  <h3 className="text-xl font-bold text-slate-900 mb-2">{result.userName || '알림'}</h3>
+                  <p className="font-bold text-emerald-700">{result.message}</p>
                   {result.remainingSessions != null && (
-                    <p className="text-yellow-500 text-sm mt-2">남은 횟수: {result.remainingSessions}회</p>
+                    <p className="text-emerald-600 text-sm mt-2">남은 횟수: {result.remainingSessions}회</p>
                   )}
                   {result.isGoldenTime && (
-                    <p className="text-amber-400 text-sm mt-3 font-medium bg-amber-500/10 border border-amber-500/30 rounded-lg px-4 py-2">
+                    <p className="text-amber-700 text-sm mt-3 font-medium bg-amber-500/10 border border-emerald-600/30 rounded-lg px-4 py-2">
                       🔥 성취도 분석이 필요한 시점입니다! (관리자 알림 전송됨)
                     </p>
                   )}
                 </>
               ) : (
                 <>
-                  <XCircle size={64} className="text-red-500 mx-auto mb-4" />
-                  <h3 className="text-lg font-bold text-red-400 mb-3">출석 실패</h3>
-                  <p className="text-base font-semibold text-white leading-relaxed bg-red-950/50 border border-red-500/50 rounded-xl px-4 py-4">
+                  <XCircle size={64} className="text-red-600 mx-auto mb-4" />
+                  <h3 className="text-lg font-bold text-red-700 mb-3">출석 실패</h3>
+                  <p className="text-base font-semibold text-red-800 leading-relaxed bg-red-50 border border-red-200 rounded-xl px-4 py-4">
                     {result.message}
                   </p>
-                  <p className="text-zinc-500 text-xs mt-3">위 사유를 회원에게 안내해주세요</p>
+                  <p className="text-gray-500 text-xs mt-3">위 사유를 회원에게 안내해주세요</p>
                 </>
               )}
               <button
@@ -191,7 +194,7 @@ const QRScanner = ({ setView }) => {
                   setResult(null);
                   resumeScanner();
                 }}
-                className="mt-6 w-full bg-zinc-800 hover:bg-zinc-700 text-white py-3 rounded-xl font-bold"
+                className="mt-6 w-full bg-emerald-600 hover:bg-emerald-500 text-white py-3 rounded-xl font-bold"
               >
                 확인
               </button>

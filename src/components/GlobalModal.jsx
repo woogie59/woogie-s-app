@@ -20,12 +20,12 @@ const GlobalModal = ({ isOpen, title, message, type = 'alert', onConfirm, onClos
             animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0, scale: 0.98 }}
             transition={{ duration: 0.25, ease: [0.25, 0.46, 0.45, 0.94] }}
-            className="w-full max-w-md bg-zinc-900/95 border border-yellow-600/30 rounded-2xl shadow-2xl shadow-black/50 p-6 backdrop-blur-xl"
+            className="w-full max-w-md bg-white/95 border border-emerald-600/20 rounded-2xl shadow-xl shadow-black/10 p-6 backdrop-blur-xl"
           >
             {title && (
-              <h3 className="text-lg font-serif text-yellow-500 mb-2">{title}</h3>
+              <h3 className="text-lg font-serif text-emerald-600 mb-2">{title}</h3>
             )}
-            <p className="text-zinc-300 text-sm leading-relaxed mb-6 whitespace-pre-line">
+            <p className="text-gray-600 text-sm leading-relaxed mb-6 whitespace-pre-line">
               {message}
             </p>
             <div className={`flex gap-3 ${isConfirm ? 'justify-end' : 'justify-center'}`}>
@@ -33,7 +33,7 @@ const GlobalModal = ({ isOpen, title, message, type = 'alert', onConfirm, onClos
                 <button
                   onClick={onClose}
                   disabled={loading}
-                  className="px-6 py-3 rounded-xl text-zinc-400 hover:text-white hover:bg-zinc-800 transition-all font-medium min-w-[80px]"
+                  className="px-6 py-3 rounded-xl text-gray-600 hover:text-emerald-700 hover:bg-gray-100 transition-all font-medium min-w-[80px]"
                 >
                   {cancelLabel ?? '취소'}
                 </button>
@@ -45,7 +45,7 @@ const GlobalModal = ({ isOpen, title, message, type = 'alert', onConfirm, onClos
                   else onClose?.();
                 }}
                 disabled={loading}
-                className="px-6 py-3 rounded-xl font-medium text-white bg-gradient-to-r from-amber-600 to-yellow-600 hover:from-amber-500 hover:to-yellow-500 active:scale-[0.98] transition-all shadow-lg shadow-amber-900/20 border border-yellow-600/30 disabled:opacity-60 min-w-[80px]"
+                className="px-6 py-3 rounded-xl font-medium text-white bg-gradient-to-r from-emerald-600 to-emerald-700 hover:from-emerald-500 hover:to-emerald-600 active:scale-[0.98] transition-all shadow-lg shadow-emerald-900/20 border border-emerald-600/30 disabled:opacity-60 min-w-[80px]"
               >
                 {loading ? '처리 중...' : (confirmLabel ?? (isConfirm ? '확인' : '확인'))}
               </button>
