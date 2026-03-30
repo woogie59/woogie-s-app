@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { QrCode, LogOut, X, Sparkles, ChevronLeft, ChevronRight, Trash2, History } from 'lucide-react';
+import { QrCode, LogOut, X, ChevronLeft, ChevronRight, Trash2, History } from 'lucide-react';
 import { supabase } from '../../lib/supabaseClient';
 import { useGlobalModal } from '../../context/GlobalModalContext';
 import ButtonGhost from '../../components/ui/ButtonGhost';
@@ -307,7 +307,7 @@ const ClientHome = ({ user, logout, setView }) => {
                 </div>
               </div>
 
-              <div className="bg-gray-50 rounded-xl p-5 mb-4 border border-gray-200">
+              <div className="bg-gray-50 rounded-xl p-5 border border-gray-200">
                 <div className="flex justify-between items-center mb-2">
                   <span className="text-gray-600 text-sm">Name</span>
                   <span className="text-slate-900 font-bold">{profile?.name || 'Loading...'}</span>
@@ -318,18 +318,8 @@ const ClientHome = ({ user, logout, setView }) => {
                 </div>
               </div>
 
-              <div className="bg-gray-50/70 rounded-lg p-4 border border-gray-200">
-                <div className="flex items-start gap-3">
-                  <Sparkles size={20} className="text-emerald-600 mt-0.5 flex-shrink-0" />
-                  <div>
-                    <p className="text-xs text-gray-600 leading-relaxed">
-                      관리자에게 이 화면을 보여주세요. QR 스캔 시 자동으로 세션이 차감됩니다.
-                    </p>
-                  </div>
-                </div>
-              </div>
-
               <button
+                type="button"
                 onClick={() => setShowQRModal(false)}
                 className="w-full mt-6 bg-emerald-600 text-white font-bold py-3 rounded-xl hover:bg-emerald-500 active:scale-95 transition-all shadow-md shadow-emerald-600/20"
               >
