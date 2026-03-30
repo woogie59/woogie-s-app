@@ -227,7 +227,6 @@ const ClientHome = ({ user, logout, setView }) => {
           <ButtonGhost onClick={() => setView('library')}>LIBRARY</ButtonGhost>
           <ButtonGhost onClick={() => setView('class_booking')}>CLASS BOOKING</ButtonGhost>
           <ButtonGhost onClick={handleOpenSchedule}>MY SCHEDULE</ButtonGhost>
-          <ButtonGhost onClick={() => setView('macro_calculator')}>MACRO CALCULATOR</ButtonGhost>
         </div>
 
         <button
@@ -251,7 +250,15 @@ const ClientHome = ({ user, logout, setView }) => {
             </div>
           )}
         </button>
-        <button onClick={() => setView('admin_home')}>Admin Home</button>
+        {profile?.role === 'admin' && (
+          <button
+            type="button"
+            onClick={() => setView('admin_home')}
+            className="absolute bottom-6 right-6 text-[10px] tracking-widest uppercase text-gray-400 hover:text-emerald-600 transition-colors"
+          >
+            Admin Home
+          </button>
+        )}
       </div>
 
       {/* QR Code Modal */}

@@ -28,8 +28,6 @@ import ClassBooking from './features/booking/ClassBooking';
 import MemberList from './features/members/MemberList';
 import MemberDetail from './features/members/MemberDetail';
 import QRScanner from './features/checkin/QRScanner';
-import MacroCalculator from './features/tools/MacroCalculator';
-
 // --- (가짜 데이터 삭제함) ---
 // 이제 INITIAL_USERS 같은 가짜 데이터는 쓰지 않습니다.
 
@@ -528,6 +526,11 @@ export default function App() {
     }
   }, [view]);
 
+  // Macro calculator removed from client UI; normalize stale view state
+  useEffect(() => {
+    if (view === 'macro_calculator') setView('client_home');
+  }, [view]);
+
   return (
     <div className="bg-white min-h-[100dvh] flex flex-col font-sans selection:bg-emerald-500/20 overflow-x-hidden">
       <AnimatePresence>
@@ -898,11 +901,6 @@ export default function App() {
           {/* 클래스 예약 */}
           {session && view === 'class_booking' && (
             <ClassBooking user={session.user} setView={setView} />
-          )}
-
-          {/* 매크로 계산기 */}
-          {session && view === 'macro_calculator' && (
-            <MacroCalculator user={session.user} setView={setView} />
           )}
 
           {/* 라이브러리 (지식 베이스) */}
