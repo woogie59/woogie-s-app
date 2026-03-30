@@ -579,7 +579,7 @@ export default function App() {
           {/* 관리자 화면 (admin role 필수) */}
           {view === 'admin_home' && (
             <AdminRoute session={session} setView={setView}>
-              <AdminHome setView={setView} logout={handleLogout} />
+              <AdminHome setView={setView} logout={handleLogout} setSelectedMemberId={setSelectedMemberId} />
             </AdminRoute>
           )}
 
