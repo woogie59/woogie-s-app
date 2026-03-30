@@ -181,12 +181,12 @@ const ClassBooking = ({ user, setView }) => {
   };
 
   return (
-    <div className="bg-zinc-950 text-white flex flex-col overflow-hidden max-w-full h-[100dvh]" style={{ height: '100dvh' }}>
+    <div className="bg-white text-slate-900 flex flex-col overflow-hidden max-w-full h-[100dvh]" style={{ height: '100dvh' }}>
       <div className="shrink-0 p-6 pb-4">
         <div className="touch-none">
           <BackButton onClick={() => setView('client_home')} label="Home" />
           <header className="text-center mb-6">
-            <h2 className="text-lg font-serif text-yellow-500">CLASS BOOKING</h2>
+            <h2 className="text-lg font-serif text-emerald-600">CLASS BOOKING</h2>
           </header>
         </div>
         <div className="max-w-full" style={{ touchAction: 'pan-x' }}>
@@ -197,11 +197,11 @@ const ClassBooking = ({ user, setView }) => {
                 p.setDate(p.getDate() - 7);
                 setWeekStart(p);
               }}
-              className="p-1.5 rounded-lg hover:bg-zinc-800 text-zinc-400"
+              className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-600"
             >
               <ChevronLeft size={22} />
             </button>
-            <span className="text-sm text-zinc-400">
+            <span className="text-sm text-gray-600">
               {getWeekDates()[0].toLocaleDateString('en-US', { weekday: 'short' })} {getWeekDates()[0].getDate()} -{' '}
               {getWeekDates()[6].toLocaleDateString('en-US', { weekday: 'short' })} {getWeekDates()[6].getDate()}
             </span>
@@ -211,7 +211,7 @@ const ClassBooking = ({ user, setView }) => {
                 n.setDate(n.getDate() + 7);
                 setWeekStart(n);
               }}
-              className="p-1.5 rounded-lg hover:bg-zinc-800 text-zinc-400"
+              className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-600"
             >
               <ChevronRight size={22} />
             </button>
@@ -233,17 +233,17 @@ const ClassBooking = ({ user, setView }) => {
                   disabled={isPast}
                   className={`shrink-0 p-3 rounded-xl border flex flex-col items-center min-w-[64px] ${
                     isSelected
-                      ? 'bg-yellow-600 border-yellow-500 text-white'
+                      ? 'bg-emerald-600 border-emerald-500 text-white'
                       : isPast
-                        ? 'bg-zinc-900/50 border-zinc-800 text-zinc-600 cursor-not-allowed'
+                        ? 'bg-gray-50 border-gray-200 text-gray-400 cursor-not-allowed'
                         : isHolidayDate
-                          ? 'bg-red-900/20 border-red-800/50 text-zinc-500'
-                          : 'bg-zinc-900 border-zinc-800 text-zinc-400 hover:border-yellow-600/50'
+                          ? 'bg-red-50 border-red-200 text-red-700'
+                          : 'bg-white border-gray-200 text-gray-600 hover:border-emerald-500/40'
                   }`}
                 >
                   <span className="text-[10px] uppercase">{dayName}</span>
                   <span className="text-lg font-bold">{dayNum}</span>
-                  {isToday && <span className="text-[9px] text-yellow-500 mt-0.5">Today</span>}
+                  {isToday && <span className="text-[9px] text-emerald-600 mt-0.5">Today</span>}
                 </button>
               );
             })}
@@ -258,15 +258,15 @@ const ClassBooking = ({ user, setView }) => {
       >
         {selectedDate && (
           <>
-            <h3 className="text-sm text-zinc-400 mb-3 uppercase tracking-widest">예약 가능 시간</h3>
+            <h3 className="text-sm text-gray-600 mb-3 uppercase tracking-widest">예약 가능 시간</h3>
             {isHoliday(selectedDate) ? (
-              <p className="text-center text-zinc-400 py-8">Today is a trainer&apos;s day off. 💤</p>
+              <p className="text-center text-gray-600 py-8">Today is a trainer&apos;s day off. 💤</p>
             ) : getDaySetting(selectedDate).off ? (
-              <p className="text-center text-zinc-400 py-8">Today is a trainer&apos;s day off. 💤</p>
+              <p className="text-center text-gray-600 py-8">Today is a trainer&apos;s day off. 💤</p>
             ) : loading ? (
-              <p className="text-center text-zinc-600 py-10">Loading...</p>
+              <p className="text-center text-gray-600 py-10">Loading...</p>
             ) : generateTimeSlots().length === 0 ? (
-              <p className="text-center text-zinc-500 py-8">No available slots for this day.</p>
+              <p className="text-center text-gray-500 py-8">No available slots for this day.</p>
             ) : (
               <div className="grid grid-cols-2 gap-3 max-w-full w-full pb-2">
                 {generateTimeSlots().map((time) => {
@@ -281,18 +281,18 @@ const ClassBooking = ({ user, setView }) => {
                       onClick={() => handleBookSlot(time)}
                       className={`p-4 rounded-xl border text-lg font-bold flex justify-between items-center transition ${
                         expired
-                          ? 'bg-zinc-900/30 border-zinc-800 text-zinc-600 cursor-not-allowed'
+                          ? 'bg-gray-50 border-gray-200 text-gray-400 cursor-not-allowed'
                           : booked
-                            ? 'bg-zinc-900/50 border-zinc-800 text-zinc-700 cursor-not-allowed'
+                            ? 'bg-gray-50 border-gray-200 text-gray-600 cursor-not-allowed'
                             : available
-                              ? 'bg-zinc-900 border-zinc-800 text-white hover:border-yellow-600'
-                              : 'bg-zinc-900/50 border-zinc-800 text-zinc-600 cursor-not-allowed'
+                              ? 'bg-white border-gray-200 text-slate-900 hover:border-emerald-500/50'
+                              : 'bg-gray-50 border-gray-200 text-gray-500 cursor-not-allowed'
                       }`}
                     >
                       <span className={expired ? 'line-through' : ''}>{time}</span>
                       {booked && <span className="text-xs text-red-500">예약됨</span>}
-                      {expired && !booked && <span className="text-xs text-zinc-500">지남</span>}
-                      {available && <span className="text-green-500">●</span>}
+                      {expired && !booked && <span className="text-xs text-gray-500">지남</span>}
+                      {available && <span className="text-emerald-600">●</span>}
                     </button>
                   );
                 })}

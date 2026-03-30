@@ -98,7 +98,7 @@ const SessionHistoryModal = ({ user, onClose }) => {
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
-        className="fixed inset-0 z-50 flex items-end justify-center sm:items-center sm:p-6 bg-black/90"
+        className="fixed inset-0 z-50 flex items-end justify-center sm:items-center sm:p-6 bg-gray-900/20"
         onClick={onClose}
       >
         <motion.div
@@ -106,15 +106,15 @@ const SessionHistoryModal = ({ user, onClose }) => {
           animate={{ y: 0, opacity: 1 }}
           exit={{ y: '100%', opacity: 0 }}
           transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-          className="bg-zinc-900 border-t sm:border border-zinc-700 sm:rounded-2xl w-full max-w-md max-h-[85vh] flex flex-col shadow-2xl"
+          className="bg-white border-t border-gray-200 sm:rounded-2xl w-full max-w-md max-h-[85vh] flex flex-col shadow-xl"
           onClick={(e) => e.stopPropagation()}
         >
           {/* Header */}
-          <div className="flex items-center justify-between p-4 border-b border-zinc-700/50 shrink-0">
-            <h3 className="text-lg font-serif tracking-wide text-yellow-500">MY JOURNEY</h3>
+          <div className="flex items-center justify-between p-4 border-b border-gray-200/70 shrink-0">
+            <h3 className="text-lg font-serif tracking-wide text-emerald-600">MY JOURNEY</h3>
             <button
               onClick={onClose}
-              className="p-2 rounded-lg text-zinc-500 hover:text-white hover:bg-zinc-800 transition-colors"
+              className="p-2 rounded-lg text-gray-600 hover:text-slate-900 hover:bg-gray-100 transition-colors"
               aria-label="Close"
             >
               <X size={22} />
@@ -124,39 +124,39 @@ const SessionHistoryModal = ({ user, onClose }) => {
           <div className="flex-1 overflow-y-auto p-4 space-y-6">
             {loading ? (
               <div className="flex items-center justify-center py-12">
-                <div className="w-8 h-8 border-2 border-yellow-500 border-t-transparent rounded-full animate-spin" />
+                <div className="w-8 h-8 border-2 border-emerald-600 border-t-transparent rounded-full animate-spin" />
               </div>
             ) : (
               <>
                 {/* Session Summary Card */}
-                <div className="bg-zinc-800/50 rounded-2xl p-6 mb-6">
-                  <div className="h-2 bg-zinc-700 rounded-full overflow-hidden">
+                <div className="bg-gray-50 rounded-2xl p-6 mb-6 border border-gray-200">
+                  <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
                     <motion.div
                       initial={{ width: 0 }}
                       animate={{ width: `${progressPercentage}%` }}
                       transition={{ duration: 0.6, ease: 'easeOut' }}
-                      className="h-full bg-yellow-500 rounded-full"
+                      className="h-full bg-emerald-600 rounded-full"
                     />
                   </div>
                   <div className="flex justify-between mt-4">
                     <div>
-                      <p className="text-xs text-zinc-500 uppercase tracking-wider">TOTAL</p>
-                      <p className="text-xl text-white font-medium">{totalCount.toLocaleString()}</p>
+                      <p className="text-xs text-gray-500 uppercase tracking-wider">TOTAL</p>
+                      <p className="text-xl text-slate-900 font-medium">{totalCount.toLocaleString()}</p>
                     </div>
                     <div>
-                      <p className="text-xs text-zinc-500 uppercase tracking-wider">DONE</p>
-                      <p className="text-xl text-white font-medium">{usedCount.toLocaleString()}</p>
+                      <p className="text-xs text-gray-500 uppercase tracking-wider">DONE</p>
+                      <p className="text-xl text-slate-900 font-medium">{usedCount.toLocaleString()}</p>
                     </div>
                     <div>
-                      <p className="text-xs text-yellow-500/80 uppercase tracking-wider">LEFT</p>
-                      <p className="text-xl text-yellow-500 font-bold">{remainingCount.toLocaleString()}</p>
+                      <p className="text-xs text-emerald-600/80 uppercase tracking-wider">LEFT</p>
+                      <p className="text-xl text-emerald-600 font-bold">{remainingCount.toLocaleString()}</p>
                     </div>
                   </div>
                 </div>
 
                 {/* Weekly Bar Chart */}
                 <div>
-                  <p className="text-xs text-zinc-500 uppercase tracking-widest mb-3">Weekly Rhythm</p>
+                  <p className="text-xs text-gray-500 uppercase tracking-widest mb-3">Weekly Rhythm</p>
                   <div className="flex items-end justify-between gap-3">
                     {weeklyData.map((week, i) => {
                       const barHeight = maxCount > 0 ? (week.count / maxCount) * 72 : 0;
@@ -168,15 +168,15 @@ const SessionHistoryModal = ({ user, onClose }) => {
                               animate={{ height: barHeight }}
                               transition={{ delay: i * 0.05, duration: 0.4, ease: 'easeOut' }}
                               className={`w-full max-w-[44px] rounded-t ${
-                                week.isThisWeek ? 'bg-yellow-500' : 'bg-zinc-600'
+                                week.isThisWeek ? 'bg-emerald-600' : 'bg-gray-200'
                               }`}
                               style={{ minHeight: week.count > 0 ? 4 : 0 }}
                             />
                           </div>
-                          <span className="text-[10px] font-medium text-zinc-500">{week.count}</span>
+                          <span className="text-[10px] font-medium text-gray-500">{week.count}</span>
                           <span
                             className={`text-[10px] truncate w-full text-center ${
-                              week.isThisWeek ? 'text-yellow-500 font-bold' : 'text-zinc-500'
+                              week.isThisWeek ? 'text-emerald-600 font-bold' : 'text-gray-500'
                             }`}
                           >
                             {week.label}
@@ -189,21 +189,21 @@ const SessionHistoryModal = ({ user, onClose }) => {
 
                 {/* History List */}
                 <div>
-                  <p className="text-xs text-zinc-500 uppercase tracking-widest mb-3">Session History</p>
-                  <div className="bg-zinc-950/80 rounded-xl border border-zinc-800 overflow-hidden font-mono text-sm">
+                  <p className="text-xs text-gray-500 uppercase tracking-widest mb-3">Session History</p>
+                  <div className="bg-gray-50 rounded-xl border border-gray-200 overflow-hidden font-mono text-sm">
                     {logs.length === 0 ? (
-                      <div className="px-4 py-8 text-center text-zinc-500 text-xs">
+                      <div className="px-4 py-8 text-center text-gray-500 text-xs">
                         No sessions yet
                       </div>
                     ) : (
-                      <div className="divide-y divide-zinc-800">
+                      <div className="divide-y divide-gray-200">
                         {logs.map((log) => (
                           <div
                             key={log.id}
-                            className="px-4 py-3 flex items-center justify-between text-zinc-300 hover:bg-zinc-800/50 transition-colors"
+                            className="px-4 py-3 flex items-center justify-between text-gray-600 hover:bg-gray-100 transition-colors"
                           >
                             <span>{formatSessionDate(log.check_in_at)}</span>
-                            <span className="text-yellow-500/80 text-xs">✓</span>
+                            <span className="text-emerald-600 text-xs">✓</span>
                           </div>
                         ))}
                       </div>

@@ -200,7 +200,7 @@ const AdminSchedule = ({ setView }) => {
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.98 }}
               transition={{ duration: 0.25, ease: [0.25, 0.46, 0.45, 0.94] }}
-              className="bg-white border border-emerald-600/20 rounded-2xl shadow-xl shadow-black/10 p-6 max-w-sm w-full"
+              className="bg-white border border-emerald-600/20 rounded-2xl shadow-xl shadow-gray-900/10 p-6 max-w-sm w-full"
             >
               <h3 className="text-lg font-serif text-emerald-600 mb-2">예약 취소</h3>
               <p className="text-gray-600 text-sm mb-6">

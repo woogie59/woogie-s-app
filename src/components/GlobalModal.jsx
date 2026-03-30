@@ -12,7 +12,7 @@ const GlobalModal = ({ isOpen, title, message, type = 'alert', onConfirm, onClos
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           transition={{ duration: 0.2 }}
-          className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/60"
+          className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-gray-900/20"
           style={{ backdropFilter: 'blur(8px)' }}
         >
           <motion.div
@@ -20,7 +20,7 @@ const GlobalModal = ({ isOpen, title, message, type = 'alert', onConfirm, onClos
             animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0, scale: 0.98 }}
             transition={{ duration: 0.25, ease: [0.25, 0.46, 0.45, 0.94] }}
-            className="w-full max-w-md bg-white/95 border border-emerald-600/20 rounded-2xl shadow-xl shadow-black/10 p-6 backdrop-blur-xl"
+            className="w-full max-w-md bg-white/95 border border-emerald-600/20 rounded-2xl shadow-xl shadow-gray-900/10 p-6 backdrop-blur-xl"
           >
             {title && (
               <h3 className="text-lg font-serif text-emerald-600 mb-2">{title}</h3>

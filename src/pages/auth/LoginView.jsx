@@ -58,10 +58,10 @@ const LoginView = ({ setView }) => {
   };
 
   return (
-    <div className="flex flex-col items-center justify-center min-h-[100dvh] px-6 bg-zinc-950 text-white">
+    <div className="flex flex-col items-center justify-center min-h-[100dvh] px-6 bg-white text-slate-900">
       <div className="mb-12 text-center">
-        <h2 className="text-3xl font-serif text-yellow-500 mb-2">THE COACH</h2>
-        <p className="text-zinc-500 text-xs tracking-[0.2em] uppercase">Premium Management System</p>
+        <h2 className="text-3xl font-serif text-emerald-600 mb-2">THE COACH</h2>
+        <p className="text-gray-500 text-xs tracking-[0.2em] uppercase">Premium Management System</p>
       </div>
 
       {!showForgotPassword ? (
@@ -70,14 +70,14 @@ const LoginView = ({ setView }) => {
             <input
               type="text"
               placeholder="EMAIL (admin)"
-              className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-3 text-white focus:border-yellow-600 outline-none transition-colors"
+              className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-slate-900 focus:border-emerald-600 outline-none transition-colors"
               value={email}
               onChange={e => setEmail(e.target.value)}
             />
             <input
               type="password"
               placeholder="PASSWORD (1234)"
-              className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-3 text-white focus:border-yellow-600 outline-none transition-colors"
+              className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-slate-900 focus:border-emerald-600 outline-none transition-colors"
               value={pw}
               onChange={e => setPw(e.target.value)}
             />
@@ -93,9 +93,9 @@ const LoginView = ({ setView }) => {
                     localStorage.setItem(REMEMBER_ME_KEY, checked ? 'true' : 'false');
                   } catch {}
                 }}
-                className="w-5 h-5 rounded border-2 border-zinc-600 bg-zinc-900 text-yellow-500 focus:ring-2 focus:ring-yellow-500/50 focus:ring-offset-0 focus:ring-offset-zinc-950 cursor-pointer accent-yellow-500 checked:border-yellow-500"
+                className="w-5 h-5 rounded border-2 border-gray-300 bg-gray-50 text-emerald-600 focus:ring-2 focus:ring-emerald-500/50 focus:ring-offset-0 focus:ring-offset-white cursor-pointer accent-emerald-500 checked:border-emerald-500"
               />
-              <span className="text-zinc-400 group-hover:text-zinc-300 text-sm font-medium">자동 로그인 유지</span>
+              <span className="text-gray-500 group-hover:text-gray-600 text-sm font-medium">자동 로그인 유지</span>
             </label>
 
             <ButtonPrimary onClick={handleLogin}>
@@ -105,19 +105,19 @@ const LoginView = ({ setView }) => {
 
           <button
             onClick={() => setShowForgotPassword(true)}
-            className="mt-4 text-sm text-zinc-500 hover:text-yellow-500 transition-colors"
+            className="mt-4 text-sm text-gray-500 hover:text-emerald-600 transition-colors"
           >
             Forgot Password?
           </button>
 
-          <div className="flex gap-4 mt-6 text-xs text-zinc-500">
-            <button onClick={() => setView('register')} className="hover:text-yellow-500">회원가입</button>
+          <div className="flex gap-4 mt-6 text-xs text-gray-500">
+            <button onClick={() => setView('register')} className="hover:text-emerald-600">회원가입</button>
           </div>
         </>
       ) : (
-        <div className="w-full max-w-sm bg-zinc-900 p-6 rounded-xl border border-zinc-800">
-          <h3 className="text-xl font-bold text-yellow-500 mb-4">Reset Password</h3>
-          <p className="text-sm text-zinc-400 mb-4">
+        <div className="w-full max-w-sm bg-white p-6 rounded-xl border border-gray-200">
+          <h3 className="text-xl font-bold text-emerald-600 mb-4">Reset Password</h3>
+          <p className="text-sm text-gray-500 mb-4">
             Enter your email address and we'll send you a link to reset your password.
           </p>
 
@@ -126,19 +126,19 @@ const LoginView = ({ setView }) => {
             placeholder="Enter your email"
             value={resetEmail}
             onChange={e => setResetEmail(e.target.value)}
-            className="w-full px-4 py-3 bg-zinc-950 border border-zinc-800 rounded-xl text-white placeholder-zinc-600 focus:border-yellow-600 outline-none transition-colors mb-4"
+            className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-slate-900 placeholder-gray-400 focus:border-emerald-600 outline-none transition-colors mb-4"
           />
 
           <div className="flex gap-2">
             <button
               onClick={() => setShowForgotPassword(false)}
-              className="flex-1 py-3 px-4 bg-zinc-800 hover:bg-zinc-700 rounded-xl text-zinc-400 hover:text-white transition-all"
+              className="flex-1 py-3 px-4 bg-gray-100 hover:bg-gray-200 rounded-xl text-gray-600 hover:text-slate-900 transition-all"
             >
               Cancel
             </button>
             <button
               onClick={handleForgotPassword}
-              className="flex-1 py-3 px-4 bg-yellow-600 hover:bg-yellow-500 rounded-xl text-black font-bold transition-all"
+              className="flex-1 py-3 px-4 bg-emerald-600 hover:bg-emerald-500 rounded-xl text-white font-bold transition-all"
             >
               Send Reset Link
             </button>

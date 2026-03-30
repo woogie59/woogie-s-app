@@ -55,24 +55,24 @@ const ResetPasswordView = ({ onClose }) => {
   };
 
   return (
-    <div className="fixed inset-0 z-[100] flex flex-col items-center justify-center px-6 bg-zinc-950 text-white">
+    <div className="fixed inset-0 z-[100] flex flex-col items-center justify-center px-6 bg-white text-slate-900">
       <div className="mb-8 text-center">
         <div className="mb-4">
-          <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-yellow-500/10 border-2 border-yellow-500 mb-4">
+          <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-emerald-500/10 border-2 border-emerald-500 mb-4">
             <span className="text-3xl">🔐</span>
           </div>
         </div>
-        <h2 className="text-3xl font-serif text-yellow-500 mb-2">Reset Password</h2>
-        <p className="text-zinc-500 text-xs tracking-[0.2em] uppercase">Enter Your New Password</p>
+        <h2 className="text-3xl font-serif text-emerald-600 mb-2">Reset Password</h2>
+        <p className="text-gray-500 text-xs tracking-[0.2em] uppercase">Enter Your New Password</p>
       </div>
 
       <div className="w-full max-w-sm space-y-4">
         <div>
-          <label className="text-xs text-zinc-500 ml-1 mb-1 block">New Password</label>
+          <label className="text-xs text-gray-500 ml-1 mb-1 block">New Password</label>
           <input
             type="password"
             placeholder="새 비밀번호 (6자리 이상)"
-            className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-3 text-white focus:border-yellow-600 outline-none transition-colors"
+            className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-slate-900 focus:border-emerald-600 outline-none transition-colors"
             value={newPassword}
             onChange={e => setNewPassword(e.target.value)}
             autoFocus
@@ -80,11 +80,11 @@ const ResetPasswordView = ({ onClose }) => {
         </div>
 
         <div>
-          <label className="text-xs text-zinc-500 ml-1 mb-1 block">Confirm Password</label>
+          <label className="text-xs text-gray-500 ml-1 mb-1 block">Confirm Password</label>
           <input
             type="password"
             placeholder="비밀번호 확인"
-            className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-3 text-white focus:border-yellow-600 outline-none transition-colors"
+            className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-slate-900 focus:border-emerald-600 outline-none transition-colors"
             value={confirmPassword}
             onChange={e => setConfirmPassword(e.target.value)}
           />
@@ -99,13 +99,13 @@ const ResetPasswordView = ({ onClose }) => {
             await supabase.auth.signOut();
             onClose();
           }}
-          className="w-full text-sm text-zinc-500 hover:text-yellow-500 transition-colors mt-4"
+          className="w-full text-sm text-gray-500 hover:text-emerald-600 transition-colors mt-4"
         >
           ← Cancel
         </button>
       </div>
 
-      <div className="mt-8 text-xs text-zinc-700 text-center">
+      <div className="mt-8 text-xs text-gray-600 text-center">
         <p>🔐 Recovery session active</p>
       </div>
     </div>

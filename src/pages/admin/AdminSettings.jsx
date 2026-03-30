@@ -115,31 +115,31 @@ const AdminSettings = ({ setView }) => {
 
   if (loading)
     return (
-      <div className="min-h-[100dvh] bg-zinc-950 p-6 text-white">
-        <p className="text-zinc-500">Loading...</p>
+      <div className="min-h-[100dvh] bg-white p-6 text-slate-900">
+        <p className="text-gray-500">Loading...</p>
       </div>
     );
 
   return (
-    <div className="min-h-[100dvh] bg-zinc-950 text-white p-6 pb-24 relative">
+    <div className="min-h-[100dvh] bg-white text-slate-900 p-6 pb-24 relative">
       {saveToast && (
-        <div className="fixed top-6 left-1/2 -translate-x-1/2 z-50 px-6 py-3 bg-yellow-600 text-black font-bold rounded-xl shadow-lg animate-pulse">
+        <div className="fixed top-6 left-1/2 -translate-x-1/2 z-50 px-6 py-3 bg-emerald-600 text-white font-bold rounded-xl shadow-lg animate-pulse">
           Settings Saved ✓
         </div>
       )}
       <BackButton onClick={() => setView('admin_home')} label="Admin Home" />
-      <h2 className="text-2xl font-bold text-yellow-500 mb-6">Day Off Settings</h2>
+      <h2 className="text-2xl font-bold text-emerald-600 mb-6">Day Off Settings</h2>
 
       <div className="mb-8">
-        <h3 className="text-yellow-400 font-bold mb-3">📅 주간 휴무 & 근무시간</h3>
+        <h3 className="text-emerald-600 font-bold mb-3">📅 주간 휴무 & 근무시간</h3>
         <div className="space-y-2 mb-4">
           {settings.map((s) => (
-            <div key={s.day_of_week} className="p-3 bg-zinc-900 rounded-xl border border-zinc-800">
+            <div key={s.day_of_week} className="p-3 bg-white rounded-xl border border-gray-200 shadow-sm">
               <div className="flex items-center justify-between gap-4 flex-wrap">
                 <span className="font-medium w-8">{DAY_NAMES[s.day_of_week]}</span>
                 <label className="flex items-center gap-2 cursor-pointer">
-                  <input type="checkbox" checked={s.off} onChange={() => toggleDayOff(s.day_of_week)} className="accent-yellow-500" />
-                  <span className="text-sm text-zinc-400">하루 종일 휴무</span>
+                  <input type="checkbox" checked={s.off} onChange={() => toggleDayOff(s.day_of_week)} className="accent-emerald-500" />
+                  <span className="text-sm text-gray-600">하루 종일 휴무</span>
                 </label>
                 {!s.off && (
                   <div className="flex items-center gap-2 text-sm">
@@ -147,14 +147,14 @@ const AdminSettings = ({ setView }) => {
                       type="time"
                       value={s.start_time}
                       onChange={(e) => setDayStartEnd(s.day_of_week, e.target.value, s.end_time)}
-                      className="bg-zinc-800 border border-zinc-700 rounded px-2 py-1 text-white"
+                      className="bg-gray-50 border border-gray-200 rounded px-2 py-1 text-slate-900"
                     />
-                    <span className="text-zinc-500">~</span>
+                    <span className="text-gray-500">~</span>
                     <input
                       type="time"
                       value={s.end_time}
                       onChange={(e) => setDayStartEnd(s.day_of_week, s.start_time, e.target.value)}
-                      className="bg-zinc-800 border border-zinc-700 rounded px-2 py-1 text-white"
+                      className="bg-gray-50 border border-gray-200 rounded px-2 py-1 text-slate-900"
                     />
                   </div>
                 )}
@@ -162,7 +162,7 @@ const AdminSettings = ({ setView }) => {
               {!s.off && (s.break_times || []).length > 0 && (
                 <div className="mt-2 ml-10 flex flex-wrap gap-2">
                   {(s.break_times || []).map((bt, idx) => (
-                    <span key={idx} className="inline-flex items-center gap-1 px-2 py-1 bg-zinc-800 rounded text-xs">
+                    <span key={idx} className="inline-flex items-center gap-1 px-2 py-1 bg-gray-100 rounded text-xs border border-gray-200">
                       {bt.start}-{bt.end}
                       <button onClick={() => removeBreakTime(s.day_of_week, idx)} className="text-red-500 hover:underline">
                         ×
@@ -174,11 +174,11 @@ const AdminSettings = ({ setView }) => {
             </div>
           ))}
         </div>
-        <div className="flex flex-wrap items-center gap-2 p-3 bg-zinc-900 rounded-xl border border-zinc-800 mb-3">
+        <div className="flex flex-wrap items-center gap-2 p-3 bg-white rounded-xl border border-gray-200 shadow-sm mb-3">
           <select
             value={newOffDay}
             onChange={(e) => setNewOffDay(Number(e.target.value))}
-            className="bg-zinc-800 border border-zinc-700 rounded px-3 py-2 text-white text-sm"
+            className="bg-gray-50 border border-gray-200 rounded px-3 py-2 text-slate-900 text-sm"
           >
             {[0, 1, 2, 3, 4, 5, 6].map((d) => (
               <option key={d} value={d}>
@@ -190,20 +190,20 @@ const AdminSettings = ({ setView }) => {
             type="time"
             value={newOffStart}
             onChange={(e) => setNewOffStart(e.target.value)}
-            className="bg-zinc-800 border border-zinc-700 rounded px-3 py-2 text-white text-sm"
+            className="bg-gray-50 border border-gray-200 rounded px-3 py-2 text-slate-900 text-sm"
           />
-          <span className="text-zinc-500">~</span>
+          <span className="text-gray-500">~</span>
           <input
             type="time"
             value={newOffEnd}
             onChange={(e) => setNewOffEnd(e.target.value)}
-            className="bg-zinc-800 border border-zinc-700 rounded px-3 py-2 text-white text-sm"
+            className="bg-gray-50 border border-gray-200 rounded px-3 py-2 text-slate-900 text-sm"
           />
           <button
             onClick={() => {
               addBreakTime(newOffDay, newOffStart, newOffEnd);
             }}
-            className="px-4 py-2 bg-yellow-600 text-black font-bold rounded-lg text-sm"
+            className="px-4 py-2 bg-emerald-600 text-white font-bold rounded-lg text-sm"
           >
             추가
           </button>
@@ -211,28 +211,28 @@ const AdminSettings = ({ setView }) => {
         <button
           onClick={saveSettings}
           disabled={saving}
-          className="w-full py-3 bg-yellow-600 text-black font-bold rounded-xl hover:bg-yellow-500 disabled:opacity-50"
+          className="w-full py-3 bg-emerald-600 text-white font-bold rounded-xl hover:bg-emerald-500 disabled:opacity-50"
         >
           {saving ? '저장 중...' : '저장 (Save)'}
         </button>
       </div>
 
       <div>
-        <h3 className="text-yellow-400 font-bold mb-3">📆 특정 휴무일</h3>
+        <h3 className="text-emerald-600 font-bold mb-3">📆 특정 휴무일</h3>
         <div className="flex gap-2 mb-4">
           <input
             type="date"
             value={newHolidayDate}
             onChange={(e) => setNewHolidayDate(e.target.value)}
-            className="bg-zinc-800 border border-zinc-700 rounded-lg px-4 py-2 text-white"
+            className="bg-gray-50 border border-gray-200 rounded-lg px-4 py-2 text-slate-900"
           />
-          <button onClick={addHoliday} className="bg-yellow-600 text-black font-bold px-4 py-2 rounded-lg">
+          <button onClick={addHoliday} className="bg-emerald-600 text-white font-bold px-4 py-2 rounded-lg">
             추가
           </button>
         </div>
         <div className="space-y-2">
           {holidays.slice(0, 20).map((h) => (
-            <div key={h.id} className="flex items-center justify-between p-3 bg-zinc-900 rounded-xl border border-zinc-800">
+            <div key={h.id} className="flex items-center justify-between p-3 bg-white rounded-xl border border-gray-200 shadow-sm">
               <span className="font-mono">{h.date}</span>
               <button onClick={() => removeHoliday(h.id)} className="text-red-500 text-sm hover:underline">
                 삭제

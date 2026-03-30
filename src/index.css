@@ -49,16 +49,7 @@
 }
 
 @layer utilities {
-  .text-gradient-gold {
-    background-image: linear-gradient(135deg, #d4af37, #f9e5af);
-    -webkit-background-clip: text;
-    background-clip: text;
-    color: transparent;
-  }
-
-  .bg-gradient-gold {
-    background-image: linear-gradient(135deg, #d4af37, #f9e5af);
-  }
+  /* Removed gradient helpers for premium athletic green theme */
 
   /* iOS safe-area padding helper used by the new App.jsx */
   .pb-safe {

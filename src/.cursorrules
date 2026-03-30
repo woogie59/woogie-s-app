@@ -4,10 +4,10 @@ You are building "THE COACH", a premium PT management app.
 
 # Technical Constraints
 - **Framework**: Vite + React
-- **Styling**: Tailwind CSS. STRICTLY maintain the "Premium Black & Gold" theme.
-  - Backgrounds: `bg-zinc-950`, `bg-zinc-900`
-  - Accents: `text-yellow-500`, `border-yellow-600`
-  - Text: `text-white`, `text-zinc-400`
+- **Styling**: Tailwind CSS. STRICTLY maintain the "Premium Performance Lab" white + emerald theme.
+  - Backgrounds: `bg-white`, `bg-gray-50`, `bg-gray-100`
+  - Accents: `text-emerald-600`, `border-emerald-600`
+  - Text: `text-slate-900`, `text-gray-500`
 - **Database**: Supabase.
   - Use `src/lib/supabaseClient.js` for all DB interactions.
   - Prefer using Supabase RPC (Remote Procedure Calls) for logic involving balance updates (like session deduction).

@@ -155,7 +155,7 @@ const QRScanner = ({ setView }) => {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[100] flex items-center justify-center bg-black/95 p-6 backdrop-blur-sm"
+            className="fixed inset-0 z-[100] flex items-center justify-center bg-gray-900/20 p-6 backdrop-blur-sm"
           >
             <motion.div
               initial={{ scale: 0.9 }}
@@ -174,7 +174,7 @@ const QRScanner = ({ setView }) => {
                     <p className="text-emerald-600 text-sm mt-2">남은 횟수: {result.remainingSessions}회</p>
                   )}
                   {result.isGoldenTime && (
-                    <p className="text-amber-700 text-sm mt-3 font-medium bg-amber-500/10 border border-emerald-600/30 rounded-lg px-4 py-2">
+                    <p className="text-red-700 text-sm mt-3 font-medium bg-red-500/10 border border-red-500/30 rounded-lg px-4 py-2">
                       🔥 성취도 분석이 필요한 시점입니다! (관리자 알림 전송됨)
                     </p>
                   )}

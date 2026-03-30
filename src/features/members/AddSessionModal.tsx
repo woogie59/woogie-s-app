@@ -103,7 +103,7 @@ export default function AddSessionModal({
           animate={{ y: 0, opacity: 1, scale: 1 }}
           exit={{ y: 40, opacity: 0, scale: 0.98 }}
           transition={{ type: 'spring', damping: 24, stiffness: 220 }}
-          className="w-full max-w-md bg-white border border-emerald-600/20 rounded-2xl shadow-xl shadow-black/10 p-6"
+          className="w-full max-w-md bg-white border border-emerald-600/20 rounded-2xl shadow-xl shadow-gray-900/10 p-6"
           onClick={(e) => e.stopPropagation()}
         >
           <div className="flex items-center justify-between mb-5">

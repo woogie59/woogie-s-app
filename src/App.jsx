@@ -529,7 +529,7 @@ export default function App() {
   }, [view]);
 
   return (
-    <div className="bg-black min-h-[100dvh] flex flex-col font-sans selection:bg-yellow-500/30 overflow-x-hidden">
+    <div className="bg-white min-h-[100dvh] flex flex-col font-sans selection:bg-emerald-500/20 overflow-x-hidden">
       <AnimatePresence>
         {showIntro && <CinematicIntro onComplete={() => setShowIntro(false)} />}
       </AnimatePresence>
@@ -550,9 +550,9 @@ export default function App() {
 
           {/* Normal views - only show if NOT in password reset mode */}
           {!showResetPassword && loading && !signupWelcomePending && (
-            <div className="min-h-[100dvh] flex flex-col items-center justify-center bg-zinc-950 text-white gap-4">
-              <h2 className="text-xl font-serif text-yellow-500">THE COACH</h2>
-              <p className="text-zinc-400">준비 중...</p>
+            <div className="min-h-[100dvh] flex flex-col items-center justify-center bg-white text-slate-900 gap-4">
+              <h2 className="text-xl font-serif text-emerald-600">THE COACH</h2>
+              <p className="text-gray-600">준비 중...</p>
             </div>
           )}
           {signupWelcomePending && (
@@ -610,18 +610,20 @@ export default function App() {
           {/* Unified Management Dashboard (Revenue + Schedule) */}
           {(view === 'revenue' || view === 'admin_schedule') && (
             <AdminRoute session={session} setView={setView}>
-              <div className="min-h-[100dvh] bg-zinc-950 flex flex-col text-white overflow-y-auto pb-20">
+              <div className="min-h-[100dvh] bg-white flex flex-col text-slate-900 overflow-y-auto pb-20">
                 <div className="p-6 pb-2">
                   <BackButton onClick={() => setView('admin_home')} label="Admin Home" />
 
                   {/* Segmented Control: Day | Week | Month */}
-                  <div className="flex gap-1 p-1 bg-zinc-900 rounded-xl border border-zinc-800 w-fit mb-4">
+                  <div className="flex gap-1 p-1 bg-gray-50 rounded-xl border border-gray-200 w-fit mb-4 shadow-sm">
                     {(['day', 'week', 'month']).map((mode) => (
                       <button
                         key={mode}
                         onClick={() => setDashboardViewMode(mode)}
                         className={`px-4 py-2 rounded-lg text-sm font-medium transition capitalize ${
-                          dashboardViewMode === mode ? 'bg-yellow-500 text-black' : 'text-zinc-400 hover:text-white'
+                          dashboardViewMode === mode
+                            ? 'bg-emerald-600 text-white'
+                            : 'text-gray-500 hover:text-slate-900'
                         }`}
                       >
                         {mode === 'day' ? 'Day' : mode === 'week' ? 'Week' : 'Month'}
@@ -631,7 +633,7 @@ export default function App() {
 
                   {/* Header: Navigator + Eye Toggle */}
                   <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4 mb-4">
-                    <div className="flex items-center gap-3 bg-zinc-900 px-4 py-3 rounded-xl border border-zinc-800">
+                    <div className="flex items-center gap-3 bg-gray-50 px-4 py-3 rounded-xl border border-gray-200">
                       <button
                         onClick={() => {
                           const d = new Date(dashboardViewMode === 'day' ? dashboardFocusDate : currentRevenueDate);
@@ -639,12 +641,12 @@ export default function App() {
                           else if (dashboardViewMode === 'week') { d.setDate(d.getDate() - 7); setDashboardFocusDate(d); setCurrentRevenueDate(d); }
                           else changeMonth(-1);
                         }}
-                        className="p-1.5 rounded-lg hover:bg-zinc-800 text-zinc-400 hover:text-yellow-500 transition"
+                        className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-500 hover:text-emerald-600 transition"
                       >
                         <ChevronLeft size={24} />
                       </button>
                       <div className="flex items-center gap-2 min-w-[140px] justify-center">
-                        <Calendar size={20} className="text-yellow-500" />
+                        <Calendar size={20} className="text-emerald-600" />
                         <span className="text-lg font-bold">
                           {dashboardViewMode === 'day' && formatDateHeader(toDateKey(dashboardFocusDate))}
                           {dashboardViewMode === 'week' && `Week of ${formatDateHeader(getWeekDates(dashboardFocusDate)[0])}`}
@@ -658,7 +660,7 @@ export default function App() {
                           else if (dashboardViewMode === 'week') { d.setDate(d.getDate() + 7); setDashboardFocusDate(d); setCurrentRevenueDate(d); }
                           else changeMonth(1);
                         }}
-                        className="p-1.5 rounded-lg hover:bg-zinc-800 text-zinc-400 hover:text-yellow-500 transition"
+                        className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-500 hover:text-emerald-600 transition"
                       >
                         <ChevronRight size={24} />
                       </button>
@@ -666,7 +668,7 @@ export default function App() {
                     <button
                       onClick={() => setIsManagerMode((v) => !v)}
                       className={`flex items-center gap-2 px-4 py-3 rounded-xl border transition-all duration-300 ${
-                        isManagerMode ? 'bg-yellow-500/20 border-yellow-500 text-yellow-500' : 'bg-zinc-900 border-zinc-700 text-zinc-500 hover:border-zinc-600'
+                        isManagerMode ? 'bg-emerald-600/15 border-emerald-600/40 text-emerald-700' : 'bg-gray-50 border-gray-200 text-gray-600 hover:border-emerald-500/40'
                       }`}
                     >
                       {isManagerMode ? <Eye size={22} /> : <EyeOff size={22} />}
@@ -696,21 +698,21 @@ export default function App() {
                   return (
                     <div className="px-6 flex-1">
                       <div className="mb-6">
-                        <h2 className="text-2xl font-bold text-yellow-500 mb-1">{formatDateHeader(dayKey)}</h2>
+                        <h2 className="text-2xl font-bold text-emerald-600 mb-1">{formatDateHeader(dayKey)}</h2>
                         {total > 0 && (
                           <div className="flex items-center gap-2">
-                            <div className="flex-1 h-2 bg-zinc-800 rounded-full overflow-hidden">
-                              <div className="h-full bg-yellow-500 rounded-full transition-all" style={{ width: total ? `${(completed / total) * 100}%` : 0 }} />
+                            <div className="flex-1 h-2 bg-gray-200 rounded-full overflow-hidden">
+                              <div className="h-full bg-emerald-600 rounded-full transition-all" style={{ width: total ? `${(completed / total) * 100}%` : 0 }} />
                             </div>
-                            <span className="text-zinc-400 text-sm whitespace-nowrap">{completed}/{total} Done</span>
+                            <span className="text-gray-600 text-sm whitespace-nowrap">{completed}/{total} Done</span>
                           </div>
                         )}
                       </div>
                       {items.length === 0 ? (
                         <div className="flex flex-col items-center justify-center py-16 text-center">
-                          <Calendar size={64} className="text-zinc-700 mb-4" />
-                          <p className="text-zinc-500 font-medium">No classes today</p>
-                          <p className="text-zinc-600 text-sm mt-1">Take a breather 💪</p>
+                          <Calendar size={64} className="text-gray-300 mb-4" />
+                          <p className="text-gray-500 font-medium">No classes today</p>
+                          <p className="text-gray-600 text-sm mt-1">Take a breather 💪</p>
                         </div>
                       ) : (
                         <div className="space-y-3 relative">
@@ -731,18 +733,18 @@ export default function App() {
                                 key={item.booking?.id || item.log?.id || idx}
                                 className={`rounded-xl border p-4 transition-all ${
                                   item.status === 'Completed'
-                                    ? 'bg-yellow-500/10 border-yellow-500/50'
-                                    : 'bg-zinc-900 border-zinc-800'
-                                } ${isNextUp ? 'ring-2 ring-yellow-400 shadow-lg shadow-yellow-500/20' : ''}`}
+                                    ? 'bg-emerald-600/10 border-emerald-600/30'
+                                    : 'bg-white border-gray-200'
+                                } ${isNextUp ? 'ring-2 ring-emerald-500/40 shadow-lg shadow-emerald-500/10' : ''}`}
                               >
                                 <div className="flex items-center justify-between gap-4">
-                                  <span className="text-zinc-300 font-mono font-medium">{item.time}</span>
-                                  <span className="flex-1 text-white font-medium truncate text-center">{item.userName}</span>
+                                  <span className="text-gray-600 font-mono font-medium">{item.time}</span>
+                                  <span className="flex-1 text-slate-900 font-medium truncate text-center">{item.userName}</span>
                                   {isManagerMode && item.price != null && (
-                                    <span className="text-yellow-500 font-bold text-sm">₩ {(item.price ?? 0).toLocaleString()}</span>
+                                    <span className="text-emerald-600 font-bold text-sm">₩ {(item.price ?? 0).toLocaleString()}</span>
                                   )}
                                 </div>
-                                {isNextUp && <p className="text-yellow-400 text-xs mt-2">↑ Next up</p>}
+                                {isNextUp && <p className="text-emerald-600 text-xs mt-2">↑ Next up</p>}
                               </div>
                               {showNowAfter && (
                                 <div className="flex items-center gap-2 py-2">
@@ -768,27 +770,27 @@ export default function App() {
                       const completed = items.filter((x) => x.status === 'Completed').length;
                       if (items.length === 0) {
                         return (
-                          <div key={dateKey} className="bg-zinc-900/50 rounded-xl border border-zinc-800/50 px-4 py-2 flex items-center justify-between">
-                            <span className="text-zinc-600 text-sm">{formatDateHeader(dateKey)}</span>
-                            <span className="text-zinc-700 text-xs">—</span>
+                          <div key={dateKey} className="bg-gray-50 rounded-xl border border-gray-200/70 px-4 py-2 flex items-center justify-between">
+                            <span className="text-gray-600 text-sm">{formatDateHeader(dateKey)}</span>
+                            <span className="text-gray-700 text-xs">—</span>
                           </div>
                         );
                       }
                       return (
-                        <div key={dateKey} className="bg-zinc-900 rounded-xl border border-zinc-800 overflow-hidden">
-                          <div className="px-4 py-2 bg-zinc-800/80 font-bold text-white flex items-center justify-between">
+                        <div key={dateKey} className="bg-white rounded-xl border border-gray-200 overflow-hidden shadow-sm">
+                          <div className="px-4 py-2 bg-gray-50 font-bold text-slate-900 flex items-center justify-between">
                             <span>{formatDateHeader(dateKey)}</span>
-                            <span className="text-zinc-400 text-sm font-normal">{items.length} classes {completed > 0 && `(${completed} done)`}</span>
+                            <span className="text-gray-600 text-sm font-normal">{items.length} classes {completed > 0 && `(${completed} done)`}</span>
                           </div>
-                          <div className="divide-y divide-zinc-800">
+                          <div className="divide-y divide-gray-200">
                             {items.slice(0, 4).map((item, idx) => (
-                              <div key={idx} className={`flex items-center justify-between gap-4 px-4 py-2 ${item.status === 'Completed' ? 'bg-yellow-500/5' : ''}`}>
-                                <span className="text-zinc-400 font-mono text-sm">{item.time}</span>
-                                <span className="flex-1 text-white text-sm truncate text-center">{item.userName}</span>
-                                {isManagerMode && item.price != null && <span className="text-yellow-500 text-xs">₩{(item.price ?? 0).toLocaleString()}</span>}
+                              <div key={idx} className={`flex items-center justify-between gap-4 px-4 py-2 ${item.status === 'Completed' ? 'bg-emerald-600/5' : ''}`}>
+                                <span className="text-gray-600 font-mono text-sm">{item.time}</span>
+                                <span className="flex-1 text-slate-900 text-sm truncate text-center">{item.userName}</span>
+                                {isManagerMode && item.price != null && <span className="text-emerald-600 text-xs">₩{(item.price ?? 0).toLocaleString()}</span>}
                               </div>
                             ))}
-                            {items.length > 4 && <div className="px-4 py-2 text-zinc-500 text-xs">+{items.length - 4} more</div>}
+                            {items.length > 4 && <div className="px-4 py-2 text-gray-600 text-xs">+{items.length - 4} more</div>}
                           </div>
                         </div>
                       );
@@ -799,13 +801,13 @@ export default function App() {
                 {/* ========== MONTH VIEW ========== */}
                 {dashboardViewMode === 'month' && (
                   <div className="px-6 flex-1">
-                    <div className="bg-zinc-900 rounded-xl p-4 mb-6 border border-zinc-800">
+                    <div className="bg-white rounded-xl p-4 mb-6 border border-gray-200 shadow-sm">
                       <div className="grid grid-cols-7 gap-1">
                         {['일', '월', '화', '수', '목', '금', '토'].map((d) => (
-                          <div key={d} className="text-center text-zinc-500 text-[10px] font-medium py-1">{d}</div>
+                          <div key={d} className="text-center text-gray-500 text-[10px] font-medium py-1">{d}</div>
                         ))}
                         {isRevenueLoading ? (
-                          <div className="col-span-7 py-8 text-center text-zinc-500 text-sm">Loading...</div>
+                          <div className="col-span-7 py-8 text-center text-gray-500 text-sm">Loading...</div>
                         ) : (
                           revenueCalendarDays.map((cell, i) =>
                             cell.type === 'pad' ? (
@@ -815,12 +817,14 @@ export default function App() {
                                 key={cell.key}
                                 onClick={() => { setSelectedRevenueDay(selectedRevenueDay === cell.key ? null : cell.key); setDashboardFocusDate(new Date(cell.key + 'T12:00:00')); setDashboardViewMode('day'); }}
                                 className={`aspect-square rounded-lg flex flex-col items-center justify-center text-sm font-medium transition min-h-[36px] ${
-                                  selectedRevenueDay === cell.key ? 'bg-yellow-500 text-black ring-2 ring-yellow-400' : 'bg-zinc-800/50 hover:bg-zinc-700 text-white'
+                                  selectedRevenueDay === cell.key
+                                    ? 'bg-emerald-600 text-white ring-2 ring-emerald-500/40'
+                                    : 'bg-gray-50 hover:bg-gray-100 text-gray-700'
                                 }`}
                               >
                                 <span>{cell.value}</span>
                                 {(mergedItemsByDate[cell.key] || []).length > 0 && (
-                                  <span className={`mt-0.5 rounded-full ${(mergedItemsByDate[cell.key] || []).length >= 6 ? 'w-2.5 h-2.5' : (mergedItemsByDate[cell.key] || []).length >= 3 ? 'w-2 h-2' : 'w-1.5 h-1.5'} bg-yellow-500`} />
+                                  <span className={`mt-0.5 rounded-full ${(mergedItemsByDate[cell.key] || []).length >= 6 ? 'w-2.5 h-2.5' : (mergedItemsByDate[cell.key] || []).length >= 3 ? 'w-2 h-2' : 'w-1.5 h-1.5'} bg-emerald-600`} />
                                 )}
                               </button>
                             )
@@ -831,10 +835,19 @@ export default function App() {
                     {selectedRevenueDay && (
                       <div className="space-y-2 mb-6">
                         {(mergedItemsByDate[selectedRevenueDay] || []).map((item, idx) => (
-                          <div key={idx} className={`flex items-center justify-between gap-4 px-4 py-3 rounded-xl border ${item.status === 'Completed' ? 'bg-yellow-500/10 border-yellow-500/50' : 'bg-zinc-900 border-zinc-800'}`}>
-                            <span className="font-mono text-zinc-300">{item.time}</span>
-                            <span className="flex-1 text-white text-center truncate">{item.userName}</span>
-                            {isManagerMode && item.price != null && <span className="text-yellow-500 font-bold">₩{(item.price ?? 0).toLocaleString()}</span>}
+                          <div
+                            key={idx}
+                            className={`flex items-center justify-between gap-4 px-4 py-3 rounded-xl border ${
+                              item.status === 'Completed'
+                                ? 'bg-emerald-600/10 border-emerald-600/30'
+                                : 'bg-white border-gray-200'
+                            }`}
+                          >
+                            <span className="font-mono text-gray-600">{item.time}</span>
+                            <span className="flex-1 text-slate-900 text-center truncate">{item.userName}</span>
+                            {isManagerMode && item.price != null && (
+                              <span className="text-emerald-600 font-bold">₩{(item.price ?? 0).toLocaleString()}</span>
+                            )}
                           </div>
                         ))}
                       </div>
@@ -845,34 +858,34 @@ export default function App() {
                 {/* Financial Section - Manager Mode Only */}
                 {isManagerMode && (
                   <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="px-6 mb-4">
-                    <div className="grid grid-cols-2 gap-4 mb-4">
-                      <div className="bg-zinc-900 rounded-xl p-4 border border-zinc-800">
-                        <span className="text-zinc-400 text-xs">Total Sales</span>
-                        <p className="text-xl font-bold text-yellow-400">₩ {fmt(revenueLogs.reduce((s, l) => s + (l.session_price_snapshot || 0), 0))}</p>
+                      <div className="grid grid-cols-2 gap-4 mb-4">
+                        <div className="bg-white rounded-xl p-4 border border-gray-200 shadow-sm">
+                          <span className="text-gray-600 text-xs">Total Sales</span>
+                          <p className="text-xl font-bold text-emerald-600">₩ {fmt(revenueLogs.reduce((s, l) => s + (l.session_price_snapshot || 0), 0))}</p>
                       </div>
-                      <div className="bg-zinc-900 rounded-xl p-4 border border-yellow-500/50">
-                        <span className="text-yellow-400/90 text-xs">Net Payout</span>
-                        <p className="text-xl font-bold text-yellow-400">₩ {fmt((() => { const g = salaryConfig.base + revenueLogs.reduce((s, l) => s + (l.session_price_snapshot || 0), 0) * (salaryConfig.incentiveRate / 100) + salaryConfig.extra; return g - Math.round(g * 0.033); })())}</p>
+                        <div className="bg-white rounded-xl p-4 border border-emerald-600/20 shadow-sm">
+                          <span className="text-emerald-700/90 text-xs">Net Payout</span>
+                          <p className="text-xl font-bold text-emerald-600">₩ {fmt((() => { const g = salaryConfig.base + revenueLogs.reduce((s, l) => s + (l.session_price_snapshot || 0), 0) * (salaryConfig.incentiveRate / 100) + salaryConfig.extra; return g - Math.round(g * 0.033); })())}</p>
                       </div>
                     </div>
                     <div className="flex gap-3">
-                      <button onClick={() => setShowPayrollCalculator((v) => !v)} className="flex items-center gap-2 bg-zinc-800 px-4 py-2 rounded-xl text-yellow-500 text-sm">🧮 Calculator</button>
-                      <button onClick={downloadPayrollCSV} className="flex items-center gap-2 bg-yellow-600 px-4 py-2 rounded-xl text-black font-bold text-sm">📥 Report</button>
+                        <button onClick={() => setShowPayrollCalculator((v) => !v)} className="flex items-center gap-2 bg-gray-100 px-4 py-2 rounded-xl text-emerald-700 text-sm border border-gray-200">🧮 Calculator</button>
+                        <button onClick={downloadPayrollCSV} className="flex items-center gap-2 bg-emerald-600 px-4 py-2 rounded-xl text-white font-bold text-sm">📥 Report</button>
                     </div>
                     {showPayrollCalculator && (
-                      <div className="mt-4 p-4 rounded-xl border border-zinc-800 bg-zinc-900/50 grid grid-cols-3 gap-4">
-                        <div><label className="text-zinc-500 text-xs">Base</label><input type="number" value={salaryConfig.base} onChange={(e) => handleConfigChange('base', e.target.value)} className="w-full bg-zinc-800 rounded px-3 py-2 text-white" /></div>
-                        <div><label className="text-zinc-500 text-xs">Incentive %</label><input type="number" value={salaryConfig.incentiveRate} onChange={(e) => handleConfigChange('incentiveRate', e.target.value)} className="w-full bg-zinc-800 rounded px-3 py-2 text-yellow-400" /></div>
-                        <div><label className="text-zinc-500 text-xs">Bonus</label><input type="number" value={salaryConfig.extra} onChange={(e) => handleConfigChange('extra', e.target.value)} className="w-full bg-zinc-800 rounded px-3 py-2 text-green-400" /></div>
+                        <div className="mt-4 p-4 rounded-xl border border-gray-200 bg-gray-50 grid grid-cols-3 gap-4">
+                          <div><label className="text-gray-600 text-xs">Base</label><input type="number" value={salaryConfig.base} onChange={(e) => handleConfigChange('base', e.target.value)} className="w-full bg-white rounded px-3 py-2 text-slate-900 border border-gray-200" /></div>
+                          <div><label className="text-gray-600 text-xs">Incentive %</label><input type="number" value={salaryConfig.incentiveRate} onChange={(e) => handleConfigChange('incentiveRate', e.target.value)} className="w-full bg-white rounded px-3 py-2 text-emerald-700 border border-gray-200" /></div>
+                          <div><label className="text-gray-600 text-xs">Bonus</label><input type="number" value={salaryConfig.extra} onChange={(e) => handleConfigChange('extra', e.target.value)} className="w-full bg-white rounded px-3 py-2 text-green-600 border border-gray-200" /></div>
                       </div>
                     )}
                   </motion.div>
                 )}
 
                 {/* Sticky Footer - Total Monthly Sessions (unobtrusive) */}
-                <div className="sticky bottom-0 left-0 right-0 py-3 px-6 bg-zinc-950/95 border-t border-zinc-800/50 text-center">
-                  <p className="text-zinc-500 text-xs">
-                    Total Monthly Sessions: <span className="text-yellow-500 font-semibold">{isRevenueLoading ? '—' : revenueLogs.length}</span>
+                <div className="sticky bottom-0 left-0 right-0 py-3 px-6 bg-white border-t border-gray-200/70 text-center shadow-sm">
+                  <p className="text-gray-600 text-xs">
+                    Total Monthly Sessions: <span className="text-emerald-600 font-semibold">{isRevenueLoading ? '—' : revenueLogs.length}</span>
                     {isManagerMode && (
                       <span className="ml-4">Revenue: ₩{fmt(revenueLogs.reduce((s, l) => s + (l.session_price_snapshot || 0), 0))}</span>
                     )}
@@ -894,16 +907,16 @@ export default function App() {
 
           {/* 라이브러리 (지식 베이스) */}
           {(session || view === 'admin_home' || view === 'library') && view === 'library' && (
-            <div className="min-h-[100dvh] h-full max-w-full bg-zinc-950 flex flex-col overflow-hidden">
+            <div className="min-h-[100dvh] h-full max-w-full bg-white flex flex-col overflow-hidden">
               <div className="flex-1 overflow-y-auto overscroll-contain min-h-0 p-6 pb-24" style={{ WebkitOverflowScrolling: 'touch' }}>
               <BackButton onClick={() => setView(session?.user ? 'client_home' : 'admin_home')} label="Home" />
               
               <div className="flex flex-wrap justify-between items-center gap-3 mb-6 max-w-full">
-                <h2 className="text-2xl font-bold text-yellow-500">📚 KNOWLEDGE BASE</h2>
+                <h2 className="text-2xl font-bold text-emerald-600">📚 KNOWLEDGE BASE</h2>
                 {(session?.user?.email === 'admin' || !session) && (
                   <button 
                     onClick={() => setShowWriteModal(true)}
-                    className="bg-yellow-500 text-black px-4 py-2 rounded font-bold hover:bg-yellow-400 transition shadow-lg"
+                    className="bg-emerald-600 text-white px-4 py-2 rounded font-bold hover:bg-emerald-500 transition shadow-md"
                   >
                     + NEW POST
                   </button>
@@ -918,8 +931,8 @@ export default function App() {
                     onClick={() => setSelectedCategory(cat)}
                     className={`px-4 py-2 rounded-lg font-medium whitespace-nowrap transition-all ${
                       selectedCategory === cat
-                        ? 'bg-yellow-500 text-black'
-                        : 'bg-zinc-800 text-zinc-400 hover:text-white'
+                        ? 'bg-emerald-600 text-white'
+                        : 'bg-gray-50 text-gray-600 hover:text-slate-900 border border-gray-200'
                     }`}
                   >
                     {cat}
@@ -934,11 +947,11 @@ export default function App() {
                   placeholder="Search posts..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="flex-1 min-w-0 bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-3 text-white focus:border-yellow-500 outline-none w-full"
+                  className="flex-1 min-w-0 bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-slate-900 focus:border-emerald-600 outline-none w-full"
                 />
                 <button
                   onClick={handleSearch}
-                  className="shrink-0 bg-yellow-600 hover:bg-yellow-500 text-black font-bold px-6 py-3 rounded-xl transition-all flex items-center gap-2"
+                  className="shrink-0 bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-6 py-3 rounded-xl transition-all flex items-center gap-2"
                 >
                   <Search size={20} />
                   Search
@@ -946,9 +959,9 @@ export default function App() {
               </div>
 
               {isLibraryLoading ? (
-                <div className="text-center text-zinc-400 mt-10">Loading library...</div>
+                <div className="text-center text-gray-500 mt-10">Loading library...</div>
               ) : filteredPosts.length === 0 ? (
-                <div className="text-center text-zinc-500 mt-10 p-8 border border-zinc-800 rounded-lg">
+                <div className="text-center text-gray-600 mt-10 p-8 border border-gray-200 rounded-lg bg-white shadow-sm">
                   <p className="text-xl">No posts found.</p>
                   {(session?.user?.email === 'admin' || !session) && <p className="text-sm mt-2">Click "+ NEW POST" to add content.</p>}
                 </div>
@@ -961,17 +974,17 @@ export default function App() {
                         setSelectedPost(post);
                         setShowPostDetail(true);
                       }}
-                      className="bg-zinc-900 rounded-xl overflow-hidden border border-zinc-800 hover:border-yellow-500 transition-all cursor-pointer group"
+                      className="bg-white rounded-xl overflow-hidden border border-gray-200 hover:border-emerald-500/40 transition-all cursor-pointer group shadow-sm"
                     >
                       {post.image_url ? (
                         <img src={post.image_url} alt={post.title} className="w-full h-32 object-cover group-hover:scale-105 transition-transform" />
                       ) : (
-                        <div className="w-full h-32 bg-zinc-800 flex items-center justify-center text-zinc-600">
+                        <div className="w-full h-32 bg-gray-100 flex items-center justify-center text-gray-500 border-b border-gray-200">
                           <Image size={32} />
                         </div>
                       )}
                       <div className="p-3">
-                        <h3 className="font-bold text-sm text-white line-clamp-2 text-left">{post.title}</h3>
+                        <h3 className="font-bold text-sm text-slate-900 line-clamp-2 text-left">{post.title}</h3>
                       </div>
                     </button>
                   ))}
@@ -986,14 +999,14 @@ export default function App() {
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
                     exit={{ opacity: 0 }}
-                    className="fixed inset-0 bg-black/90 flex items-center justify-center z-50 p-4"
+                    className="fixed inset-0 bg-gray-900/20 flex items-center justify-center z-50 p-4"
                     onClick={() => setShowPostDetail(false)}
                   >
                     <motion.div
                       initial={{ scale: 0.9, opacity: 0 }}
                       animate={{ scale: 1, opacity: 1 }}
                       exit={{ scale: 0.9, opacity: 0 }}
-                      className="bg-zinc-900 rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto border-2 border-yellow-500"
+                    className="bg-white rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto border-2 border-emerald-600/30"
                       onClick={(e) => e.stopPropagation()}
                     >
                       {selectedPost.image_url && (
@@ -1005,23 +1018,23 @@ export default function App() {
                       )}
                       <div className="p-6">
                         <div className="flex justify-between items-start mb-4">
-                          <span className="text-xs font-bold text-yellow-400 bg-yellow-900/40 px-3 py-1 rounded-lg border border-yellow-500/20">
+                          <span className="text-xs font-bold text-emerald-700 bg-emerald-600/10 px-3 py-1 rounded-lg border border-emerald-600/20">
                             {selectedPost.category}
                           </span>
                           <button
                             onClick={() => setShowPostDetail(false)}
-                            className="text-zinc-500 hover:text-white transition-colors"
+                            className="text-gray-600 hover:text-slate-900 transition-colors"
                           >
                             <X size={24} />
                           </button>
                         </div>
-                        <h2 className="text-3xl font-bold text-yellow-500 mb-4">{selectedPost.title}</h2>
-                        <div className="text-zinc-300 leading-relaxed whitespace-pre-line">
+                        <h2 className="text-3xl font-bold text-emerald-600 mb-4">{selectedPost.title}</h2>
+                        <div className="text-gray-700 leading-relaxed whitespace-pre-line">
                           {selectedPost.content}
                         </div>
                         <button
                           onClick={() => setShowPostDetail(false)}
-                          className="w-full mt-6 bg-yellow-600 text-black font-bold py-3 rounded-xl hover:bg-yellow-500 transition-all"
+                          className="w-full mt-6 bg-emerald-600 text-white font-bold py-3 rounded-xl hover:bg-emerald-500 transition-all"
                         >
                           CLOSE
                         </button>
@@ -1033,19 +1046,19 @@ export default function App() {
 
               {/* Write Modal */}
               {showWriteModal && (
-                <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4 backdrop-blur-sm">
-                  <div className="bg-zinc-900 p-6 rounded-xl w-full max-w-lg border border-yellow-500/30 shadow-2xl">
-                    <h3 className="text-xl font-bold text-yellow-500 mb-6">Create New Post</h3>
+                <div className="fixed inset-0 bg-gray-900/20 flex items-center justify-center z-50 p-4 backdrop-blur-sm">
+                  <div className="bg-white p-6 rounded-xl w-full max-w-lg border border-emerald-600/20 shadow-xl">
+                    <h3 className="text-xl font-bold text-emerald-600 mb-6">Create New Post</h3>
                     
                     <input 
-                      className="w-full bg-zinc-800 p-3 rounded mb-4 text-white border border-zinc-700 focus:border-yellow-500 outline-none"
+                      className="w-full bg-gray-50 p-3 rounded mb-4 text-slate-900 border border-gray-200 focus:border-emerald-600 outline-none"
                       placeholder="Title"
                       value={newPost.title}
                       onChange={(e) => setNewPost({...newPost, title: e.target.value})}
                     />
                     
                     <select 
-                      className="w-full bg-zinc-800 p-3 rounded mb-4 text-white border border-zinc-700 outline-none"
+                      className="w-full bg-gray-50 p-3 rounded mb-4 text-slate-900 border border-gray-200 outline-none"
                       value={newPost.category}
                       onChange={(e) => setNewPost({...newPost, category: e.target.value})}
                     >
@@ -1056,14 +1069,14 @@ export default function App() {
                     </select>
 
                     <input 
-                      className="w-full bg-zinc-800 p-3 rounded mb-4 text-white border border-zinc-700 focus:border-yellow-500 outline-none"
+                      className="w-full bg-gray-50 p-3 rounded mb-4 text-slate-900 border border-gray-200 focus:border-emerald-600 outline-none"
                       placeholder="Image URL (Optional)"
                       value={newPost.image_url}
                       onChange={(e) => setNewPost({...newPost, image_url: e.target.value})}
                     />
 
                     <textarea 
-                      className="w-full bg-zinc-800 p-3 rounded mb-6 text-white border border-zinc-700 focus:border-yellow-500 outline-none h-32 resize-none"
+                      className="w-full bg-gray-50 p-3 rounded mb-6 text-slate-900 border border-gray-200 focus:border-emerald-600 outline-none h-32 resize-none"
                       placeholder="Content..."
                       value={newPost.content}
                       onChange={(e) => setNewPost({...newPost, content: e.target.value})}
@@ -1072,13 +1085,13 @@ export default function App() {
                     <div className="flex justify-end gap-3">
                       <button 
                         onClick={() => setShowWriteModal(false)}
-                        className="px-4 py-2 text-zinc-400 hover:text-white font-bold"
+                        className="px-4 py-2 text-gray-600 hover:text-slate-900 font-bold"
                       >
                         Cancel
                       </button>
                       <button 
                         onClick={handleSavePost}
-                        className="bg-yellow-500 text-black px-6 py-2 rounded font-bold hover:bg-yellow-400 transition"
+                        className="bg-emerald-600 text-white px-6 py-2 rounded font-bold hover:bg-emerald-500 transition"
                       >
                         SAVE POST
                       </button>
