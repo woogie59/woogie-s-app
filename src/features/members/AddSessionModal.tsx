@@ -78,6 +78,23 @@ export default function AddSessionModal({
       });
       if (insertError) throw insertError;
 
+      const { data: profileRow, error: profileFetchError } = await supabase
+        .from('profiles')
+        .select('remaining_sessions')
+        .eq('id', userId)
+        .single();
+      if (profileFetchError) throw profileFetchError;
+
+      const nextRemaining = (profileRow?.remaining_sessions ?? 0) + remainingSessions;
+      const { error: profileUpdateError } = await supabase
+        .from('profiles')
+        .update({
+          remaining_sessions: nextRemaining,
+          price_per_session: pricePerSession,
+        })
+        .eq('id', userId);
+      if (profileUpdateError) throw profileUpdateError;
+
       showAlert({ message: 'Saved!' });
       onSaved?.();
       onClose();

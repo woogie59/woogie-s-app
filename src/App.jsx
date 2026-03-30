@@ -85,6 +85,10 @@ export default function App() {
   const [dashboardViewMode, setDashboardViewMode] = useState('day');
   const [revenueLogs, setRevenueLogs] = useState([]);
   const [dashboardBookings, setDashboardBookings] = useState([]);
+  /** Month-scoped: scheduled class count (bookings/schedules), not attendance logs */
+  const [monthlyScheduledCount, setMonthlyScheduledCount] = useState(0);
+  /** Month-scoped: sum of pack revenue from session_batches (price or total_count × price_per_session) */
+  const [monthlyPackSalesKrw, setMonthlyPackSalesKrw] = useState(0);
   const [isRevenueLoading, setIsRevenueLoading] = useState(false);
   const [selectedRevenueDay, setSelectedRevenueDay] = useState(null);
   const [showPayrollCalculator, setShowPayrollCalculator] = useState(false);
@@ -301,6 +305,18 @@ export default function App() {
     }
   }, [view]);
 
+  const sumSessionBatchRowRevenue = (row) => {
+    if (row == null) return 0;
+    const rawPrice = row.price;
+    if (rawPrice != null && rawPrice !== '') {
+      const p = Number(rawPrice);
+      if (Number.isFinite(p) && p > 0) return p;
+    }
+    const tc = Number(row.total_count) || 0;
+    const pps = Number(row.price_per_session) || 0;
+    return tc * pps;
+  };
+
   const fetchRevenueData = async () => {
     if (!supabase) return;
     setIsRevenueLoading(true);
@@ -314,16 +330,61 @@ export default function App() {
     const endKey = `${year}-${String(month + 1).padStart(2, '0')}-${String(endDate.getDate()).padStart(2, '0')}`;
 
     try {
-      const [{ data: logsData, error: logsErr }, { data: bookingsData, error: bookingsErr }] = await Promise.all([
+      const schedulesQuery = supabase
+        .from('schedules')
+        .select('*, profiles(name, email)')
+        .gte('date', startKey)
+        .lte('date', endKey)
+        .order('date', { ascending: true })
+        .order('time', { ascending: true });
+      const bookingsQuery = supabase
+        .from('bookings')
+        .select('*, profiles(name, email)')
+        .gte('date', startKey)
+        .lte('date', endKey)
+        .order('date', { ascending: true })
+        .order('time', { ascending: true });
+
+      const batchesQuery = supabase
+        .from('session_batches')
+        .select('total_count, price_per_session, price, created_at')
+        .gte('created_at', startISO)
+        .lte('created_at', endISO);
+
+      const [schedulesRes, bookingsRes, batchesRes, logsRes] = await Promise.all([
+        schedulesQuery,
+        bookingsQuery,
+        batchesQuery,
         supabase.from('attendance_logs').select('*, profiles(name)').gte('check_in_at', startISO).lte('check_in_at', endISO).order('check_in_at', { ascending: false }),
-        supabase.from('bookings').select('*, profiles(name, email)').gte('date', startKey).lte('date', endKey).order('date', { ascending: true }).order('time', { ascending: true }),
       ]);
-      if (logsErr) throw logsErr;
-      if (bookingsErr) throw bookingsErr;
-      setRevenueLogs(logsData || []);
-      setDashboardBookings(bookingsData || []);
+
+      if (logsRes.error) throw logsRes.error;
+
+      let scheduleRows = [];
+      if (!schedulesRes.error && Array.isArray(schedulesRes.data) && schedulesRes.data.length > 0) {
+        scheduleRows = schedulesRes.data;
+      } else {
+        if (bookingsRes.error) throw bookingsRes.error;
+        scheduleRows = bookingsRes.data || [];
+      }
+
+      setRevenueLogs(logsRes.data || []);
+      setDashboardBookings(scheduleRows);
+
+      const scheduledInMonth = (scheduleRows || []).filter((b) => b?.status !== 'cancelled').length;
+      setMonthlyScheduledCount(scheduledInMonth);
+
+      if (batchesRes.error) {
+        console.warn('[Dashboard] session_batches:', batchesRes.error);
+        setMonthlyPackSalesKrw(0);
+      } else {
+        const packSales = (batchesRes.data || []).reduce((sum, row) => sum + sumSessionBatchRowRevenue(row), 0);
+        setMonthlyPackSalesKrw(packSales);
+      }
     } catch (err) {
       console.error('Error fetching dashboard:', err);
+      setMonthlyScheduledCount(0);
+      setMonthlyPackSalesKrw(0);
     } finally {
       setIsRevenueLoading(false);
     }
@@ -455,8 +516,8 @@ export default function App() {
   const fmt = (num) => num?.toLocaleString() || '0';
 
   const downloadPayrollCSV = () => {
-    const totalSessions = revenueLogs.length;
-    const totalSales = revenueLogs.reduce((sum, log) => sum + (log.session_price_snapshot || 0), 0);
+    const completedCheckIns = revenueLogs.length;
+    const totalSales = monthlyPackSalesKrw;
     const commission = totalSales * (salaryConfig.incentiveRate / 100);
     const grossPayout = salaryConfig.base + commission + salaryConfig.extra;
     const taxDeduction = Math.round(grossPayout * 0.033);
@@ -467,8 +528,9 @@ export default function App() {
 
     const summaryRows = [
       esc(`${monthLabel} Payroll Report`),
-      esc(`Total Sessions: ${totalSessions}`),
-      esc(`Total Sales: ₩${totalSales.toLocaleString()}`),
+      esc(`Scheduled classes (month): ${monthlyScheduledCount}`),
+      esc(`Pack sales (month): ₩${totalSales.toLocaleString()}`),
+      esc(`Completed check-ins (month): ${completedCheckIns}`),
       esc(`Net Payout: ₩${netPayout.toLocaleString()}`),
       '',
       '',
@@ -864,11 +926,11 @@ export default function App() {
                       <div className="grid grid-cols-2 gap-4 mb-4">
                         <div className="bg-white rounded-xl p-4 border border-gray-200 shadow-sm">
                           <span className="text-gray-600 text-xs">Total Sales</span>
-                          <p className="text-xl font-bold text-emerald-600">₩ {fmt(revenueLogs.reduce((s, l) => s + (l.session_price_snapshot || 0), 0))}</p>
+                          <p className="text-xl font-bold text-emerald-600">₩ {fmt(monthlyPackSalesKrw)}</p>
                       </div>
                         <div className="bg-white rounded-xl p-4 border border-emerald-600/20 shadow-sm">
                           <span className="text-emerald-700/90 text-xs">Net Payout</span>
-                          <p className="text-xl font-bold text-emerald-600">₩ {fmt((() => { const g = salaryConfig.base + revenueLogs.reduce((s, l) => s + (l.session_price_snapshot || 0), 0) * (salaryConfig.incentiveRate / 100) + salaryConfig.extra; return g - Math.round(g * 0.033); })())}</p>
+                          <p className="text-xl font-bold text-emerald-600">₩ {fmt((() => { const g = salaryConfig.base + monthlyPackSalesKrw * (salaryConfig.incentiveRate / 100) + salaryConfig.extra; return g - Math.round(g * 0.033); })())}</p>
                       </div>
                     </div>
                     <div className="flex gap-3">
@@ -888,9 +950,9 @@ export default function App() {
                 {/* Sticky Footer - Total Monthly Sessions (unobtrusive) */}
                 <div className="sticky bottom-0 left-0 right-0 py-3 px-6 bg-white border-t border-gray-200/70 text-center shadow-sm">
                   <p className="text-gray-600 text-xs">
-                    Total Monthly Sessions: <span className="text-emerald-600 font-semibold">{isRevenueLoading ? '—' : revenueLogs.length}</span>
+                    Total Monthly Sessions: <span className="text-emerald-600 font-semibold">{isRevenueLoading ? '—' : monthlyScheduledCount}</span>
                     {isManagerMode && (
-                      <span className="ml-4">Revenue: ₩{fmt(revenueLogs.reduce((s, l) => s + (l.session_price_snapshot || 0), 0))}</span>
+                      <span className="ml-4">Revenue: ₩{fmt(monthlyPackSalesKrw)}</span>
                     )}
                   </p>
                 </div>
