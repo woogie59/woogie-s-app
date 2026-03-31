@@ -4,6 +4,7 @@ import { QrCode, LogOut, X, ChevronLeft, ChevronRight, Trash2, History } from 'l
 import { supabase } from '../../lib/supabaseClient';
 import { useGlobalModal } from '../../context/GlobalModalContext';
 import ButtonGhost from '../../components/ui/ButtonGhost';
+import LabDotBrand from '../../components/ui/LabDotBrand';
 import Skeleton from '../../components/ui/Skeleton';
 import SessionHistoryModal from '../../features/members/SessionHistoryModal';
 
@@ -196,7 +197,7 @@ const ClientHome = ({ user, logout, setView }) => {
     <div className="min-h-[100dvh] bg-white text-slate-900 flex flex-col relative pb-safe">
       <header className="p-6 flex justify-between items-center">
         <div>
-          <h2 className="text-xl font-serif text-emerald-600">THE COACH</h2>
+          <LabDotBrand variant="header" />
           {loading ? (
             <div className="flex items-center gap-3 mt-1">
               <Skeleton className="h-6 w-6 rounded-full shrink-0" />

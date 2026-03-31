@@ -25,7 +25,7 @@ const WelcomeModal = ({ isOpen, userName, onStart }) => {
               환영합니다, {userName || '회원'}님
             </h2>
             <p className="text-gray-500 text-sm leading-relaxed mb-8">
-              당신의 완벽한 파트너, The Coach입니다.
+              LAB DOT와 함께 프리미엄 퍼포먼스 루틴을 시작하세요.
             </p>
             <button
               onClick={onStart}

@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { supabase, REMEMBER_ME_KEY } from '../../lib/supabaseClient';
 import { useGlobalModal } from '../../context/GlobalModalContext';
 import ButtonPrimary from '../../components/ui/ButtonPrimary';
+import { LabDotBrand } from '../../components/ui/LabDotBrand';
 
 const LoginView = ({ setView }) => {
   const { showAlert } = useGlobalModal();
@@ -17,6 +18,16 @@ const LoginView = ({ setView }) => {
       return true;
     }
   });
+  const emailInputRef = useRef(null);
+
+  useEffect(() => {
+    if (!showForgotPassword) {
+      const t = requestAnimationFrame(() => {
+        emailInputRef.current?.focus();
+      });
+      return () => cancelAnimationFrame(t);
+    }
+  }, [showForgotPassword]);
 
   const handleForgotPassword = async () => {
     if (!resetEmail) {
@@ -59,25 +70,28 @@ const LoginView = ({ setView }) => {
 
   return (
     <div className="flex flex-col items-center justify-center min-h-[100dvh] px-6 bg-white text-slate-900">
-      <div className="mb-12 text-center">
-        <h2 className="text-3xl font-serif text-emerald-600 mb-2">THE COACH</h2>
-        <p className="text-gray-500 text-xs tracking-[0.2em] uppercase">Premium Management System</p>
+      <div className="mb-14 text-center space-y-3">
+        <LabDotBrand variant="hero" />
+        <p className="text-gray-400 text-[10px] tracking-[0.35em] uppercase font-medium">Silent Luxury Lab</p>
       </div>
 
       {!showForgotPassword ? (
         <>
-          <div className="w-full max-w-sm space-y-4">
+          <div className="w-full max-w-sm space-y-5">
             <input
+              ref={emailInputRef}
               type="text"
-              placeholder="EMAIL (admin)"
-              className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-slate-900 focus:border-emerald-600 outline-none transition-colors"
+              autoComplete="username"
+              placeholder="EMAIL / ID"
+              className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3.5 text-slate-900 placeholder:text-gray-400 focus:border-[#064e3b]/40 focus:ring-1 focus:ring-[#064e3b]/20 outline-none transition-colors"
               value={email}
               onChange={e => setEmail(e.target.value)}
             />
             <input
               type="password"
-              placeholder="PASSWORD (1234)"
-              className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-slate-900 focus:border-emerald-600 outline-none transition-colors"
+              autoComplete="current-password"
+              placeholder="PASSWORD"
+              className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3.5 text-slate-900 placeholder:text-gray-400 focus:border-[#064e3b]/40 focus:ring-1 focus:ring-[#064e3b]/20 outline-none transition-colors"
               value={pw}
               onChange={e => setPw(e.target.value)}
             />

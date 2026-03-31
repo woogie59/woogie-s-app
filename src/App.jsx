@@ -8,6 +8,7 @@ import { useGlobalModal } from './context/GlobalModalContext';
 import WelcomeModal from './components/WelcomeModal';
 
 import CinematicIntro from './components/ui/CinematicIntro';
+import LabDotBrand from './components/ui/LabDotBrand';
 import ButtonPrimary from './components/ui/ButtonPrimary';
 import ButtonGhost from './components/ui/ButtonGhost';
 import BackButton from './components/ui/BackButton';
@@ -600,7 +601,11 @@ export default function App() {
       </AnimatePresence>
 
       {!showIntro && (
-        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 1 }}>
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ duration: 0.35, ease: [0.4, 0, 0.2, 1] }}
+        >
           
           {/* [PASSWORD RESET OVERRIDE] - Shows above everything else */}
           {showResetPassword && (
@@ -615,9 +620,9 @@ export default function App() {
 
           {/* Normal views - only show if NOT in password reset mode */}
           {!showResetPassword && loading && !signupWelcomePending && (
-            <div className="min-h-[100dvh] flex flex-col items-center justify-center bg-white text-slate-900 gap-4">
-              <h2 className="text-xl font-serif text-emerald-600">THE COACH</h2>
-              <p className="text-gray-600">준비 중...</p>
+            <div className="min-h-[100dvh] flex flex-col items-center justify-center bg-white text-slate-900 gap-6">
+              <LabDotBrand variant="header" />
+              <p className="text-gray-400 text-xs tracking-[0.2em] uppercase">준비 중</p>
             </div>
           )}
           {signupWelcomePending && (

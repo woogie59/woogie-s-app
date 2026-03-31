@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { ArrowLeft, User, Calendar, Mail, Lock } from 'lucide-react';
 import { supabase } from '../lib/supabaseClient';
 import { useGlobalModal } from '../context/GlobalModalContext';
+import { LabDotBrand } from '../components/ui/LabDotBrand';
 
 // --- [UI 컴포넌트] 고급스러운 골드 버튼 복구 ---
 const ButtonPrimary = ({ children, onClick, className = "", disabled }) => (
@@ -78,10 +79,12 @@ const RegisterView = ({ setView, onSignupSuccess }) => {
 
     return (
       <div className="min-h-[100dvh] bg-white text-slate-900 p-6 flex flex-col">
-          <header className="mb-6">
+          <header className="mb-8">
               <button onClick={()=>setView('login')}><ArrowLeft className="text-gray-500 hover:text-slate-900 transition-colors"/></button>
-              <h2 className="text-2xl font-serif text-emerald-600 mt-4">Join The Coach</h2>
-              <p className="text-gray-500 text-xs mt-1">Start your professional journey.</p>
+              <div className="mt-6">
+                <LabDotBrand variant="header" />
+              </div>
+              <p className="text-gray-400 text-[10px] tracking-[0.3em] uppercase mt-3">Join · Silent Luxury Lab</p>
           </header>
           
           <div className="flex-1 space-y-5 overflow-y-auto pb-10">

@@ -1,5 +1,6 @@
 import React, { useState } from 'react'
 import ButtonPrimary from '../components/ui/ButtonPrimary.jsx'
+import { LabDotBrand } from '../components/ui/LabDotBrand'
 
 const LoginView = ({ handleLogin, setView, error }) => {
   const [id, setId] = useState('')
@@ -7,10 +8,10 @@ const LoginView = ({ handleLogin, setView, error }) => {
 
   return (
     <div className="flex min-h-[100dvh] flex-col items-center justify-center bg-white px-6 text-slate-900">
-      <div className="mb-12 text-center">
-        <h2 className="mb-2 text-3xl font-serif text-emerald-600">THE COACH</h2>
-        <p className="text-xs uppercase tracking-[0.2em] text-gray-500">
-          Premium Management System
+      <div className="mb-12 text-center space-y-3">
+        <LabDotBrand variant="hero" />
+        <p className="text-[10px] uppercase tracking-[0.35em] text-gray-400 font-medium">
+          Silent Luxury Lab
         </p>
       </div>
       <div className="w-full max-w-sm space-y-4">

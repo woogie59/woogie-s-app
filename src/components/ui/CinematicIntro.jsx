@@ -1,29 +1,31 @@
 import React, { useEffect } from 'react';
 import { motion } from 'framer-motion';
+import { LabDotBrand } from './LabDotBrand';
 
+/**
+ * Silent Luxury splash: white field, deep green dot + LAB DOT only.
+ * Total 0.8s — reveal then crisp fade-out; login fades in behind.
+ */
 const CinematicIntro = ({ onComplete }) => {
   useEffect(() => {
-    const timer = setTimeout(() => onComplete(), 2500);
-    return () => clearTimeout(timer);
+    const t = setTimeout(() => onComplete(), 800);
+    return () => clearTimeout(t);
   }, [onComplete]);
 
   return (
     <motion.div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-white"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-[#FFFFFF]"
       initial={{ opacity: 1 }}
       animate={{ opacity: 0 }}
-      transition={{ delay: 1.5, duration: 1 }}
-      onAnimationComplete={onComplete}
+      transition={{ delay: 0.5, duration: 0.3, ease: [0.4, 0, 0.2, 1] }}
     >
-      <motion.h1
-        className="text-2xl md:text-4xl font-serif text-transparent bg-clip-text bg-gradient-to-r from-emerald-300 via-emerald-400 to-emerald-600 tracking-widest text-center px-4"
-        initial={{ opacity: 0, scale: 0.9 }}
-        animate={{ opacity: 1, scale: 1 }}
-        exit={{ opacity: 0 }}
-        transition={{ duration: 1.5, ease: "easeInOut", repeat: 1, repeatType: "reverse" }}
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ duration: 0.18, ease: [0.4, 0, 0.2, 1] }}
       >
-        THE COACH<br /><span className="text-sm md:text-lg text-gray-500 font-sans tracking-[0.5em]">PROFESSIONAL</span>
-      </motion.h1>
+        <LabDotBrand variant="splash" />
+      </motion.div>
     </motion.div>
   );
 };

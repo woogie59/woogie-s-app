@@ -1,0 +1,18 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "LAB DOT: 쾌속 커밋 & 푸시",
+      "type": "shell",
+      "command": "git add . && git commit -m \"${input:commitMessage}\" && git push",
+      "problemMatcher": []
+    }
+  ],
+  "inputs": [
+    {
+      "id": "commitMessage",
+      "type": "promptString",
+      "description": "이번 작전(Commit)의 핵심 내용을 입력하십시오:"
+    }
+  ]
+}
