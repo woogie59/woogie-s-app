@@ -54,6 +54,9 @@ const INITIAL_KNOWLEDGE = [
   }
 ];
 
+// --- OneSignal (replace with your App ID from dashboard) ---
+const ONESIGNAL_APP_ID = 'b11d4906-0186-462c-a90c-2d07171e6619';
+
 // --- Main App Component ---
 
 
@@ -106,58 +109,75 @@ export default function App() {
     localStorage.setItem('salaryConfig', JSON.stringify(salaryConfig));
   }, [salaryConfig]);
 
-  // [OneSignal] Initialize once on app load
+  // [OneSignal] Initialize once on app load (True Background Push foundation)
   const [oneSignalReady, setOneSignalReady] = useState(false);
   useEffect(() => {
     OneSignal.init({
-      appId: 'fd6573e6-1bd8-43af-9838-3b582f68286a',
+      appId: ONESIGNAL_APP_ID,
       allowLocalhostAsSecureOrigin: true,
-    }).then(() => setOneSignalReady(true)).catch(() => {});
+    })
+      .then(() => setOneSignalReady(true))
+      .catch((e) => console.warn('[OneSignal] init:', e));
   }, []);
 
-  // [OneSignal] Sync onesignal_id to Supabase whenever user logs in
+  // [OneSignal] Bind Supabase user id ↔ OneSignal identity; persist player id to profiles
   useEffect(() => {
     const user = session?.user;
     if (!oneSignalReady || !user?.id) return;
 
-    const runOneSignalSync = async () => {
+    const savePlayerIdToProfile = async (playerId) => {
+      if (!playerId) return;
+      const { error } = await supabase
+        .from('profiles')
+        .update({ onesignal_id: playerId })
+        .eq('id', user.id);
+      if (error) console.warn('[OneSignal] Failed to save onesignal_id:', error);
+    };
+
+    const run = async () => {
       try {
         await OneSignal.login(user.id);
       } catch (e) {
         console.warn('[OneSignal] login:', e);
       }
 
-      const savePlayerIdToProfile = async (playerId) => {
-        if (!playerId) return;
-        const { error } = await supabase
-          .from('profiles')
-          .update({ onesignal_id: playerId })
-          .eq('id', user.id);
-        if (error) console.warn('[OneSignal] Failed to save onesignal_id:', error);
-      };
-
-      const optedIn = OneSignal.User?.PushSubscription?.optedIn;
-      if (optedIn) {
+      if (OneSignal.User?.PushSubscription?.optedIn) {
         const id = OneSignal.User?.PushSubscription?.id || OneSignal.User?.onesignalId;
         if (id) await savePlayerIdToProfile(id);
-      } else {
-        await OneSignal.Slidedown.promptPush();
       }
-
-      OneSignal.User?.PushSubscription?.addEventListener?.('change', async (event) => {
-        const newId = event?.current?.id || OneSignal.User?.PushSubscription?.id;
-        if (newId) await savePlayerIdToProfile(newId);
-      });
     };
 
-    runOneSignalSync();
-  }, [oneSignalReady, session?.user]);
+    run();
+
+    const onSubscriptionChange = async (event) => {
+      const newId = event?.current?.id || OneSignal.User?.PushSubscription?.id;
+      if (newId) await savePlayerIdToProfile(newId);
+    };
+
+    const sub = OneSignal.User?.PushSubscription;
+    sub?.addEventListener?.('change', onSubscriptionChange);
+    return () => {
+      sub?.removeEventListener?.('change', onSubscriptionChange);
+    };
+  }, [oneSignalReady, session?.user?.id]);
 
   const [loading, setLoading] = useState(true);
   const [signupWelcomePending, setSignupWelcomePending] = useState(false);
   const [welcomeName, setWelcomeName] = useState('');
   const viewRef = useRef(view);
   viewRef.current = view;
+
+  /** Prompt push permission once per auth session when user reaches Home (client or admin) */
+  const pushPromptForSessionRef = useRef(null);
+  useEffect(() => {
+    if (!oneSignalReady || !session?.user?.id) return;
+    if (view !== 'client_home' && view !== 'admin_home') return;
+    if (loading || signupWelcomePending) return;
+    const uid = session.user.id;
+    if (pushPromptForSessionRef.current === uid) return;
+    pushPromptForSessionRef.current = uid;
+    OneSignal.Slidedown.promptPush().catch((e) => console.warn('[OneSignal] promptPush:', e));
+  }, [oneSignalReady, session?.user?.id, view, loading, signupWelcomePending]);
 
   const processAuth = async (sessionData) => {
     setSession(sessionData);
@@ -237,8 +257,14 @@ export default function App() {
   }, [showResetPassword]);
 
   const handleLogout = async () => {
-      await supabase.auth.signOut();
-      setView('login');
+    try {
+      await OneSignal.logout();
+    } catch (e) {
+      console.warn('[OneSignal] logout:', e);
+    }
+    pushPromptForSessionRef.current = null;
+    await supabase.auth.signOut();
+    setView('login');
   };
 
   // [Library Logic]
