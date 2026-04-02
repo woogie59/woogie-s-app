@@ -345,26 +345,8 @@ const ClientHome = ({ user, logout, setView }) => {
         </div>
       </header>
 
-      <main className="flex-1 flex flex-col px-5 gap-3 pb-6 overflow-y-auto scrollable min-h-0">
-        {/* Priority: Check-in — full-width compact module */}
-        <button
-          type="button"
-          onClick={() => setShowQRModal(true)}
-          className="w-full shrink-0 flex cursor-pointer items-center gap-4 rounded-2xl bg-white border border-gray-100 shadow-sm px-4 py-3.5 text-left transition-all duration-200 ease-in-out hover:bg-gray-50 active:bg-gray-100 active:scale-[0.98] hover:border-emerald-200/60 hover:shadow-md"
-        >
-          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[#064e3b]/10">
-            <QrCode size={22} strokeWidth={ICON_STROKE} className="text-[#064e3b]" />
-          </div>
-          <div className="min-w-0 flex-1">
-            <p className="text-[10px] text-gray-500 uppercase tracking-widest font-medium leading-none">Quick Check-in</p>
-            <p className="text-[15px] font-light tracking-wide text-slate-900 mt-1.5 text-left">
-              체크인 <span className="text-gray-400 text-[13px] font-light tracking-wide">(Check-in)</span>
-            </p>
-            <p className="text-[11px] text-gray-400 mt-1 font-light tracking-wide leading-snug">데스크에서 QR을 제시해 주세요.</p>
-          </div>
-        </button>
-
-        {/* Slim ticket — upcoming class; tap opens 일정 (valid HTML: div + inner button for 이력) */}
+      <main className="flex-1 flex flex-col px-5 gap-4 pb-6 overflow-y-auto scrollable min-h-0">
+        {/* 1. Upcoming Class — read first; tap opens 일정 (div + inner button for 이력) */}
         <div
           role="button"
           tabIndex={0}
@@ -422,8 +404,26 @@ const ClientHome = ({ user, logout, setView }) => {
           </div>
         </div>
 
-        {/* Bento grid */}
-        <div className="grid grid-cols-2 gap-3 pt-1">
+        {/* 2. Check-in — thumb zone primary action */}
+        <button
+          type="button"
+          onClick={() => setShowQRModal(true)}
+          className="w-full shrink-0 flex cursor-pointer items-center gap-4 rounded-2xl bg-white border border-gray-100 shadow-sm px-4 py-3.5 text-left transition-all duration-200 ease-in-out hover:bg-gray-50 active:bg-gray-100 active:scale-[0.98] hover:border-emerald-200/60 hover:shadow-md"
+        >
+          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[#064e3b]/10">
+            <QrCode size={22} strokeWidth={ICON_STROKE} className="text-[#064e3b]" />
+          </div>
+          <div className="min-w-0 flex-1">
+            <p className="text-[10px] text-gray-500 uppercase tracking-widest font-medium leading-none">Quick Check-in</p>
+            <p className="text-[15px] font-light tracking-wide text-slate-900 mt-1.5 text-left">
+              체크인 <span className="text-gray-400 text-[13px] font-light tracking-wide">(Check-in)</span>
+            </p>
+            <p className="text-[11px] text-gray-400 mt-1 font-light tracking-wide leading-snug">데스크에서 QR을 제시해 주세요.</p>
+          </div>
+        </button>
+
+        {/* 3. Bento grid */}
+        <div className="grid grid-cols-2 gap-3">
           {bentoItems.map(({ icon: Icon, title, subtitle, onClick }) => (
             <button
               key={title}
