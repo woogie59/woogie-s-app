@@ -1,9 +1,6 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { LogOut, Camera } from 'lucide-react';
-import OneSignal from 'react-onesignal';
 import { supabase } from '../../lib/supabaseClient';
-import { useGlobalModal } from '../../context/GlobalModalContext';
-import ButtonGhost from '../../components/ui/ButtonGhost';
 import LabDotBrand from '../../components/ui/LabDotBrand';
 
 /** LAB DOT green */
@@ -33,7 +30,6 @@ const isFutureScheduleRow = (row, now = new Date()) => {
 };
 
 const AdminHome = ({ setView, logout, setSelectedMemberId }) => {
-  const { showAlert } = useGlobalModal();
   const [unscheduledVips, setUnscheduledVips] = useState([]);
   const [radarLoading, setRadarLoading] = useState(true);
 
@@ -88,38 +84,19 @@ const AdminHome = ({ setView, logout, setSelectedMemberId }) => {
     setView('member_detail');
   };
 
-  const handleForceSaveID = async () => {
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    if (!user) {
-      showAlert({ message: '로그인 정보가 없습니다. 다시 로그인해 주세요.' });
-      return;
-    }
-    const osId = OneSignal.User?.PushSubscription?.id;
-    if (!osId) {
-      showAlert({ message: 'OneSignal ID가 감지되지 않습니다. 알림 권한을 허용했는지 확인하세요.' });
-      return;
-    }
-    const { error } = await supabase.from('profiles').update({ onesignal_id: osId }).eq('id', user.id);
-
-    if (error) {
-      showAlert({ message: 'DB 저장 실패: ' + error.message });
-    } else {
-      const { data: profile } = await supabase.from('profiles').select('onesignal_id').eq('id', user.id).single();
-      const verified = profile?.onesignal_id === osId;
-      showAlert({
-        message: verified ? '성공! 관리자 알림 ID가 저장되었습니다: ' + osId : '저장 완료. (확인: ' + (profile?.onesignal_id || 'null') + ')',
-      });
-    }
-  };
+  const navItems = [
+    { label: 'MEMBERS', view: 'member_list' },
+    { label: 'SCHEDULE', view: 'admin_schedule' },
+    { label: 'LIBRARY', view: 'library' },
+    { label: 'REVENUE', view: 'revenue' },
+  ];
 
   return (
     <div className="min-h-[100dvh] bg-white text-slate-900 flex flex-col relative pb-safe">
       <header className="p-6 flex justify-between items-center shrink-0">
         <div>
           <LabDotBrand variant="header" />
-          <p className="text-gray-500 text-xs">Manager Mode</p>
+          <p className="text-gray-400 text-[10px] tracking-[0.2em] uppercase mt-1">Clinical Lab</p>
         </div>
         <button onClick={logout}>
           <LogOut size={20} className="text-gray-600 hover:text-slate-900 transition-colors" />
@@ -161,29 +138,31 @@ const AdminHome = ({ setView, logout, setSelectedMemberId }) => {
         )}
       </section>
 
-      <div className="flex-1 flex flex-col items-center justify-center px-6 gap-8">
-        <div className="relative group">
-          <div className="absolute -inset-1 bg-gradient-to-r from-emerald-600 to-green-600 rounded-full blur opacity-25 group-hover:opacity-50 transition duration-1000"></div>
-          <button
-            onClick={() => setView('scanner')}
-            className="relative w-48 h-48 rounded-full bg-white border border-gray-200 flex flex-col items-center justify-center gap-2 active:scale-95 transition-all shadow-md"
-          >
-            <Camera size={40} className="text-emerald-600" />
-            <span className="text-sm tracking-widest font-medium text-gray-600">QR SCAN</span>
-          </button>
-        </div>
-        <div className="w-full max-w-xs space-y-2 mt-2">
-          <ButtonGhost onClick={() => setView('member_list')}>CLIENT LIST</ButtonGhost>
-          <ButtonGhost onClick={() => setView('revenue')}>📅 DASHBOARD</ButtonGhost>
-          <ButtonGhost onClick={() => setView('library')}>LIBRARY</ButtonGhost>
-          <ButtonGhost onClick={() => setView('admin_settings')}>⚙️ SETTINGS</ButtonGhost>
-          <button
-            onClick={handleForceSaveID}
-            className="w-full py-3 px-4 rounded-xl text-sm font-medium bg-gray-100 border border-gray-200 text-gray-600 hover:bg-gray-50 hover:border-emerald-600/30 transition-colors"
-          >
-            🔔 알림 연동 확인
-          </button>
-        </div>
+      <div className="flex-1 flex flex-col items-center justify-center px-6 gap-10">
+        <button
+          type="button"
+          onClick={() => setView('scanner')}
+          className="relative w-48 h-48 rounded-full bg-white border border-gray-200/90 flex flex-col items-center justify-center gap-2 active:scale-[0.98] transition-all hover:border-[#064e3b]/25"
+        >
+          <Camera size={36} strokeWidth={1.25} className="text-[#064e3b]/90" />
+          <span className="text-xs tracking-[0.35em] font-medium text-slate-600">QR SCAN</span>
+        </button>
+
+        <nav
+          className="w-full max-w-xs border-t border-b border-gray-200/70 divide-y divide-gray-100"
+          aria-label="Admin navigation"
+        >
+          {navItems.map((item) => (
+            <button
+              key={item.view}
+              type="button"
+              onClick={() => setView(item.view)}
+              className="w-full py-4 px-1 text-left text-[11px] font-medium tracking-[0.28em] text-slate-800 uppercase hover:text-[#064e3b] transition-colors border-0 bg-transparent"
+            >
+              {item.label}
+            </button>
+          ))}
+        </nav>
       </div>
     </div>
   );

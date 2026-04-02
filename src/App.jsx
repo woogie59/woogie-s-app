@@ -708,7 +708,16 @@ export default function App() {
             <AdminRoute session={session} setView={setView}>
               <div className="min-h-[100dvh] bg-white flex flex-col text-slate-900 overflow-y-auto pb-20">
                 <div className="p-6 pb-2">
-                  <BackButton onClick={() => setView('admin_home')} label="Admin Home" />
+                  <div className="flex items-center justify-between gap-4 mb-4">
+                    <BackButton onClick={() => setView('admin_home')} label="Admin Home" />
+                    <button
+                      type="button"
+                      onClick={() => setView('admin_settings')}
+                      className="shrink-0 text-[10px] font-medium tracking-[0.28em] uppercase text-[#064e3b] border border-[#064e3b]/25 px-3 py-2 rounded-lg bg-white hover:bg-[#064e3b]/5 active:scale-[0.99] transition-colors"
+                    >
+                      AVAILABILITY
+                    </button>
+                  </div>
 
                   {/* Segmented Control: Day | Week | Month */}
                   <div className="flex gap-1 p-1 bg-gray-50 rounded-xl border border-gray-200 w-fit mb-4 shadow-sm">
