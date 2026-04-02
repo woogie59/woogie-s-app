@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { QrCode, Camera, ChevronRight, ChevronDown, ChevronUp, BookOpen, LogOut, Plus, User, X, Search, ArrowLeft, Edit3, Save, Sparkles, MessageSquare, Calendar, Clock, ChevronLeft, Trash2, Edit, Image, DollarSign, Download, Printer, Eye, EyeOff } from 'lucide-react';
+import { QrCode, Camera, ChevronRight, ChevronDown, ChevronUp, BookOpen, LogOut, Plus, User, X, Search, ArrowLeft, Edit3, Save, Sparkles, MessageSquare, Calendar, Clock, ChevronLeft, Trash2, Edit, Image, DollarSign, Download, Printer } from 'lucide-react';
 import OneSignal from 'react-onesignal';
 
 import { supabase, REMEMBER_ME_KEY } from './lib/supabaseClient';
@@ -95,9 +95,7 @@ export default function App() {
   const [monthlyPackSalesKrw, setMonthlyPackSalesKrw] = useState(0);
   const [isRevenueLoading, setIsRevenueLoading] = useState(false);
   const [selectedRevenueDay, setSelectedRevenueDay] = useState(null);
-  const [showPayrollCalculator, setShowPayrollCalculator] = useState(false);
-  const [isManagerMode, setIsManagerMode] = useState(false);
-  
+
   // Salary Configuration (Persist in LocalStorage)
   const [salaryConfig, setSalaryConfig] = useState(() => {
     const saved = localStorage.getItem('salaryConfig');
@@ -703,8 +701,8 @@ export default function App() {
             </AdminRoute>
           )}
 
-          {/* Unified Management Dashboard (Revenue + Schedule) */}
-          {(view === 'revenue' || view === 'admin_schedule') && (
+          {/* Schedule dashboard: calendar & class list (no payroll) */}
+          {view === 'admin_schedule' && (
             <AdminRoute session={session} setView={setView}>
               <div className="min-h-[100dvh] bg-white flex flex-col text-slate-900 overflow-y-auto pb-20">
                 <div className="p-6 pb-2">
@@ -736,8 +734,8 @@ export default function App() {
                     ))}
                   </div>
 
-                  {/* Header: Navigator + Eye Toggle */}
-                  <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4 mb-4">
+                  {/* Header: date navigator */}
+                  <div className="flex flex-col sm:flex-row sm:items-center gap-4 mb-4">
                     <div className="flex items-center gap-3 bg-gray-50 px-4 py-3 rounded-xl border border-gray-200">
                       <button
                         onClick={() => {
@@ -770,15 +768,6 @@ export default function App() {
                         <ChevronRight size={24} />
                       </button>
                     </div>
-                    <button
-                      onClick={() => setIsManagerMode((v) => !v)}
-                      className={`flex items-center gap-2 px-4 py-3 rounded-xl border transition-all duration-300 ${
-                        isManagerMode ? 'bg-emerald-600/15 border-emerald-600/40 text-emerald-700' : 'bg-gray-50 border-gray-200 text-gray-600 hover:border-emerald-500/40'
-                      }`}
-                    >
-                      {isManagerMode ? <Eye size={22} /> : <EyeOff size={22} />}
-                      <span className="text-sm font-medium">{isManagerMode ? 'Manager' : 'Private'}</span>
-                    </button>
                   </div>
                 </div>
 
@@ -845,9 +834,6 @@ export default function App() {
                                 <div className="flex items-center justify-between gap-4">
                                   <span className="text-gray-600 font-mono font-medium">{item.time}</span>
                                   <span className="flex-1 text-slate-900 font-medium truncate text-center">{item.userName}</span>
-                                  {isManagerMode && item.price != null && (
-                                    <span className="text-emerald-600 font-bold text-sm">₩ {(item.price ?? 0).toLocaleString()}</span>
-                                  )}
                                 </div>
                                 {isNextUp && <p className="text-emerald-600 text-xs mt-2">↑ Next up</p>}
                               </div>
@@ -892,7 +878,6 @@ export default function App() {
                               <div key={idx} className={`flex items-center justify-between gap-4 px-4 py-2 ${item.status === 'Completed' ? 'bg-emerald-600/5' : ''}`}>
                                 <span className="text-gray-600 font-mono text-sm">{item.time}</span>
                                 <span className="flex-1 text-slate-900 text-sm truncate text-center">{item.userName}</span>
-                                {isManagerMode && item.price != null && <span className="text-emerald-600 text-xs">₩{(item.price ?? 0).toLocaleString()}</span>}
                               </div>
                             ))}
                             {items.length > 4 && <div className="px-4 py-2 text-gray-600 text-xs">+{items.length - 4} more</div>}
@@ -950,9 +935,6 @@ export default function App() {
                           >
                             <span className="font-mono text-gray-600">{item.time}</span>
                             <span className="flex-1 text-slate-900 text-center truncate">{item.userName}</span>
-                            {isManagerMode && item.price != null && (
-                              <span className="text-emerald-600 font-bold">₩{(item.price ?? 0).toLocaleString()}</span>
-                            )}
                           </div>
                         ))}
                       </div>
@@ -960,40 +942,117 @@ export default function App() {
                   </div>
                 )}
 
-                {/* Financial Section - Manager Mode Only */}
-                {isManagerMode && (
-                  <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="px-6 mb-4">
-                      <div className="grid grid-cols-2 gap-4 mb-4">
-                        <div className="bg-white rounded-xl p-4 border border-gray-200 shadow-sm">
-                          <span className="text-gray-600 text-xs">Total Sales</span>
-                          <p className="text-xl font-bold text-emerald-600">₩ {fmt(monthlyPackSalesKrw)}</p>
-                      </div>
-                        <div className="bg-white rounded-xl p-4 border border-emerald-600/20 shadow-sm">
-                          <span className="text-emerald-700/90 text-xs">Net Payout</span>
-                          <p className="text-xl font-bold text-emerald-600">₩ {fmt((() => { const g = salaryConfig.base + monthlyPackSalesKrw * (salaryConfig.incentiveRate / 100) + salaryConfig.extra; return g - Math.round(g * 0.033); })())}</p>
-                      </div>
-                    </div>
-                    <div className="flex gap-3">
-                        <button onClick={() => setShowPayrollCalculator((v) => !v)} className="flex items-center gap-2 bg-gray-100 px-4 py-2 rounded-xl text-emerald-700 text-sm border border-gray-200">🧮 Calculator</button>
-                        <button onClick={downloadPayrollCSV} className="flex items-center gap-2 bg-emerald-600 px-4 py-2 rounded-xl text-white font-bold text-sm">📥 Report</button>
-                    </div>
-                    {showPayrollCalculator && (
-                        <div className="mt-4 p-4 rounded-xl border border-gray-200 bg-gray-50 grid grid-cols-3 gap-4">
-                          <div><label className="text-gray-600 text-xs">Base</label><input type="number" value={salaryConfig.base} onChange={(e) => handleConfigChange('base', e.target.value)} className="w-full bg-white rounded px-3 py-2 text-slate-900 border border-gray-200" /></div>
-                          <div><label className="text-gray-600 text-xs">Incentive %</label><input type="number" value={salaryConfig.incentiveRate} onChange={(e) => handleConfigChange('incentiveRate', e.target.value)} className="w-full bg-white rounded px-3 py-2 text-emerald-700 border border-gray-200" /></div>
-                          <div><label className="text-gray-600 text-xs">Bonus</label><input type="number" value={salaryConfig.extra} onChange={(e) => handleConfigChange('extra', e.target.value)} className="w-full bg-white rounded px-3 py-2 text-green-600 border border-gray-200" /></div>
-                      </div>
-                    )}
-                  </motion.div>
-                )}
-
-                {/* Sticky Footer - Total Monthly Sessions (unobtrusive) */}
+                {/* Sticky Footer — sessions only (payroll moved to Revenue) */}
                 <div className="sticky bottom-0 left-0 right-0 py-3 px-6 bg-white border-t border-gray-200/70 text-center shadow-sm">
                   <p className="text-gray-600 text-xs">
                     Total Monthly Sessions: <span className="text-emerald-600 font-semibold">{isRevenueLoading ? '—' : monthlyScheduledCount}</span>
-                    {isManagerMode && (
-                      <span className="ml-4">Revenue: ₩{fmt(monthlyPackSalesKrw)}</span>
-                    )}
+                  </p>
+                </div>
+              </div>
+            </AdminRoute>
+          )}
+
+          {/* Revenue: monthly payroll & CSV only (was Private/Manager on Schedule) */}
+          {view === 'revenue' && (
+            <AdminRoute session={session} setView={setView}>
+              <div className="min-h-[100dvh] bg-white flex flex-col text-slate-900 overflow-y-auto pb-24">
+                <div className="p-6 pb-2">
+                  <BackButton onClick={() => setView('admin_home')} label="Admin Home" />
+                  <h2 className="text-2xl font-bold text-emerald-600 mt-4">💰 REVENUE</h2>
+                  <p className="text-gray-500 text-sm mt-1">Pack sales, net payout, and payroll export for the selected month.</p>
+                </div>
+
+                <div className="px-6 flex-1 flex flex-col">
+                  <div className="flex items-center justify-center sm:justify-start gap-3 bg-gray-50 px-4 py-3 rounded-xl border border-gray-200 w-full sm:w-fit mb-6">
+                    <button
+                      type="button"
+                      onClick={() => changeMonth(-1)}
+                      className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-500 hover:text-emerald-600 transition"
+                    >
+                      <ChevronLeft size={24} />
+                    </button>
+                    <div className="flex items-center gap-2 min-w-[160px] justify-center">
+                      <Calendar size={20} className="text-emerald-600" />
+                      <span className="text-lg font-bold">
+                        {currentRevenueDate.toLocaleDateString('en-US', { month: 'short' })} {currentRevenueDate.getFullYear()}
+                      </span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => changeMonth(1)}
+                      className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-500 hover:text-emerald-600 transition"
+                    >
+                      <ChevronRight size={24} />
+                    </button>
+                  </div>
+
+                  <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="mb-4">
+                    <div className="grid grid-cols-2 gap-4 mb-4">
+                      <div className="bg-white rounded-xl p-4 border border-gray-200 shadow-sm">
+                        <span className="text-gray-600 text-xs">Total Sales</span>
+                        <p className="text-xl font-bold text-emerald-600">₩ {fmt(monthlyPackSalesKrw)}</p>
+                      </div>
+                      <div className="bg-white rounded-xl p-4 border border-emerald-600/20 shadow-sm">
+                        <span className="text-emerald-700/90 text-xs">Net Payout</span>
+                        <p className="text-xl font-bold text-emerald-600">
+                          ₩{' '}
+                          {fmt(
+                            (() => {
+                              const g =
+                                salaryConfig.base +
+                                monthlyPackSalesKrw * (salaryConfig.incentiveRate / 100) +
+                                salaryConfig.extra;
+                              return g - Math.round(g * 0.033);
+                            })()
+                          )}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex gap-3 flex-wrap">
+                      <button
+                        type="button"
+                        onClick={downloadPayrollCSV}
+                        className="flex items-center gap-2 bg-emerald-600 px-4 py-2 rounded-xl text-white font-bold text-sm"
+                      >
+                        📥 Report
+                      </button>
+                    </div>
+                    <div className="mt-4 p-4 rounded-xl border border-gray-200 bg-gray-50 grid grid-cols-1 sm:grid-cols-3 gap-4">
+                      <div>
+                        <label className="text-gray-600 text-xs">Base</label>
+                        <input
+                          type="number"
+                          value={salaryConfig.base}
+                          onChange={(e) => handleConfigChange('base', e.target.value)}
+                          className="w-full bg-white rounded px-3 py-2 text-slate-900 border border-gray-200"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-gray-600 text-xs">Incentive %</label>
+                        <input
+                          type="number"
+                          value={salaryConfig.incentiveRate}
+                          onChange={(e) => handleConfigChange('incentiveRate', e.target.value)}
+                          className="w-full bg-white rounded px-3 py-2 text-emerald-700 border border-gray-200"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-gray-600 text-xs">Bonus</label>
+                        <input
+                          type="number"
+                          value={salaryConfig.extra}
+                          onChange={(e) => handleConfigChange('extra', e.target.value)}
+                          className="w-full bg-white rounded px-3 py-2 text-green-600 border border-gray-200"
+                        />
+                      </div>
+                    </div>
+                  </motion.div>
+                </div>
+
+                <div className="sticky bottom-0 left-0 right-0 py-3 px-6 bg-white border-t border-gray-200/70 text-center shadow-sm mt-auto">
+                  <p className="text-gray-600 text-xs">
+                    Total Monthly Sessions: <span className="text-emerald-600 font-semibold">{isRevenueLoading ? '—' : monthlyScheduledCount}</span>
+                    <span className="ml-4">Revenue: ₩{fmt(monthlyPackSalesKrw)}</span>
                   </p>
                 </div>
               </div>

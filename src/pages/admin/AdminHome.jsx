@@ -2,6 +2,7 @@ import React, { useEffect, useState, useCallback } from 'react';
 import { LogOut, Camera } from 'lucide-react';
 import { supabase } from '../../lib/supabaseClient';
 import LabDotBrand from '../../components/ui/LabDotBrand';
+import ButtonGhost from '../../components/ui/ButtonGhost';
 
 /** LAB DOT green */
 const LAB_DOT = '#064e3b';
@@ -84,21 +85,14 @@ const AdminHome = ({ setView, logout, setSelectedMemberId }) => {
     setView('member_detail');
   };
 
-  const navItems = [
-    { label: 'MEMBERS', view: 'member_list' },
-    { label: 'SCHEDULE', view: 'admin_schedule' },
-    { label: 'LIBRARY', view: 'library' },
-    { label: 'REVENUE', view: 'revenue' },
-  ];
-
   return (
     <div className="min-h-[100dvh] bg-white text-slate-900 flex flex-col relative pb-safe">
       <header className="p-6 flex justify-between items-center shrink-0">
         <div>
           <LabDotBrand variant="header" />
-          <p className="text-gray-400 text-[10px] tracking-[0.2em] uppercase mt-1">Clinical Lab</p>
+          <p className="text-gray-400 text-[10px] tracking-[0.2em] uppercase mt-1">Manager Mode</p>
         </div>
-        <button onClick={logout}>
+        <button type="button" onClick={logout} aria-label="Log out">
           <LogOut size={20} className="text-gray-600 hover:text-slate-900 transition-colors" />
         </button>
       </header>
@@ -142,26 +136,18 @@ const AdminHome = ({ setView, logout, setSelectedMemberId }) => {
         <button
           type="button"
           onClick={() => setView('scanner')}
-          className="relative w-48 h-48 rounded-full bg-white border border-gray-200/90 flex flex-col items-center justify-center gap-2 active:scale-[0.98] transition-all hover:border-[#064e3b]/25"
+          className="relative w-48 h-48 rounded-full flex flex-col items-center justify-center gap-2 active:scale-[0.98] transition-all bg-gradient-to-br from-emerald-400/25 via-white to-emerald-600/20 border-2 border-emerald-500/35 shadow-[0_0_40px_rgba(16,185,129,0.35)] hover:shadow-[0_0_48px_rgba(16,185,129,0.45)]"
         >
-          <Camera size={36} strokeWidth={1.25} className="text-[#064e3b]/90" />
-          <span className="text-xs tracking-[0.35em] font-medium text-slate-600">QR SCAN</span>
+          <Camera size={36} strokeWidth={1.25} className="text-emerald-800/90" />
+          <span className="text-xs tracking-[0.35em] font-medium text-slate-700">QR SCAN</span>
         </button>
 
-        <nav
-          className="w-full max-w-xs border-t border-b border-gray-200/70 divide-y divide-gray-100"
-          aria-label="Admin navigation"
-        >
-          {navItems.map((item) => (
-            <button
-              key={item.view}
-              type="button"
-              onClick={() => setView(item.view)}
-              className="w-full py-4 px-1 text-left text-[11px] font-medium tracking-[0.28em] text-slate-800 uppercase hover:text-[#064e3b] transition-colors border-0 bg-transparent"
-            >
-              {item.label}
-            </button>
-          ))}
+        <nav className="w-full max-w-xs space-y-2 mt-2" aria-label="Admin navigation">
+          <ButtonGhost onClick={() => setView('member_list')}>CLIENT LIST</ButtonGhost>
+          <ButtonGhost onClick={() => setView('admin_schedule')}>📅 DASHBOARD</ButtonGhost>
+          <ButtonGhost onClick={() => setView('library')}>LIBRARY</ButtonGhost>
+          <ButtonGhost onClick={() => setView('admin_settings')}>⚙️ SETTINGS</ButtonGhost>
+          <ButtonGhost onClick={() => setView('revenue')}>💰 REVENUE</ButtonGhost>
         </nav>
       </div>
     </div>
