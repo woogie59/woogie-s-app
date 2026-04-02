@@ -19,7 +19,8 @@ import LabDotBrand from '../../components/ui/LabDotBrand';
 import Skeleton from '../../components/ui/Skeleton';
 import SessionHistoryModal from '../../features/members/SessionHistoryModal';
 
-const ICON_STROKE = 1.5;
+/** Lucide: ~1px hairline for premium UI */
+const ICON_STROKE = 1;
 
 const toDateKey = (d) => {
   const x = new Date(d);
@@ -48,11 +49,18 @@ const bookingDateTime = (b) => {
   return new Date(y, m - 1, d, hh, min);
 };
 
-const formatUpcomingKorean = (b) => {
+const formatTime24hStatic = (t) => {
+  if (!t || typeof t !== 'string') return '—';
+  const m = String(t).match(/(\d{1,2}):(\d{2})/);
+  return m ? `${m[1].padStart(2, '0')}:${m[2]}` : t;
+};
+
+const formatUpcomingLine = (b) => {
   const dt = bookingDateTime(b);
   if (!dt) return '—';
   const wk = ['일', '월', '화', '수', '목', '금', '토'];
-  return `${dt.getMonth() + 1}월 ${dt.getDate()}일 (${wk[dt.getDay()]})`;
+  const tm = formatTime24hStatic(b?.time);
+  return `${dt.getMonth() + 1}월 ${dt.getDate()}일 (${wk[dt.getDay()]}) ${tm}`;
 };
 
 const ClientHome = ({ user, logout, setView }) => {
@@ -64,6 +72,8 @@ const ClientHome = ({ user, logout, setView }) => {
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [myBookings, setMyBookings] = useState([]);
   const [loadingBookings, setLoadingBookings] = useState(false);
+  /** Oldest active pack (FIFO) for 잔여 n/m display */
+  const [activePack, setActivePack] = useState(null);
   const [cancelling, setCancelling] = useState(null);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [bookingToDelete, setBookingToDelete] = useState(null);
@@ -98,6 +108,28 @@ const ClientHome = ({ user, logout, setView }) => {
     fetchProfile();
   }, [user]);
 
+  const fetchActivePack = useCallback(async () => {
+    if (!user?.id) return;
+    const { data, error } = await supabase
+      .from('session_batches')
+      .select('remaining_count, total_count')
+      .eq('user_id', user.id)
+      .gt('remaining_count', 0)
+      .order('created_at', { ascending: true })
+      .limit(1)
+      .maybeSingle();
+    if (error) {
+      console.warn('[ClientHome] session_batches:', error);
+      setActivePack(null);
+      return;
+    }
+    setActivePack(data || null);
+  }, [user]);
+
+  useEffect(() => {
+    fetchActivePack();
+  }, [fetchActivePack]);
+
   useEffect(() => {
     if (!user) return;
 
@@ -125,6 +157,7 @@ const ClientHome = ({ user, logout, setView }) => {
             }
           };
           fetchProfile();
+          fetchActivePack();
         }
       )
       .subscribe();
@@ -132,7 +165,7 @@ const ClientHome = ({ user, logout, setView }) => {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [user, showAlert]);
+  }, [user, showAlert, fetchActivePack]);
 
   const fetchMyBookings = useCallback(async () => {
     if (!user) return;
@@ -171,6 +204,18 @@ const ClientHome = ({ user, logout, setView }) => {
       .sort((a, b) => a.dt - b.dt);
     return future[0]?.b ?? null;
   }, [myBookings]);
+
+  const sessionRemainLabel = useMemo(() => {
+    if (
+      activePack &&
+      Number.isFinite(Number(activePack.remaining_count)) &&
+      Number.isFinite(Number(activePack.total_count))
+    ) {
+      return `잔여 ${activePack.remaining_count} / ${activePack.total_count}회`;
+    }
+    const r = profile?.remaining_sessions ?? 0;
+    return `잔여 ${r}회`;
+  }, [activePack, profile?.remaining_sessions]);
 
   const handleCancelBooking = (bookingId, date, time) => {
     setBookingToDelete({ id: bookingId, date, time });
@@ -268,7 +313,7 @@ const ClientHome = ({ user, logout, setView }) => {
   ];
 
   return (
-    <div className="min-h-[100dvh] bg-[#f8f9fa] text-slate-900 flex flex-col relative pb-safe font-sans">
+    <div className="min-h-[100dvh] bg-gray-50 text-slate-900 flex flex-col relative pb-safe font-sans antialiased">
       <header className="px-5 pt-5 pb-3 flex justify-between items-start gap-3 shrink-0">
         <div className="min-w-0">
           <LabDotBrand variant="header" />
@@ -278,8 +323,8 @@ const ClientHome = ({ user, logout, setView }) => {
               <Skeleton className="h-4 w-28" />
             </div>
           ) : (
-            <p className="text-gray-400 text-xs mt-2 tracking-wide">
-              <span className="text-slate-800 font-medium">{profile?.name || '회원'}</span>
+            <p className="text-gray-500 text-xs mt-2.5 font-light tracking-[0.12em]">
+              <span className="text-slate-800">{profile?.name || '회원'}</span>
               <span className="text-gray-400"> 님</span>
             </p>
           )}
@@ -289,71 +334,82 @@ const ClientHome = ({ user, logout, setView }) => {
             <button
               type="button"
               onClick={() => setView('admin_home')}
-              className="text-[10px] tracking-[0.15em] uppercase text-gray-400 hover:text-[#064e3b] px-2 py-1.5 transition-colors"
+              className="text-[10px] tracking-[0.2em] uppercase text-gray-500 font-light hover:text-[#064e3b] px-2 py-1.5 transition-colors"
             >
               Admin
             </button>
           )}
-          <button type="button" onClick={logout} className="p-2 rounded-xl text-gray-500 hover:text-slate-900 hover:bg-white/80 transition-colors" aria-label="로그아웃">
+          <button type="button" onClick={logout} className="p-2 rounded-xl text-gray-500 hover:text-slate-900 hover:bg-white transition-colors" aria-label="로그아웃">
             <LogOut size={20} strokeWidth={ICON_STROKE} />
           </button>
         </div>
       </header>
 
-      <main className="flex-1 flex flex-col px-5 gap-4 pb-6 overflow-y-auto scrollable min-h-0">
-        {/* Ticket — 다음 수업 */}
-        <section className="rounded-2xl bg-[#064e3b] p-5 text-white shadow-[0_12px_40px_-12px_rgba(6,78,59,0.45)] ring-1 ring-white/10">
-          <div className="flex justify-between items-start gap-3">
-            <div>
-              <p className="text-[10px] tracking-[0.22em] uppercase text-emerald-200/75 font-medium">Upcoming Class</p>
-              <h2 className="text-lg font-semibold tracking-tight mt-1.5 text-white">다음 수업</h2>
-            </div>
-            <button
-              type="button"
-              onClick={() => setShowHistory(true)}
-              className="flex items-center gap-1.5 text-emerald-100/90 text-xs font-medium hover:text-white transition-colors shrink-0"
-            >
-              <History size={14} strokeWidth={ICON_STROKE} />
-              이력
-            </button>
+      <main className="flex-1 flex flex-col px-5 gap-3 pb-6 overflow-y-auto scrollable min-h-0">
+        {/* Priority: Check-in — full-width compact module */}
+        <button
+          type="button"
+          onClick={() => setShowQRModal(true)}
+          className="w-full shrink-0 flex items-center gap-4 rounded-2xl bg-white border border-gray-100 shadow-sm px-4 py-3.5 text-left active:scale-[0.995] transition-all hover:border-emerald-200/60 hover:shadow-md"
+        >
+          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[#064e3b]/10">
+            <QrCode size={22} strokeWidth={ICON_STROKE} className="text-[#064e3b]" />
           </div>
+          <div className="min-w-0 flex-1">
+            <p className="text-[10px] text-gray-500 uppercase tracking-widest font-medium leading-none">Quick Check-in</p>
+            <p className="text-[15px] font-light tracking-wide text-slate-900 mt-1.5 text-left">
+              체크인 <span className="text-gray-400 text-[13px] font-light tracking-wide">(Check-in)</span>
+            </p>
+            <p className="text-[11px] text-gray-400 mt-1 font-light tracking-wide leading-snug">데스크에서 QR을 제시해 주세요.</p>
+          </div>
+        </button>
 
-          <div className="mt-5 min-h-[4.5rem]">
-            {loadingBookings && !myBookings.length ? (
-              <div className="space-y-2">
-                <Skeleton className="h-7 w-48 bg-white/10" />
-                <Skeleton className="h-4 w-32 bg-white/10" />
+        {/* Slim ticket — upcoming class (horizontal density) */}
+        <section className="rounded-xl bg-[#064e3b] px-3 py-3 sm:px-4 sm:py-3 text-white shadow-md ring-1 ring-white/10 shrink-0">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-3 sm:justify-between">
+            <div className="flex items-start gap-2 sm:max-w-[32%] min-w-0">
+              <div className="min-w-0 flex-1">
+                <p className="text-[9px] uppercase tracking-[0.2em] text-gray-400 font-medium">Upcoming Class</p>
+                <div className="flex items-center gap-1 mt-1.5">
+                  <button
+                    type="button"
+                    onClick={() => setShowHistory(true)}
+                    className="p-1 rounded-md text-emerald-200/90 hover:bg-white/10 hover:text-white transition-colors shrink-0"
+                    aria-label="출석 이력"
+                  >
+                    <History size={15} strokeWidth={ICON_STROKE} />
+                  </button>
+                  <span className="text-[13px] font-light tracking-wide text-white/95 leading-tight">다음 수업</span>
+                </div>
               </div>
-            ) : upcomingBooking ? (
-              <>
-                <p className="text-xl font-semibold tracking-tight leading-snug">{formatUpcomingKorean(upcomingBooking)}</p>
-                <p className="text-sm text-emerald-100/85 mt-2 font-medium tabular-nums">
-                  {formatTime24h(upcomingBooking.time)}
-                </p>
-              </>
-            ) : (
-              <p className="text-sm text-emerald-100/80 leading-relaxed">
-                예약된 수업이 없습니다.
-                <span className="block text-xs text-emerald-200/60 mt-1.5 font-normal">새 일정은 수업 예약에서 잡을 수 있어요.</span>
-              </p>
-            )}
-          </div>
+            </div>
 
-          <div className="mt-5 pt-4 border-t border-white/10 flex justify-between items-baseline">
-            <span className="text-xs text-emerald-100/70 tracking-wide">잔여 세션</span>
-            {loading ? (
-              <Skeleton className="h-6 w-12 bg-white/15 rounded" />
-            ) : (
-              <span className="text-2xl font-semibold tabular-nums text-white tracking-tight">
-                {profile?.remaining_sessions ?? 0}
-                <span className="text-sm font-medium text-emerald-100/80 ml-1">회</span>
-              </span>
-            )}
+            <div className="flex-1 min-w-0 sm:text-center px-1">
+              {loadingBookings && !myBookings.length ? (
+                <Skeleton className="h-5 w-full max-w-[220px] mx-auto sm:mx-auto bg-white/10 rounded" />
+              ) : upcomingBooking ? (
+                <p className="text-[13px] sm:text-sm font-light tracking-wide tabular-nums text-white leading-snug">
+                  {formatUpcomingLine(upcomingBooking)}
+                </p>
+              ) : (
+                <p className="text-[12px] font-light tracking-wide text-emerald-100/85">예약 없음 · 수업 예약에서 일정을 잡아보세요.</p>
+              )}
+            </div>
+
+            <div className="flex sm:justify-end sm:max-w-[32%] sm:min-w-[7rem] shrink-0 border-t border-white/10 pt-2 sm:border-t-0 sm:pt-0">
+              {loading ? (
+                <Skeleton className="h-5 w-20 bg-white/15 rounded ml-auto sm:ml-0" />
+              ) : (
+                <p className="text-[12px] sm:text-[11px] font-light tabular-nums tracking-wide text-emerald-50/95 text-right w-full sm:text-right">
+                  {sessionRemainLabel}
+                </p>
+              )}
+            </div>
           </div>
         </section>
 
         {/* Bento grid */}
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-2 gap-3 pt-1">
           {bentoItems.map(({ icon: Icon, title, subtitle, onClick }) => (
             <button
               key={title}
@@ -362,27 +418,11 @@ const ClientHome = ({ user, logout, setView }) => {
               className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5 text-left active:scale-[0.98] transition-transform hover:border-emerald-200/60 hover:shadow-md"
             >
               <Icon className="text-[#064e3b] mb-4" size={26} strokeWidth={ICON_STROKE} />
-              <p className="text-[15px] font-semibold text-slate-900 leading-tight">{title}</p>
-              <p className="text-[11px] text-gray-400 mt-1.5 tracking-wide">{subtitle}</p>
+              <p className="text-[15px] font-light text-slate-900 tracking-wide leading-tight">{title}</p>
+              <p className="text-[10px] text-gray-500 mt-2 uppercase tracking-widest font-medium">{subtitle}</p>
             </button>
           ))}
         </div>
-
-        {/* Check-in card */}
-        <button
-          type="button"
-          onClick={() => setShowQRModal(true)}
-          className="w-full mt-auto bg-white rounded-2xl shadow-sm border border-gray-100 p-5 flex items-center gap-5 text-left active:scale-[0.99] transition-all hover:border-emerald-200/50"
-        >
-          <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-[#064e3b]/10">
-            <QrCode size={32} strokeWidth={ICON_STROKE} className="text-[#064e3b]" />
-          </div>
-          <div className="min-w-0 flex-1">
-            <p className="text-[11px] tracking-[0.2em] uppercase text-gray-400 font-medium">Check-in</p>
-            <p className="text-lg font-semibold text-slate-900 mt-0.5 tracking-tight">체크인</p>
-            <p className="text-xs text-gray-400 mt-1">출석 시 스캐너에 QR을 보여주세요.</p>
-          </div>
-        </button>
       </main>
 
       {/* QR Code Modal */}
