@@ -359,8 +359,8 @@ export default function App() {
     setIsRevenueLoading(true);
     const year = currentRevenueDate.getFullYear();
     const month = currentRevenueDate.getMonth();
-    const startDate = new Date(year, month, 1);
-    const endDate = new Date(year, month + 1, 0, 23, 59, 59);
+    const startDate = new Date(year, month, 1, 0, 0, 0, 0);
+    const endDate = new Date(year, month + 1, 0, 23, 59, 59, 999);
     const startISO = startDate.toISOString();
     const endISO = endDate.toISOString();
     const startKey = `${year}-${String(month + 1).padStart(2, '0')}-01`;

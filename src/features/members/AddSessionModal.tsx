@@ -70,11 +70,13 @@ export default function AddSessionModal({
     try {
       const totalPriceN = toNumberOrZero(totalPrice);
       const totalSessionsN = toNumberOrZero(totalSessions);
+      // `price` = pack total (KRW); Revenue screen sums this for the selected month
       const { error: insertError } = await supabase.from('session_batches').insert({
         user_id: userId,
         total_count: totalSessionsN,
         remaining_count: remainingSessions,
         price_per_session: pricePerSession,
+        price: totalPriceN,
       });
       if (insertError) throw insertError;
 
