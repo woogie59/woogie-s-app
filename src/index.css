@@ -84,5 +84,29 @@
   .animate-skeleton-pulse {
     animation: skeleton-pulse 2s ease-in-out infinite;
   }
+
+  /* QR scanner / check-in frame — precise “living lab” border glow (LAB DOT #064e3b) */
+  @keyframes lab-scan-breathe {
+    0%,
+    100% {
+      box-shadow:
+        0 0 0 1px rgba(6, 78, 59, 0.45),
+        0 0 14px rgba(5, 150, 105, 0.22),
+        0 0 28px rgba(16, 185, 129, 0.08),
+        inset 0 0 0 1px rgba(6, 78, 59, 0.12);
+    }
+    50% {
+      box-shadow:
+        0 0 0 2px rgba(6, 78, 59, 0.9),
+        0 0 26px rgba(5, 150, 105, 0.5),
+        0 0 52px rgba(16, 185, 129, 0.2),
+        inset 0 0 0 1px rgba(6, 78, 59, 0.28);
+    }
+  }
+
+  .animate-lab-scan-breathe {
+    animation: lab-scan-breathe 2.75s cubic-bezier(0.45, 0, 0.55, 1) infinite;
+    will-change: box-shadow;
+  }
 }
 

@@ -131,7 +131,7 @@ const QRScanner = ({ setView }) => {
       </button>
 
       <div className="flex-1 flex flex-col items-center justify-center p-6">
-        <h2 className="text-2xl font-bold text-emerald-600 mb-4">QR CHECK-IN</h2>
+        <h2 className="text-2xl font-semibold tracking-wide text-[#064e3b] mb-4">QR CHECK-IN</h2>
         <p className="text-gray-500 text-sm mb-6">회원 QR 코드를 카메라에 맞춰주세요</p>
 
         {cameraError ? (
@@ -143,7 +143,9 @@ const QRScanner = ({ setView }) => {
           </div>
         ) : (
           <div className="w-full max-w-md">
-            <div id="reader" className="rounded-2xl overflow-hidden border-2 border-emerald-600/50" />
+            <div className="animate-lab-scan-breathe rounded-2xl overflow-hidden bg-slate-950/[0.03]">
+              <div id="reader" className="rounded-2xl overflow-hidden min-h-[260px] w-full [&_video]:rounded-2xl" />
+            </div>
             <p className="text-gray-500 text-xs text-center mt-4">스캔 영역 안에 QR을 맞춰주세요</p>
           </div>
         )}
