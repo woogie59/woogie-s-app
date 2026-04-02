@@ -162,6 +162,8 @@ export default function App() {
   const [loading, setLoading] = useState(true);
   const [signupWelcomePending, setSignupWelcomePending] = useState(false);
   const [welcomeName, setWelcomeName] = useState('');
+  /** From `profiles.role` — used for library back nav & admin-only UI */
+  const [userProfileRole, setUserProfileRole] = useState(null);
   const viewRef = useRef(view);
   viewRef.current = view;
 
@@ -180,12 +182,14 @@ export default function App() {
   const processAuth = async (sessionData) => {
     setSession(sessionData);
     if (!sessionData?.user?.id) {
+      setUserProfileRole(null);
       setView('login');
       setLoading(false);
       return;
     }
     if (viewRef.current === 'register') {
       setSignupWelcomePending(true);
+      setUserProfileRole(null);
       setWelcomeName(sessionData.user?.user_metadata?.full_name || sessionData.user?.email || '회원');
       setLoading(false);
       return;
@@ -203,11 +207,14 @@ export default function App() {
           .select('role')
           .eq('id', sessionData.user.id)
           .maybeSingle();
+        setUserProfileRole(retry?.role ?? null);
         setView(retry?.role === 'admin' ? 'admin_home' : 'client_home');
       } else {
+        setUserProfileRole(data?.role ?? null);
         setView(data?.role === 'admin' ? 'admin_home' : 'client_home');
       }
     } catch {
+      setUserProfileRole(null);
       setView('client_home');
     } finally {
       setLoading(false);
@@ -261,6 +268,7 @@ export default function App() {
       console.warn('[OneSignal] logout:', e);
     }
     pushPromptForSessionRef.current = null;
+    setUserProfileRole(null);
     await supabase.auth.signOut();
     setView('login');
   };
@@ -281,6 +289,10 @@ export default function App() {
   };
 
   const handleSavePost = async () => {
+    if (userProfileRole !== 'admin') {
+      showAlert({ message: 'Only admins can create posts.' });
+      return;
+    }
     if (!newPost.title || !newPost.content) {
       showAlert({ message: 'Please enter a title and content.' });
       return;
@@ -540,13 +552,15 @@ export default function App() {
 
   const fmt = (num) => num?.toLocaleString() || '0';
 
+  /** Base + (pack sales × incentive %) + bonus — no blanket 3.3% deduction on the total */
+  const grossPayoutAmount = () =>
+    salaryConfig.base + monthlyPackSalesKrw * (salaryConfig.incentiveRate / 100) + salaryConfig.extra;
+
   const downloadPayrollCSV = () => {
     const completedCheckIns = revenueLogs.length;
     const totalSales = monthlyPackSalesKrw;
     const commission = totalSales * (salaryConfig.incentiveRate / 100);
-    const grossPayout = salaryConfig.base + commission + salaryConfig.extra;
-    const taxDeduction = Math.round(grossPayout * 0.033);
-    const netPayout = grossPayout - taxDeduction;
+    const totalPayout = salaryConfig.base + commission + salaryConfig.extra;
 
     const monthLabel = `${currentRevenueDate.getFullYear()}년 ${currentRevenueDate.getMonth() + 1}월`;
     const esc = (v) => `"${String(v).replace(/"/g, '""')}"`;
@@ -556,7 +570,7 @@ export default function App() {
       esc(`Scheduled classes (month): ${monthlyScheduledCount}`),
       esc(`Pack sales (month): ₩${totalSales.toLocaleString()}`),
       esc(`Completed check-ins (month): ${completedCheckIns}`),
-      esc(`Net Payout: ₩${netPayout.toLocaleString()}`),
+      esc(`Total Payout: ₩${totalPayout.toLocaleString()}`),
       '',
       '',
     ];
@@ -959,7 +973,7 @@ export default function App() {
                 <div className="p-6 pb-2">
                   <BackButton onClick={() => setView('admin_home')} label="Admin Home" />
                   <h2 className="text-2xl font-bold text-emerald-600 mt-4">REVENUE</h2>
-                  <p className="text-gray-500 text-sm mt-1">Pack sales, net payout, and payroll export for the selected month.</p>
+                  <p className="text-gray-500 text-sm mt-1">Pack sales, total payout (base + incentive + bonus), and payroll export for the selected month.</p>
                 </div>
 
                 <div className="px-6 flex-1 flex flex-col">
@@ -993,19 +1007,8 @@ export default function App() {
                         <p className="text-xl font-bold text-emerald-600">₩ {fmt(monthlyPackSalesKrw)}</p>
                       </div>
                       <div className="bg-white rounded-xl p-4 border border-emerald-600/20 shadow-sm">
-                        <span className="text-emerald-700/90 text-xs">Net Payout</span>
-                        <p className="text-xl font-bold text-emerald-600">
-                          ₩{' '}
-                          {fmt(
-                            (() => {
-                              const g =
-                                salaryConfig.base +
-                                monthlyPackSalesKrw * (salaryConfig.incentiveRate / 100) +
-                                salaryConfig.extra;
-                              return g - Math.round(g * 0.033);
-                            })()
-                          )}
-                        </p>
+                        <span className="text-emerald-700/90 text-xs">Total Payout</span>
+                        <p className="text-xl font-bold text-emerald-600">₩ {fmt(grossPayoutAmount())}</p>
                       </div>
                     </div>
                     <div className="flex gap-3 flex-wrap">
@@ -1068,11 +1071,22 @@ export default function App() {
           {(session || view === 'admin_home' || view === 'library') && view === 'library' && (
             <div className="min-h-[100dvh] h-full max-w-full bg-white flex flex-col overflow-hidden">
               <div className="flex-1 overflow-y-auto overscroll-contain min-h-0 p-6 pb-24" style={{ WebkitOverflowScrolling: 'touch' }}>
-              <BackButton onClick={() => setView(session?.user ? 'client_home' : 'admin_home')} label="Home" />
+              <BackButton
+                onClick={() =>
+                  setView(
+                    session?.user
+                      ? userProfileRole === 'admin'
+                        ? 'admin_home'
+                        : 'client_home'
+                      : 'admin_home'
+                  )
+                }
+                label="Home"
+              />
               
               <div className="flex flex-wrap justify-between items-center gap-3 mb-6 max-w-full">
                 <h2 className="text-2xl font-bold text-emerald-600">📚 KNOWLEDGE BASE</h2>
-                {(session?.user?.email === 'admin' || !session) && (
+                {userProfileRole === 'admin' && (
                   <button 
                     onClick={() => setShowWriteModal(true)}
                     className="bg-emerald-600 text-white px-4 py-2 rounded font-bold hover:bg-emerald-500 transition shadow-md"
@@ -1122,7 +1136,7 @@ export default function App() {
               ) : filteredPosts.length === 0 ? (
                 <div className="text-center text-gray-600 mt-10 p-8 border border-gray-200 rounded-lg bg-white shadow-sm">
                   <p className="text-xl">No posts found.</p>
-                  {(session?.user?.email === 'admin' || !session) && <p className="text-sm mt-2">Click "+ NEW POST" to add content.</p>}
+                  {userProfileRole === 'admin' && <p className="text-sm mt-2">Click "+ NEW POST" to add content.</p>}
                 </div>
               ) : (
                 <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 w-full max-w-full">
@@ -1204,7 +1218,7 @@ export default function App() {
               </AnimatePresence>
 
               {/* Write Modal */}
-              {showWriteModal && (
+              {showWriteModal && userProfileRole === 'admin' && (
                 <div className="fixed inset-0 bg-gray-900/20 flex items-center justify-center z-50 p-4 backdrop-blur-sm">
                   <div className="bg-white p-6 rounded-xl w-full max-w-lg border border-emerald-600/20 shadow-xl">
                     <h3 className="text-xl font-bold text-emerald-600 mb-6">Create New Post</h3>
