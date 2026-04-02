@@ -350,7 +350,7 @@ const ClientHome = ({ user, logout, setView }) => {
         <button
           type="button"
           onClick={() => setShowQRModal(true)}
-          className="w-full shrink-0 flex items-center gap-4 rounded-2xl bg-white border border-gray-100 shadow-sm px-4 py-3.5 text-left active:scale-[0.995] transition-all hover:border-emerald-200/60 hover:shadow-md"
+          className="w-full shrink-0 flex cursor-pointer items-center gap-4 rounded-2xl bg-white border border-gray-100 shadow-sm px-4 py-3.5 text-left transition-all duration-200 ease-in-out hover:bg-gray-50 active:bg-gray-100 active:scale-[0.98] hover:border-emerald-200/60 hover:shadow-md"
         >
           <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[#064e3b]/10">
             <QrCode size={22} strokeWidth={ICON_STROKE} className="text-[#064e3b]" />
@@ -364,8 +364,19 @@ const ClientHome = ({ user, logout, setView }) => {
           </div>
         </button>
 
-        {/* Slim ticket — upcoming class (horizontal density) */}
-        <section className="rounded-xl bg-[#064e3b] px-3 py-3 sm:px-4 sm:py-3 text-white shadow-md ring-1 ring-white/10 shrink-0">
+        {/* Slim ticket — upcoming class; tap opens 일정 (valid HTML: div + inner button for 이력) */}
+        <div
+          role="button"
+          tabIndex={0}
+          onClick={handleOpenSchedule}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault();
+              handleOpenSchedule();
+            }
+          }}
+          className="w-full rounded-xl bg-[#064e3b] px-3 py-3 text-left text-white shadow-md ring-1 ring-white/10 shrink-0 cursor-pointer transition-all duration-200 ease-in-out hover:brightness-110 active:brightness-95 active:scale-[0.98] sm:px-4 sm:py-3"
+        >
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-3 sm:justify-between">
             <div className="flex items-start gap-2 sm:max-w-[32%] min-w-0">
               <div className="min-w-0 flex-1">
@@ -373,8 +384,11 @@ const ClientHome = ({ user, logout, setView }) => {
                 <div className="flex items-center gap-1 mt-1.5">
                   <button
                     type="button"
-                    onClick={() => setShowHistory(true)}
-                    className="p-1 rounded-md text-emerald-200/90 hover:bg-white/10 hover:text-white transition-colors shrink-0"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setShowHistory(true);
+                    }}
+                    className="p-1 rounded-md text-emerald-200/90 hover:bg-white/10 hover:text-white transition-all duration-200 ease-in-out shrink-0 cursor-pointer active:scale-95"
                     aria-label="출석 이력"
                   >
                     <History size={15} strokeWidth={ICON_STROKE} />
@@ -406,7 +420,7 @@ const ClientHome = ({ user, logout, setView }) => {
               )}
             </div>
           </div>
-        </section>
+        </div>
 
         {/* Bento grid */}
         <div className="grid grid-cols-2 gap-3 pt-1">
@@ -415,7 +429,7 @@ const ClientHome = ({ user, logout, setView }) => {
               key={title}
               type="button"
               onClick={onClick}
-              className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5 text-left active:scale-[0.98] transition-transform hover:border-emerald-200/60 hover:shadow-md"
+              className="cursor-pointer bg-white rounded-2xl shadow-sm border border-gray-100 p-5 text-left transition-all duration-200 ease-in-out hover:bg-gray-50 active:bg-gray-100 active:scale-[0.98] hover:border-emerald-200/60 hover:shadow-md"
             >
               <Icon className="text-[#064e3b] mb-4" size={26} strokeWidth={ICON_STROKE} />
               <p className="text-[15px] font-light text-slate-900 tracking-wide leading-tight">{title}</p>
