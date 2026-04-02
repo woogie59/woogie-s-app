@@ -131,7 +131,7 @@ const AdminSettings = ({ setView }) => {
       <h2 className="text-2xl font-bold text-emerald-600 mb-6">Day Off Settings</h2>
 
       <div className="mb-8">
-        <h3 className="text-emerald-600 font-bold mb-3">📅 주간 휴무 & 근무시간</h3>
+        <h3 className="text-emerald-600 font-bold mb-3">주간 휴무 & 근무시간</h3>
         <div className="space-y-2 mb-4">
           {settings.map((s) => (
             <div key={s.day_of_week} className="p-3 bg-white rounded-xl border border-gray-200 shadow-sm">

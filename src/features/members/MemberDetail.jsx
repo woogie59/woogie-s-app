@@ -76,7 +76,7 @@ const MemberDetail = ({ selectedMemberId, setView }) => {
 
   return (
     <div className="min-h-[100dvh] bg-white text-slate-900 p-6 pb-20 relative">
-      <BackButton onClick={() => setView('member_list')} label="Client List" />
+      <BackButton onClick={() => setView('member_list')} label="Members" />
 
       <header className="flex items-center justify-center mb-6">
         <h2 className="text-lg font-serif text-emerald-600">{u?.name}</h2>

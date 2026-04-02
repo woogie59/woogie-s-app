@@ -24,7 +24,7 @@ const MemberList = ({ setView, setSelectedMemberId }) => {
 
       <header className="flex items-center justify-between mb-8">
         <div></div>
-        <h2 className="text-lg font-serif text-emerald-600">CLIENTS</h2>
+        <h2 className="text-lg font-serif text-emerald-600">MEMBERS</h2>
         <div className="w-6"></div>
       </header>
       <div className="space-y-4">

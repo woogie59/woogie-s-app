@@ -958,7 +958,7 @@ export default function App() {
               <div className="min-h-[100dvh] bg-white flex flex-col text-slate-900 overflow-y-auto pb-24">
                 <div className="p-6 pb-2">
                   <BackButton onClick={() => setView('admin_home')} label="Admin Home" />
-                  <h2 className="text-2xl font-bold text-emerald-600 mt-4">💰 REVENUE</h2>
+                  <h2 className="text-2xl font-bold text-emerald-600 mt-4">REVENUE</h2>
                   <p className="text-gray-500 text-sm mt-1">Pack sales, net payout, and payroll export for the selected month.</p>
                 </div>
 
@@ -1014,7 +1014,7 @@ export default function App() {
                         onClick={downloadPayrollCSV}
                         className="flex items-center gap-2 bg-emerald-600 px-4 py-2 rounded-xl text-white font-bold text-sm"
                       >
-                        📥 Report
+                        Report
                       </button>
                     </div>
                     <div className="mt-4 p-4 rounded-xl border border-gray-200 bg-gray-50 grid grid-cols-1 sm:grid-cols-3 gap-4">

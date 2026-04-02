@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import { LogOut, Camera } from 'lucide-react';
+import { LogOut, QrCode } from 'lucide-react';
 import { supabase } from '../../lib/supabaseClient';
 import LabDotBrand from '../../components/ui/LabDotBrand';
 import ButtonGhost from '../../components/ui/ButtonGhost';
@@ -132,22 +132,25 @@ const AdminHome = ({ setView, logout, setSelectedMemberId }) => {
         )}
       </section>
 
-      <div className="flex-1 flex flex-col items-center justify-center px-6 gap-10">
-        <button
-          type="button"
-          onClick={() => setView('scanner')}
-          className="relative w-48 h-48 rounded-full flex flex-col items-center justify-center gap-2 active:scale-[0.98] transition-all bg-gradient-to-br from-emerald-400/25 via-white to-emerald-600/20 border-2 border-emerald-500/35 shadow-[0_0_40px_rgba(16,185,129,0.35)] hover:shadow-[0_0_48px_rgba(16,185,129,0.45)]"
-        >
-          <Camera size={36} strokeWidth={1.25} className="text-emerald-800/90" />
-          <span className="text-xs tracking-[0.35em] font-medium text-slate-700">QR SCAN</span>
-        </button>
+      <div className="flex-1 flex flex-col items-center justify-center px-6 gap-8 w-full">
+        <div className="relative group">
+          <div className="absolute -inset-1 bg-gradient-to-r from-emerald-600 to-green-600 rounded-full blur opacity-25 group-hover:opacity-50 transition duration-1000" />
+          <button
+            type="button"
+            onClick={() => setView('scanner')}
+            className="relative w-48 h-48 rounded-full bg-white border border-gray-200 flex flex-col items-center justify-center gap-2 active:scale-95 transition-all shadow-md"
+          >
+            <QrCode size={40} className="text-emerald-600" />
+            <span className="text-sm tracking-widest font-medium text-gray-600">CHECK-IN</span>
+          </button>
+        </div>
 
-        <nav className="w-full max-w-xs space-y-2 mt-2" aria-label="Admin navigation">
-          <ButtonGhost onClick={() => setView('member_list')}>CLIENT LIST</ButtonGhost>
-          <ButtonGhost onClick={() => setView('admin_schedule')}>📅 DASHBOARD</ButtonGhost>
+        <nav className="w-full max-w-xs space-y-2 mt-8" aria-label="Admin navigation">
+          <ButtonGhost onClick={() => setView('member_list')}>MEMBERS</ButtonGhost>
+          <ButtonGhost onClick={() => setView('admin_schedule')}>SCHEDULE</ButtonGhost>
           <ButtonGhost onClick={() => setView('library')}>LIBRARY</ButtonGhost>
-          <ButtonGhost onClick={() => setView('admin_settings')}>⚙️ SETTINGS</ButtonGhost>
-          <ButtonGhost onClick={() => setView('revenue')}>💰 REVENUE</ButtonGhost>
+          <ButtonGhost onClick={() => setView('admin_settings')}>SETTINGS</ButtonGhost>
+          <ButtonGhost onClick={() => setView('revenue')}>REVENUE</ButtonGhost>
         </nav>
       </div>
     </div>
