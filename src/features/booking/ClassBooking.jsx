@@ -5,8 +5,10 @@ import { useGlobalModal } from '../../context/GlobalModalContext';
 import BackButton from '../../components/ui/BackButton';
 
 const ICON_STROKE = 1;
-/** Boutique: single seat per slot — show "잔여 1" when free */
+/** 1:1 — one booking per slot; used for full/disabled state only (no UI count) */
 const MAX_PER_SLOT = 1;
+
+const NEXT_WEEK_LOCKED_TOAST = '다음 주 수업은 토요일 오전 10시부터 신청가능합니다.';
 
 const toDateKey = (d) => {
   const x = new Date(d);
@@ -74,6 +76,8 @@ const ClassBooking = ({ user, setView }) => {
   const [holidays, setHolidays] = useState([]);
   /** 'current' | 'next' — next week visible only after drop */
   const [weekMode, setWeekMode] = useState('current');
+  /** Non-blocking toast when next week is still locked */
+  const [weekToast, setWeekToast] = useState(null);
 
   const now = useMemo(() => new Date(), []);
   const thisMonday = useMemo(() => getMonday(now), [now]);
@@ -120,6 +124,12 @@ const ClassBooking = ({ user, setView }) => {
     };
     fetchBookings();
   }, [selectedDate]);
+
+  useEffect(() => {
+    if (!weekToast) return;
+    const t = setTimeout(() => setWeekToast(null), 3800);
+    return () => clearTimeout(t);
+  }, [weekToast]);
 
   const countSlot = (dateStr, time) => bookings.filter((b) => b.date === dateStr && b.time === time).length;
 
@@ -223,7 +233,10 @@ const ClassBooking = ({ user, setView }) => {
   const todayKey = toDateKey(new Date());
 
   const handleSelectWeekMode = (mode) => {
-    if (mode === 'next' && !nextUnlocked) return;
+    if (mode === 'next' && !nextUnlocked) {
+      setWeekToast(NEXT_WEEK_LOCKED_TOAST);
+      return;
+    }
     setWeekMode(mode);
     setSelectedDate(null);
   };
@@ -357,7 +370,7 @@ const ClassBooking = ({ user, setView }) => {
                           type="button"
                           disabled={!clickable}
                           onClick={() => handleBookSlot(time)}
-                          className={`inline-flex items-center gap-2 rounded-full border px-5 py-2.5 text-sm font-light tracking-wide transition-all duration-200 ${
+                          className={`inline-flex items-center justify-center min-w-[5.25rem] rounded-full border px-5 py-2.5 text-sm font-light tracking-wide text-center transition-all duration-200 ${
                             full || expired
                               ? 'opacity-45 cursor-not-allowed border-gray-100/90 bg-gray-50/80 text-gray-400'
                               : clickable
@@ -366,12 +379,6 @@ const ClassBooking = ({ user, setView }) => {
                           }`}
                         >
                           <span className={expired ? 'line-through tabular-nums' : 'tabular-nums'}>{time}</span>
-                          {!full && !expired && remaining > 0 && (
-                            <span className="text-[10px] text-gray-400 tabular-nums font-light">잔여 {remaining}</span>
-                          )}
-                          {full && !expired && (
-                            <span className="text-[10px] text-gray-400 font-light">만석</span>
-                          )}
                         </button>
                       );
                     })}
@@ -384,6 +391,17 @@ const ClassBooking = ({ user, setView }) => {
             )}
           </div>
         </>
+      )}
+
+      {/* Sleek toast — next week locked (non-blocking) */}
+      {weekToast && (
+        <div
+          role="status"
+          aria-live="polite"
+          className="fixed bottom-[max(1.5rem,env(safe-area-inset-bottom))] left-1/2 z-[300] w-[min(92vw,20rem)] -translate-x-1/2 rounded-2xl border border-white/10 bg-slate-900/92 px-5 py-3.5 text-center text-[13px] font-light leading-snug tracking-wide text-white/95 shadow-xl font-sans"
+        >
+          {weekToast}
+        </div>
       )}
     </div>
   );

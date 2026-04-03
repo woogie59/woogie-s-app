@@ -10,7 +10,7 @@ import {
   History,
   Calendar,
   Clock,
-  Archive,
+  ClipboardList,
 } from 'lucide-react';
 import { supabase } from '../../lib/supabaseClient';
 import { useGlobalModal } from '../../context/GlobalModalContext';
@@ -20,6 +20,15 @@ import SessionHistoryModal from '../../features/members/SessionHistoryModal';
 
 /** Lucide: ~1px hairline for premium UI */
 const ICON_STROKE = 1;
+/** Bento nav: slightly bolder stroke for clarity */
+const BENTO_ICON_STROKE = 1.5;
+
+/** Demo copy when no DB row yet — premium placeholder */
+const DEMO_CLINICAL_REPORT = {
+  workout_lines: ['[하체] 바벨 스쿼트 — 100kg / 10회 / 3세트', '[하체] 루마니안 데드리프트 — 80kg / 8회 / 3세트'],
+  coach_comment:
+    '파트너님의 오늘 고관절 움직임이 매우 좋았습니다. 주말 동안 햄스트링 스트레칭 잊지 마세요.',
+};
 
 const toDateKey = (d) => {
   const x = new Date(d);
@@ -91,6 +100,8 @@ const ClientHome = ({ user, logout, setView }) => {
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [bookingToDelete, setBookingToDelete] = useState(null);
   const [showHistory, setShowHistory] = useState(false);
+  /** Today's clinical report (coach + workout lines) */
+  const [todayReport, setTodayReport] = useState(null);
   const [currentWeekStart, setCurrentWeekStart] = useState(() => {
     const d = new Date();
     const day = d.getDay();
@@ -208,6 +219,46 @@ const ClientHome = ({ user, logout, setView }) => {
     fetchMyBookings();
   }, [fetchMyBookings]);
 
+  useEffect(() => {
+    if (!user?.id) return;
+    let cancelled = false;
+    const key = toDateKey(new Date());
+    (async () => {
+      const { data, error } = await supabase
+        .from('client_session_reports')
+        .select('workout_lines, coach_comment')
+        .eq('user_id', user.id)
+        .eq('report_date', key)
+        .maybeSingle();
+      if (cancelled) return;
+      if (error) {
+        console.warn('[ClientHome] client_session_reports:', error);
+        setTodayReport(null);
+        return;
+      }
+      setTodayReport(data || null);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [user?.id]);
+
+  const clinicalWorkoutLines = useMemo(() => {
+    const raw = todayReport?.workout_lines;
+    if (Array.isArray(raw) && raw.length > 0) {
+      return raw.map((x) => String(x).trim()).filter(Boolean);
+    }
+    if (!todayReport) return DEMO_CLINICAL_REPORT.workout_lines;
+    return [];
+  }, [todayReport]);
+
+  const clinicalCoachComment = useMemo(() => {
+    const t = todayReport?.coach_comment?.trim();
+    if (t) return t;
+    if (!todayReport) return DEMO_CLINICAL_REPORT.coach_comment;
+    return '코치님의 코멘트를 준비 중입니다.';
+  }, [todayReport]);
+
   const upcomingBooking = useMemo(() => {
     if (!myBookings?.length) return null;
     const now = new Date();
@@ -297,27 +348,6 @@ const ClientHome = ({ user, logout, setView }) => {
     const end = getWeekDates(currentWeekStart)[6].date;
     return `${formatKoreanMonthDay(start)} - ${formatKoreanMonthDay(end)}`;
   };
-
-  const bentoItems = [
-    {
-      icon: Calendar,
-      title: '수업 예약',
-      subtitle: 'Class Booking',
-      onClick: () => setView('class_booking'),
-    },
-    {
-      icon: Clock,
-      title: '내 일정',
-      subtitle: 'My Schedule',
-      onClick: handleOpenSchedule,
-    },
-    {
-      icon: Archive,
-      title: '라이브러리',
-      subtitle: 'Library',
-      onClick: () => setView('library'),
-    },
-  ];
 
   return (
     <div className="min-h-[100dvh] bg-gray-50 text-slate-900 flex flex-col relative pb-safe font-sans antialiased">
@@ -421,20 +451,71 @@ const ClientHome = ({ user, logout, setView }) => {
           <span className="text-[15px] font-light tracking-wide text-slate-900">출석하기</span>
         </button>
 
-        {/* 3. Navigation — 1×3 */}
-        <div className="grid grid-cols-3 gap-2 sm:gap-3">
-          {bentoItems.map(({ icon: Icon, title, subtitle, onClick }) => (
+        {/* 3. Navigation — 2+1 asymmetrical bento */}
+        <div className="flex flex-col gap-4">
+          <div className="grid grid-cols-2 gap-4">
             <button
-              key={title}
               type="button"
-              onClick={onClick}
-              className="cursor-pointer bg-white rounded-2xl shadow-sm border border-gray-100 p-3 sm:p-5 text-left transition-all duration-200 ease-in-out hover:bg-gray-50 active:scale-[0.98] active:bg-gray-50 hover:border-emerald-200/60 hover:shadow-md min-h-0 min-w-0"
+              onClick={() => setView('class_booking')}
+              className="aspect-square bg-white rounded-2xl border border-gray-100 shadow-sm p-5 flex flex-col items-start justify-between text-left transition-all duration-200 active:scale-[0.98] active:bg-gray-50 hover:bg-gray-50/80 cursor-pointer"
             >
-              <Icon className="text-[#064e3b] mb-2 sm:mb-4" size={22} strokeWidth={ICON_STROKE} />
-              <p className="text-[12px] sm:text-[15px] font-light text-slate-900 tracking-wide leading-tight">{title}</p>
-              <p className="text-[9px] sm:text-[10px] text-gray-500 mt-1.5 sm:mt-2 uppercase tracking-widest font-medium leading-tight">{subtitle}</p>
+              <Calendar size={26} strokeWidth={BENTO_ICON_STROKE} className="text-[#064e3b] shrink-0" aria-hidden />
+              <span className="text-[15px] font-light tracking-wide text-slate-900 leading-tight">수업 예약</span>
             </button>
-          ))}
+            <button
+              type="button"
+              onClick={handleOpenSchedule}
+              className="aspect-square bg-white rounded-2xl border border-gray-100 shadow-sm p-5 flex flex-col items-start justify-between text-left transition-all duration-200 active:scale-[0.98] active:bg-gray-50 hover:bg-gray-50/80 cursor-pointer"
+            >
+              <Clock size={26} strokeWidth={BENTO_ICON_STROKE} className="text-[#064e3b] shrink-0" aria-hidden />
+              <span className="text-[15px] font-light tracking-wide text-slate-900 leading-tight">내 일정</span>
+            </button>
+          </div>
+          {/* Today's Clinical Report — replaces library card */}
+          <section
+            className="w-full bg-white rounded-2xl border border-gray-100 shadow-sm p-5"
+            role="region"
+            aria-label="오늘의 세션 기록"
+          >
+            <div className="flex items-center gap-2 mb-1">
+              <span className="h-1.5 w-1.5 rounded-full bg-[#064e3b] shrink-0" aria-hidden />
+              <span className="text-[10px] tracking-[0.22em] uppercase text-gray-500 font-medium">TODAY&apos;S REPORT</span>
+            </div>
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-4">
+              <h3 className="text-[15px] font-medium text-slate-900 tracking-tight">오늘의 세션 기록</h3>
+              <ClipboardList size={22} strokeWidth={BENTO_ICON_STROKE} className="text-[#064e3b]/70 shrink-0 sm:ml-auto" aria-hidden />
+            </div>
+
+            <div className="space-y-2.5 mb-1">
+              {clinicalWorkoutLines.length > 0 ? (
+                <ul className="space-y-2">
+                  {clinicalWorkoutLines.map((line, idx) => (
+                    <li
+                      key={`${idx}-${line.slice(0, 24)}`}
+                      className="text-[13px] sm:text-sm text-slate-600 font-light leading-relaxed tracking-wide border-b border-gray-100/80 pb-2 last:border-0 last:pb-0"
+                    >
+                      {line}
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="text-[13px] text-gray-400 font-light leading-relaxed">오늘 등록된 세션 운동이 없습니다.</p>
+              )}
+            </div>
+
+            <div className="bg-gray-50 rounded-lg p-4 mt-3 border-l-2 border-[#064e3b]">
+              <p className="text-[10px] tracking-[0.18em] uppercase text-gray-400 font-medium mb-2">Coach&apos;s Comment</p>
+              <p className="text-sm text-slate-700 leading-relaxed font-light tracking-wide">{clinicalCoachComment}</p>
+            </div>
+          </section>
+
+          <button
+            type="button"
+            onClick={() => setView('library')}
+            className="w-full text-center text-[11px] tracking-[0.2em] uppercase text-gray-400 font-medium py-2.5 rounded-xl hover:text-[#064e3b] hover:bg-white/80 border border-transparent hover:border-gray-100 transition-all active:scale-[0.99]"
+          >
+            Knowledge Base · 라이브러리
+          </button>
         </div>
       </main>
 

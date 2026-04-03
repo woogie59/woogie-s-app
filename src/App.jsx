@@ -25,6 +25,7 @@ import AdminSchedule from './pages/admin/AdminSchedule';
 import AdminSettings from './pages/admin/AdminSettings';
 import AdminRoute from './pages/admin/AdminRoute';
 
+import LibraryArticleScreen from './features/library/LibraryArticleScreen';
 import ClassBooking from './features/booking/ClassBooking';
 import MemberList from './features/members/MemberList';
 import MemberDetail from './features/members/MemberDetail';
@@ -81,7 +82,6 @@ export default function App() {
   const [searchQuery, setSearchQuery] = useState('');
   const [filteredPosts, setFilteredPosts] = useState([]);
   const [selectedPost, setSelectedPost] = useState(null);
-  const [showPostDetail, setShowPostDetail] = useState(false);
 
   // [Smart Revenue / Dashboard State]
   const [currentRevenueDate, setCurrentRevenueDate] = useState(new Date());
@@ -1095,6 +1095,17 @@ export default function App() {
             <ClassBooking user={session.user} setView={setView} />
           )}
 
+          {/* Library article — full-screen editorial (no modal) */}
+          {session && view === 'library_article' && selectedPost && (
+            <LibraryArticleScreen
+              post={selectedPost}
+              onBack={() => {
+                setView('library');
+                setSelectedPost(null);
+              }}
+            />
+          )}
+
           {/* 라이브러리 (지식 베이스) */}
           {(session || view === 'admin_home' || view === 'library') && view === 'library' && (
             <div className="min-h-[100dvh] h-full max-w-full bg-white flex flex-col overflow-hidden">
@@ -1173,7 +1184,7 @@ export default function App() {
                       key={post.id}
                       onClick={() => {
                         setSelectedPost(post);
-                        setShowPostDetail(true);
+                        setView('library_article');
                       }}
                       className="bg-white rounded-xl overflow-hidden border border-gray-200 hover:border-emerald-500/40 transition-all cursor-pointer group shadow-sm"
                     >
@@ -1193,57 +1204,6 @@ export default function App() {
               )}
 
               </div>
-              {/* POST DETAIL MODAL */}
-              <AnimatePresence>
-                {showPostDetail && selectedPost && (
-                  <motion.div
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    exit={{ opacity: 0 }}
-                    className="fixed inset-0 bg-gray-900/20 flex items-center justify-center z-50 p-4"
-                    onClick={() => setShowPostDetail(false)}
-                  >
-                    <motion.div
-                      initial={{ scale: 0.9, opacity: 0 }}
-                      animate={{ scale: 1, opacity: 1 }}
-                      exit={{ scale: 0.9, opacity: 0 }}
-                    className="bg-white rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto border-2 border-emerald-600/30"
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      {selectedPost.image_url && (
-                        <img 
-                          src={selectedPost.image_url} 
-                          alt={selectedPost.title} 
-                          className="w-full h-64 object-cover"
-                        />
-                      )}
-                      <div className="p-6">
-                        <div className="flex justify-between items-start mb-4">
-                          <span className="text-xs font-bold text-emerald-700 bg-emerald-600/10 px-3 py-1 rounded-lg border border-emerald-600/20">
-                            {selectedPost.category}
-                          </span>
-                          <button
-                            onClick={() => setShowPostDetail(false)}
-                            className="text-gray-600 hover:text-slate-900 transition-colors"
-                          >
-                            <X size={24} />
-                          </button>
-                        </div>
-                        <h2 className="text-3xl font-bold text-emerald-600 mb-4">{selectedPost.title}</h2>
-                        <div className="text-gray-700 leading-relaxed whitespace-pre-line">
-                          {selectedPost.content}
-                        </div>
-                        <button
-                          onClick={() => setShowPostDetail(false)}
-                          className="w-full mt-6 bg-emerald-600 text-white font-bold py-3 rounded-xl hover:bg-emerald-500 transition-all"
-                        >
-                          CLOSE
-                        </button>
-                      </div>
-                    </motion.div>
-                  </motion.div>
-                )}
-              </AnimatePresence>
 
               {/* Write Modal */}
               {showWriteModal && userProfileRole === 'admin' && (
