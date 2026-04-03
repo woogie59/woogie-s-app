@@ -149,7 +149,6 @@ const AdminHome = ({ setView, logout, setSelectedMemberId }) => {
           <ButtonGhost onClick={() => setView('member_list')}>MEMBERS</ButtonGhost>
           <ButtonGhost onClick={() => setView('admin_schedule')}>SCHEDULE</ButtonGhost>
           <ButtonGhost onClick={() => setView('library')}>LIBRARY</ButtonGhost>
-          <ButtonGhost onClick={() => setView('admin_settings')}>SETTINGS</ButtonGhost>
           <ButtonGhost onClick={() => setView('revenue')}>REVENUE</ButtonGhost>
         </nav>
       </div>
