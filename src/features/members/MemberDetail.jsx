@@ -1,17 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { CreditCard, History, Plus, Calendar, Sparkles } from 'lucide-react';
 import { supabase } from '../../lib/supabaseClient';
-import { useGlobalModal } from '../../context/GlobalModalContext';
 import BackButton from '../../components/ui/BackButton';
 import AddSessionModal from './AddSessionModal';
 
 const MemberDetail = ({ selectedMemberId, setView }) => {
-  const { showAlert, showConfirm } = useGlobalModal();
   const [u, setU] = useState(null);
   const [batches, setBatches] = useState([]);
   const [loadingBatches, setLoadingBatches] = useState(true);
-  const [noteContent, setNoteContent] = useState('');
-  const [isSavingNote, setIsSavingNote] = useState(false);
   const [showAddModal, setShowAddModal] = useState(false);
 
   const fetchMemberDetails = async () => {
@@ -33,15 +29,6 @@ const MemberDetail = ({ selectedMemberId, setView }) => {
       setBatches(batchData || []);
     }
 
-    const { data: noteData } = await supabase
-      .from('trainer_notes')
-      .select('content')
-      .eq('user_id', selectedMemberId)
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .maybeSingle();
-    setNoteContent(noteData?.content ?? '');
-
     setLoadingBatches(false);
   };
 
@@ -51,23 +38,6 @@ const MemberDetail = ({ selectedMemberId, setView }) => {
 
   const totalRemaining =
     batches.length > 0 ? batches.reduce((sum, batch) => sum + batch.remaining_count, 0) : u?.remaining_sessions || 0;
-
-  const handleSaveNote = async () => {
-    setIsSavingNote(true);
-    try {
-      const { error } = await supabase.from('trainer_notes').insert({
-        user_id: selectedMemberId,
-        content: noteContent,
-      });
-      if (error) throw error;
-      showAlert({ message: 'Saved!' });
-    } catch (err) {
-      console.error('Save note error:', err);
-      showAlert({ message: '저장 실패: ' + (err?.message || 'Unknown error') });
-    } finally {
-      setIsSavingNote(false);
-    }
-  };
 
   if (!u)
     return (
@@ -194,39 +164,18 @@ const MemberDetail = ({ selectedMemberId, setView }) => {
           </p>
         </div>
 
-        <div className="pt-6 border-t border-gray-200 space-y-4">
-          <div>
-            <label className="text-xs text-gray-600 uppercase tracking-widest block mb-1">Goal</label>
-            <p className="text-sm text-gray-700 bg-white p-3 rounded-lg border border-gray-200">{u.goal || '등록된 목표가 없습니다.'}</p>
-          </div>
-          <div className="flex gap-4">
-            <div className="flex-1">
-              <label className="text-xs text-gray-600 uppercase tracking-widest block mb-1">Birth</label>
-              <p className="text-sm text-gray-700">{u.dob || '-'}</p>
+        <div className="bg-white border border-gray-200 p-5 rounded-xl shadow-sm">
+          <div className="flex gap-8 sm:gap-12">
+            <div className="flex-1 min-w-0">
+              <label className="text-xs text-gray-500 uppercase tracking-[0.2em] block mb-2">Birth</label>
+              <p className="text-sm text-gray-800 font-light tracking-wide">{u.dob || '—'}</p>
             </div>
-            <div className="flex-1">
-              <label className="text-xs text-gray-600 uppercase tracking-widest block mb-1">Gender</label>
-              <p className="text-sm text-gray-700">{u.gender === 'M' ? 'Male' : 'Female'}</p>
+            <div className="w-px bg-gray-200 shrink-0 self-stretch min-h-[3rem]" aria-hidden />
+            <div className="flex-1 min-w-0">
+              <label className="text-xs text-gray-500 uppercase tracking-[0.2em] block mb-2">Gender</label>
+              <p className="text-sm text-gray-800 font-light tracking-wide">{u.gender === 'M' ? 'Male' : 'Female'}</p>
             </div>
           </div>
-        </div>
-
-        <div className="pt-6 border-t border-gray-200 space-y-4">
-          <h3 className="text-sm font-bold text-gray-600 flex items-center gap-2">🔒 SECRET CRM (Private)</h3>
-          <textarea
-            value={noteContent}
-            onChange={(e) => setNoteContent(e.target.value)}
-            placeholder="회원의 특이사항, 성취도 분석, 재등록 전략을 기록하세요."
-            rows={6}
-            className="w-full bg-white border border-gray-200 rounded-xl p-4 text-slate-900 placeholder-gray-400 focus:border-emerald-600 outline-none transition-colors resize-none"
-          />
-          <button
-            onClick={handleSaveNote}
-            disabled={isSavingNote}
-            className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-3 rounded-lg text-sm transition-all disabled:opacity-50"
-          >
-            {isSavingNote ? '저장 중...' : 'Save Note'}
-          </button>
         </div>
       </div>
 
