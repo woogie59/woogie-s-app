@@ -8,8 +8,6 @@ const ICON_STROKE = 1;
 /** Boutique: single seat per slot — show "잔여 1" when free */
 const MAX_PER_SLOT = 1;
 
-const ALL_HOURLY_SLOTS = Array.from({ length: 18 }, (_, i) => `${(i + 6).toString().padStart(2, '0')}:00`);
-
 const toDateKey = (d) => {
   const x = new Date(d);
   return `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, '0')}-${String(x.getDate()).padStart(2, '0')}`;
@@ -46,6 +44,26 @@ const isNextWeekUnlocked = (now = new Date()) => {
 };
 
 const weekDayLabelsKo = ['월', '화', '수', '목', '금', '토', '일'];
+
+function normalizeAvailableHours(raw) {
+  if (raw == null) return [];
+  let arr = raw;
+  if (typeof raw === 'string') {
+    try {
+      arr = JSON.parse(raw);
+    } catch {
+      return [];
+    }
+  }
+  if (!Array.isArray(arr)) return [];
+  return [...new Set(arr.map((x) => Number(x)).filter((h) => Number.isInteger(h) && h >= 0 && h <= 23))].sort((a, b) => a - b);
+}
+
+/** Hour 0–23 from "HH:mm" time slot */
+function slotHourFromTime(time) {
+  const [h] = String(time).split(':').map(Number);
+  return Number.isFinite(h) ? h : -1;
+}
 
 const ClassBooking = ({ user, setView }) => {
   const { showAlert, showConfirm } = useGlobalModal();
@@ -94,7 +112,7 @@ const ClassBooking = ({ user, setView }) => {
         const { data, error } = await supabase.from('bookings').select('*').eq('date', selectedDate);
         if (error) throw error;
         setBookings(Array.isArray(data) ? data : []);
-      } catch (err) {
+      } catch {
         setBookings([]);
       } finally {
         setLoading(false);
@@ -109,7 +127,9 @@ const ClassBooking = ({ user, setView }) => {
     const d = new Date(`${dateStr}T12:00:00`);
     const dayOfWeek = d.getDay();
     const row = settings.find((s) => s.day_of_week === dayOfWeek);
-    return row || { off: dayOfWeek === 0, start_time: '09:00', end_time: '22:00', break_times: [] };
+    return row
+      ? { ...row, available_hours: normalizeAvailableHours(row.available_hours) }
+      : { off: dayOfWeek === 0, available_hours: [] };
   };
 
   const isHoliday = (dateStr) => holidays.includes(dateStr);
@@ -119,24 +139,12 @@ const ClassBooking = ({ user, setView }) => {
     return (h || 0) * 60 + (m || 0);
   };
 
-  const isSlotInBreakTimes = (dateStr, time) => {
+  const isHourInAvailableMatrix = (dateStr, time) => {
     const daySet = getDaySetting(dateStr);
-    const breakTimes = daySet.break_times || [];
-    const slotMins = toMins(time);
-    for (const bt of breakTimes) {
-      const startMins = toMins(bt.start);
-      const endMins = toMins(bt.end);
-      if (slotMins >= startMins && slotMins < endMins) return true;
-    }
-    return false;
-  };
-
-  const isSlotInWorkingHours = (dateStr, time) => {
-    const daySet = getDaySetting(dateStr);
-    const startMins = toMins(daySet.start_time || '09:00');
-    const endMins = toMins(daySet.end_time || '22:00');
-    const slotMins = toMins(time);
-    return slotMins >= startMins && slotMins < endMins;
+    const hours = daySet.available_hours || [];
+    const h = slotHourFromTime(time);
+    if (h < 0 || h > 23) return false;
+    return hours.includes(h);
   };
 
   const isSlotExpired = (dateStr, time) => {
@@ -152,11 +160,8 @@ const ClassBooking = ({ user, setView }) => {
     if (isHoliday(dateStr)) return [];
     if (getDaySetting(dateStr).off) return [];
 
-    return ALL_HOURLY_SLOTS.filter((time) => {
-      if (!isSlotInWorkingHours(dateStr, time)) return false;
-      if (isSlotInBreakTimes(dateStr, time)) return false;
-      return true;
-    });
+    const hours = getDaySetting(dateStr).available_hours || [];
+    return hours.map((h) => `${String(h).padStart(2, '0')}:00`);
   }, [selectedDate, settings, holidays]);
 
   const slotRemaining = (time) => Math.max(0, MAX_PER_SLOT - countSlot(selectedDate, time));
@@ -165,8 +170,7 @@ const ClassBooking = ({ user, setView }) => {
     if (!selectedDate) return false;
     if (isHoliday(selectedDate)) return false;
     if (getDaySetting(selectedDate).off) return false;
-    if (!isSlotInWorkingHours(selectedDate, time)) return false;
-    if (isSlotInBreakTimes(selectedDate, time)) return false;
+    if (!isHourInAvailableMatrix(selectedDate, time)) return false;
     if (isSlotExpired(selectedDate, time)) return false;
     return slotRemaining(time) > 0;
   };
@@ -209,7 +213,9 @@ const ClassBooking = ({ user, setView }) => {
               }),
             });
           }
-        } catch (_) {}
+        } catch {
+          /* ignore */
+        }
       },
     });
   };
@@ -222,7 +228,6 @@ const ClassBooking = ({ user, setView }) => {
     setSelectedDate(null);
   };
 
-  const showNextWeekContent = weekMode === 'next' && nextUnlocked;
   const showNextWeekLocked = weekMode === 'next' && !nextUnlocked;
 
   return (
@@ -340,7 +345,7 @@ const ClassBooking = ({ user, setView }) => {
                 ) : generateTimeSlots().length === 0 ? (
                   <p className="text-center text-sm font-light text-gray-500 py-12">이 날짜에 열린 슬롯이 없습니다.</p>
                 ) : (
-                  <div className="flex flex-wrap gap-2 pb-10">
+                  <div className="flex flex-wrap gap-2.5 pb-10">
                     {generateTimeSlots().map((time) => {
                       const remaining = slotRemaining(time);
                       const full = remaining <= 0;
@@ -352,20 +357,20 @@ const ClassBooking = ({ user, setView }) => {
                           type="button"
                           disabled={!clickable}
                           onClick={() => handleBookSlot(time)}
-                          className={`inline-flex items-center gap-2 rounded-full border px-4 py-2.5 text-sm font-light tracking-wide transition-all duration-200 ${
+                          className={`inline-flex items-center gap-2 rounded-full border px-5 py-2.5 text-sm font-light tracking-wide transition-all duration-200 ${
                             full || expired
-                              ? 'opacity-50 cursor-not-allowed border-gray-100 bg-gray-50 text-gray-400'
+                              ? 'opacity-45 cursor-not-allowed border-gray-100/90 bg-gray-50/80 text-gray-400'
                               : clickable
-                                ? 'border-gray-200 bg-white text-slate-900 shadow-sm active:scale-[0.98] hover:border-[#064e3b]/30'
-                                : 'opacity-50 cursor-not-allowed border-gray-100 bg-gray-50 text-gray-400'
+                                ? 'border-gray-200/90 bg-white text-slate-900 shadow-sm active:scale-[0.98] hover:border-[#064e3b]/30 hover:shadow-[0_1px_0_rgba(6,78,59,0.06)]'
+                                : 'opacity-45 cursor-not-allowed border-gray-100/90 bg-gray-50/80 text-gray-400'
                           }`}
                         >
                           <span className={expired ? 'line-through tabular-nums' : 'tabular-nums'}>{time}</span>
                           {!full && !expired && remaining > 0 && (
-                            <span className="text-[10px] text-gray-400 tabular-nums">잔여 {remaining}</span>
+                            <span className="text-[10px] text-gray-400 tabular-nums font-light">잔여 {remaining}</span>
                           )}
                           {full && !expired && (
-                            <span className="text-[10px] text-gray-400">만석</span>
+                            <span className="text-[10px] text-gray-400 font-light">만석</span>
                           )}
                         </button>
                       );
