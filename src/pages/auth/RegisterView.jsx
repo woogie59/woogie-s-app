@@ -5,7 +5,7 @@ import { useGlobalModal } from '../../context/GlobalModalContext';
 import ButtonPrimary from '../../components/ui/ButtonPrimary';
 import { LabDotBrand } from '../../components/ui/LabDotBrand';
 
-const RegisterView = ({ setView, onSignupSuccess }) => {
+const RegisterView = ({ setView, goBack, onSignupSuccess }) => {
   const { showAlert } = useGlobalModal();
   const [form, setForm] = useState({ email: '', password: '', name: '', dob: '', gender: 'M' });
   const [loading, setLoading] = useState(false);
@@ -67,7 +67,9 @@ const RegisterView = ({ setView, onSignupSuccess }) => {
   return (
     <div className="min-h-[100dvh] bg-white text-slate-900 p-6 flex flex-col">
       <header className="mb-8">
-        <button onClick={() => setView('login')}><ArrowLeft className="text-gray-500 hover:text-slate-900 transition-colors" /></button>
+        <button type="button" onClick={() => (goBack ? goBack() : setView('login'))}>
+          <ArrowLeft className="text-gray-500 hover:text-slate-900 transition-colors" />
+        </button>
         <div className="mt-6">
           <LabDotBrand variant="header" />
         </div>

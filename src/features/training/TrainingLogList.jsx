@@ -7,7 +7,7 @@ import { deriveSessionFocus, formatKoreanDateFromYmd } from './trainingLogUtils'
 
 const ICON_STROKE = 1.5;
 
-export default function TrainingLogList({ user, setView, onOpenDetail }) {
+export default function TrainingLogList({ user, setView, goBack, onOpenDetail }) {
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -43,7 +43,7 @@ export default function TrainingLogList({ user, setView, onOpenDetail }) {
       className="min-h-[100dvh] bg-gray-50 text-slate-900 flex flex-col font-sans pb-safe"
     >
       <header className="shrink-0 px-5 pt-5 pb-4 border-b border-gray-100/90 bg-gray-50">
-        <BackButton onClick={() => setView('client_home')} label="Home" />
+        <BackButton onClick={goBack} label="Home" />
         <p className="text-[10px] tracking-[0.24em] uppercase text-gray-400 font-medium mt-4">Archive</p>
         <h1 className="text-xl font-light text-slate-900 tracking-tight mt-1">트레이닝 일지</h1>
       </header>

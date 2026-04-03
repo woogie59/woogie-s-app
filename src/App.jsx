@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { QrCode, Camera, ChevronRight, ChevronDown, ChevronUp, BookOpen, LogOut, Plus, User, X, Search, ArrowLeft, Edit3, Save, Sparkles, MessageSquare, Calendar, Clock, ChevronLeft, Trash2, Edit, Image, DollarSign, Download, Printer } from 'lucide-react';
 import OneSignal from 'react-onesignal';
@@ -67,7 +67,7 @@ export default function App() {
   const { showAlert, showConfirm, showToast } = useGlobalModal();
   const [showIntro, setShowIntro] = useState(true);
   const [session, setSession] = useState(null); // 현재 로그인 세션
-  const [view, setView] = useState('login');
+  const [view, setViewState] = useState('login');
   const [selectedMemberId, setSelectedMemberId] = useState(null); // 선택된 회원 ID
   const [trainingLogId, setTrainingLogId] = useState(null);
 
@@ -167,6 +167,37 @@ export default function App() {
   const [welcomeName, setWelcomeName] = useState('');
   /** From `profiles.role` — used for library back nav & admin-only UI */
   const [userProfileRole, setUserProfileRole] = useState(null);
+
+  /** Previous views for historical back navigation (custom router) */
+  const viewHistoryRef = useRef([]);
+
+  const replaceView = useCallback((next) => {
+    viewHistoryRef.current = [];
+    setViewState(next);
+  }, []);
+
+  const navigate = useCallback((next) => {
+    setViewState((prev) => {
+      if (next !== prev) {
+        viewHistoryRef.current.push(prev);
+      }
+      return next;
+    });
+  }, []);
+
+  const goBack = useCallback(() => {
+    const prev = viewHistoryRef.current.pop();
+    if (prev !== undefined) {
+      setViewState(prev);
+      return;
+    }
+    if (!session?.user?.id) {
+      setViewState('login');
+      return;
+    }
+    setViewState(userProfileRole === 'admin' ? 'admin_home' : 'client_home');
+  }, [userProfileRole, session?.user?.id]);
+
   const viewRef = useRef(view);
   viewRef.current = view;
 
@@ -203,18 +234,18 @@ export default function App() {
       if (Number.isNaN(d.getTime())) return;
       setDashboardFocusDate(d);
       setDashboardViewMode('day');
-      setView('admin_schedule');
+      navigate('admin_schedule');
     };
 
     OneSignal.Notifications.addEventListener('click', onNotificationClick);
     return () => OneSignal.Notifications.removeEventListener('click', onNotificationClick);
-  }, [oneSignalReady]);
+  }, [oneSignalReady, navigate]);
 
   const processAuth = async (sessionData) => {
     setSession(sessionData);
     if (!sessionData?.user?.id) {
       setUserProfileRole(null);
-      setView('login');
+      replaceView('login');
       setLoading(false);
       return;
     }
@@ -239,14 +270,14 @@ export default function App() {
           .eq('id', sessionData.user.id)
           .maybeSingle();
         setUserProfileRole(retry?.role ?? null);
-        setView(retry?.role === 'admin' ? 'admin_home' : 'client_home');
+        replaceView(retry?.role === 'admin' ? 'admin_home' : 'client_home');
       } else {
         setUserProfileRole(data?.role ?? null);
-        setView(data?.role === 'admin' ? 'admin_home' : 'client_home');
+        replaceView(data?.role === 'admin' ? 'admin_home' : 'client_home');
       }
     } catch {
       setUserProfileRole(null);
-      setView('client_home');
+      replaceView('client_home');
     } finally {
       setLoading(false);
     }
@@ -301,7 +332,7 @@ export default function App() {
     pushPromptForSessionRef.current = null;
     setUserProfileRole(null);
     await supabase.auth.signOut();
-    setView('login');
+    replaceView('login');
   };
 
   // [Library Logic]
@@ -669,8 +700,8 @@ export default function App() {
 
   // Macro calculator removed from client UI; normalize stale view state
   useEffect(() => {
-    if (view === 'macro_calculator') setView('client_home');
-  }, [view]);
+    if (view === 'macro_calculator') replaceView('client_home');
+  }, [view, replaceView]);
 
   useEffect(() => {
     if (view === 'client_home') setTrainingLogId(null);
@@ -695,7 +726,7 @@ export default function App() {
               onClose={() => {
                 console.log('🔄 Closing reset view, returning to login');
                 setShowResetPassword(false);
-                setView('login');
+                replaceView('login');
               }} 
             />
           )}
@@ -713,65 +744,65 @@ export default function App() {
               userName={welcomeName}
               onStart={() => {
                 setSignupWelcomePending(false);
-                setView('client_home');
+                replaceView('client_home');
               }}
             />
           )}
           {!showResetPassword && !loading && !signupWelcomePending && (
             <>
-              {!session && view === 'login' && <LoginView setView={setView} />}
-              {!session && view === 'register' && <RegisterView setView={setView} onSignupSuccess={(name) => { setWelcomeName(name); setSignupWelcomePending(true); }} />}
+              {!session && view === 'login' && <LoginView setView={navigate} />}
+              {!session && view === 'register' && <RegisterView setView={navigate} goBack={goBack} onSignupSuccess={(name) => { setWelcomeName(name); setSignupWelcomePending(true); }} />}
 
               {/* 로그인 했을 때 보여줄 화면 (일반 회원) */}
-              {session && view === 'client_home' && <ClientHome user={session.user} logout={handleLogout} setView={setView} />}
+              {session && view === 'client_home' && <ClientHome user={session.user} logout={handleLogout} setView={navigate} goBack={goBack} />}
 
           {/* 관리자 화면 (admin role 필수) */}
           {view === 'admin_home' && (
-            <AdminRoute session={session} setView={setView}>
-              <AdminHome setView={setView} logout={handleLogout} />
+            <AdminRoute session={session} replaceView={replaceView}>
+              <AdminHome setView={navigate} logout={handleLogout} />
             </AdminRoute>
           )}
 
           {/* 회원 목록 */}
           {view === 'member_list' && (
-            <AdminRoute session={session} setView={setView}>
-              <MemberList setView={setView} setSelectedMemberId={setSelectedMemberId} />
+            <AdminRoute session={session} replaceView={replaceView}>
+              <MemberList setView={navigate} goBack={goBack} setSelectedMemberId={setSelectedMemberId} />
             </AdminRoute>
           )}
 
           {view === 'admin_settings' && (
-            <AdminRoute session={session} setView={setView}>
-              <AdminSettings setView={setView} />
+            <AdminRoute session={session} replaceView={replaceView}>
+              <AdminSettings setView={navigate} goBack={goBack} />
             </AdminRoute>
           )}
 
           {/* 회원 상세 */}
           {view === 'member_detail' && selectedMemberId && (
-            <AdminRoute session={session} setView={setView}>
-              <MemberDetail selectedMemberId={selectedMemberId} setView={setView} />
+            <AdminRoute session={session} replaceView={replaceView}>
+              <MemberDetail selectedMemberId={selectedMemberId} setView={navigate} goBack={goBack} />
             </AdminRoute>
           )}
 
           {/* QR 스캐너 */}
           {view === 'scanner' && (
-            <AdminRoute session={session} setView={setView}>
-              <QRScanner setView={setView} />
+            <AdminRoute session={session} replaceView={replaceView}>
+              <QRScanner setView={navigate} goBack={goBack} />
             </AdminRoute>
           )}
 
           {/* Schedule dashboard: calendar & class list (no payroll) */}
           {view === 'admin_schedule' && (
-            <AdminRoute session={session} setView={setView}>
+            <AdminRoute session={session} replaceView={replaceView}>
               <div className="min-h-[100dvh] bg-white flex flex-col text-slate-900 overflow-y-auto pb-20">
                 <div className="p-6 pb-2">
                   <div className="flex items-center justify-between gap-4 mb-4">
-                    <BackButton onClick={() => setView('admin_home')} label="Admin Home" />
+                    <BackButton onClick={goBack} label="Admin Home" />
                     <button
                       type="button"
-                      onClick={() => setView('admin_settings')}
+                      onClick={() => navigate('admin_settings')}
                       className="shrink-0 text-[10px] font-medium tracking-[0.28em] uppercase text-[#064e3b] border border-[#064e3b]/25 px-3 py-2 rounded-lg bg-white hover:bg-[#064e3b]/5 active:scale-[0.99] transition-colors"
                     >
-                      AVAILABILITY
+                      예약 설정
                     </button>
                   </div>
 
@@ -1012,10 +1043,10 @@ export default function App() {
 
           {/* Revenue: monthly payroll & CSV only (was Private/Manager on Schedule) */}
           {view === 'revenue' && (
-            <AdminRoute session={session} setView={setView}>
+            <AdminRoute session={session} replaceView={replaceView}>
               <div className="min-h-[100dvh] bg-white flex flex-col text-slate-900 overflow-y-auto pb-24">
                 <div className="p-6 pb-2">
-                  <BackButton onClick={() => setView('admin_home')} label="Admin Home" />
+                  <BackButton onClick={goBack} label="Admin Home" />
                   <h2 className="text-2xl font-bold text-emerald-600 mt-4">REVENUE</h2>
                   <p className="text-gray-500 text-sm mt-1">Pack sales, total payout (base + incentive + bonus), and payroll export for the selected month.</p>
                 </div>
@@ -1108,22 +1139,23 @@ export default function App() {
 
           {/* 클래스 예약 */}
           {session && view === 'class_booking' && (
-            <ClassBooking user={session.user} setView={setView} />
+            <ClassBooking user={session.user} setView={navigate} goBack={goBack} />
           )}
 
           {session && view === 'training_log' && (
             <TrainingLogList
               user={session.user}
-              setView={setView}
+              setView={navigate}
+              goBack={goBack}
               onOpenDetail={(id) => {
                 setTrainingLogId(id);
-                setView('training_log_detail');
+                navigate('training_log_detail');
               }}
             />
           )}
 
           {session && view === 'training_log_detail' && trainingLogId && (
-            <TrainingLogDetail user={session.user} reportId={trainingLogId} onBack={() => setView('training_log')} />
+            <TrainingLogDetail user={session.user} reportId={trainingLogId} onBack={goBack} />
           )}
 
           {/* Library article — full-screen editorial (no modal) */}
@@ -1131,8 +1163,8 @@ export default function App() {
             <LibraryArticleScreen
               post={selectedPost}
               onBack={() => {
-                setView('library');
                 setSelectedPost(null);
+                goBack();
               }}
             />
           )}
@@ -1141,18 +1173,7 @@ export default function App() {
           {(session || view === 'admin_home' || view === 'library') && view === 'library' && (
             <div className="min-h-[100dvh] h-full max-w-full bg-white flex flex-col overflow-hidden">
               <div className="flex-1 overflow-y-auto overscroll-contain min-h-0 p-6 pb-24" style={{ WebkitOverflowScrolling: 'touch' }}>
-              <BackButton
-                onClick={() =>
-                  setView(
-                    session?.user
-                      ? userProfileRole === 'admin'
-                        ? 'admin_home'
-                        : 'client_home'
-                      : 'admin_home'
-                  )
-                }
-                label="Home"
-              />
+              <BackButton onClick={goBack} label="Home" />
               
               <div className="flex flex-wrap justify-between items-center gap-3 mb-6 max-w-full">
                 <h2 className="text-2xl font-bold text-emerald-600">📚 KNOWLEDGE BASE</h2>
@@ -1215,7 +1236,7 @@ export default function App() {
                       key={post.id}
                       onClick={() => {
                         setSelectedPost(post);
-                        setView('library_article');
+                        navigate('library_article');
                       }}
                       className="bg-white rounded-xl overflow-hidden border border-gray-200 hover:border-emerald-500/40 transition-all cursor-pointer group shadow-sm"
                     >

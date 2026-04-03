@@ -27,7 +27,7 @@ function normalizeHours(raw) {
   return [...new Set(arr.map((x) => Number(x)).filter((h) => Number.isInteger(h) && h >= 0 && h <= 23))].sort((a, b) => a - b);
 }
 
-const AdminSettings = ({ setView }) => {
+const AdminSettings = ({ setView, goBack }) => {
   const { showAlert } = useGlobalModal();
   const [settings, setSettings] = useState(emptyWeek);
   const [holidays, setHolidays] = useState([]);
@@ -137,8 +137,8 @@ const AdminSettings = ({ setView }) => {
           Settings Saved ✓
         </div>
       )}
-      <BackButton onClick={() => setView('admin_home')} label="Admin Home" />
-      <h2 className="text-2xl font-bold text-emerald-600 mb-2">Availability</h2>
+      <BackButton onClick={goBack} label="Admin Home" />
+      <h2 className="text-2xl font-bold text-emerald-600 mb-2">예약 설정</h2>
       <p className="text-sm text-gray-500 mb-6">시간 블록을 켜면 예약 가능합니다. (00:00–23:00)</p>
 
       <div className="mb-8">

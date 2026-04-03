@@ -4,7 +4,7 @@ import { CheckCircle, XCircle } from 'lucide-react';
 import { Html5Qrcode } from 'html5-qrcode';
 import { supabase } from '../../lib/supabaseClient';
 
-const QRScanner = ({ setView }) => {
+const QRScanner = ({ setView, goBack }) => {
   const [result, setResult] = useState(null);
   const [cameraError, setCameraError] = useState(null);
   const scannerRef = useRef(null);
@@ -123,7 +123,7 @@ const QRScanner = ({ setView }) => {
       <button
         onClick={async () => {
           await stopScanner();
-          setView('admin_home');
+          goBack?.();
         }}
         className="absolute top-6 left-6 z-50 text-gray-600 hover:text-emerald-700 border border-gray-200 px-4 py-2 rounded-xl bg-white/80 backdrop-blur"
       >

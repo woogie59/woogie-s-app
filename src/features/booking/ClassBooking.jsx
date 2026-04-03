@@ -67,7 +67,7 @@ function slotHourFromTime(time) {
   return Number.isFinite(h) ? h : -1;
 }
 
-const ClassBooking = ({ user, setView }) => {
+const ClassBooking = ({ user, setView, goBack }) => {
   const { showAlert, showConfirm } = useGlobalModal();
   const [selectedDate, setSelectedDate] = useState(null);
   const [bookings, setBookings] = useState([]);
@@ -246,7 +246,7 @@ const ClassBooking = ({ user, setView }) => {
   return (
     <div className="bg-gray-50 text-slate-900 flex flex-col overflow-hidden max-w-full min-h-[100dvh] font-sans antialiased">
       <div className="shrink-0 px-5 pt-6 pb-3 border-b border-gray-100/90 bg-gray-50">
-        <BackButton onClick={() => setView('client_home')} label="Home" />
+        <BackButton onClick={goBack} label="Home" />
         <header className="mt-4 mb-5">
           <p className="text-[10px] tracking-widest uppercase text-gray-400 font-medium">CLASS BOOKING</p>
           <h1 className="text-xl font-light text-slate-900 tracking-wide mt-1">수업 예약</h1>

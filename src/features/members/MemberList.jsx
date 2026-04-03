@@ -4,7 +4,7 @@ import { supabase } from '../../lib/supabaseClient';
 import BackButton from '../../components/ui/BackButton';
 import Skeleton from '../../components/ui/Skeleton';
 
-const MemberList = ({ setView, setSelectedMemberId }) => {
+const MemberList = ({ setView, goBack, setSelectedMemberId }) => {
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -20,7 +20,7 @@ const MemberList = ({ setView, setSelectedMemberId }) => {
 
   return (
     <div className="min-h-[100dvh] bg-white text-slate-900 p-6">
-      <BackButton onClick={() => setView('admin_home')} label="Admin Home" />
+      <BackButton onClick={goBack} label="Admin Home" />
 
       <header className="flex items-center justify-between mb-8">
         <div></div>

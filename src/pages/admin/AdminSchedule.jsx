@@ -13,7 +13,7 @@ const toTime24h = (t) => {
   return t;
 };
 
-const AdminSchedule = ({ setView }) => {
+const AdminSchedule = ({ setView, goBack }) => {
   const { showAlert } = useGlobalModal();
   const [bookings, setBookings] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -96,7 +96,7 @@ const AdminSchedule = ({ setView }) => {
 
   return (
     <div className="min-h-[100dvh] bg-white text-slate-900 p-6 pb-20">
-      <BackButton onClick={() => setView('admin_home')} label="Admin Home" />
+      <BackButton onClick={goBack} label="Admin Home" />
 
       <header className="flex items-center justify-center mb-6">
         <h2 className="text-lg font-serif text-emerald-600">ALL SCHEDULES</h2>
