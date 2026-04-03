@@ -54,12 +54,27 @@ const formatTime24hStatic = (t) => {
   return m ? `${m[1].padStart(2, '0')}:${m[2]}` : t;
 };
 
+/** Schedule modal: "3월 30일" / "4월 3일 (금)" — matches date-fns `M월 d일`, `M월 d일 (EEE)` with ko locale */
+const KO_WEEKDAYS_SHORT = ['일', '월', '화', '수', '목', '금', '토'];
+
+const formatKoreanMonthDay = (date) => {
+  const m = date.getMonth() + 1;
+  const d = date.getDate();
+  return `${m}월 ${d}일`;
+};
+
+const formatKoreanDayHeader = (date) => {
+  const m = date.getMonth() + 1;
+  const d = date.getDate();
+  const w = KO_WEEKDAYS_SHORT[date.getDay()];
+  return `${m}월 ${d}일 (${w})`;
+};
+
 const formatUpcomingLine = (b) => {
   const dt = bookingDateTime(b);
   if (!dt) return '—';
-  const wk = ['일', '월', '화', '수', '목', '금', '토'];
   const tm = formatTime24hStatic(b?.time);
-  return `${dt.getMonth() + 1}월 ${dt.getDate()}일 (${wk[dt.getDay()]}) ${tm}`;
+  return `${dt.getMonth() + 1}월 ${dt.getDate()}일 (${KO_WEEKDAYS_SHORT[dt.getDay()]}) ${tm}`;
 };
 
 const ClientHome = ({ user, logout, setView }) => {
@@ -280,7 +295,7 @@ const ClientHome = ({ user, logout, setView }) => {
   const weekLabel = () => {
     const start = getWeekDates(currentWeekStart)[0].date;
     const end = getWeekDates(currentWeekStart)[6].date;
-    return `${start.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} - ${end.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`;
+    return `${formatKoreanMonthDay(start)} - ${formatKoreanMonthDay(end)}`;
   };
 
   const bentoItems = [
@@ -552,8 +567,6 @@ const ClientHome = ({ user, logout, setView }) => {
                   getWeekDates(currentWeekStart).map(({ date, key }) => {
                     const dayBookings = bookingsByDay[key] || [];
                     const isToday = key === todayKey;
-                    const dayName = date.toLocaleDateString('en-US', { weekday: 'short' });
-                    const dateStr = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
                     return (
                       <div
                         key={key}
@@ -567,7 +580,7 @@ const ClientHome = ({ user, logout, setView }) => {
                           }`}
                         >
                           <span className="font-semibold text-slate-900 text-sm">
-                            {dayName} {dateStr}
+                            {formatKoreanDayHeader(date)}
                           </span>
                           {isToday && (
                             <span className="text-[10px] font-semibold text-white bg-[#064e3b] px-2 py-0.5 rounded-md tracking-wide">
