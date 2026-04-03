@@ -28,7 +28,15 @@ const isFutureScheduleRow = (row, now = new Date()) => {
   return parseTimeToMinutes(row.time) >= now.getHours() * 60 + now.getMinutes();
 };
 
-const AdminHome = ({ setView, logout, setSelectedMemberId }) => {
+const daysSinceCheckIn = (iso) => {
+  if (!iso) return null;
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return null;
+  const n = new Date();
+  return Math.max(0, Math.floor((n.getTime() - d.getTime()) / 86400000));
+};
+
+const AdminHome = ({ setView, logout }) => {
   const [unscheduledVips, setUnscheduledVips] = useState([]);
   const [radarLoading, setRadarLoading] = useState(true);
 
@@ -63,7 +71,27 @@ const AdminHome = ({ setView, logout, setSelectedMemberId }) => {
       });
 
       const list = (members || []).filter((p) => p?.id && !userIdsWithFuture.has(p.id));
-      setUnscheduledVips(list);
+      const ids = list.map((p) => p.id);
+      const lastByUser = {};
+      if (ids.length > 0) {
+        const { data: logs, error: logErr } = await supabase
+          .from('attendance_logs')
+          .select('user_id, check_in_at')
+          .in('user_id', ids)
+          .order('check_in_at', { ascending: false });
+        if (!logErr && Array.isArray(logs)) {
+          logs.forEach((row) => {
+            if (row?.user_id && lastByUser[row.user_id] == null) {
+              lastByUser[row.user_id] = row.check_in_at;
+            }
+          });
+        }
+      }
+      const enriched = list.map((p) => ({
+        ...p,
+        lastCheckInAt: lastByUser[p.id] ?? null,
+      }));
+      setUnscheduledVips(enriched);
     } catch (e) {
       console.error('[Unscheduled VIP Radar]', e);
       setUnscheduledVips([]);
@@ -75,13 +103,6 @@ const AdminHome = ({ setView, logout, setSelectedMemberId }) => {
   useEffect(() => {
     loadUnscheduledVipRadar();
   }, [loadUnscheduledVipRadar]);
-
-  const handleScheduleNow = (userId) => {
-    if (typeof setSelectedMemberId === 'function') {
-      setSelectedMemberId(userId);
-    }
-    setView('member_detail');
-  };
 
   const menuItems = [
     { icon: Users, label: '회원 관리', view: 'member_list' },
@@ -102,36 +123,36 @@ const AdminHome = ({ setView, logout, setSelectedMemberId }) => {
         </button>
       </header>
 
-      {/* VIP Care */}
+      {/* 일정 미확정 회원 — full-width data card (no in-app scheduling action) */}
       <section className="w-full max-w-lg mx-auto px-6 pb-5">
-        <p className="text-[10px] text-gray-500 tracking-widest uppercase mb-1">CARE REQUIRED</p>
-        <h2 className="text-base font-semibold text-slate-900 tracking-tight mb-4">미예약 VIP 케어</h2>
+        <div className="w-full bg-white rounded-2xl border border-gray-100 shadow-sm p-5 flex flex-col items-start gap-4">
+          <div className="w-full">
+            <p className="text-[10px] text-gray-400 tracking-widest uppercase">SESSION_STATUS</p>
+            <h2 className="text-base font-semibold text-slate-900 tracking-tight mt-1">일정 미확정 회원</h2>
+          </div>
 
-        {radarLoading ? (
-          <p className="text-gray-400 text-xs tracking-wide font-light">Scanning…</p>
-        ) : unscheduledVips.length === 0 ? (
-          <p className="text-gray-400 text-sm font-light tracking-wide">모든 활성 회원의 일정이 채워져 있습니다.</p>
-        ) : (
-          <ul className="space-y-0 divide-y divide-gray-100 border border-gray-100 rounded-2xl overflow-hidden bg-white shadow-sm">
-            {unscheduledVips.map((u) => (
-              <li key={u.id} className="flex items-center justify-between gap-3 px-4 py-3.5">
-                <div className="min-w-0 flex-1">
-                  <p className="text-sm font-medium text-slate-900 truncate">{u.name || 'Member'}</p>
-                  <p className="text-[11px] text-gray-400 mt-0.5 tracking-wide uppercase">
-                    Remaining <span className="text-emerald-700 tabular-nums font-medium">{u.remaining_sessions}</span>
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => handleScheduleNow(u.id)}
-                  className="shrink-0 text-sm text-[#064e3b] font-medium px-3 py-2 rounded-lg hover:bg-[#064e3b]/5 active:scale-[0.98] transition-all"
-                >
-                  SCHEDULE NOW
-                </button>
-              </li>
-            ))}
-          </ul>
-        )}
+          {radarLoading ? (
+            <p className="text-sm text-gray-400 font-light tracking-wide">Scanning…</p>
+          ) : unscheduledVips.length === 0 ? (
+            <p className="text-sm text-gray-500 font-light tracking-wide w-full">모든 활성 회원의 일정이 채워져 있습니다.</p>
+          ) : (
+            <ul className="w-full space-y-5">
+              {unscheduledVips.map((u) => {
+                const days = u.lastCheckInAt != null ? daysSinceCheckIn(u.lastCheckInAt) : null;
+                const secondary =
+                  days != null
+                    ? `마지막 수업 후 ${days}일 경과`
+                    : `잔여 ${u.remaining_sessions ?? 0}회`;
+                return (
+                  <li key={u.id} className="w-full">
+                    <p className="text-sm font-semibold text-slate-900 tracking-tight">{u.name || 'Member'}</p>
+                    <p className="text-sm text-gray-500 mt-1 font-light tracking-wide">{secondary}</p>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </div>
       </section>
 
       {/* QR Scanner — full-width tactile card */}
