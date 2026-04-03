@@ -382,19 +382,8 @@ const ClientHome = ({ user, logout, setView }) => {
       </header>
 
       <main className="flex-1 flex flex-col px-5 gap-4 pb-6 overflow-y-auto scrollable min-h-0">
-        {/* 1. Upcoming Class — read first; tap opens 일정 (div + inner button for 이력) */}
-        <div
-          role="button"
-          tabIndex={0}
-          onClick={handleOpenSchedule}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter' || e.key === ' ') {
-              e.preventDefault();
-              handleOpenSchedule();
-            }
-          }}
-          className="w-full rounded-xl bg-[#064e3b] px-3 py-3 text-left text-white shadow-md ring-1 ring-white/10 shrink-0 cursor-pointer transition-all duration-200 ease-in-out hover:brightness-110 active:brightness-95 active:scale-[0.98] sm:px-4 sm:py-3"
-        >
+        {/* 1. Upcoming Class — read-only billboard; 일정은 벤토「내 일정」에서만 열림 */}
+        <div className="w-full rounded-xl bg-[#064e3b] px-3 py-3 text-left text-white shadow-md ring-1 ring-white/10 shrink-0 sm:px-4 sm:py-3">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-3 sm:justify-between">
             <div className="flex items-start gap-2 sm:max-w-[32%] min-w-0">
               <div className="min-w-0 flex-1">

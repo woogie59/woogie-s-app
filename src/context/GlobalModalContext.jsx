@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useCallback } from 'react';
+import React, { createContext, useContext, useState, useCallback, useEffect } from 'react';
 import GlobalModal from '../components/GlobalModal';
 
 const GlobalModalContext = createContext(null);
@@ -74,7 +74,19 @@ export const GlobalModalProvider = ({ children }) => {
     setModal((m) => ({ ...m, loading }));
   }, []);
 
-  const value = { showAlert, showConfirm, closeModal, setLoading };
+  const [toastMessage, setToastMessage] = useState(null);
+
+  const showToast = useCallback((message) => {
+    setToastMessage(message);
+  }, []);
+
+  useEffect(() => {
+    if (!toastMessage) return;
+    const t = setTimeout(() => setToastMessage(null), 3500);
+    return () => clearTimeout(t);
+  }, [toastMessage]);
+
+  const value = { showAlert, showConfirm, closeModal, setLoading, showToast };
 
   return (
     <GlobalModalContext.Provider value={value}>
@@ -90,6 +102,15 @@ export const GlobalModalProvider = ({ children }) => {
         cancelLabel={modal.cancelLabel}
         loading={modal.loading}
       />
+      {toastMessage ? (
+        <div
+          role="status"
+          aria-live="polite"
+          className="fixed bottom-6 left-1/2 z-[100] max-w-[min(90vw,24rem)] -translate-x-1/2 rounded-lg bg-slate-900/95 px-4 py-3 text-center text-sm font-medium text-white shadow-lg"
+        >
+          {toastMessage}
+        </div>
+      ) : null}
     </GlobalModalContext.Provider>
   );
 };

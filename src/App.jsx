@@ -64,7 +64,7 @@ const ONESIGNAL_APP_ID = 'b11d4906-0186-462c-a90c-2d07171e6619';
 
 
 export default function App() {
-  const { showAlert, showConfirm } = useGlobalModal();
+  const { showAlert, showConfirm, showToast } = useGlobalModal();
   const [showIntro, setShowIntro] = useState(true);
   const [session, setSession] = useState(null); // 현재 로그인 세션
   const [view, setView] = useState('login');
@@ -320,23 +320,46 @@ export default function App() {
   };
 
   const handleSavePost = async () => {
-    if (userProfileRole !== 'admin') {
-      showAlert({ message: 'Only admins can create posts.' });
+    if (!session?.user?.id) {
+      showAlert({ message: '로그인이 필요합니다.' });
       return;
     }
-    if (!newPost.title || !newPost.content) {
-      showAlert({ message: 'Please enter a title and content.' });
+    if (!newPost.title?.trim() || !newPost.content?.trim()) {
+      showAlert({ message: '제목과 내용을 입력해 주세요.' });
       return;
     }
     try {
-      const { error } = await supabase.from('posts').insert([{ ...newPost, created_at: new Date() }]);
+      const { data: profileRow, error: profileErr } = await supabase
+        .from('profiles')
+        .select('role')
+        .eq('id', session.user.id)
+        .maybeSingle();
+      if (profileErr) throw profileErr;
+      if (profileRow?.role !== 'admin') {
+        showAlert({ message: '관리자만 글을 등록할 수 있습니다.' });
+        return;
+      }
+
+      const imageUrl = newPost.image_url?.trim();
+      const payload = {
+        title: newPost.title.trim(),
+        content: newPost.content.trim(),
+        category: newPost.category || 'Tip',
+        image_url: imageUrl ? imageUrl : null,
+        created_at: new Date().toISOString(),
+      };
+
+      const { data: inserted, error } = await supabase.from('posts').insert([payload]).select('id');
       if (error) throw error;
-      showAlert({ message: 'Post saved successfully!' });
+      if (!inserted?.length) throw new Error('저장 응답이 비어 있습니다.');
+
+      showToast('게시글이 저장되었습니다');
       setShowWriteModal(false);
       setNewPost({ title: '', content: '', category: 'Tip', image_url: '' });
-      fetchLibraryPosts();
+      await fetchLibraryPosts();
     } catch (err) {
-      showAlert({ message: 'Error saving post: ' + err.message });
+      console.error('[handleSavePost]', err);
+      showAlert({ message: '저장 실패: ' + (err.message || String(err)) });
     }
   };
 
