@@ -1,11 +1,9 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import { LogOut, QrCode } from 'lucide-react';
+import { LogOut, QrCode, Users, Calendar, Archive, TrendingUp } from 'lucide-react';
 import { supabase } from '../../lib/supabaseClient';
 import LabDotBrand from '../../components/ui/LabDotBrand';
-import ButtonGhost from '../../components/ui/ButtonGhost';
 
-/** LAB DOT green */
-const LAB_DOT = '#064e3b';
+const ICON_STROKE = 1.5;
 
 const toDateKey = (d) => {
   const x = new Date(d);
@@ -85,46 +83,50 @@ const AdminHome = ({ setView, logout, setSelectedMemberId }) => {
     setView('member_detail');
   };
 
+  const menuItems = [
+    { icon: Users, label: '회원 관리', view: 'member_list' },
+    { icon: Calendar, label: '일정 관리', view: 'admin_schedule' },
+    { icon: Archive, label: '라이브러리', view: 'library' },
+    { icon: TrendingUp, label: '매출 정산', view: 'revenue' },
+  ];
+
   return (
-    <div className="min-h-[100dvh] bg-white text-slate-900 flex flex-col relative pb-safe">
-      <header className="p-6 flex justify-between items-center shrink-0">
+    <div className="min-h-[100dvh] bg-gray-50 text-slate-900 flex flex-col font-sans relative pb-safe">
+      <header className="p-6 flex justify-between items-start shrink-0 bg-gray-50">
         <div>
           <LabDotBrand variant="header" />
           <p className="text-gray-400 text-[10px] tracking-[0.2em] uppercase mt-1">Manager Mode</p>
         </div>
-        <button type="button" onClick={logout} aria-label="Log out">
-          <LogOut size={20} className="text-gray-600 hover:text-slate-900 transition-colors" />
+        <button type="button" onClick={logout} aria-label="Log out" className="p-1.5 rounded-lg hover:bg-gray-100/80 transition-colors">
+          <LogOut size={20} strokeWidth={ICON_STROKE} className="text-gray-600" />
         </button>
       </header>
 
-      <section className="w-full max-w-md mx-auto px-6 pb-6 border-b border-gray-100/80">
-        <div className="flex items-center gap-2 mb-3">
-          <span className="h-1.5 w-1.5 rounded-full bg-[#064e3b] shrink-0" aria-hidden />
-          <h3 className="text-[11px] tracking-[0.25em] font-semibold uppercase" style={{ color: LAB_DOT }}>
-            UNSCHEDULED VIPs
-          </h3>
-        </div>
+      {/* VIP Care */}
+      <section className="w-full max-w-lg mx-auto px-6 pb-5">
+        <p className="text-[10px] text-gray-500 tracking-widest uppercase mb-1">CARE REQUIRED</p>
+        <h2 className="text-base font-semibold text-slate-900 tracking-tight mb-4">미예약 VIP 케어</h2>
 
         {radarLoading ? (
-          <p className="text-gray-400 text-xs tracking-wide">Scanning…</p>
+          <p className="text-gray-400 text-xs tracking-wide font-light">Scanning…</p>
         ) : unscheduledVips.length === 0 ? (
-          <p className="text-gray-400 text-sm font-light tracking-wide">All active members are fully scheduled.</p>
+          <p className="text-gray-400 text-sm font-light tracking-wide">모든 활성 회원의 일정이 채워져 있습니다.</p>
         ) : (
-          <ul className="space-y-0 divide-y divide-gray-100 border border-gray-100 rounded-xl overflow-hidden bg-white">
+          <ul className="space-y-0 divide-y divide-gray-100 border border-gray-100 rounded-2xl overflow-hidden bg-white shadow-sm">
             {unscheduledVips.map((u) => (
               <li key={u.id} className="flex items-center justify-between gap-3 px-4 py-3.5">
                 <div className="min-w-0 flex-1">
                   <p className="text-sm font-medium text-slate-900 truncate">{u.name || 'Member'}</p>
                   <p className="text-[11px] text-gray-400 mt-0.5 tracking-wide uppercase">
-                    Remaining <span className="text-emerald-700 font-serif tabular-nums">{u.remaining_sessions}</span>
+                    Remaining <span className="text-emerald-700 tabular-nums font-medium">{u.remaining_sessions}</span>
                   </p>
                 </div>
                 <button
                   type="button"
                   onClick={() => handleScheduleNow(u.id)}
-                  className="shrink-0 text-[10px] tracking-[0.15em] uppercase font-medium px-3 py-2 rounded-lg border border-[#064e3b]/25 text-[#064e3b] hover:bg-[#064e3b]/5 active:scale-[0.98] transition-colors"
+                  className="shrink-0 text-sm text-[#064e3b] font-medium px-3 py-2 rounded-lg hover:bg-[#064e3b]/5 active:scale-[0.98] transition-all"
                 >
-                  Schedule Now
+                  SCHEDULE NOW
                 </button>
               </li>
             ))}
@@ -132,26 +134,32 @@ const AdminHome = ({ setView, logout, setSelectedMemberId }) => {
         )}
       </section>
 
-      <div className="flex-1 flex flex-col items-center justify-center px-6 gap-8 w-full">
-        <div className="relative group">
-          <div className="absolute -inset-1 bg-gradient-to-r from-emerald-600 to-green-600 rounded-full blur opacity-25 group-hover:opacity-50 transition duration-1000" />
-          <button
-            type="button"
-            onClick={() => setView('scanner')}
-            className="relative w-48 h-48 rounded-full bg-white border border-gray-200 flex flex-col items-center justify-center gap-2 active:scale-95 transition-all shadow-md"
-          >
-            <QrCode size={40} className="text-emerald-600" />
-            <span className="text-sm tracking-widest font-medium text-gray-600">CHECK-IN</span>
-          </button>
-        </div>
-
-        <nav className="w-full max-w-xs space-y-2 mt-8" aria-label="Admin navigation">
-          <ButtonGhost onClick={() => setView('member_list')}>MEMBERS</ButtonGhost>
-          <ButtonGhost onClick={() => setView('admin_schedule')}>SCHEDULE</ButtonGhost>
-          <ButtonGhost onClick={() => setView('library')}>LIBRARY</ButtonGhost>
-          <ButtonGhost onClick={() => setView('revenue')}>REVENUE</ButtonGhost>
-        </nav>
+      {/* QR Scanner — full-width tactile card */}
+      <div className="w-full max-w-lg mx-auto px-6 pb-5">
+        <button
+          type="button"
+          onClick={() => setView('scanner')}
+          className="w-full bg-[#064e3b] text-white rounded-2xl shadow-md p-5 flex items-center justify-center gap-3 transition-all duration-200 active:scale-[0.98] cursor-pointer hover:shadow-lg hover:bg-[#053d2f]"
+        >
+          <QrCode size={28} strokeWidth={ICON_STROKE} className="shrink-0" aria-hidden />
+          <span className="text-[15px] font-medium tracking-wide">QR 체크인 스캐너</span>
+        </button>
       </div>
+
+      {/* 2×2 Bento menu */}
+      <nav className="w-full max-w-lg mx-auto px-6 flex-1 grid grid-cols-2 gap-3 pb-8" aria-label="관리 메뉴">
+        {menuItems.map(({ icon: Icon, label, view }) => (
+          <button
+            key={view}
+            type="button"
+            onClick={() => setView(view)}
+            className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 flex flex-col items-start gap-3 transition-all duration-200 hover:bg-gray-50 active:bg-gray-100 active:scale-[0.98] cursor-pointer text-left"
+          >
+            <Icon size={26} strokeWidth={ICON_STROKE} className="text-[#064e3b]" aria-hidden />
+            <span className="text-sm font-medium text-slate-900 tracking-tight">{label}</span>
+          </button>
+        ))}
+      </nav>
     </div>
   );
 };
