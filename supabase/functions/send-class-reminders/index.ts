@@ -1,6 +1,6 @@
 /**
- * LAB DOT - Automated Launchpad (pg_cron: every minute)
- * Target Table: bookings
+ * LAB DOT — Member reminders (pg_cron: every minute)
+ * Target: bookings — 회원 60분 전만. 관리자 10분 전 → send-session-reminder
  */
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
@@ -12,13 +12,6 @@ type BookingRow = {
   date: string;
   time: string;
   status: string | null;
-};
-
-type ProfileRow = {
-  id: string;
-  name: string | null;
-  onesignal_id: string | null;
-  role: string | null;
 };
 
 function pad2(n: number): string {
@@ -102,7 +95,6 @@ Deno.serve(async (req: Request) => {
   const supabase = createClient(supabaseUrl, serviceKey);
   const now = Date.now();
   const clientTargetMinute = Math.floor((now + 60 * 60 * 1000) / 60000) * 60000;
-  const adminTargetMinute = Math.floor((now + 10 * 60 * 1000) / 60000) * 60000;
 
   // 1. bookings 테이블에서 예약 정보 가져오기
   const { data: bookingRows, error: schedErr } = await supabase
@@ -116,23 +108,6 @@ Deno.serve(async (req: Request) => {
   }
 
   const rows = (bookingRows ?? []) as BookingRow[];
-  const userIds = new Set<string>();
-  for (const r of rows) userIds.add(r.user_id);
-
-  // 2. 최고 관리자(Admin) 정보 가져오기
-  const { data: defaultAdmin } = await supabase
-    .from("profiles")
-    .select("id, name, onesignal_id, role")
-    .eq("role", "admin")
-    .limit(1)
-    .maybeSingle();
-
-  const { data: profilesData } = userIds.size > 0
-    ? await supabase.from("profiles").select("id, name, onesignal_id, role").in("id", [...userIds])
-    : { data: [] as ProfileRow[] };
-
-  const profileById = new Map<string, ProfileRow>((profilesData ?? []).map((p: ProfileRow) => [p.id, p]));
-  if (defaultAdmin?.id) profileById.set(defaultAdmin.id, defaultAdmin as ProfileRow);
 
   const results = [];
 
@@ -143,11 +118,8 @@ Deno.serve(async (req: Request) => {
     
     const classMinute = Math.floor(startMs / 60000) * 60000;
     const hhmm = formatKstHHMM(startMs);
-    const client = profileById.get(row.user_id);
-    const adminId = (defaultAdmin as ProfileRow | null)?.id ?? null;
-    const clientName = (client?.name ?? "회원").trim() || "회원";
 
-    // 회원 타격 (60분 전)
+    // 회원 타격 (60분 전) — 관리자 10분 전은 send-session-reminder Edge Function
     if (classMinute === clientTargetMinute) {
       const r = await sendOneSignalNotification({
         appId, restKey, externalUserIds: [row.user_id],
@@ -155,16 +127,6 @@ Deno.serve(async (req: Request) => {
         body: `오늘 ${hhmm} 수업 시작 1시간 전입니다. LAB DOT에서 뵙겠습니다.`,
       });
       results.push({ schedule_id: row.id, kind: "client_60", sent: r.ok });
-    }
-
-    // 관리자 타격 (10분 전)
-    if (classMinute === adminTargetMinute && adminId) {
-      const r = await sendOneSignalNotification({
-        appId, restKey, externalUserIds: [adminId],
-        title: "수업 10분 전",
-        body: `${clientName}님과의 ${hhmm} 수업이 10분 뒤 시작됩니다.`,
-      });
-      results.push({ schedule_id: row.id, kind: "admin_10", sent: r.ok });
     }
   }
 

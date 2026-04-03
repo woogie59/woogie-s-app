@@ -1,4 +1,17 @@
 
+[functions.morning-concierge]
+enabled = true
+# Invoked by pg_cron with service_role Bearer (no end-user JWT)
+verify_jwt = false
+import_map = "./functions/morning-concierge/deno.json"
+entrypoint = "./functions/morning-concierge/index.ts"
+
+[functions.send-session-reminder]
+enabled = true
+verify_jwt = false
+import_map = "./functions/send-session-reminder/deno.json"
+entrypoint = "./functions/send-session-reminder/index.ts"
+
 [functions.send-admin-alert]
 enabled = true
 verify_jwt = true

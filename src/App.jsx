@@ -179,6 +179,34 @@ export default function App() {
     OneSignal.Slidedown.promptPush().catch((e) => console.warn('[OneSignal] promptPush:', e));
   }, [oneSignalReady, session?.user?.id, view, loading, signupWelcomePending]);
 
+  /** Admin: tap 10분 전 세션 알림 → Schedule day view (Today's Timeline) */
+  useEffect(() => {
+    if (!oneSignalReady) return;
+
+    const onNotificationClick = (event) => {
+      let data = event?.notification?.additionalData;
+      if (data != null && typeof data === 'string') {
+        try {
+          data = JSON.parse(data);
+        } catch {
+          return;
+        }
+      }
+      if (!data || typeof data !== 'object') return;
+      if (data.labdot_action !== 'admin_timeline') return;
+      const bd = data.booking_date;
+      if (typeof bd !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(bd)) return;
+      const d = new Date(`${bd}T12:00:00`);
+      if (Number.isNaN(d.getTime())) return;
+      setDashboardFocusDate(d);
+      setDashboardViewMode('day');
+      setView('admin_schedule');
+    };
+
+    OneSignal.Notifications.addEventListener('click', onNotificationClick);
+    return () => OneSignal.Notifications.removeEventListener('click', onNotificationClick);
+  }, [oneSignalReady]);
+
   const processAuth = async (sessionData) => {
     setSession(sessionData);
     if (!sessionData?.user?.id) {
