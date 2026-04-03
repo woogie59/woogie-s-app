@@ -26,6 +26,8 @@ import AdminSettings from './pages/admin/AdminSettings';
 import AdminRoute from './pages/admin/AdminRoute';
 
 import LibraryArticleScreen from './features/library/LibraryArticleScreen';
+import TrainingLogList from './features/training/TrainingLogList';
+import TrainingLogDetail from './features/training/TrainingLogDetail';
 import ClassBooking from './features/booking/ClassBooking';
 import MemberList from './features/members/MemberList';
 import MemberDetail from './features/members/MemberDetail';
@@ -67,7 +69,8 @@ export default function App() {
   const [session, setSession] = useState(null); // 현재 로그인 세션
   const [view, setView] = useState('login');
   const [selectedMemberId, setSelectedMemberId] = useState(null); // 선택된 회원 ID
-  
+  const [trainingLogId, setTrainingLogId] = useState(null);
+
   // [PASSWORD RESET STATE - OVERRIDES EVERYTHING]
   const [showResetPassword, setShowResetPassword] = useState(false);
 
@@ -660,6 +663,10 @@ export default function App() {
     if (view === 'macro_calculator') setView('client_home');
   }, [view]);
 
+  useEffect(() => {
+    if (view === 'client_home') setTrainingLogId(null);
+  }, [view]);
+
   return (
     <div className="bg-white min-h-[100dvh] flex flex-col font-sans selection:bg-emerald-500/20 overflow-x-hidden">
       <AnimatePresence>
@@ -1093,6 +1100,21 @@ export default function App() {
           {/* 클래스 예약 */}
           {session && view === 'class_booking' && (
             <ClassBooking user={session.user} setView={setView} />
+          )}
+
+          {session && view === 'training_log' && (
+            <TrainingLogList
+              user={session.user}
+              setView={setView}
+              onOpenDetail={(id) => {
+                setTrainingLogId(id);
+                setView('training_log_detail');
+              }}
+            />
+          )}
+
+          {session && view === 'training_log_detail' && trainingLogId && (
+            <TrainingLogDetail user={session.user} reportId={trainingLogId} onBack={() => setView('training_log')} />
           )}
 
           {/* Library article — full-screen editorial (no modal) */}

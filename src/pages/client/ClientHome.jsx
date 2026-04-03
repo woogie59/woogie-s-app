@@ -10,9 +10,10 @@ import {
   History,
   Calendar,
   Clock,
-  ClipboardList,
+  BookOpen,
 } from 'lucide-react';
 import { supabase } from '../../lib/supabaseClient';
+import { deriveSessionFocus, formatKoreanDateFromYmd } from '../../features/training/trainingLogUtils';
 import { useGlobalModal } from '../../context/GlobalModalContext';
 import LabDotBrand from '../../components/ui/LabDotBrand';
 import Skeleton from '../../components/ui/Skeleton';
@@ -23,12 +24,8 @@ const ICON_STROKE = 1;
 /** Bento nav: slightly bolder stroke for clarity */
 const BENTO_ICON_STROKE = 1.5;
 
-/** Demo copy when no DB row yet — premium placeholder */
-const DEMO_CLINICAL_REPORT = {
-  workout_lines: ['[하체] 바벨 스쿼트 — 100kg / 10회 / 3세트', '[하체] 루마니안 데드리프트 — 80kg / 8회 / 3세트'],
-  coach_comment:
-    '파트너님의 오늘 고관절 움직임이 매우 좋았습니다. 주말 동안 햄스트링 스트레칭 잊지 마세요.',
-};
+/** Gateway teaser when no archive row yet */
+const DEMO_TRAINING_TEASER = '최근 기록: 4월 3일 - 상체 세션';
 
 const toDateKey = (d) => {
   const x = new Date(d);
@@ -100,8 +97,8 @@ const ClientHome = ({ user, logout, setView }) => {
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [bookingToDelete, setBookingToDelete] = useState(null);
   const [showHistory, setShowHistory] = useState(false);
-  /** Today's clinical report (coach + workout lines) */
-  const [todayReport, setTodayReport] = useState(null);
+  /** Most recent training log row (gateway teaser) */
+  const [latestReport, setLatestReport] = useState(null);
   const [currentWeekStart, setCurrentWeekStart] = useState(() => {
     const d = new Date();
     const day = d.getDay();
@@ -222,42 +219,35 @@ const ClientHome = ({ user, logout, setView }) => {
   useEffect(() => {
     if (!user?.id) return;
     let cancelled = false;
-    const key = toDateKey(new Date());
     (async () => {
       const { data, error } = await supabase
         .from('client_session_reports')
-        .select('workout_lines, coach_comment')
+        .select('id, report_date, session_focus, workout_lines, coach_comment')
         .eq('user_id', user.id)
-        .eq('report_date', key)
+        .order('report_date', { ascending: false })
+        .limit(1)
         .maybeSingle();
       if (cancelled) return;
       if (error) {
         console.warn('[ClientHome] client_session_reports:', error);
-        setTodayReport(null);
+        setLatestReport(null);
         return;
       }
-      setTodayReport(data || null);
+      setLatestReport(data || null);
     })();
     return () => {
       cancelled = true;
     };
   }, [user?.id]);
 
-  const clinicalWorkoutLines = useMemo(() => {
-    const raw = todayReport?.workout_lines;
-    if (Array.isArray(raw) && raw.length > 0) {
-      return raw.map((x) => String(x).trim()).filter(Boolean);
+  const trainingLogTeaser = useMemo(() => {
+    if (latestReport?.report_date) {
+      const md = formatKoreanDateFromYmd(latestReport.report_date);
+      const focus = deriveSessionFocus(latestReport);
+      return `최근 기록: ${md} - ${focus}`;
     }
-    if (!todayReport) return DEMO_CLINICAL_REPORT.workout_lines;
-    return [];
-  }, [todayReport]);
-
-  const clinicalCoachComment = useMemo(() => {
-    const t = todayReport?.coach_comment?.trim();
-    if (t) return t;
-    if (!todayReport) return DEMO_CLINICAL_REPORT.coach_comment;
-    return '코치님의 코멘트를 준비 중입니다.';
-  }, [todayReport]);
+    return DEMO_TRAINING_TEASER;
+  }, [latestReport]);
 
   const upcomingBooking = useMemo(() => {
     if (!myBookings?.length) return null;
@@ -366,7 +356,16 @@ const ClientHome = ({ user, logout, setView }) => {
             </p>
           )}
         </div>
-        <div className="flex items-center gap-1 shrink-0">
+        <div className="flex items-center gap-0.5 shrink-0">
+          <button
+            type="button"
+            onClick={() => setView('library')}
+            className="p-2 rounded-xl text-gray-500 hover:text-[#064e3b] hover:bg-white transition-colors"
+            aria-label="인사이트 · 라이브러리"
+            title="인사이트"
+          >
+            <BookOpen size={20} strokeWidth={ICON_STROKE} />
+          </button>
           {profile?.role === 'admin' && (
             <button
               type="button"
@@ -471,50 +470,26 @@ const ClientHome = ({ user, logout, setView }) => {
               <span className="text-[15px] font-light tracking-wide text-slate-900 leading-tight">내 일정</span>
             </button>
           </div>
-          {/* Today's Clinical Report — replaces library card */}
-          <section
-            className="w-full bg-white rounded-2xl border border-gray-100 shadow-sm p-5"
-            role="region"
-            aria-label="오늘의 세션 기록"
-          >
-            <div className="flex items-center gap-2 mb-1">
-              <span className="h-1.5 w-1.5 rounded-full bg-[#064e3b] shrink-0" aria-hidden />
-              <span className="text-[10px] tracking-[0.22em] uppercase text-gray-500 font-medium">TODAY&apos;S REPORT</span>
-            </div>
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-4">
-              <h3 className="text-[15px] font-medium text-slate-900 tracking-tight">오늘의 세션 기록</h3>
-              <ClipboardList size={22} strokeWidth={BENTO_ICON_STROKE} className="text-[#064e3b]/70 shrink-0 sm:ml-auto" aria-hidden />
-            </div>
-
-            <div className="space-y-2.5 mb-1">
-              {clinicalWorkoutLines.length > 0 ? (
-                <ul className="space-y-2">
-                  {clinicalWorkoutLines.map((line, idx) => (
-                    <li
-                      key={`${idx}-${line.slice(0, 24)}`}
-                      className="text-[13px] sm:text-sm text-slate-600 font-light leading-relaxed tracking-wide border-b border-gray-100/80 pb-2 last:border-0 last:pb-0"
-                    >
-                      {line}
-                    </li>
-                  ))}
-                </ul>
-              ) : (
-                <p className="text-[13px] text-gray-400 font-light leading-relaxed">오늘 등록된 세션 운동이 없습니다.</p>
-              )}
-            </div>
-
-            <div className="bg-gray-50 rounded-lg p-4 mt-3 border-l-2 border-[#064e3b]">
-              <p className="text-[10px] tracking-[0.18em] uppercase text-gray-400 font-medium mb-2">Coach&apos;s Comment</p>
-              <p className="text-sm text-slate-700 leading-relaxed font-light tracking-wide">{clinicalCoachComment}</p>
-            </div>
-          </section>
-
+          {/* Training log gateway — archive entry */}
           <button
             type="button"
-            onClick={() => setView('library')}
-            className="w-full text-center text-[11px] tracking-[0.2em] uppercase text-gray-400 font-medium py-2.5 rounded-xl hover:text-[#064e3b] hover:bg-white/80 border border-transparent hover:border-gray-100 transition-all active:scale-[0.99]"
+            onClick={() => setView('training_log')}
+            className="w-full bg-white rounded-2xl border border-gray-100 shadow-sm p-5 text-left transition-all duration-200 active:scale-[0.98] active:bg-gray-50 hover:bg-gray-50/80"
           >
-            Knowledge Base · 라이브러리
+            <div className="flex items-center gap-2 mb-2">
+              <span className="h-1.5 w-1.5 rounded-full bg-[#064e3b] shrink-0" aria-hidden />
+              <span className="text-[10px] tracking-[0.22em] uppercase text-gray-500 font-medium">TRAINING LOG</span>
+            </div>
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0 flex-1">
+                <h3 className="text-[15px] font-medium text-slate-900 tracking-tight mb-1.5">트레이닝 일지</h3>
+                <p className="text-xs text-gray-400 font-light tracking-wide leading-relaxed line-clamp-2">{trainingLogTeaser}</p>
+              </div>
+              <div className="flex flex-col items-end gap-0.5 shrink-0 text-[#064e3b]/85 pt-0.5">
+                <span className="text-[10px] tracking-[0.12em] uppercase font-medium">전체 보기</span>
+                <ChevronRight size={20} strokeWidth={BENTO_ICON_STROKE} aria-hidden />
+              </div>
+            </div>
           </button>
         </div>
       </main>
