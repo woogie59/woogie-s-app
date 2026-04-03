@@ -11,7 +11,6 @@ import {
   Calendar,
   Clock,
   Archive,
-  User,
 } from 'lucide-react';
 import { supabase } from '../../lib/supabaseClient';
 import { useGlobalModal } from '../../context/GlobalModalContext';
@@ -69,7 +68,6 @@ const ClientHome = ({ user, logout, setView }) => {
   const [loading, setLoading] = useState(true);
   const [showQRModal, setShowQRModal] = useState(false);
   const [showScheduleModal, setShowScheduleModal] = useState(false);
-  const [showProfileModal, setShowProfileModal] = useState(false);
   const [myBookings, setMyBookings] = useState([]);
   const [loadingBookings, setLoadingBookings] = useState(false);
   /** Oldest active pack (FIFO) for 잔여 n/m display */
@@ -304,12 +302,6 @@ const ClientHome = ({ user, logout, setView }) => {
       subtitle: 'Library',
       onClick: () => setView('library'),
     },
-    {
-      icon: User,
-      title: '내 정보',
-      subtitle: 'Profile',
-      onClick: () => setShowProfileModal(true),
-    },
   ];
 
   return (
@@ -404,36 +396,28 @@ const ClientHome = ({ user, logout, setView }) => {
           </div>
         </div>
 
-        {/* 2. Check-in — thumb zone primary action */}
+        {/* 2. 출석하기 — icon + label only, centered */}
         <button
           type="button"
           onClick={() => setShowQRModal(true)}
-          className="w-full shrink-0 flex cursor-pointer items-center gap-4 rounded-2xl bg-white border border-gray-100 shadow-sm px-4 py-3.5 text-left transition-all duration-200 ease-in-out hover:bg-gray-50 active:bg-gray-100 active:scale-[0.98] hover:border-emerald-200/60 hover:shadow-md"
+          className="w-full shrink-0 flex flex-col items-center justify-center gap-3 cursor-pointer rounded-2xl bg-white border border-gray-100 shadow-sm px-6 py-8 transition-all duration-200 ease-in-out hover:bg-gray-50 active:scale-[0.98] active:bg-gray-50"
         >
-          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[#064e3b]/10">
-            <QrCode size={22} strokeWidth={ICON_STROKE} className="text-[#064e3b]" />
-          </div>
-          <div className="min-w-0 flex-1">
-            <p className="text-[10px] text-gray-500 uppercase tracking-widest font-medium leading-none">Quick Check-in</p>
-            <p className="text-[15px] font-light tracking-wide text-slate-900 mt-1.5 text-left">
-              체크인 <span className="text-gray-400 text-[13px] font-light tracking-wide">(Check-in)</span>
-            </p>
-            <p className="text-[11px] text-gray-400 mt-1 font-light tracking-wide leading-snug">데스크에서 QR을 제시해 주세요.</p>
-          </div>
+          <QrCode size={30} strokeWidth={ICON_STROKE} className="text-[#064e3b]" aria-hidden />
+          <span className="text-[15px] font-light tracking-wide text-slate-900">출석하기</span>
         </button>
 
-        {/* 3. Bento grid */}
-        <div className="grid grid-cols-2 gap-3">
+        {/* 3. Navigation — 1×3 */}
+        <div className="grid grid-cols-3 gap-2 sm:gap-3">
           {bentoItems.map(({ icon: Icon, title, subtitle, onClick }) => (
             <button
               key={title}
               type="button"
               onClick={onClick}
-              className="cursor-pointer bg-white rounded-2xl shadow-sm border border-gray-100 p-5 text-left transition-all duration-200 ease-in-out hover:bg-gray-50 active:bg-gray-100 active:scale-[0.98] hover:border-emerald-200/60 hover:shadow-md"
+              className="cursor-pointer bg-white rounded-2xl shadow-sm border border-gray-100 p-3 sm:p-5 text-left transition-all duration-200 ease-in-out hover:bg-gray-50 active:scale-[0.98] active:bg-gray-50 hover:border-emerald-200/60 hover:shadow-md min-h-0 min-w-0"
             >
-              <Icon className="text-[#064e3b] mb-4" size={26} strokeWidth={ICON_STROKE} />
-              <p className="text-[15px] font-light text-slate-900 tracking-wide leading-tight">{title}</p>
-              <p className="text-[10px] text-gray-500 mt-2 uppercase tracking-widest font-medium">{subtitle}</p>
+              <Icon className="text-[#064e3b] mb-2 sm:mb-4" size={22} strokeWidth={ICON_STROKE} />
+              <p className="text-[12px] sm:text-[15px] font-light text-slate-900 tracking-wide leading-tight">{title}</p>
+              <p className="text-[9px] sm:text-[10px] text-gray-500 mt-1.5 sm:mt-2 uppercase tracking-widest font-medium leading-tight">{subtitle}</p>
             </button>
           ))}
         </div>
@@ -502,64 +486,6 @@ const ClientHome = ({ user, logout, setView }) => {
                 className="w-full mt-6 bg-[#064e3b] text-white font-semibold py-3.5 rounded-xl hover:bg-[#053d2f] active:scale-[0.99] transition-all"
               >
                 닫기
-              </button>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* Profile modal — 내 정보 */}
-      <AnimatePresence>
-        {showProfileModal && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4 bg-gray-900/30 backdrop-blur-sm"
-            onClick={() => setShowProfileModal(false)}
-          >
-            <motion.div
-              initial={{ y: 24, opacity: 0 }}
-              animate={{ y: 0, opacity: 1 }}
-              exit={{ y: 24, opacity: 0 }}
-              className="bg-white rounded-2xl border border-gray-100 shadow-2xl w-full max-w-md p-6 max-h-[85vh] overflow-y-auto"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <div className="flex justify-between items-center mb-6">
-                <div>
-                  <p className="text-[10px] tracking-[0.2em] uppercase text-gray-400">Profile</p>
-                  <h3 className="text-lg font-semibold text-slate-900 mt-1">내 정보</h3>
-                </div>
-                <button type="button" onClick={() => setShowProfileModal(false)} className="p-2 text-gray-500 hover:text-slate-900" aria-label="닫기">
-                  <X size={22} strokeWidth={ICON_STROKE} />
-                </button>
-              </div>
-              <div className="space-y-4 text-sm">
-                <div className="flex justify-between gap-4 border-b border-gray-100 pb-3">
-                  <span className="text-gray-400">이름</span>
-                  <span className="text-slate-900 font-medium text-right">{profile?.name || '—'}</span>
-                </div>
-                <div className="flex justify-between gap-4 border-b border-gray-100 pb-3">
-                  <span className="text-gray-400">이메일</span>
-                  <span className="text-slate-900 text-right break-all">{profile?.email || user?.email || '—'}</span>
-                </div>
-                <div className="flex justify-between gap-4 border-b border-gray-100 pb-3">
-                  <span className="text-gray-400">잔여 세션</span>
-                  <span className="text-slate-900 font-semibold tabular-nums">{profile?.remaining_sessions ?? 0}회</span>
-                </div>
-                {profile?.goal ? (
-                  <div className="pt-1">
-                    <span className="text-gray-400 block mb-1">목표</span>
-                    <p className="text-slate-800 leading-relaxed">{profile.goal}</p>
-                  </div>
-                ) : null}
-              </div>
-              <button
-                type="button"
-                onClick={() => setShowProfileModal(false)}
-                className="w-full mt-8 bg-[#064e3b] text-white font-semibold py-3.5 rounded-xl hover:bg-[#053d2f] transition-colors"
-              >
-                확인
               </button>
             </motion.div>
           </motion.div>
