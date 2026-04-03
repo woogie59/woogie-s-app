@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { QrCode, Camera, ChevronRight, ChevronDown, ChevronUp, BookOpen, LogOut, Plus, User, X, Search, ArrowLeft, Edit3, Save, Sparkles, MessageSquare, Calendar, Clock, ChevronLeft, Trash2, Edit, Image, DollarSign, Download, Printer } from 'lucide-react';
+import { QrCode, Camera, ChevronRight, ChevronDown, ChevronUp, BookOpen, LogOut, Plus, User, X, Search, ArrowLeft, Edit3, Save, Sparkles, MessageSquare, Calendar, Clock, ChevronLeft, Trash2, Edit, Image, DollarSign, Download, Printer, PenLine } from 'lucide-react';
 import OneSignal from 'react-onesignal';
 
 import { supabase, REMEMBER_ME_KEY } from './lib/supabaseClient';
@@ -31,6 +31,7 @@ import TrainingLogDetail from './features/training/TrainingLogDetail';
 import ClassBooking from './features/booking/ClassBooking';
 import MemberList from './features/members/MemberList';
 import MemberDetail from './features/members/MemberDetail';
+import AdminTrainingReportForm from './features/members/AdminTrainingReportForm';
 import QRScanner from './features/checkin/QRScanner';
 // --- (가짜 데이터 삭제함) ---
 // 이제 INITIAL_USERS 같은 가짜 데이터는 쓰지 않습니다.
@@ -60,6 +61,18 @@ const INITIAL_KNOWLEDGE = [
 // --- OneSignal (replace with your App ID from dashboard) ---
 const ONESIGNAL_APP_ID = 'b11d4906-0186-462c-a90c-2d07171e6619';
 
+/** Admin-only screens: show global Quick Log FAB */
+const ADMIN_QUICK_LOG_VIEWS = new Set([
+  'admin_home',
+  'member_list',
+  'member_detail',
+  'admin_settings',
+  'scanner',
+  'admin_schedule',
+  'revenue',
+  'library',
+]);
+
 // --- Main App Component ---
 
 
@@ -85,6 +98,9 @@ export default function App() {
   const [searchQuery, setSearchQuery] = useState('');
   const [filteredPosts, setFilteredPosts] = useState([]);
   const [selectedPost, setSelectedPost] = useState(null);
+
+  /** Global admin quick action: training log modal */
+  const [showAdminTrainingReport, setShowAdminTrainingReport] = useState(false);
 
   // [Smart Revenue / Dashboard State]
   const [currentRevenueDate, setCurrentRevenueDate] = useState(new Date());
@@ -779,7 +795,7 @@ export default function App() {
           {/* 회원 상세 */}
           {view === 'member_detail' && selectedMemberId && (
             <AdminRoute session={session} replaceView={replaceView}>
-              <MemberDetail selectedMemberId={selectedMemberId} setView={navigate} goBack={goBack} />
+              <MemberDetail selectedMemberId={selectedMemberId} goBack={goBack} />
             </AdminRoute>
           )}
 
@@ -1317,7 +1333,25 @@ export default function App() {
           
             </>
           )}
-          
+
+          {!showResetPassword && !loading && !signupWelcomePending && session?.user && userProfileRole === 'admin' && ADMIN_QUICK_LOG_VIEWS.has(view) && !showAdminTrainingReport && (
+            <button
+              type="button"
+              onClick={() => setShowAdminTrainingReport(true)}
+              className="fixed bottom-6 right-5 z-[65] flex h-14 w-14 items-center justify-center rounded-full bg-[#064e3b] text-white shadow-lg shadow-[#064e3b]/25 transition-transform duration-200 hover:scale-105 active:scale-95 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#064e3b]/50 focus-visible:ring-offset-2"
+              aria-label="일지 빠른 작성"
+              title="일지 작성"
+            >
+              <PenLine size={24} strokeWidth={1.75} className="shrink-0" aria-hidden />
+            </button>
+          )}
+
+          {showAdminTrainingReport && (
+            <AdminTrainingReportForm
+              onClose={() => setShowAdminTrainingReport(false)}
+              onSaved={() => setShowAdminTrainingReport(false)}
+            />
+          )}
         </motion.div>
       )}
     </div>

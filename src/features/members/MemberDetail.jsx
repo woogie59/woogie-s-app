@@ -1,16 +1,14 @@
 import React, { useState, useEffect } from 'react';
-import { CreditCard, History, Plus, Calendar, Sparkles, FileText } from 'lucide-react';
+import { CreditCard, History, Plus, Calendar, Sparkles } from 'lucide-react';
 import { supabase } from '../../lib/supabaseClient';
 import BackButton from '../../components/ui/BackButton';
 import AddSessionModal from './AddSessionModal';
-import AdminTrainingReportForm from './AdminTrainingReportForm';
 
-const MemberDetail = ({ selectedMemberId, setView, goBack }) => {
+const MemberDetail = ({ selectedMemberId, goBack }) => {
   const [u, setU] = useState(null);
   const [batches, setBatches] = useState([]);
   const [loadingBatches, setLoadingBatches] = useState(true);
   const [showAddModal, setShowAddModal] = useState(false);
-  const [showTrainingReport, setShowTrainingReport] = useState(false);
 
   const fetchMemberDetails = async () => {
     const { data: userData } = await supabase.from('profiles').select('*').eq('id', selectedMemberId).single();
@@ -166,20 +164,6 @@ const MemberDetail = ({ selectedMemberId, setView, goBack }) => {
           </p>
         </div>
 
-        <div className="bg-white border border-gray-200 p-5 rounded-xl space-y-3 shadow-sm">
-          <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
-            <FileText size={16} className="text-emerald-600" />
-            트레이닝 일지
-          </h3>
-          <button
-            type="button"
-            onClick={() => setShowTrainingReport(true)}
-            className="w-full border border-[#064e3b]/25 bg-white text-[#064e3b] font-medium py-3 rounded-xl text-sm hover:bg-[#064e3b]/5 active:scale-[0.99] transition-all"
-          >
-            일지 작성
-          </button>
-        </div>
-
         <div className="bg-white border border-gray-200 p-5 rounded-xl shadow-sm">
           <div className="flex gap-8 sm:gap-12">
             <div className="flex-1 min-w-0">
@@ -203,14 +187,6 @@ const MemberDetail = ({ selectedMemberId, setView, goBack }) => {
         />
       )}
 
-      {showTrainingReport && (
-        <AdminTrainingReportForm
-          userId={selectedMemberId}
-          memberName={u?.name}
-          onClose={() => setShowTrainingReport(false)}
-          onSaved={fetchMemberDetails}
-        />
-      )}
     </div>
   );
 };

@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useMemo } from 'react';
+import React, { useState, useCallback, useMemo, useEffect } from 'react';
 import { X, Plus, Trash2, Sparkles } from 'lucide-react';
 import { supabase } from '../../lib/supabaseClient';
 import { useGlobalModal } from '../../context/GlobalModalContext';
@@ -46,16 +46,49 @@ function workoutLinesFromRows(rows, focus) {
 }
 
 /**
- * @param {{ userId: string; memberName?: string; onClose: () => void; onSaved?: () => void }} props
+ * Global quick log — member chosen via dropdown.
+ * @param {{ onClose: () => void; onSaved?: () => void }} props
  */
-export default function AdminTrainingReportForm({ userId, memberName, onClose, onSaved }) {
+export default function AdminTrainingReportForm({ onClose, onSaved }) {
   const { showToast, showAlert } = useGlobalModal();
+  const [members, setMembers] = useState([]);
+  const [loadingMembers, setLoadingMembers] = useState(true);
+  const [selectedMemberId, setSelectedMemberId] = useState('');
   const [focus, setFocus] = useState('가슴');
   const [reportDate, setReportDate] = useState(todayYmd);
   const [rows, setRows] = useState(() => [emptyRow()]);
   const [coachComment, setCoachComment] = useState('');
   const [saving, setSaving] = useState(false);
   const [loadingGhost, setLoadingGhost] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      setLoadingMembers(true);
+      try {
+        const { data, error } = await supabase
+          .from('profiles')
+          .select('id, name, email')
+          .eq('role', 'user')
+          .order('name', { ascending: true });
+        if (error) throw error;
+        if (!cancelled) setMembers(Array.isArray(data) ? data : []);
+      } catch (e) {
+        console.error('[AdminTrainingReportForm] members', e);
+        if (!cancelled) setMembers([]);
+      } finally {
+        if (!cancelled) setLoadingMembers(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const selectedMemberName = useMemo(() => {
+    const m = members.find((x) => x.id === selectedMemberId);
+    return m?.name?.trim() || '';
+  }, [members, selectedMemberId]);
 
   const exerciseOptions = useMemo(() => exercisesForFocus(focus), [focus]);
 
@@ -78,13 +111,13 @@ export default function AdminTrainingReportForm({ userId, memberName, onClose, o
   };
 
   const loadLastRoutine = useCallback(async () => {
-    if (!userId) return;
+    if (!selectedMemberId) return;
     setLoadingGhost(true);
     try {
       const { data, error } = await supabase
         .from('client_session_reports')
         .select('workout_lines, session_focus, report_date')
-        .eq('user_id', userId)
+        .eq('user_id', selectedMemberId)
         .order('report_date', { ascending: false })
         .limit(40);
 
@@ -121,9 +154,13 @@ export default function AdminTrainingReportForm({ userId, memberName, onClose, o
     } finally {
       setLoadingGhost(false);
     }
-  }, [userId, focus, showToast, showAlert]);
+  }, [selectedMemberId, focus, showToast, showAlert]);
 
   const handleSave = async () => {
+    if (!selectedMemberId) {
+      showAlert({ message: '회원을 선택해 주세요.' });
+      return;
+    }
     const built = workoutLinesFromRows(rows, focus);
     if (built.length === 0) {
       showAlert({ message: '운동을 한 가지 이상 선택해 주세요.' });
@@ -132,7 +169,7 @@ export default function AdminTrainingReportForm({ userId, memberName, onClose, o
     setSaving(true);
     try {
       const payload = {
-        user_id: userId,
+        user_id: selectedMemberId,
         report_date: reportDate,
         session_focus: `${focus} 세션`,
         workout_lines: built,
@@ -153,6 +190,8 @@ export default function AdminTrainingReportForm({ userId, memberName, onClose, o
     }
   };
 
+  const ghostDisabled = !selectedMemberId || loadingGhost;
+
   return (
     <div className="fixed inset-0 z-[80] flex items-end sm:items-center justify-center p-0 sm:p-4 bg-slate-900/25 backdrop-blur-[2px]">
       <div
@@ -165,7 +204,7 @@ export default function AdminTrainingReportForm({ userId, memberName, onClose, o
             <p className="text-[10px] text-gray-400 tracking-[0.22em] uppercase">SESSION_REPORT</p>
             <h2 id="training-report-title" className="text-lg font-semibold text-slate-900 tracking-tight mt-0.5">
               일지 작성
-              {memberName ? <span className="font-normal text-gray-500"> · {memberName}</span> : null}
+              {selectedMemberName ? <span className="font-normal text-gray-500"> · {selectedMemberName}</span> : null}
             </h2>
           </div>
           <button
@@ -179,6 +218,23 @@ export default function AdminTrainingReportForm({ userId, memberName, onClose, o
         </div>
 
         <div className="flex-1 overflow-y-auto min-h-0 px-5 py-4 space-y-5">
+          <div>
+            <label className="text-[10px] text-gray-400 tracking-widest uppercase block mb-2">회원</label>
+            <select
+              value={selectedMemberId}
+              onChange={(e) => setSelectedMemberId(e.target.value)}
+              disabled={loadingMembers}
+              className="w-full bg-gray-50 border border-gray-100 rounded-xl px-4 py-3 text-sm text-slate-900 outline-none focus:ring-1 focus:ring-[#064e3b]/20 disabled:opacity-60"
+            >
+              <option value="">{loadingMembers ? '불러오는 중…' : '회원 선택'}</option>
+              {members.map((m) => (
+                <option key={m.id} value={m.id}>
+                  {m.name || m.email || m.id}
+                </option>
+              ))}
+            </select>
+          </div>
+
           <div>
             <label className="text-[10px] text-gray-400 tracking-widest uppercase block mb-2">기록일</label>
             <input
@@ -212,8 +268,8 @@ export default function AdminTrainingReportForm({ userId, memberName, onClose, o
           <button
             type="button"
             onClick={loadLastRoutine}
-            disabled={loadingGhost}
-            className="w-full flex items-center justify-center gap-2 py-3.5 rounded-xl border border-[#064e3b]/20 bg-[#064e3b]/[0.04] text-[#064e3b] text-sm font-medium tracking-wide hover:bg-[#064e3b]/10 disabled:opacity-50 transition-colors"
+            disabled={ghostDisabled}
+            className="w-full flex items-center justify-center gap-2 py-3.5 rounded-xl border border-[#064e3b]/20 bg-[#064e3b]/[0.04] text-[#064e3b] text-sm font-medium tracking-wide hover:bg-[#064e3b]/10 disabled:opacity-40 disabled:pointer-events-none transition-colors"
           >
             <Sparkles size={18} strokeWidth={ICON_STROKE} className="shrink-0 opacity-90" aria-hidden />
             {loadingGhost ? '불러오는 중…' : `최근 ${focus} 루틴 불러오기`}
@@ -339,7 +395,7 @@ export default function AdminTrainingReportForm({ userId, memberName, onClose, o
           <button
             type="button"
             onClick={handleSave}
-            disabled={saving}
+            disabled={saving || !selectedMemberId}
             className="flex-[1.4] py-3.5 rounded-xl text-sm font-semibold bg-[#064e3b] text-white hover:bg-[#053d2f] disabled:opacity-50 transition-colors"
           >
             {saving ? '저장 중…' : '저장'}
