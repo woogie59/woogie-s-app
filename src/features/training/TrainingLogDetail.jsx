@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import { supabase } from '../../lib/supabaseClient';
 import BackButton from '../../components/ui/BackButton';
-import { deriveSessionFocus, formatKoreanDateFromYmd, parseWorkoutLineParts } from './trainingLogUtils';
+import { deriveSessionFocus, formatKoreanDateFromYmd, parseWorkoutLineParts, workoutLineToDisplayString } from './trainingLogUtils';
 
 export default function TrainingLogDetail({ user, reportId, onBack }) {
   const [row, setRow] = useState(null);
@@ -35,7 +35,9 @@ export default function TrainingLogDetail({ user, reportId, onBack }) {
     };
   }, [user?.id, reportId]);
 
-  const lines = Array.isArray(row?.workout_lines) ? row.workout_lines.map((x) => String(x).trim()).filter(Boolean) : [];
+  const lines = Array.isArray(row?.workout_lines)
+    ? row.workout_lines.map((x) => workoutLineToDisplayString(x)).filter(Boolean)
+    : [];
 
   return (
     <motion.div

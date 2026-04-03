@@ -421,13 +421,6 @@ export default function App() {
     const endKey = `${year}-${String(month + 1).padStart(2, '0')}-${String(endDate.getDate()).padStart(2, '0')}`;
 
     try {
-      const schedulesQuery = supabase
-        .from('schedules')
-        .select('*, profiles(name, email)')
-        .gte('date', startKey)
-        .lte('date', endKey)
-        .order('date', { ascending: true })
-        .order('time', { ascending: true });
       const bookingsQuery = supabase
         .from('bookings')
         .select('*, profiles(name, email)')
@@ -442,22 +435,15 @@ export default function App() {
         .gte('created_at', startISO)
         .lte('created_at', endISO);
 
-      const [schedulesRes, bookingsRes, batchesRes, logsRes] = await Promise.all([
-        schedulesQuery,
+      const [bookingsRes, batchesRes, logsRes] = await Promise.all([
         bookingsQuery,
         batchesQuery,
         supabase.from('attendance_logs').select('*, profiles(name)').gte('check_in_at', startISO).lte('check_in_at', endISO).order('check_in_at', { ascending: false }),
       ]);
 
       if (logsRes.error) throw logsRes.error;
-
-      let scheduleRows = [];
-      if (!schedulesRes.error && Array.isArray(schedulesRes.data) && schedulesRes.data.length > 0) {
-        scheduleRows = schedulesRes.data;
-      } else {
-        if (bookingsRes.error) throw bookingsRes.error;
-        scheduleRows = bookingsRes.data || [];
-      }
+      if (bookingsRes.error) throw bookingsRes.error;
+      const scheduleRows = bookingsRes.data || [];
 
       setRevenueLogs(logsRes.data || []);
       setDashboardBookings(scheduleRows);

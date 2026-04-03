@@ -51,16 +51,10 @@ const AdminHome = ({ setView, logout }) => {
 
       if (memErr) throw memErr;
 
-      let scheduleRows = [];
       const schSelect = 'user_id, date, time, status';
-      const fromSchedules = await supabase.from('schedules').select(schSelect);
-      if (!fromSchedules.error && Array.isArray(fromSchedules.data)) {
-        scheduleRows = fromSchedules.data;
-      } else {
-        const fromBookings = await supabase.from('bookings').select(schSelect);
-        if (fromBookings.error) throw fromBookings.error;
-        scheduleRows = fromBookings.data || [];
-      }
+      const fromBookings = await supabase.from('bookings').select(schSelect);
+      if (fromBookings.error) throw fromBookings.error;
+      const scheduleRows = fromBookings.data || [];
 
       const now = new Date();
       const userIdsWithFuture = new Set();

@@ -218,6 +218,30 @@ const ClientHome = ({ user, logout, setView }) => {
 
   useEffect(() => {
     if (!user?.id) return;
+
+    const channel = supabase
+      .channel(`bookings_rt_${user.id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'bookings',
+          filter: `user_id=eq.${user.id}`,
+        },
+        () => {
+          fetchMyBookings();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [user?.id, fetchMyBookings]);
+
+  useEffect(() => {
+    if (!user?.id) return;
     let cancelled = false;
     (async () => {
       const { data, error } = await supabase
