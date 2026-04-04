@@ -1,3 +1,5 @@
+import { stripBracketPrefix } from './workoutPresets';
+
 /** @param {string} ymd */
 export function formatKoreanDateFromYmd(ymd) {
   if (!ymd || typeof ymd !== 'string') return '—';
@@ -16,7 +18,7 @@ export function workoutLineToDisplayString(line) {
   if (typeof line === 'object' && line !== null) {
     const o = line;
     const focus = (o.focus ?? o.body_part ?? '').toString().trim();
-    const name = (o.exercise ?? o.name ?? '').toString().trim() || '—';
+    const name = stripBracketPrefix((o.exercise ?? o.name ?? '').toString().trim()) || '—';
     const w = o.weight_kg ?? o.weight;
     const reps = o.reps;
     const sets = o.sets;

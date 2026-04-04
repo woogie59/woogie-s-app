@@ -249,6 +249,7 @@ const ClientHome = ({ user, logout, setView }) => {
         .select('id, report_date, session_focus, workout_lines, coach_comment')
         .eq('user_id', user.id)
         .order('report_date', { ascending: false })
+        .order('created_at', { ascending: false })
         .limit(1)
         .maybeSingle();
       if (cancelled) return;

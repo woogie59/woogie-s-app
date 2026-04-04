@@ -20,7 +20,8 @@ export default function TrainingLogList({ user, setView, goBack, onOpenDetail })
         .from('client_session_reports')
         .select('id, report_date, session_focus, workout_lines')
         .eq('user_id', user.id)
-        .order('report_date', { ascending: false });
+        .order('report_date', { ascending: false })
+        .order('created_at', { ascending: false });
       if (cancelled) return;
       if (error) {
         console.warn('[TrainingLogList]', error);

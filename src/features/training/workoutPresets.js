@@ -1,5 +1,11 @@
 /** Focus chips + exercise catalog for Admin Training Report form */
 
+/** Strip legacy bracket prefixes e.g. "[등] 랫풀다운" → "랫풀다운" */
+export function stripBracketPrefix(name) {
+  if (name == null || typeof name !== 'string') return '';
+  return name.replace(/^\[[^\]]+\]\s*/, '').trim();
+}
+
 export const FOCUS_CHIPS = ['하체', '가슴', '등', '어깨', '팔', '전신'];
 
 /** @type {Record<string, string[]>} */
@@ -63,5 +69,6 @@ export const EXERCISES_BY_FOCUS = {
 
 export function exercisesForFocus(focus) {
   const list = EXERCISES_BY_FOCUS[focus];
-  return Array.isArray(list) ? list : EXERCISES_BY_FOCUS.전신;
+  const raw = Array.isArray(list) ? list : EXERCISES_BY_FOCUS.전신;
+  return raw.map((n) => stripBracketPrefix(String(n))).filter(Boolean);
 }

@@ -2,7 +2,7 @@ import React, { useState, useCallback, useMemo, useEffect } from 'react';
 import { X, Plus, Trash2, Sparkles } from 'lucide-react';
 import { supabase } from '../../lib/supabaseClient';
 import { useGlobalModal } from '../../context/GlobalModalContext';
-import { FOCUS_CHIPS, exercisesForFocus } from '../training/workoutPresets';
+import { FOCUS_CHIPS, exercisesForFocus, stripBracketPrefix } from '../training/workoutPresets';
 
 const ICON_STROKE = 1.5;
 
@@ -24,10 +24,9 @@ function todayYmd() {
   return `${y}-${m}-${day}`;
 }
 
+/** Ghost load: match saved lines by body-part chip only (not manual session title). */
 function reportMatchesFocus(row, focus) {
   if (!row || !focus) return false;
-  const sf = row.session_focus?.toString() || '';
-  if (sf.includes(focus)) return true;
   const lines = row.workout_lines;
   if (!Array.isArray(lines)) return false;
   return lines.some((l) => typeof l === 'object' && l !== null && (l.focus === focus || l.body_part === focus));
@@ -35,10 +34,10 @@ function reportMatchesFocus(row, focus) {
 
 function workoutLinesFromRows(rows, focus) {
   return rows
-    .filter((r) => r.exercise)
+    .filter((r) => r.exercise?.trim())
     .map((r) => ({
       focus,
-      exercise: r.exercise.trim(),
+      exercise: stripBracketPrefix(r.exercise.trim()),
       weight_kg: r.weight_kg === '' ? null : Number(r.weight_kg),
       reps: r.reps === '' ? null : Number(r.reps),
       sets: r.sets === '' ? null : Number(r.sets),
@@ -54,7 +53,8 @@ export default function AdminTrainingReportForm({ onClose, onSaved }) {
   const [members, setMembers] = useState([]);
   const [loadingMembers, setLoadingMembers] = useState(true);
   const [selectedMemberId, setSelectedMemberId] = useState('');
-  const [focus, setFocus] = useState('가슴');
+  const [sessionTitle, setSessionTitle] = useState('');
+  const [filterChip, setFilterChip] = useState('가슴');
   const [reportDate, setReportDate] = useState(todayYmd);
   const [rows, setRows] = useState(() => [emptyRow()]);
   const [coachComment, setCoachComment] = useState('');
@@ -90,24 +90,13 @@ export default function AdminTrainingReportForm({ onClose, onSaved }) {
     return m?.name?.trim() || '';
   }, [members, selectedMemberId]);
 
-  const exerciseOptions = useMemo(() => exercisesForFocus(focus), [focus]);
+  const exerciseOptions = useMemo(() => exercisesForFocus(filterChip), [filterChip]);
 
   const addRow = () => setRows((prev) => [...prev, emptyRow()]);
   const removeRow = (id) => setRows((prev) => (prev.length <= 1 ? prev : prev.filter((r) => r.id !== id)));
 
   const updateRow = (id, patch) => {
     setRows((prev) => prev.map((r) => (r.id === id ? { ...r, ...patch } : r)));
-  };
-
-  const handleFocusChange = (next) => {
-    setFocus(next);
-    setRows((prev) =>
-      prev.map((r) => {
-        if (!r.exercise) return r;
-        const opts = exercisesForFocus(next);
-        return opts.includes(r.exercise) ? r : { ...r, exercise: '' };
-      })
-    );
   };
 
   const loadLastRoutine = useCallback(async () => {
@@ -119,11 +108,12 @@ export default function AdminTrainingReportForm({ onClose, onSaved }) {
         .select('workout_lines, session_focus, report_date')
         .eq('user_id', selectedMemberId)
         .order('report_date', { ascending: false })
+        .order('created_at', { ascending: false })
         .limit(40);
 
       if (error) throw error;
       const list = Array.isArray(data) ? data : [];
-      const hit = list.find((row) => reportMatchesFocus(row, focus));
+      const hit = list.find((row) => reportMatchesFocus(row, filterChip));
       if (!hit || !Array.isArray(hit.workout_lines) || hit.workout_lines.length === 0) {
         showToast('해당 부위의 최근 기록이 없습니다');
         return;
@@ -131,9 +121,10 @@ export default function AdminTrainingReportForm({ onClose, onSaved }) {
       const mapped = hit.workout_lines
         .map((l) => {
           if (typeof l === 'object' && l !== null) {
+            const rawName = (l.exercise || l.name || '').toString();
             return {
               id: newRowId(),
-              exercise: (l.exercise || l.name || '').toString(),
+              exercise: stripBracketPrefix(rawName),
               weight_kg: l.weight_kg ?? l.weight ?? '',
               reps: l.reps ?? '',
               sets: l.sets ?? '',
@@ -154,16 +145,16 @@ export default function AdminTrainingReportForm({ onClose, onSaved }) {
     } finally {
       setLoadingGhost(false);
     }
-  }, [selectedMemberId, focus, showToast, showAlert]);
+  }, [selectedMemberId, filterChip, showToast, showAlert]);
 
   const handleSave = async () => {
     if (!selectedMemberId) {
       showAlert({ message: '회원을 선택해 주세요.' });
       return;
     }
-    const built = workoutLinesFromRows(rows, focus);
+    const built = workoutLinesFromRows(rows, filterChip);
     if (built.length === 0) {
-      showAlert({ message: '운동을 한 가지 이상 선택해 주세요.' });
+      showAlert({ message: '운동을 한 가지 이상 입력해 주세요.' });
       return;
     }
     setSaving(true);
@@ -171,13 +162,12 @@ export default function AdminTrainingReportForm({ onClose, onSaved }) {
       const payload = {
         user_id: selectedMemberId,
         report_date: reportDate,
-        session_focus: `${focus} 세션`,
+        session_focus: sessionTitle.trim(),
         workout_lines: built,
         coach_comment: coachComment.trim(),
       };
-      const { error } = await supabase.from('client_session_reports').upsert(payload, {
-        onConflict: 'user_id,report_date',
-      });
+      // Always insert a new row (no upsert / onConflict — DB has no unique on user_id+report_date).
+      const { error } = await supabase.from('client_session_reports').insert([payload]);
       if (error) throw error;
       showToast('리포트가 저장되었습니다.');
       onSaved?.();
@@ -246,15 +236,27 @@ export default function AdminTrainingReportForm({ onClose, onSaved }) {
           </div>
 
           <div>
-            <label className="text-[10px] text-gray-400 tracking-widest uppercase block mb-2">Target Focus</label>
+            <label className="text-[10px] text-gray-400 tracking-widest uppercase block mb-2">세션 타이틀</label>
+            <input
+              type="text"
+              value={sessionTitle}
+              onChange={(e) => setSessionTitle(e.target.value)}
+              placeholder="세션 타이틀 입력 (예: 전신 스트렝스)"
+              className="w-full bg-gray-50 border border-gray-100 rounded-xl px-4 py-3 text-sm text-slate-900 placeholder:text-gray-400 outline-none focus:ring-1 focus:ring-[#064e3b]/20"
+            />
+          </div>
+
+          <div>
+            <label className="text-[10px] text-gray-400 tracking-widest uppercase block mb-2">운동 프리셋 필터</label>
+            <p className="text-[11px] text-gray-400 mb-2 font-light">아래 추천 운동 목록만 바뀝니다. 세션 타이틀과 무관합니다.</p>
             <div className="flex flex-wrap gap-2">
               {FOCUS_CHIPS.map((chip) => (
                 <button
                   key={chip}
                   type="button"
-                  onClick={() => handleFocusChange(chip)}
+                  onClick={() => setFilterChip(chip)}
                   className={`px-3.5 py-2 rounded-full text-xs font-medium tracking-wide transition-all ${
-                    focus === chip
+                    filterChip === chip
                       ? 'bg-[#064e3b] text-white shadow-sm'
                       : 'bg-gray-50 text-gray-600 border border-gray-100 hover:border-gray-200'
                   }`}
@@ -272,7 +274,7 @@ export default function AdminTrainingReportForm({ onClose, onSaved }) {
             className="w-full flex items-center justify-center gap-2 py-3.5 rounded-xl border border-[#064e3b]/20 bg-[#064e3b]/[0.04] text-[#064e3b] text-sm font-medium tracking-wide hover:bg-[#064e3b]/10 disabled:opacity-40 disabled:pointer-events-none transition-colors"
           >
             <Sparkles size={18} strokeWidth={ICON_STROKE} className="shrink-0 opacity-90" aria-hidden />
-            {loadingGhost ? '불러오는 중…' : `최근 ${focus} 루틴 불러오기`}
+            {loadingGhost ? '불러오는 중…' : `최근 ${filterChip} 루틴 불러오기`}
           </button>
 
           <div>
@@ -297,18 +299,20 @@ export default function AdminTrainingReportForm({ onClose, onSaved }) {
                     {idx === 0 && (
                       <span className="text-[9px] text-gray-400 uppercase tracking-wider block mb-1">운동</span>
                     )}
-                    <select
+                    <input
+                      type="text"
+                      list={`exercise-datalist-${row.id}`}
                       value={row.exercise}
                       onChange={(e) => updateRow(row.id, { exercise: e.target.value })}
+                      placeholder="선택 또는 직접 입력"
+                      autoComplete="off"
                       className="w-full bg-white border border-gray-100 rounded-lg px-3 py-2.5 text-sm text-slate-900 outline-none focus:ring-1 focus:ring-[#064e3b]/20"
-                    >
-                      <option value="">선택</option>
+                    />
+                    <datalist id={`exercise-datalist-${row.id}`}>
                       {exerciseOptions.map((name) => (
-                        <option key={name} value={name}>
-                          {name}
-                        </option>
+                        <option key={name} value={name} />
                       ))}
-                    </select>
+                    </datalist>
                   </div>
                   <div className="grid grid-cols-3 gap-2 sm:col-span-7">
                     <div>
