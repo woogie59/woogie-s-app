@@ -2,6 +2,7 @@ import React, { useEffect, useState, useCallback } from 'react';
 import { LogOut, QrCode, Users, Calendar, Archive, TrendingUp } from 'lucide-react';
 import { supabase } from '../../lib/supabaseClient';
 import LabDotBrand from '../../components/ui/LabDotBrand';
+import AdminPayrollExport from '../../features/admin/AdminPayrollExport';
 
 const ICON_STROKE = 1.5;
 
@@ -116,6 +117,11 @@ const AdminHome = ({ setView, logout }) => {
           <LogOut size={20} strokeWidth={ICON_STROKE} className="text-gray-600" />
         </button>
       </header>
+
+      {/* 월간 페이롤 엑셀 — top-level dashboard */}
+      <section className="w-full max-w-lg mx-auto px-6 mb-6">
+        <AdminPayrollExport />
+      </section>
 
       {/* 일정 미확정 회원 — full-width data card (no in-app scheduling action) */}
       <section className="w-full max-w-lg mx-auto px-6 pb-5">

@@ -193,6 +193,19 @@ export default function AdminTrainingReportForm({ onClose, onSaved }) {
         }
         return;
       }
+      try {
+        const { error: pushErr } = await supabase.functions.invoke('notify-admin-events', {
+          body: {
+            type: 'training_report_saved',
+            memberUserId: selectedMemberId,
+            sessionFocus: sessionTitle.trim() || '트레이닝 세션',
+            reportDate: reportDate,
+          },
+        });
+        if (pushErr) console.warn('[AdminTrainingReportForm] notify push:', pushErr.message);
+      } catch (e) {
+        console.warn('[AdminTrainingReportForm] notify push:', e);
+      }
       showToast('리포트가 저장되었고 잔여 횟수가 차감되었습니다.');
       onSaved?.();
       onClose();

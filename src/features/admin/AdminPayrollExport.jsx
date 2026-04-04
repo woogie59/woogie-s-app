@@ -16,7 +16,8 @@ function monthBounds(year, month1to12) {
 }
 
 /**
- * Minimal payroll Excel export for a calendar month (client_session_reports counts).
+ * Monthly payroll Excel export (client_session_reports counts per member).
+ * Designed for Admin Home dashboard — always visible, no conditional wrapper.
  */
 export default function AdminPayrollExport() {
   const now = useMemo(() => new Date(), []);
@@ -88,13 +89,15 @@ export default function AdminPayrollExport() {
   };
 
   return (
-    <section className="mt-10 pt-8 border-t border-gray-100" aria-label="페이롤 엑셀">
-      <p className="text-[10px] text-gray-400 tracking-[0.22em] uppercase mb-1">Payroll</p>
-      <h3 className="text-sm font-semibold text-[#064e3b] tracking-tight mb-4">월별 진행 수업 (엑셀)</h3>
-      <p className="text-xs text-gray-500 font-light leading-relaxed mb-4">
+    <section
+      className="bg-white rounded-2xl shadow-sm p-6 border border-gray-100/90"
+      aria-label="월간 페이롤 정산"
+    >
+      <h2 className="text-base font-semibold text-slate-900 tracking-tight">월간 페이롤 정산</h2>
+      <p className="text-xs text-gray-500 font-light leading-relaxed mt-1.5 mb-5">
         선택한 달의 트레이닝 일지 건수를 회원별로 집계합니다.
       </p>
-      <div className="flex flex-wrap items-end gap-3">
+      <div className="flex flex-wrap items-end gap-4">
         <div>
           <label className="text-[10px] text-gray-400 tracking-widest uppercase block mb-1.5">연도</label>
           <select
@@ -127,10 +130,10 @@ export default function AdminPayrollExport() {
           type="button"
           onClick={handleExport}
           disabled={busy}
-          className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl border border-[#064e3b]/25 bg-[#064e3b]/[0.06] text-[#064e3b] text-sm font-medium tracking-wide hover:bg-[#064e3b]/10 disabled:opacity-50 transition-colors"
+          className="inline-flex items-center gap-2 bg-[#064e3b] text-white px-6 py-2 rounded-xl text-sm font-medium tracking-wide shadow-sm hover:bg-[#053d2f] disabled:opacity-50 active:scale-[0.98] transition-all"
         >
-          <FileSpreadsheet size={18} strokeWidth={ICON_STROKE} className="opacity-90" aria-hidden />
-          {busy ? '생성 중…' : '페이롤 엑셀 추출'}
+          <FileSpreadsheet size={18} strokeWidth={ICON_STROKE} className="shrink-0 opacity-95" aria-hidden />
+          {busy ? '생성 중…' : '엑셀 다운로드'}
         </button>
       </div>
     </section>

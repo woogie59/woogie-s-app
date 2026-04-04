@@ -54,11 +54,12 @@ const RegisterView = ({ setView, goBack, onSignupSuccess }) => {
           });
           if (!insErr) {
             try {
-              await supabase.functions.invoke('notify-admin-events', {
+              const { data: pushData, error: pushErr } = await supabase.functions.invoke('notify-admin-events', {
                 body: { type: 'new_member', name: (form.name || '').trim() || '회원' },
               });
-            } catch {
-              /* push optional */
+              if (pushErr) console.warn('[RegisterView] notify-admin-events:', pushErr.message, pushData);
+            } catch (e) {
+              console.warn('[RegisterView] notify-admin-events:', e);
             }
           }
         }

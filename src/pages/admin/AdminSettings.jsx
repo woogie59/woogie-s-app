@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabaseClient';
 import { useGlobalModal } from '../../context/GlobalModalContext';
 import BackButton from '../../components/ui/BackButton';
-import AdminPayrollExport from '../../features/admin/AdminPayrollExport';
 
 const DAY_NAMES = ['일', '월', '화', '수', '목', '금', '토'];
 const HOURS_0_23 = Array.from({ length: 24 }, (_, i) => i);
@@ -209,8 +208,6 @@ const AdminSettings = ({ setView, goBack }) => {
           ))}
         </div>
       </div>
-
-      <AdminPayrollExport />
     </div>
   );
 };
