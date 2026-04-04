@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { ArrowLeft, User, Calendar, Mail, Lock } from 'lucide-react';
 import { supabase } from '../../lib/supabaseClient';
+import { sendOneSignalPush, fetchAdminOnesignalPlayerId } from '../../utils/notifications';
 import { useGlobalModal } from '../../context/GlobalModalContext';
 import ButtonPrimary from '../../components/ui/ButtonPrimary';
 import { LabDotBrand } from '../../components/ui/LabDotBrand';
@@ -54,12 +55,13 @@ const RegisterView = ({ setView, goBack, onSignupSuccess }) => {
           });
           if (!insErr) {
             try {
-              const { data: pushData, error: pushErr } = await supabase.functions.invoke('notify-admin-events', {
-                body: { type: 'new_member', name: (form.name || '').trim() || '회원' },
-              });
-              if (pushErr) console.warn('[RegisterView] notify-admin-events:', pushErr.message, pushData);
+              const pid = await fetchAdminOnesignalPlayerId();
+              const name = (form.name || '').trim() || '회원';
+              if (pid) {
+                await sendOneSignalPush(pid, '신규 회원 참여', `${name}님이 새로 참여하였습니다.`);
+              }
             } catch (e) {
-              console.warn('[RegisterView] notify-admin-events:', e);
+              console.warn('[RegisterView] admin push:', e);
             }
           }
         }

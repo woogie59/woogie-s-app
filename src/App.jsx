@@ -5,8 +5,6 @@ import OneSignal from 'react-onesignal';
 
 import { supabase, REMEMBER_ME_KEY } from './lib/supabaseClient';
 import { useGlobalModal } from './context/GlobalModalContext';
-import WelcomeScreen from './components/WelcomeScreen';
-
 import CinematicIntro from './components/ui/CinematicIntro';
 import LabDotBrand from './components/ui/LabDotBrand';
 import ButtonPrimary from './components/ui/ButtonPrimary';
@@ -58,11 +56,8 @@ const INITIAL_KNOWLEDGE = [
   }
 ];
 
-// --- OneSignal (replace with your App ID from dashboard) ---
-const ONESIGNAL_APP_ID = 'b11d4906-0186-462c-a90c-2d07171e6619';
-
-/** Same-tab: after "시작하기", skip welcome on refresh until logout */
-const WELCOME_SEEN_KEY = 'labdot_welcome_seen_v1';
+// --- OneSignal: VITE_ONESIGNAL_APP_ID in .env (fallback for local dev) ---
+const ONESIGNAL_APP_ID = import.meta.env.VITE_ONESIGNAL_APP_ID || 'b11d4906-0186-462c-a90c-2d07171e6619';
 
 /** Admin-only screens: show global Quick Log FAB */
 const ADMIN_QUICK_LOG_VIEWS = new Set([
@@ -182,8 +177,6 @@ export default function App() {
   }, [oneSignalReady, session?.user?.id]);
 
   const [loading, setLoading] = useState(true);
-  const [welcomeGatePending, setWelcomeGatePending] = useState(false);
-  const [welcomeName, setWelcomeName] = useState('');
   /** From `profiles.role` — used for library back nav & admin-only UI */
   const [userProfileRole, setUserProfileRole] = useState(null);
 
@@ -224,12 +217,12 @@ export default function App() {
   useEffect(() => {
     if (!oneSignalReady || !session?.user?.id) return;
     if (view !== 'client_home' && view !== 'admin_home') return;
-    if (loading || welcomeGatePending) return;
+    if (loading) return;
     const uid = session.user.id;
     if (pushPromptForSessionRef.current === uid) return;
     pushPromptForSessionRef.current = uid;
     OneSignal.Slidedown.promptPush().catch((e) => console.warn('[OneSignal] promptPush:', e));
-  }, [oneSignalReady, session?.user?.id, view, loading, welcomeGatePending]);
+  }, [oneSignalReady, session?.user?.id, view, loading]);
 
   /** Admin: tap 10분 전 세션 알림 → Schedule day view (Today's Timeline) */
   useEffect(() => {
@@ -265,48 +258,11 @@ export default function App() {
     if (!sessionData?.user?.id) {
       setUserProfileRole(null);
       replaceView('login');
-      setWelcomeGatePending(false);
       setLoading(false);
       return;
     }
 
     if (authEvent === 'TOKEN_REFRESHED') {
-      setLoading(false);
-      return;
-    }
-
-    try {
-      if (typeof sessionStorage !== 'undefined' && sessionStorage.getItem(WELCOME_SEEN_KEY) === '1') {
-        let { data } = await supabase
-          .from('profiles')
-          .select('role, name')
-          .eq('id', sessionData.user.id)
-          .maybeSingle();
-        if (!data && sessionData?.user) {
-          await new Promise((r) => setTimeout(r, 600));
-          const { data: retry } = await supabase
-            .from('profiles')
-            .select('role, name')
-            .eq('id', sessionData.user.id)
-            .maybeSingle();
-          data = retry;
-        }
-        setUserProfileRole(data?.role ?? null);
-        setWelcomeName(
-          data?.name?.trim() ||
-            sessionData.user.user_metadata?.full_name ||
-            sessionData.user.email ||
-            '회원'
-        );
-        replaceView(data?.role === 'admin' ? 'admin_home' : 'client_home');
-        setWelcomeGatePending(false);
-        setLoading(false);
-        return;
-      }
-    } catch {
-      setUserProfileRole(null);
-      replaceView('client_home');
-      setWelcomeGatePending(false);
       setLoading(false);
       return;
     }
@@ -330,13 +286,10 @@ export default function App() {
             await new Promise((r) => setTimeout(r, 350));
           }
           setUserProfileRole(profile?.role ?? null);
-          setWelcomeName(
-            profile?.name?.trim() ||
-              sessionData.user.user_metadata?.full_name ||
-              sessionData.user.email ||
-              '회원'
-          );
-          setWelcomeGatePending(true);
+          replaceView(profile?.role === 'admin' ? 'admin_home' : 'client_home');
+        } catch {
+          setUserProfileRole(null);
+          replaceView('client_home');
         } finally {
           setLoading(false);
         }
@@ -347,27 +300,23 @@ export default function App() {
     try {
       let { data } = await supabase
         .from('profiles')
-        .select('role, name')
+        .select('role')
         .eq('id', sessionData.user.id)
         .maybeSingle();
       if (!data && sessionData?.user) {
         await new Promise((r) => setTimeout(r, 600));
         const { data: retry } = await supabase
           .from('profiles')
-          .select('role, name')
+          .select('role')
           .eq('id', sessionData.user.id)
           .maybeSingle();
         data = retry;
       }
       setUserProfileRole(data?.role ?? null);
-      setWelcomeName(
-        data?.name?.trim() || sessionData.user.user_metadata?.full_name || sessionData.user.email || '회원'
-      );
-      setWelcomeGatePending(true);
+      replaceView(data?.role === 'admin' ? 'admin_home' : 'client_home');
     } catch {
       setUserProfileRole(null);
-      setWelcomeName(sessionData.user.user_metadata?.full_name || sessionData.user.email || '회원');
-      setWelcomeGatePending(true);
+      replaceView('client_home');
     } finally {
       setLoading(false);
     }
@@ -407,7 +356,7 @@ export default function App() {
       
       if (showResetPassword) return;
 
-      // Initial load is handled by getSession() above — avoid double processAuth / double welcome
+      // Initial load is handled by getSession() above — avoid double processAuth
       if (event === 'INITIAL_SESSION') return;
       
       processAuth(session, event);
@@ -424,11 +373,6 @@ export default function App() {
     }
     pushPromptForSessionRef.current = null;
     setUserProfileRole(null);
-    try {
-      sessionStorage.removeItem(WELCOME_SEEN_KEY);
-    } catch {
-      /* ignore */
-    }
     await supabase.auth.signOut();
     replaceView('login');
   };
@@ -830,31 +774,16 @@ export default function App() {
           )}
 
           {/* Normal views - only show if NOT in password reset mode */}
-          {!showResetPassword && loading && !welcomeGatePending && (
+          {!showResetPassword && loading && (
             <div className="min-h-[100dvh] flex flex-col items-center justify-center bg-white text-slate-900 gap-6">
               <LabDotBrand variant="header" />
               <p className="text-gray-400 text-xs tracking-[0.2em] uppercase">준비 중</p>
             </div>
           )}
-          {welcomeGatePending && session?.user?.id && (
-            <WelcomeScreen
-              userId={session.user.id}
-              initialName={welcomeName}
-              onStart={() => {
-                try {
-                  sessionStorage.setItem(WELCOME_SEEN_KEY, '1');
-                } catch {
-                  /* ignore */
-                }
-                setWelcomeGatePending(false);
-                replaceView(userProfileRole === 'admin' ? 'admin_home' : 'client_home');
-              }}
-            />
-          )}
-          {!showResetPassword && !loading && !welcomeGatePending && (
+          {!showResetPassword && !loading && (
             <>
               {!session && view === 'login' && <LoginView setView={navigate} />}
-              {!session && view === 'register' && <RegisterView setView={navigate} goBack={goBack} onSignupSuccess={(name) => setWelcomeName(name)} />}
+              {!session && view === 'register' && <RegisterView setView={navigate} goBack={goBack} />}
 
               {/* 로그인 했을 때 보여줄 화면 (일반 회원) */}
               {session && view === 'client_home' && <ClientHome user={session.user} logout={handleLogout} setView={navigate} goBack={goBack} />}
@@ -1421,7 +1350,7 @@ export default function App() {
             </>
           )}
 
-          {!showResetPassword && !loading && !welcomeGatePending && session?.user && userProfileRole === 'admin' && ADMIN_QUICK_LOG_VIEWS.has(view) && !showAdminTrainingReport && (
+          {!showResetPassword && !loading && session?.user && userProfileRole === 'admin' && ADMIN_QUICK_LOG_VIEWS.has(view) && !showAdminTrainingReport && (
             <button
               type="button"
               onClick={() => setShowAdminTrainingReport(true)}

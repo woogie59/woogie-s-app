@@ -13,6 +13,7 @@ import {
   BookOpen,
 } from 'lucide-react';
 import { supabase } from '../../lib/supabaseClient';
+import { sendOneSignalPush, fetchAdminOnesignalPlayerId } from '../../utils/notifications';
 import { deriveSessionFocus, formatKoreanDateFromYmd } from '../../features/training/trainingLogUtils';
 import { useGlobalModal } from '../../context/GlobalModalContext';
 import LabDotBrand from '../../components/ui/LabDotBrand';
@@ -303,21 +304,39 @@ const ClientHome = ({ user, logout, setView }) => {
 
   const confirmDeleteAction = async () => {
     if (!bookingToDelete) return;
-    setCancelling(bookingToDelete.id);
-    const { error } = await supabase
-      .from('bookings')
-      .delete()
-      .eq('id', bookingToDelete.id);
+    const { id: bookingId, date, time } = bookingToDelete;
+    setCancelling(bookingId);
+    const { error } = await supabase.from('bookings').delete().eq('id', bookingId);
 
     if (error) {
       showAlert({ message: '취소 실패: ' + error.message });
-    } else {
-      setIsDeleteModalOpen(false);
-      setBookingToDelete(null);
       setCancelling(null);
-      fetchMyBookings();
-      showAlert({ message: '취소가 완료되었습니다.', confirmLabel: '확인' });
+      return;
     }
+
+    try {
+      const pid = await fetchAdminOnesignalPlayerId();
+      if (pid) {
+        const memberName =
+          profile?.name?.trim() ||
+          user?.user_metadata?.full_name ||
+          user?.email?.split('@')[0] ||
+          '회원';
+        await sendOneSignalPush(
+          pid,
+          '세션 취소 알림',
+          `${memberName}님 - ${date} ${time} 예약이 취소되었습니다.`
+        );
+      }
+    } catch (e) {
+      console.warn('[ClientHome] cancel push:', e);
+    }
+
+    setIsDeleteModalOpen(false);
+    setBookingToDelete(null);
+    setCancelling(null);
+    fetchMyBookings();
+    showAlert({ message: '취소가 완료되었습니다.', confirmLabel: '확인' });
   };
 
   const handleOpenSchedule = () => {
