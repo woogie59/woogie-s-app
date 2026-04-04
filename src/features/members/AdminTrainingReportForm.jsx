@@ -171,9 +171,29 @@ export default function AdminTrainingReportForm({ onClose, onSaved }) {
         coach_comment: coachComment.trim(),
       };
       // Always insert a new row (no upsert / onConflict — DB has no unique on user_id+report_date).
-      const { error } = await supabase.from('client_session_reports').insert([payload]);
+      const { data: inserted, error } = await supabase.from('client_session_reports').insert([payload]).select('id').single();
       if (error) throw error;
-      showToast('리포트가 저장되었습니다.');
+      const reportId = inserted?.id;
+      const { data: dec, error: decErr } = await supabase.rpc('admin_decrement_session_for_report', {
+        p_member_id: selectedMemberId,
+      });
+      if (decErr) {
+        if (reportId) await supabase.from('client_session_reports').delete().eq('id', reportId);
+        throw decErr;
+      }
+      if (dec && typeof dec === 'object' && dec.ok === false) {
+        if (reportId) await supabase.from('client_session_reports').delete().eq('id', reportId);
+        const code = dec.error;
+        if (code === 'no_sessions') {
+          showAlert({ message: '잔여 수업이 없습니다. 수업권을 확인한 뒤 다시 저장해 주세요.' });
+        } else if (code === 'forbidden') {
+          showAlert({ message: '권한이 없습니다.' });
+        } else {
+          showAlert({ message: '잔여 횟수 차감에 실패했습니다.' });
+        }
+        return;
+      }
+      showToast('리포트가 저장되었고 잔여 횟수가 차감되었습니다.');
       onSaved?.();
       onClose();
     } catch (e) {
