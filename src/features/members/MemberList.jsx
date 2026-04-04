@@ -20,7 +20,7 @@ const MemberList = ({ setView, goBack, setSelectedMemberId }) => {
 
   return (
     <div className="min-h-[100dvh] bg-white text-slate-900 p-6">
-      <BackButton onClick={goBack} label="Admin Home" />
+      <BackButton onClick={goBack} />
 
       <header className="flex items-center justify-between mb-8">
         <div></div>

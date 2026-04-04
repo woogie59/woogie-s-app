@@ -137,7 +137,7 @@ const AdminSettings = ({ setView, goBack }) => {
           Settings Saved ✓
         </div>
       )}
-      <BackButton onClick={goBack} label="Admin Home" />
+      <BackButton onClick={goBack} />
       <h2 className="text-2xl font-bold text-emerald-600 mb-2">예약 설정</h2>
       <p className="text-sm text-gray-500 mb-6">시간 블록을 켜면 예약 가능합니다. (00:00–23:00)</p>
 

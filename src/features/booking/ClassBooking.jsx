@@ -199,32 +199,18 @@ const ClassBooking = ({ user, setView, goBack }) => {
         const { data: updated } = await supabase.from('bookings').select('*').eq('date', date);
         setBookings(updated || []);
         try {
-          const { data: adminProfile } = await supabase
-            .from('profiles')
-            .select('onesignal_id')
-            .or('role.eq.admin,email.eq.admin@gmail.com')
-            .limit(1)
-            .maybeSingle();
-          const adminOsId = adminProfile?.onesignal_id;
-          if (adminOsId) {
-            const memberName = user?.user_metadata?.full_name || user?.user_metadata?.name || user?.email || '회원';
-            const msg = `${memberName}님이 ${date} ${timeSlot} 수업을 예약했습니다.`;
-            await fetch('https://onesignal.com/api/v1/notifications', {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                Authorization: 'Basic os_v2_app_7vsxhzq33bb27gbyhnmc62binkjbrtc22o3eo3eeeqp3zluqgtusywkaagav3yyj67czyg6ioo2wfwxgvfk75l3o3m7uzagi6cbbhqq',
-              },
-              body: JSON.stringify({
-                app_id: 'fd6573e6-1bd8-43af-9838-3b582f68286a',
-                include_player_ids: [adminOsId],
-                headings: { en: 'New Booking!' },
-                contents: { en: msg },
-              }),
-            });
-          }
+          const { data: prof } = await supabase.from('profiles').select('name').eq('id', user.id).maybeSingle();
+          const memberName =
+            (prof?.name && String(prof.name).trim()) ||
+            user?.user_metadata?.full_name ||
+            user?.user_metadata?.name ||
+            user?.email ||
+            '회원';
+          await supabase.functions.invoke('notify-admin-events', {
+            body: { type: 'new_booking', memberName, date, time: timeSlot },
+          });
         } catch {
-          /* ignore */
+          /* push optional */
         }
       },
     });
@@ -246,7 +232,7 @@ const ClassBooking = ({ user, setView, goBack }) => {
   return (
     <div className="bg-gray-50 text-slate-900 flex flex-col overflow-hidden max-w-full min-h-[100dvh] font-sans antialiased">
       <div className="shrink-0 px-5 pt-6 pb-3 border-b border-gray-100/90 bg-gray-50">
-        <BackButton onClick={goBack} label="Home" />
+        <BackButton onClick={goBack} />
         <header className="mt-4 mb-5">
           <p className="text-[10px] tracking-widest uppercase text-gray-400 font-medium">CLASS BOOKING</p>
           <h1 className="text-xl font-light text-slate-900 tracking-wide mt-1">수업 예약</h1>

@@ -243,12 +243,13 @@ export default function App() {
         }
       }
       if (!data || typeof data !== 'object') return;
-      if (data.labdot_action !== 'admin_timeline') return;
+      const action = data.labdot_action;
+      if (action !== 'admin_timeline' && action !== 'admin_schedule') return;
       const bd = data.booking_date;
-      if (typeof bd !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(bd)) return;
-      const d = new Date(`${bd}T12:00:00`);
-      if (Number.isNaN(d.getTime())) return;
-      setDashboardFocusDate(d);
+      if (typeof bd === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(bd)) {
+        const d = new Date(`${bd}T12:00:00`);
+        if (!Number.isNaN(d.getTime())) setDashboardFocusDate(d);
+      }
       setDashboardViewMode('day');
       navigate('admin_schedule');
     };
@@ -812,7 +813,7 @@ export default function App() {
               <div className="min-h-[100dvh] bg-white flex flex-col text-slate-900 overflow-y-auto pb-20">
                 <div className="p-6 pb-2">
                   <div className="flex items-center justify-between gap-4 mb-4">
-                    <BackButton onClick={goBack} label="Admin Home" />
+                    <BackButton onClick={goBack} />
                     <button
                       type="button"
                       onClick={() => navigate('admin_settings')}
@@ -1062,7 +1063,7 @@ export default function App() {
             <AdminRoute session={session} replaceView={replaceView}>
               <div className="min-h-[100dvh] bg-white flex flex-col text-slate-900 overflow-y-auto pb-24">
                 <div className="p-6 pb-2">
-                  <BackButton onClick={goBack} label="Admin Home" />
+                  <BackButton onClick={goBack} />
                   <h2 className="text-2xl font-bold text-emerald-600 mt-4">REVENUE</h2>
                   <p className="text-gray-500 text-sm mt-1">Pack sales, total payout (base + incentive + bonus), and payroll export for the selected month.</p>
                 </div>
@@ -1189,7 +1190,7 @@ export default function App() {
           {(session || view === 'admin_home' || view === 'library') && view === 'library' && (
             <div className="min-h-[100dvh] h-full max-w-full bg-white flex flex-col overflow-hidden">
               <div className="flex-1 overflow-y-auto overscroll-contain min-h-0 p-6 pb-24" style={{ WebkitOverflowScrolling: 'touch' }}>
-              <BackButton onClick={goBack} label="Home" />
+              <BackButton onClick={goBack} />
               
               <div className="flex flex-wrap justify-between items-center gap-3 mb-6 max-w-full">
                 <h2 className="text-2xl font-bold text-emerald-600">📚 KNOWLEDGE BASE</h2>

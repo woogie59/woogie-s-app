@@ -47,7 +47,7 @@ export default function TrainingLogDetail({ user, reportId, onBack }) {
       className="min-h-[100dvh] bg-gray-50 text-slate-900 flex flex-col font-sans pb-safe"
     >
       <header className="shrink-0 px-5 pt-5 pb-4 border-b border-gray-100/90 bg-gray-50">
-        <BackButton onClick={onBack} label="목록" />
+        <BackButton onClick={onBack} />
       </header>
 
       <div className="flex-1 overflow-y-auto min-h-0 px-5 py-6">

@@ -119,7 +119,7 @@ const MacroCalculator = ({ user, setView, goBack }) => {
 
   return (
     <div className="min-h-[100dvh] bg-white text-slate-900 p-6 pb-20 overflow-y-auto">
-      <BackButton onClick={() => (goBack ? goBack() : setView('client_home'))} label="Home" />
+      <BackButton onClick={() => goBack?.()} />
 
       <header className="text-center mb-6">
         <h2 className="text-2xl font-bold text-emerald-600 mb-2">🍽️ 매크로 계산기</h2>

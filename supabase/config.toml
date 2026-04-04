@@ -12,6 +12,12 @@ verify_jwt = false
 import_map = "./functions/send-session-reminder/deno.json"
 entrypoint = "./functions/send-session-reminder/index.ts"
 
+[functions.notify-admin-events]
+enabled = true
+verify_jwt = true
+import_map = "./functions/notify-admin-events/deno.json"
+entrypoint = "./functions/notify-admin-events/index.ts"
+
 [functions.send-admin-alert]
 enabled = true
 verify_jwt = true

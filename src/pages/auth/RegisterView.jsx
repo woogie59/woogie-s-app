@@ -46,12 +46,21 @@ const RegisterView = ({ setView, goBack, onSignupSuccess }) => {
           .eq('id', user.id)
           .maybeSingle();
         if (!existingProfile) {
-          await supabase.from('profiles').insert({
+          const { error: insErr } = await supabase.from('profiles').insert({
             id: user.id,
             email: user.email,
             name: form.name,
             role: 'user',
           });
+          if (!insErr) {
+            try {
+              await supabase.functions.invoke('notify-admin-events', {
+                body: { type: 'new_member', name: (form.name || '').trim() || '회원' },
+              });
+            } catch {
+              /* push optional */
+            }
+          }
         }
       }
 

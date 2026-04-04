@@ -16,6 +16,9 @@ const emptyRow = () => ({
   sets: '',
 });
 
+/** Default PT matrix: three empty rows (typical session length). */
+const initialRows = () => [emptyRow(), emptyRow(), emptyRow()];
+
 function todayYmd() {
   const d = new Date();
   const y = d.getFullYear();
@@ -56,7 +59,7 @@ export default function AdminTrainingReportForm({ onClose, onSaved }) {
   const [sessionTitle, setSessionTitle] = useState('');
   const [filterChip, setFilterChip] = useState('가슴');
   const [reportDate, setReportDate] = useState(todayYmd);
-  const [rows, setRows] = useState(() => [emptyRow()]);
+  const [rows, setRows] = useState(initialRows);
   const [coachComment, setCoachComment] = useState('');
   const [saving, setSaving] = useState(false);
   const [loadingGhost, setLoadingGhost] = useState(false);
@@ -137,6 +140,7 @@ export default function AdminTrainingReportForm({ onClose, onSaved }) {
         showToast('불러올 구조화된 루틴이 없습니다');
         return;
       }
+      // Replace entire matrix (including default empty rows) — never append.
       setRows(mapped);
       showToast('루틴을 불러왔습니다');
     } catch (e) {
