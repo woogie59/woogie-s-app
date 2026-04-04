@@ -80,7 +80,12 @@ export default function TrainingLogDetail({ user, reportId, onBack }) {
                         const { label, detail } = parseWorkoutLineParts(line);
                         return (
                           <tr key={idx} className="border-b border-gray-100/80 last:border-0">
-                            <td className="px-4 py-3 text-slate-800 font-medium align-top">{label}</td>
+                            <td className="px-4 py-3 text-slate-800 font-medium align-top">
+                              <span className="inline-flex items-baseline gap-1.5">
+                                <span className="shrink-0 tabular-nums text-gray-400 font-medium">{idx + 1}.</span>
+                                <span>{label}</span>
+                              </span>
+                            </td>
                             <td className="px-4 py-3 text-gray-600 font-light align-top tabular-nums">{detail || '—'}</td>
                           </tr>
                         );
@@ -93,9 +98,9 @@ export default function TrainingLogDetail({ user, reportId, onBack }) {
 
             <section
               className="bg-gray-50 rounded-xl p-4 border-l-2 border-[#064e3b]"
-              aria-label="코치 코멘트"
+              aria-label="Woogie 코멘트"
             >
-              <p className="text-[10px] tracking-[0.18em] uppercase text-gray-400 font-medium mb-2">Coach&apos;s Comment</p>
+              <p className="text-[10px] tracking-[0.18em] uppercase text-gray-400 font-medium mb-2">Woogie&apos;s Comment</p>
               <p className="text-sm text-slate-700 leading-relaxed font-light tracking-wide whitespace-pre-line">
                 {(row.coach_comment && row.coach_comment.trim()) || '코멘트가 아직 없습니다.'}
               </p>
