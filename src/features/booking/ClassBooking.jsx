@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Lock } from 'lucide-react';
 import { supabase } from '../../lib/supabaseClient';
-import { sendOneSignalPush, fetchAdminOnesignalPlayerId } from '../../utils/notifications';
+import { sendDirectPush, fetchAdminOnesignalPlayerId } from '../../utils/notifications';
 import { useGlobalModal } from '../../context/GlobalModalContext';
 import BackButton from '../../components/ui/BackButton';
 
@@ -200,8 +200,13 @@ const ClassBooking = ({ user, setView, goBack }) => {
         const { data: updated } = await supabase.from('bookings').select('*').eq('date', date);
         setBookings(updated || []);
         try {
-          const pid = await fetchAdminOnesignalPlayerId();
-          if (pid) {
+          const adminId = await fetchAdminOnesignalPlayerId();
+          console.log('🎯 [Found Admin ID]:', adminId);
+          if (adminId == null || adminId === '') {
+            console.warn(
+              '🎯 [Found Admin ID]: null/undefined — push skipped (set profiles.onesignal_id for admin or check RLS)'
+            );
+          } else {
             const { data: prof } = await supabase.from('profiles').select('name').eq('id', user.id).maybeSingle();
             const memberName =
               (prof?.name && String(prof.name).trim()) ||
@@ -209,8 +214,8 @@ const ClassBooking = ({ user, setView, goBack }) => {
               user?.user_metadata?.name ||
               user?.email ||
               '회원';
-            await sendOneSignalPush(
-              pid,
+            await sendDirectPush(
+              adminId,
               '새로운 세션 확정',
               `${memberName}님 - ${date} ${timeSlot}`
             );

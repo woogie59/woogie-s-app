@@ -13,7 +13,7 @@ import {
   BookOpen,
 } from 'lucide-react';
 import { supabase } from '../../lib/supabaseClient';
-import { sendOneSignalPush, fetchAdminOnesignalPlayerId } from '../../utils/notifications';
+import { sendDirectPush, fetchAdminOnesignalPlayerId } from '../../utils/notifications';
 import { deriveSessionFocus, formatKoreanDateFromYmd } from '../../features/training/trainingLogUtils';
 import { useGlobalModal } from '../../context/GlobalModalContext';
 import LabDotBrand from '../../components/ui/LabDotBrand';
@@ -322,7 +322,7 @@ const ClientHome = ({ user, logout, setView }) => {
           user?.user_metadata?.full_name ||
           user?.email?.split('@')[0] ||
           '회원';
-        await sendOneSignalPush(
+        await sendDirectPush(
           pid,
           '세션 취소 알림',
           `${memberName}님 - ${date} ${time} 예약이 취소되었습니다.`
