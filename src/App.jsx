@@ -22,6 +22,7 @@ import AdminHome from './pages/admin/AdminHome';
 import AdminSchedule from './pages/admin/AdminSchedule';
 import AdminSettings from './pages/admin/AdminSettings';
 import AdminRoute from './pages/admin/AdminRoute';
+import AdminPayrollExport from './features/admin/AdminPayrollExport';
 
 import LibraryArticleScreen from './features/library/LibraryArticleScreen';
 import TrainingLogList from './features/training/TrainingLogList';
@@ -112,6 +113,7 @@ export default function App() {
   const [monthlyPackSalesKrw, setMonthlyPackSalesKrw] = useState(0);
   const [isRevenueLoading, setIsRevenueLoading] = useState(false);
   const [selectedRevenueDay, setSelectedRevenueDay] = useState(null);
+  const [schedulePayrollModalOpen, setSchedulePayrollModalOpen] = useState(false);
 
   // Salary Configuration (Persist in LocalStorage)
   const [salaryConfig, setSalaryConfig] = useState(() => {
@@ -749,6 +751,10 @@ export default function App() {
     if (view === 'client_home') setTrainingLogId(null);
   }, [view]);
 
+  useEffect(() => {
+    if (view !== 'admin_schedule') setSchedulePayrollModalOpen(false);
+  }, [view]);
+
   return (
     <div className="bg-white min-h-[100dvh] flex flex-col font-sans selection:bg-emerald-500/20 overflow-x-hidden">
       <AnimatePresence>
@@ -827,15 +833,24 @@ export default function App() {
             <AdminRoute session={session} replaceView={replaceView}>
               <div className="min-h-[100dvh] bg-white flex flex-col text-slate-900 overflow-y-auto pb-20">
                 <div className="p-6 pb-2">
-                  <div className="flex items-center justify-between gap-4 mb-4">
+                  <div className="flex items-center justify-between gap-4 mb-4 flex-wrap">
                     <BackButton onClick={goBack} />
-                    <button
-                      type="button"
-                      onClick={() => navigate('admin_settings')}
-                      className="shrink-0 text-[10px] font-medium tracking-[0.28em] uppercase text-[#064e3b] border border-[#064e3b]/25 px-3 py-2 rounded-lg bg-white hover:bg-[#064e3b]/5 active:scale-[0.99] transition-colors"
-                    >
-                      예약 설정
-                    </button>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <button
+                        type="button"
+                        onClick={() => setSchedulePayrollModalOpen(true)}
+                        className="text-xs font-medium text-slate-700 border border-gray-200 px-3 py-2 rounded-lg bg-white hover:bg-gray-50 active:scale-[0.99] transition-colors min-h-[40px]"
+                      >
+                        월간 수업 갯수
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => navigate('admin_settings')}
+                        className="shrink-0 text-[10px] font-medium tracking-[0.28em] uppercase text-[#064e3b] border border-[#064e3b]/25 px-3 py-2 rounded-lg bg-white hover:bg-[#064e3b]/5 active:scale-[0.99] transition-colors min-h-[40px]"
+                      >
+                        예약 설정
+                      </button>
+                    </div>
                   </div>
 
                   {/* Segmented Control: Day | Week | Month */}
@@ -1072,6 +1087,47 @@ export default function App() {
               </div>
             </AdminRoute>
           )}
+
+          <AnimatePresence>
+            {schedulePayrollModalOpen && (
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.2 }}
+                className="fixed inset-0 z-[190] flex items-center justify-center p-4 bg-gray-900/35"
+                style={{ backdropFilter: 'blur(6px)' }}
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="schedule-payroll-modal-title"
+                onClick={() => setSchedulePayrollModalOpen(false)}
+              >
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.96 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.98 }}
+                  transition={{ duration: 0.22, ease: [0.25, 0.46, 0.45, 0.94] }}
+                  className="w-full max-w-md max-h-[min(90vh,560px)] overflow-y-auto bg-white rounded-2xl border border-gray-100 shadow-xl p-6"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <div className="flex items-start justify-between gap-4 mb-4">
+                    <h2 id="schedule-payroll-modal-title" className="text-base font-semibold text-slate-900 tracking-tight pr-2">
+                      월간 페이롤 정산
+                    </h2>
+                    <button
+                      type="button"
+                      onClick={() => setSchedulePayrollModalOpen(false)}
+                      className="p-2 rounded-lg text-gray-500 hover:bg-gray-100 hover:text-slate-900 transition-colors shrink-0"
+                      aria-label="닫기"
+                    >
+                      <X size={20} />
+                    </button>
+                  </div>
+                  <AdminPayrollExport compact />
+                </motion.div>
+              </motion.div>
+            )}
+          </AnimatePresence>
 
           {/* Revenue: monthly payroll & CSV only (was Private/Manager on Schedule) */}
           {view === 'revenue' && (

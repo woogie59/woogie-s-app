@@ -17,9 +17,9 @@ function monthBounds(year, month1to12) {
 
 /**
  * Monthly payroll Excel export (client_session_reports counts per member).
- * Designed for Admin Home dashboard — always visible, no conditional wrapper.
+ * @param {{ compact?: boolean }} props — modal embedding: no outer card chrome
  */
-export default function AdminPayrollExport() {
+export default function AdminPayrollExport({ compact = false }) {
   const now = useMemo(() => new Date(), []);
   const [year, setYear] = useState(now.getFullYear());
   const [month, setMonth] = useState(now.getMonth() + 1);
@@ -88,15 +88,21 @@ export default function AdminPayrollExport() {
     }
   };
 
-  return (
-    <section
-      className="bg-white rounded-2xl shadow-sm p-6 border border-gray-100/90"
-      aria-label="월간 페이롤 정산"
-    >
-      <h2 className="text-base font-semibold text-slate-900 tracking-tight">월간 페이롤 정산</h2>
-      <p className="text-xs text-gray-500 font-light leading-relaxed mt-1.5 mb-5">
-        선택한 달의 트레이닝 일지 건수를 회원별로 집계합니다.
-      </p>
+  const form = (
+    <>
+      {!compact && (
+        <>
+          <h2 className="text-base font-semibold text-slate-900 tracking-tight">월간 페이롤 정산</h2>
+          <p className="text-xs text-gray-500 font-light leading-relaxed mt-1.5 mb-5">
+            선택한 달의 트레이닝 일지 건수를 회원별로 집계합니다.
+          </p>
+        </>
+      )}
+      {compact && (
+        <p className="text-xs text-gray-500 font-light leading-relaxed mb-4">
+          선택한 달의 트레이닝 일지 건수를 회원별로 집계합니다.
+        </p>
+      )}
       <div className="flex flex-wrap items-end gap-4">
         <div>
           <label className="text-[10px] text-gray-400 tracking-widest uppercase block mb-1.5">연도</label>
@@ -136,6 +142,19 @@ export default function AdminPayrollExport() {
           {busy ? '생성 중…' : '엑셀 다운로드'}
         </button>
       </div>
+    </>
+  );
+
+  if (compact) {
+    return <div className="w-full">{form}</div>;
+  }
+
+  return (
+    <section
+      className="bg-white rounded-2xl shadow-sm p-6 border border-gray-100/90"
+      aria-label="월간 페이롤 정산"
+    >
+      {form}
     </section>
   );
 }
