@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { ArrowLeft, User, Calendar, Mail, Lock } from 'lucide-react';
 import { supabase } from '../../lib/supabaseClient';
-import { fetchAdminOnesignalProfileWithFallback } from '../../utils/notifications';
 import { useGlobalModal } from '../../context/GlobalModalContext';
 import ButtonPrimary from '../../components/ui/ButtonPrimary';
 import { LabDotBrand } from '../../components/ui/LabDotBrand';
@@ -60,27 +59,15 @@ const RegisterView = ({ setView, goBack, onSignupSuccess }) => {
 
           if (!insErr) {
             try {
-              const { adminProfile, error: adminProfileErr } = await fetchAdminOnesignalProfileWithFallback();
-              if (adminProfileErr) {
-                console.warn('[RegisterView] admin profile:', adminProfileErr.message);
-              }
-              console.log('🎯 Triggering Registration Push to Admin:', adminProfile?.onesignal_id);
-              if (!adminProfile?.onesignal_id) {
-                console.error(
-                  '[RegisterView] Registration push skipped: admin onesignal_id missing after profiles insert + fallback (set profiles.onesignal_id for admin or apply get_admin_onesignal_player_id migration)'
-                );
-              } else {
-                const name = (form.name || '').trim() || '회원';
-                const { data, error } = await supabase.functions.invoke('notify-admin-events', {
-                  body: {
-                    targetId: adminProfile.onesignal_id,
-                    title: '신규 회원 참여',
-                    message: `${name}님이 새로 참여하였습니다.`,
-                  },
-                });
-                console.log('📡 [Edge Function Result]:', data);
-                if (error) console.error('🚨 [Edge Function Error]:', error);
-              }
+              const memberName = (form.name || '').trim() || '회원';
+              const { data: notifyData, error: notifyErr } = await supabase.functions.invoke('notify-admin-events', {
+                body: {
+                  title: '신규 회원 가입',
+                  message: `${memberName} 회원님이 가입하셨습니다.`,
+                },
+              });
+              if (notifyErr) console.error('[RegisterView] notify-admin-events:', notifyErr);
+              else console.log('[RegisterView] notify-admin-events:', notifyData);
             } catch (e) {
               console.warn('[RegisterView] admin push:', e);
             }

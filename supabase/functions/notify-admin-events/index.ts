@@ -1,4 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -13,33 +14,46 @@ serve(async (req) => {
 
   try {
     const { targetId, title, message } = await req.json();
+    let finalTargetId = targetId;
 
-    // 치명적 오류 방지: 입력된 키값에 실수로 섞여 들어간 따옴표(" ') 강제 제거
+    // 프론트엔드에서 ID를 못 찾고 빈 값(null/undefined)을 보냈을 경우, 서버가 직접 마스터키로 DB를 뒤집니다.
+    if (!finalTargetId) {
+      const supabaseAdmin = createClient(
+        Deno.env.get('SUPABASE_URL') ?? '',
+        Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '' // RLS 보안을 무시하는 절대 권한
+      );
+
+      const { data: adminData, error: adminError } = await supabaseAdmin
+        .from('profiles')
+        .select('onesignal_id')
+        .eq('role', 'admin')
+        .single();
+
+      if (adminError || !adminData?.onesignal_id) {
+        throw new Error("서버 마스터키로도 관리자 OneSignal ID를 찾지 못했습니다.");
+      }
+      finalTargetId = adminData.onesignal_id;
+    }
+
     const APP_ID = (Deno.env.get('ONESIGNAL_APP_ID') || '').replace(/["']/g, "").trim();
     const REST_KEY = (Deno.env.get('ONESIGNAL_REST_API_KEY') || '').replace(/["']/g, "").trim();
 
-    // 최신 OneSignal 규격에 맞춘 하이브리드 발사 명령
     const payload = {
       app_id: APP_ID,
-      include_subscription_ids: [targetId], // 신형 API 규격
-      include_player_ids: [targetId],       // 구형 API 규격 (호환성)
+      include_subscription_ids: [finalTargetId],
+      include_player_ids: [finalTargetId],
       headings: { en: title },
       contents: { en: message },
     };
 
     const response = await fetch('https://onesignal.com/api/v1/notifications', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Basic ${REST_KEY}`,
-      },
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Basic ${REST_KEY}` },
       body: JSON.stringify(payload),
     });
 
     const data = await response.json();
-    
-    // 원시그널이 뱉어낸 결과를 프론트엔드로 그대로 전송 (콘솔 확인용)
-    return new Response(JSON.stringify({ status: response.status, onesignalResponse: data }), { 
+    return new Response(JSON.stringify({ status: response.status, target: finalTargetId, onesignalResponse: data }), { 
       headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
     });
 
