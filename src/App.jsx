@@ -768,16 +768,19 @@ export default function App() {
           )}
 
           {/* Normal views - only show if NOT in password reset mode */}
-          {!showResetPassword && loading && (
+          {/* 가입 플로우: 전역 loading 시 RegisterView가 언마운트되면 isSuccess가 날아가므로 register는 로딩 게이트 밖에서 렌더 */}
+          {!showResetPassword && loading && view !== 'register' && (
             <div className="min-h-[100dvh] flex flex-col items-center justify-center bg-white text-slate-900 gap-6">
               <LabDotBrand variant="header" />
               <p className="text-gray-400 text-xs tracking-[0.2em] uppercase">준비 중</p>
             </div>
           )}
+          {!showResetPassword && view === 'register' && (
+            <RegisterView setView={navigate} goBack={goBack} />
+          )}
           {!showResetPassword && !loading && (
             <>
               {!session && view === 'login' && <LoginView setView={navigate} />}
-              {view === 'register' && <RegisterView setView={navigate} goBack={goBack} />}
 
               {/* 로그인 했을 때 보여줄 화면 (일반 회원) */}
               {session && view === 'client_home' && <ClientHome user={session.user} logout={handleLogout} setView={navigate} goBack={goBack} />}
