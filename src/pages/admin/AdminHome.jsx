@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import { LogOut, QrCode, Users, Calendar, Archive } from 'lucide-react';
+import { LogOut, QrCode, Users, Calendar, Archive, NotebookPen } from 'lucide-react';
 import { supabase } from '../../lib/supabaseClient';
 import LabDotBrand from '../../components/ui/LabDotBrand';
 
@@ -36,7 +36,7 @@ const daysSinceCheckIn = (iso) => {
   return Math.max(0, Math.floor((n.getTime() - d.getTime()) / 86400000));
 };
 
-const AdminHome = ({ setView, logout }) => {
+const AdminHome = ({ setView, logout, onOpenTrainingLog }) => {
   const [unscheduledVips, setUnscheduledVips] = useState([]);
   const [radarLoading, setRadarLoading] = useState(true);
 
@@ -102,6 +102,7 @@ const AdminHome = ({ setView, logout }) => {
     { icon: Users, label: '회원 관리', view: 'member_list' },
     { icon: Calendar, label: '일정 관리', view: 'admin_schedule' },
     { icon: Archive, label: '라이브러리', view: 'library' },
+    { icon: NotebookPen, label: '트레이닝 일지', action: 'training_log' },
   ];
 
   return (
@@ -162,11 +163,17 @@ const AdminHome = ({ setView, logout }) => {
 
       {/* 2×2 Bento menu */}
       <nav className="w-full max-w-lg mx-auto px-6 flex-1 grid grid-cols-2 gap-3 pb-8" aria-label="관리 메뉴">
-        {menuItems.map(({ icon: Icon, label, view }) => (
+        {menuItems.map(({ icon: Icon, label, view, action }) => (
           <button
-            key={view}
+            key={view ?? action}
             type="button"
-            onClick={() => setView(view)}
+            onClick={() => {
+              if (action === 'training_log') {
+                onOpenTrainingLog?.();
+              } else {
+                setView(view);
+              }
+            }}
             className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 flex flex-col items-start gap-3 transition-all duration-200 hover:bg-gray-50 active:bg-gray-100 active:scale-[0.98] cursor-pointer text-left"
           >
             <Icon size={26} strokeWidth={ICON_STROKE} className="text-[#064e3b]" aria-hidden />
