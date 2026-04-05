@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { ArrowLeft, User, Calendar, Mail, Lock } from 'lucide-react';
 import { supabase } from '../../lib/supabaseClient';
-import { fetchAdminOnesignalProfile } from '../../utils/notifications';
+import { fetchAdminOnesignalProfileWithFallback } from '../../utils/notifications';
 import { useGlobalModal } from '../../context/GlobalModalContext';
 import ButtonPrimary from '../../components/ui/ButtonPrimary';
 import { LabDotBrand } from '../../components/ui/LabDotBrand';
@@ -47,22 +47,27 @@ const RegisterView = ({ setView, goBack, onSignupSuccess }) => {
           .eq('id', user.id)
           .maybeSingle();
         if (!existingProfile) {
-          const { error: insErr } = await supabase.from('profiles').insert({
-            id: user.id,
-            email: user.email,
-            name: form.name,
-            role: 'user',
-          });
+          const { data: createdProfile, error: insErr } = await supabase
+            .from('profiles')
+            .insert({
+              id: user.id,
+              email: user.email,
+              name: form.name,
+              role: 'user',
+            })
+            .select('id')
+            .single();
+
           if (!insErr) {
             try {
-              const { adminProfile, error: adminProfileErr } = await fetchAdminOnesignalProfile();
+              const { adminProfile, error: adminProfileErr } = await fetchAdminOnesignalProfileWithFallback();
               if (adminProfileErr) {
                 console.warn('[RegisterView] admin profile:', adminProfileErr.message);
               }
               console.log('🎯 Triggering Registration Push to Admin:', adminProfile?.onesignal_id);
               if (!adminProfile?.onesignal_id) {
-                console.warn(
-                  '🎯 Push skipped: admin onesignal_id missing (set profiles.onesignal_id for admin or apply get_admin_onesignal_player_id migration)'
+                console.error(
+                  '[RegisterView] Registration push skipped: admin onesignal_id missing after profiles insert + fallback (set profiles.onesignal_id for admin or apply get_admin_onesignal_player_id migration)'
                 );
               } else {
                 const name = (form.name || '').trim() || '회원';

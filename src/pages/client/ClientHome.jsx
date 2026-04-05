@@ -15,6 +15,11 @@ import {
 import { supabase } from '../../lib/supabaseClient';
 import { invokeNotifyAdminEvents, fetchAdminOnesignalPlayerId } from '../../utils/notifications';
 import { deriveSessionFocus, formatKoreanDateFromYmd } from '../../features/training/trainingLogUtils';
+import {
+  computeRemainingSessions,
+  countUsedSessionsFromBookings,
+  sumTotalPurchasedFromBatches,
+} from '../../utils/sessionHelpers';
 import { useGlobalModal } from '../../context/GlobalModalContext';
 import LabDotBrand from '../../components/ui/LabDotBrand';
 import Skeleton from '../../components/ui/Skeleton';
@@ -92,8 +97,8 @@ const ClientHome = ({ user, logout, setView }) => {
   const [showScheduleModal, setShowScheduleModal] = useState(false);
   const [myBookings, setMyBookings] = useState([]);
   const [loadingBookings, setLoadingBookings] = useState(false);
-  /** Oldest active pack (FIFO) for 잔여 n/m display */
-  const [activePack, setActivePack] = useState(null);
+  /** All packs for this user — sum(total_count) = purchased sessions (source of truth for 잔여). */
+  const [sessionBatches, setSessionBatches] = useState([]);
   const [cancelling, setCancelling] = useState(null);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [bookingToDelete, setBookingToDelete] = useState(null);
@@ -130,64 +135,20 @@ const ClientHome = ({ user, logout, setView }) => {
     fetchProfile();
   }, [user]);
 
-  const fetchActivePack = useCallback(async () => {
+  const fetchSessionBatches = useCallback(async () => {
     if (!user?.id) return;
-    const { data, error } = await supabase
-      .from('session_batches')
-      .select('remaining_count, total_count')
-      .eq('user_id', user.id)
-      .gt('remaining_count', 0)
-      .order('created_at', { ascending: true })
-      .limit(1)
-      .maybeSingle();
+    const { data, error } = await supabase.from('session_batches').select('total_count').eq('user_id', user.id);
     if (error) {
       console.warn('[ClientHome] session_batches:', error);
-      setActivePack(null);
+      setSessionBatches([]);
       return;
     }
-    setActivePack(data || null);
+    setSessionBatches(Array.isArray(data) ? data : []);
   }, [user]);
 
   useEffect(() => {
-    fetchActivePack();
-  }, [fetchActivePack]);
-
-  useEffect(() => {
-    if (!user) return;
-
-    const channel = supabase
-      .channel('attendance_changes')
-      .on(
-        'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'attendance_logs',
-          filter: `user_id=eq.${user.id}`,
-        },
-        () => {
-          showAlert({ message: '✅ 출석완료되었습니다' });
-          const fetchProfile = async () => {
-            const { data, error } = await supabase
-              .from('profiles')
-              .select('*')
-              .eq('id', user.id)
-              .single();
-
-            if (!error && data) {
-              setProfile(data);
-            }
-          };
-          fetchProfile();
-          fetchActivePack();
-        }
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [user, showAlert, fetchActivePack]);
+    fetchSessionBatches();
+  }, [fetchSessionBatches]);
 
   const fetchMyBookings = useCallback(async () => {
     if (!user) return;
@@ -218,6 +179,44 @@ const ClientHome = ({ user, logout, setView }) => {
   }, [fetchMyBookings]);
 
   useEffect(() => {
+    if (!user) return;
+
+    const channel = supabase
+      .channel('attendance_changes')
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'attendance_logs',
+          filter: `user_id=eq.${user.id}`,
+        },
+        () => {
+          showAlert({ message: '✅ 출석완료되었습니다' });
+          const fetchProfile = async () => {
+            const { data, error } = await supabase
+              .from('profiles')
+              .select('*')
+              .eq('id', user.id)
+              .single();
+
+            if (!error && data) {
+              setProfile(data);
+            }
+          };
+          fetchProfile();
+          fetchSessionBatches();
+          fetchMyBookings();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [user, showAlert, fetchSessionBatches, fetchMyBookings]);
+
+  useEffect(() => {
     if (!user?.id) return;
 
     const channel = supabase
@@ -240,6 +239,25 @@ const ClientHome = ({ user, logout, setView }) => {
       supabase.removeChannel(channel);
     };
   }, [user?.id, fetchMyBookings]);
+
+  useEffect(() => {
+    if (!user?.id) return;
+
+    const ch = supabase
+      .channel(`session_batches_rt_${user.id}`)
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'session_batches', filter: `user_id=eq.${user.id}` },
+        () => {
+          fetchSessionBatches();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(ch);
+    };
+  }, [user?.id, fetchSessionBatches]);
 
   useEffect(() => {
     if (!user?.id) return;
@@ -285,17 +303,20 @@ const ClientHome = ({ user, logout, setView }) => {
     return future[0]?.b ?? null;
   }, [myBookings]);
 
+  const sessionMetrics = useMemo(() => {
+    const totalPurchased = sumTotalPurchasedFromBatches(sessionBatches);
+    const usedSessionCount = countUsedSessionsFromBookings(myBookings);
+    const remaining = computeRemainingSessions(totalPurchased, usedSessionCount);
+    return { totalPurchased, usedSessionCount, remaining };
+  }, [sessionBatches, myBookings]);
+
   const sessionRemainLabel = useMemo(() => {
-    if (
-      activePack &&
-      Number.isFinite(Number(activePack.remaining_count)) &&
-      Number.isFinite(Number(activePack.total_count))
-    ) {
-      return `잔여 ${activePack.remaining_count} / ${activePack.total_count}회`;
+    const { totalPurchased, remaining } = sessionMetrics;
+    if (totalPurchased > 0) {
+      return `잔여 ${remaining} / ${totalPurchased}회`;
     }
-    const r = profile?.remaining_sessions ?? 0;
-    return `잔여 ${r}회`;
-  }, [activePack, profile?.remaining_sessions]);
+    return `잔여 ${remaining}회`;
+  }, [sessionMetrics]);
 
   const handleCancelBooking = (bookingId, date, time) => {
     setBookingToDelete({ id: bookingId, date, time });
@@ -580,7 +601,7 @@ const ClientHome = ({ user, logout, setView }) => {
                 </div>
                 <div className="flex justify-between items-center">
                   <span className="text-gray-500 text-sm">잔여 세션</span>
-                  <span className="text-2xl font-semibold text-[#064e3b] tabular-nums">{profile?.remaining_sessions ?? 0}</span>
+                  <span className="text-2xl font-semibold text-[#064e3b] tabular-nums">{sessionMetrics.remaining}</span>
                 </div>
               </div>
 

@@ -31,6 +31,37 @@ function isConductedStatus(status) {
   return CONDUCTED_STATUS_NORMALIZED.has(normalizeBookingStatus(status));
 }
 
+function isCancelledStatus(status) {
+  const n = normalizeBookingStatus(status);
+  return n === 'cancelled' || n === 'canceled';
+}
+
+/** Local wall-clock start of the booking slot (ms). Missing `time` → end of that calendar day 23:59. */
+function bookingLocalStartMs(booking) {
+  const ds = String(booking?.date ?? '');
+  const parts = ds.split('-').map((x) => parseInt(x, 10));
+  const y = parts[0];
+  const mo = parts[1];
+  const d = parts[2];
+  if (!y || !mo || !d) return NaN;
+  const ts = String(booking?.time ?? '23:59').trim();
+  const m = /^(\d{1,2}):(\d{2})/.exec(ts);
+  const hh = m ? parseInt(m[1], 10) : 23;
+  const mm = m ? parseInt(m[2], 10) : 59;
+  return new Date(y, mo - 1, d, hh, mm, 0, 0).getTime();
+}
+
+/**
+ * Conducted if: (A) attended / completed / checked-in, OR (B) slot start is before now and not cancelled.
+ */
+function isConductedBooking(booking) {
+  if (isCancelledStatus(booking?.status)) return false;
+  if (isConductedStatus(booking?.status)) return true;
+  const ms = bookingLocalStartMs(booking);
+  if (Number.isNaN(ms)) return false;
+  return ms < Date.now();
+}
+
 /**
  * If true, only bookings that also have a training log (`client_session_reports`) for the same member + calendar day count.
  * Keep false to match broadly by booking status only (recommended when 일지 is not always filed).
@@ -69,7 +100,7 @@ export default function AdminPayrollExport({ compact = false }) {
       const rawList = Array.isArray(bookingRows) ? bookingRows : [];
       const rawCount = rawList.length;
 
-      let conductedList = rawList.filter((b) => isConductedStatus(b?.status));
+      let conductedList = rawList.filter((b) => isConductedBooking(b));
 
       let reportKeySet = null;
       if (REQUIRE_MATCHING_TRAINING_LOG && conductedList.length > 0) {
@@ -89,10 +120,21 @@ export default function AdminPayrollExport({ compact = false }) {
       const afterConductedCount = conductedList.length;
 
       console.log('[AdminPayrollExport] bookings in month (raw, before conducted filter):', rawCount);
+      console.table(
+        rawList.map((b) => ({
+          id: b.id,
+          user_id: b.user_id,
+          date: b.date,
+          time: b.time,
+          status: b.status ?? '',
+        }))
+      );
       console.log(
         '[AdminPayrollExport] after conducted criteria:',
         afterConductedCount,
-        REQUIRE_MATCHING_TRAINING_LOG ? '(status + training log on same day)' : '(status: attended / completed / checked-in)'
+        REQUIRE_MATCHING_TRAINING_LOG
+          ? '(status / past non-cancelled + training log on same day)'
+          : '(attended|completed|checked-in OR past slot & not cancelled)'
       );
       if (rawCount > 0 && afterConductedCount === 0) {
         const distinctStatuses = [...new Set(rawList.map((b) => b?.status).filter(Boolean))];
@@ -149,13 +191,13 @@ export default function AdminPayrollExport({ compact = false }) {
         <>
           <h2 className="text-base font-semibold text-slate-900 tracking-tight">월간 페이롤 정산</h2>
           <p className="text-xs text-gray-500 font-light leading-relaxed mt-1.5 mb-5">
-            선택한 달의 예약 중 완료·출석·체크인 처리된 수업 건수를 회원별로 집계합니다.
+            선택한 달의 예약 중 출석·완료·체크인 처리되었거나, 일시가 지나고 취소되지 않은 수업을 회원별로 집계합니다.
           </p>
         </>
       )}
       {compact && (
         <p className="text-xs text-gray-500 font-light leading-relaxed mb-4">
-          선택한 달의 예약 중 완료·출석·체크인 처리된 수업 건수를 회원별로 집계합니다.
+          선택한 달의 예약 중 출석·완료·체크인 처리되었거나, 일시가 지나고 취소되지 않은 수업을 회원별로 집계합니다.
         </p>
       )}
       <div className="flex flex-wrap items-end gap-4">

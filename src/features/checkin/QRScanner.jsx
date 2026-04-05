@@ -20,16 +20,21 @@ const QRScanner = ({ setView, goBack }) => {
 
       const { data: userData } = await supabase.from('profiles').select('name').eq('id', decodedText).single();
 
-      const remaining = data?.[0]?.remaining ?? 0;
-      const userName = userData?.name || '회원';
-      // Golden Time (D-6): 6회 이하로 남았을 때 관리자 알림 강조
-      const isGoldenTime = remaining <= 6;
+      let remaining = 0;
+      if (data && typeof data === 'object' && !Array.isArray(data)) {
+        remaining = Number(data.remaining ?? data.remaining_sessions ?? 0);
+      } else if (Array.isArray(data) && data[0] != null) {
+        remaining = Number(data[0].remaining ?? data[0].remaining_sessions ?? 0);
+      }
+      if (!Number.isFinite(remaining)) remaining = 0;
 
-      if (isGoldenTime) {
+      const userName = userData?.name || '회원';
+
+      if (remaining === 3) {
         await supabase.functions.invoke('send-admin-alert', {
           body: {
-            heading: '⚠️ 재등록 골든타임 (D-6)',
-            message: `${userName}님이 6회 남았습니다. 성취도 분석을 준비하세요!`,
+            heading: '세션 잔여 알림',
+            message: `${userName}님, ${remaining}회 남았습니다.`,
           },
         });
       }
@@ -39,7 +44,6 @@ const QRScanner = ({ setView, goBack }) => {
         userName,
         message: `출석 완료 (잔여: ${remaining}회)`,
         remainingSessions: remaining,
-        isGoldenTime,
       });
     } catch (error) {
       console.log('QR Check-in error (full object):', error);
@@ -175,9 +179,9 @@ const QRScanner = ({ setView, goBack }) => {
                   {result.remainingSessions != null && (
                     <p className="text-emerald-600 text-sm mt-2">남은 횟수: {result.remainingSessions}회</p>
                   )}
-                  {result.isGoldenTime && (
-                    <p className="text-red-700 text-sm mt-3 font-medium bg-red-500/10 border border-red-500/30 rounded-lg px-4 py-2">
-                      🔥 성취도 분석이 필요한 시점입니다! (관리자 알림 전송됨)
+                  {result.remainingSessions === 3 && (
+                    <p className="text-emerald-800 text-sm mt-3 font-medium bg-emerald-500/10 border border-emerald-500/30 rounded-lg px-4 py-2">
+                      관리자에게 세션 잔여 알림이 전송되었습니다.
                     </p>
                   )}
                 </>

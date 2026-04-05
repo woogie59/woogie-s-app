@@ -2,6 +2,11 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X } from 'lucide-react';
 import { supabase } from '../../lib/supabaseClient';
+import {
+  computeRemainingSessions,
+  countUsedSessionsFromBookings,
+  sumTotalPurchasedFromBatches,
+} from '../../utils/sessionHelpers';
 
 const DAY_NAMES_KO = ['일', '월', '화', '수', '목', '금', '토'];
 
@@ -32,7 +37,8 @@ const formatSessionDate = (checkInAt) => {
 
 const SessionHistoryModal = ({ user, onClose }) => {
   const [logs, setLogs] = useState([]);
-  const [profile, setProfile] = useState(null);
+  const [bookings, setBookings] = useState([]);
+  const [sessionBatches, setSessionBatches] = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -40,13 +46,14 @@ const SessionHistoryModal = ({ user, onClose }) => {
 
     const fetchData = async () => {
       setLoading(true);
-      const [logsRes, profileRes] = await Promise.all([
+      const [logsRes, bookingsRes, batchesRes] = await Promise.all([
         supabase
           .from('attendance_logs')
           .select('*')
           .eq('user_id', user.id)
           .order('check_in_at', { ascending: false }),
-        supabase.from('profiles').select('remaining_sessions').eq('id', user.id).single(),
+        supabase.from('bookings').select('*').eq('user_id', user.id),
+        supabase.from('session_batches').select('total_count').eq('user_id', user.id),
       ]);
 
       if (logsRes.error) {
@@ -55,16 +62,19 @@ const SessionHistoryModal = ({ user, onClose }) => {
       } else {
         setLogs(logsRes.data || []);
       }
-      setProfile(profileRes.data ?? null);
+      setBookings(bookingsRes.error ? [] : bookingsRes.data || []);
+      setSessionBatches(batchesRes.error ? [] : batchesRes.data || []);
       setLoading(false);
     };
 
     fetchData();
   }, [user?.id]);
 
-  const usedCount = logs.length;
-  const remainingCount = profile?.remaining_sessions ?? user?.remaining_sessions ?? 0;
-  const totalCount = usedCount + remainingCount;
+  const totalPurchased = sumTotalPurchasedFromBatches(sessionBatches);
+  const sessionUsedCount = countUsedSessionsFromBookings(bookings);
+  const remainingCount = computeRemainingSessions(totalPurchased, sessionUsedCount);
+  const totalCount = totalPurchased;
+  const usedCount = sessionUsedCount;
   const progressPercentage = totalCount > 0 ? (usedCount / totalCount) * 100 : 0;
 
   const { weeklyData, maxCount } = useMemo(() => {

@@ -32,6 +32,43 @@ export async function fetchAdminOnesignalProfile() {
 }
 
 /**
+ * Same as {@link fetchAdminOnesignalProfile}, then if still no `onesignal_id`:
+ * `console.error` and a fallback query for any `profiles` row with `role = 'admin'`
+ * (does not require `onesignal_id` in the filter, so a row can still be found for debugging).
+ */
+export async function fetchAdminOnesignalProfileWithFallback() {
+  const primary = await fetchAdminOnesignalProfile();
+  if (primary.adminProfile?.onesignal_id) {
+    return primary;
+  }
+
+  console.error(
+    '[fetchAdminOnesignalProfile] Admin OneSignal player id not found (profiles+RPC). Trying fallback query for role=admin.',
+    primary.error?.message ?? ''
+  );
+
+  const { data: admins, error: fbErr } = await supabase
+    .from('profiles')
+    .select('id, onesignal_id, role')
+    .eq('role', 'admin');
+
+  if (fbErr) {
+    console.error('[fetchAdminOnesignalProfile] Fallback admin-role query failed:', fbErr.message);
+    return { adminProfile: null, error: fbErr };
+  }
+
+  const withPlayer = (admins || []).find((row) => row?.onesignal_id != null && String(row.onesignal_id).trim() !== '');
+  if (withPlayer?.onesignal_id) {
+    return { adminProfile: { onesignal_id: String(withPlayer.onesignal_id) }, error: null };
+  }
+
+  console.error(
+    '[fetchAdminOnesignalProfile] No admin profile with a non-empty onesignal_id after fallback (role=admin).'
+  );
+  return { adminProfile: null, error: primary.error ?? null };
+}
+
+/**
  * Admin OneSignal player id (`profiles.onesignal_id`) for role=admin.
  */
 export async function fetchAdminOnesignalPlayerId() {
