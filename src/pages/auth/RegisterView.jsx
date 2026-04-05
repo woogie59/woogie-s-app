@@ -24,10 +24,10 @@ const RegisterView = ({ setView, goBack }) => {
 
     setLoading(true);
 
-    // Order: 1) Auth signUp → 2) profiles insert (if needed) → 3) notify-admin-events → 4) setIsSuccess (Welcome UI)
+    // Order: 1) Auth + Profile → 2) notify-admin-events (await, before Welcome) → 3) setIsSuccess
     try {
-      // 1. Auth Creation
-      const { data: authData, error: authError } = await supabase.auth.signUp({
+      // 1. Create Auth & Profile
+      const { data, error } = await supabase.auth.signUp({
         email: formData.email,
         password: formData.password,
         options: {
@@ -40,21 +40,18 @@ const RegisterView = ({ setView, goBack }) => {
         },
       });
 
-      if (authError) throw authError;
+      if (error) throw error;
 
-      const user = authData?.user;
+      const user = data?.user;
       if (!user) {
         throw new Error('회원가입 응답에 사용자 정보가 없습니다.');
       }
 
-      // 2. Profile Creation
       const { data: existingProfile } = await supabase
         .from('profiles')
         .select('id')
         .eq('id', user.id)
         .maybeSingle();
-
-      let profileReadyForNotify = false;
 
       if (!existingProfile) {
         const { data: createdProfile, error: insErr } = await supabase
@@ -70,38 +67,33 @@ const RegisterView = ({ setView, goBack }) => {
 
         if (insErr) throw insErr;
         if (!createdProfile?.id) throw new Error('프로필 생성 응답이 비어 있습니다.');
-        profileReadyForNotify = true;
       } else {
         console.log('ℹ️ profiles 행 이미 존재 — insert 생략', { userId: user.id });
-        profileReadyForNotify = true;
       }
 
-      // 3. Admin notification — 실패해도 환영 화면은 반드시 표시
-      if (profileReadyForNotify) {
-        const memberName = (formData.name || '').trim() || '신규';
-        try {
-          const { error: invokeErr } = await supabase.functions.invoke('notify-admin-events', {
-            body: {
-              title: '신규 회원 가입',
-              message: `${memberName} 회원님이 가입하셨습니다.`,
-            },
-          });
-          if (invokeErr) throw invokeErr;
-          console.log('🎯 관리자 알림 발송 성공');
-        } catch (notifyErr) {
-          console.error('❌ 알림 발송 실패 (환영 화면은 계속 표시):', notifyErr);
-        }
+      // 2. Trigger Admin Notification (Mandatory Await) — 반드시 환영 화면 전에 시도
+      try {
+        console.log('🔔 알림 발송 시도 중...');
+        const { error: invokeErr } = await supabase.functions.invoke('notify-admin-events', {
+          body: {
+            title: '신규 회원 가입',
+            message: `${formData.name || '신규'} 회원님이 가입하셨습니다.`,
+          },
+        });
+        if (invokeErr) throw invokeErr;
+        console.log('✅ 알림 발송 완료');
+      } catch (notifyErr) {
+        console.error('❌ 알림 발송 실패(무시하고 진행):', notifyErr);
       }
+
+      // 3. Show Welcome Screen & Transition (ONLY after notification attempt)
+      setIsSuccess(true);
     } catch (err) {
       console.error(err);
       showAlert({ message: `🚨 가입 실패: ${err.message}` });
+    } finally {
       setLoading(false);
-      return;
     }
-
-    // 4. Welcome screen (no login redirect; session already active)
-    setLoading(false);
-    setIsSuccess(true);
   };
 
   /** 회원 대시보드(홈) — 로그인 페이지로 보내지 않음 */
