@@ -59,7 +59,7 @@ const RegisterView = ({ setView, goBack, onSignupSuccess }) => {
               if (adminProfileErr) {
                 console.warn('[RegisterView] admin profile:', adminProfileErr.message);
               }
-              console.log('🎯 Triggering Push to Admin ID:', adminProfile?.onesignal_id);
+              console.log('🎯 Triggering Registration Push to Admin:', adminProfile?.onesignal_id);
               if (!adminProfile?.onesignal_id) {
                 console.warn(
                   '🎯 Push skipped: admin onesignal_id missing (set profiles.onesignal_id for admin or apply get_admin_onesignal_player_id migration)'
