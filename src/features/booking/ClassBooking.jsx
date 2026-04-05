@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Lock } from 'lucide-react';
 import { supabase } from '../../lib/supabaseClient';
-import { sendDirectPush, fetchAdminOnesignalPlayerId } from '../../utils/notifications';
+import { invokeNotifyAdminEvents, fetchAdminOnesignalPlayerId } from '../../utils/notifications';
 import { useGlobalModal } from '../../context/GlobalModalContext';
 import BackButton from '../../components/ui/BackButton';
 
@@ -214,7 +214,7 @@ const ClassBooking = ({ user, setView, goBack }) => {
               user?.user_metadata?.name ||
               user?.email ||
               '회원';
-            await sendDirectPush(
+            await invokeNotifyAdminEvents(
               adminId,
               '새로운 세션 확정',
               `${memberName}님 - ${date} ${timeSlot}`

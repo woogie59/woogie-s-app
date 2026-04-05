@@ -1,7 +1,7 @@
 import React, { useState, useCallback, useMemo, useEffect } from 'react';
 import { X, Plus, Trash2, Sparkles } from 'lucide-react';
 import { supabase } from '../../lib/supabaseClient';
-import { sendDirectPush } from '../../utils/notifications';
+import { invokeNotifyAdminEvents } from '../../utils/notifications';
 import { useGlobalModal } from '../../context/GlobalModalContext';
 import { FOCUS_CHIPS, exercisesForFocus, stripBracketPrefix } from '../training/workoutPresets';
 
@@ -203,7 +203,7 @@ export default function AdminTrainingReportForm({ onClose, onSaved }) {
         const pid = mem?.onesignal_id ? String(mem.onesignal_id) : null;
         if (pid) {
           const focus = sessionTitle.trim() || '트레이닝 세션';
-          await sendDirectPush(
+          await invokeNotifyAdminEvents(
             pid,
             '트레이닝 일지',
             `${focus} · ${reportDate} 일지가 등록되었습니다.`

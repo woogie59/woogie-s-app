@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { ArrowLeft, User, Calendar, Mail, Lock } from 'lucide-react';
 import { supabase } from '../../lib/supabaseClient';
-import { sendDirectPush, fetchAdminOnesignalPlayerId } from '../../utils/notifications';
+import { invokeNotifyAdminEvents, fetchAdminOnesignalPlayerId } from '../../utils/notifications';
 import { useGlobalModal } from '../../context/GlobalModalContext';
 import ButtonPrimary from '../../components/ui/ButtonPrimary';
 import { LabDotBrand } from '../../components/ui/LabDotBrand';
@@ -63,7 +63,7 @@ const RegisterView = ({ setView, goBack, onSignupSuccess }) => {
                 );
               } else {
                 const name = (form.name || '').trim() || '회원';
-                await sendDirectPush(adminId, '신규 회원 참여', `${name}님이 새로 참여하였습니다.`);
+                await invokeNotifyAdminEvents(adminId, '신규 회원 참여', `${name}님이 새로 참여하였습니다.`);
               }
             } catch (e) {
               console.warn('[RegisterView] admin push:', e);

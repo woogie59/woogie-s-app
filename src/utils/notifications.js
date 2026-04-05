@@ -1,31 +1,8 @@
 import { supabase } from '../lib/supabaseClient';
 
 /**
- * Direct OneSignal REST push from the client (uses VITE_* env from .env).
+ * Admin OneSignal player id (`profiles.onesignal_id`) for role=admin.
  */
-export const sendDirectPush = async (targetPlayerId, title, message) => {
-  try {
-    const response = await fetch('https://onesignal.com/api/v1/notifications', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Basic ${import.meta.env.VITE_ONESIGNAL_REST_API_KEY}`,
-      },
-      body: JSON.stringify({
-        app_id: import.meta.env.VITE_ONESIGNAL_APP_ID,
-        include_player_ids: [targetPlayerId],
-        headings: { en: title },
-        contents: { en: message },
-      }),
-    });
-    const data = await response.json();
-    console.log('🚀 Direct Push Sent:', data);
-  } catch (error) {
-    console.error('🚨 Direct Push Failed:', error);
-  }
-};
-
-/** Admin `profiles.onesignal_id` (OneSignal player id). */
 export async function fetchAdminOnesignalPlayerId() {
   const { data, error } = await supabase
     .from('profiles')
@@ -40,4 +17,27 @@ export async function fetchAdminOnesignalPlayerId() {
   }
   if (!data?.onesignal_id) return null;
   return String(data.onesignal_id);
+}
+
+/**
+ * Push via deployed Edge Function `notify-admin-events` (no OneSignal keys in the browser).
+ * @param {string} targetId — OneSignal player id (admin or member `profiles.onesignal_id`)
+ */
+export async function invokeNotifyAdminEvents(targetId, title, message) {
+  if (!targetId) {
+    console.warn('[invokeNotifyAdminEvents] missing targetId');
+    return { error: new Error('missing targetId') };
+  }
+  const { data, error } = await supabase.functions.invoke('notify-admin-events', {
+    body: {
+      targetId,
+      title,
+      message,
+    },
+  });
+  if (error) {
+    console.warn('[notify-admin-events]', error.message);
+    return { error, data };
+  }
+  return { data, error: null };
 }
