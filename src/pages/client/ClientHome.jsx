@@ -30,9 +30,6 @@ const ICON_STROKE = 1;
 /** Bento nav: slightly bolder stroke for clarity */
 const BENTO_ICON_STROKE = 1.5;
 
-/** Gateway teaser when no archive row yet */
-const DEMO_TRAINING_TEASER = '최근 기록: 4월 3일 - 상체 세션';
-
 const toDateKey = (d) => {
   const x = new Date(d);
   return `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, '0')}-${String(x.getDate()).padStart(2, '0')}`;
@@ -103,8 +100,9 @@ const ClientHome = ({ user, logout, setView }) => {
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [bookingToDelete, setBookingToDelete] = useState(null);
   const [showHistory, setShowHistory] = useState(false);
-  /** Most recent training log row (gateway teaser) */
+  /** Most recent training log row (`client_session_reports`) for gateway teaser */
   const [latestReport, setLatestReport] = useState(null);
+  const [latestReportLoading, setLatestReportLoading] = useState(true);
   const [currentWeekStart, setCurrentWeekStart] = useState(() => {
     const d = new Date();
     const day = d.getDay();
@@ -259,38 +257,73 @@ const ClientHome = ({ user, logout, setView }) => {
     };
   }, [user?.id, fetchSessionBatches]);
 
+  const fetchLatestReport = useCallback(async () => {
+    if (!user?.id) return;
+    const { data, error } = await supabase
+      .from('client_session_reports')
+      .select('id, report_date, session_focus, workout_lines, coach_comment')
+      .eq('user_id', user.id)
+      .order('report_date', { ascending: false })
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (error) {
+      console.warn('[ClientHome] client_session_reports:', error);
+      setLatestReport(null);
+      return;
+    }
+    setLatestReport(data ?? null);
+  }, [user?.id]);
+
   useEffect(() => {
     if (!user?.id) return;
     let cancelled = false;
     (async () => {
-      const { data, error } = await supabase
-        .from('client_session_reports')
-        .select('id, report_date, session_focus, workout_lines, coach_comment')
-        .eq('user_id', user.id)
-        .order('report_date', { ascending: false })
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .maybeSingle();
-      if (cancelled) return;
-      if (error) {
-        console.warn('[ClientHome] client_session_reports:', error);
-        setLatestReport(null);
-        return;
-      }
-      setLatestReport(data || null);
+      setLatestReportLoading(true);
+      await fetchLatestReport();
+      if (!cancelled) setLatestReportLoading(false);
     })();
     return () => {
       cancelled = true;
     };
-  }, [user?.id]);
+  }, [user?.id, fetchLatestReport]);
+
+  useEffect(() => {
+    if (!user?.id) return;
+    const channel = supabase
+      .channel(`client_session_reports_rt_${user.id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'client_session_reports',
+          filter: `user_id=eq.${user.id}`,
+        },
+        () => {
+          fetchLatestReport();
+        }
+      )
+      .subscribe();
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [user?.id, fetchLatestReport]);
+
+  useEffect(() => {
+    if (!user?.id) return;
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') fetchLatestReport();
+    };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => document.removeEventListener('visibilitychange', onVisible);
+  }, [user?.id, fetchLatestReport]);
 
   const trainingLogTeaser = useMemo(() => {
-    if (latestReport?.report_date) {
-      const md = formatKoreanDateFromYmd(latestReport.report_date);
-      const focus = deriveSessionFocus(latestReport);
-      return `최근 기록: ${md} - ${focus}`;
-    }
-    return DEMO_TRAINING_TEASER;
+    if (!latestReport?.report_date) return null;
+    const md = formatKoreanDateFromYmd(latestReport.report_date);
+    const focus = deriveSessionFocus(latestReport);
+    return `최근 기록: ${md} - ${focus}`;
   }, [latestReport]);
 
   const upcomingBooking = useMemo(() => {
@@ -538,7 +571,13 @@ const ClientHome = ({ user, logout, setView }) => {
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0 flex-1">
                 <h3 className="text-[15px] font-medium text-slate-900 tracking-tight mb-1.5">트레이닝 일지</h3>
-                <p className="text-xs text-gray-400 font-light tracking-wide leading-relaxed line-clamp-2">{trainingLogTeaser}</p>
+                {latestReportLoading ? (
+                  <Skeleton className="h-4 w-48 max-w-full rounded" />
+                ) : trainingLogTeaser ? (
+                  <p className="text-xs text-gray-400 font-light tracking-wide leading-relaxed line-clamp-2">{trainingLogTeaser}</p>
+                ) : (
+                  <p className="text-xs text-gray-400 font-light tracking-wide leading-relaxed">기록이 없습니다</p>
+                )}
               </div>
               <div className="flex flex-col items-end gap-0.5 shrink-0 text-[#064e3b]/85 pt-0.5">
                 <span className="text-[10px] tracking-[0.12em] uppercase font-medium">전체 보기</span>
