@@ -55,9 +55,7 @@ export async function invokeNotifyAdminEvents(targetId, title, message) {
       message,
     },
   });
-  if (error) {
-    console.warn('[notify-admin-events]', error.message);
-    return { error, data };
-  }
-  return { data, error: null };
+  console.log('📡 [Edge Function Result]:', data);
+  if (error) console.error('🚨 [Edge Function Error]:', error);
+  return { data, error: error ?? null };
 }

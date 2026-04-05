@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { ArrowLeft, User, Calendar, Mail, Lock } from 'lucide-react';
 import { supabase } from '../../lib/supabaseClient';
-import { invokeNotifyAdminEvents, fetchAdminOnesignalProfile } from '../../utils/notifications';
+import { fetchAdminOnesignalProfile } from '../../utils/notifications';
 import { useGlobalModal } from '../../context/GlobalModalContext';
 import ButtonPrimary from '../../components/ui/ButtonPrimary';
 import { LabDotBrand } from '../../components/ui/LabDotBrand';
@@ -66,11 +66,15 @@ const RegisterView = ({ setView, goBack, onSignupSuccess }) => {
                 );
               } else {
                 const name = (form.name || '').trim() || '회원';
-                await invokeNotifyAdminEvents(
-                  adminProfile.onesignal_id,
-                  '신규 회원 참여',
-                  `${name}님이 새로 참여하였습니다.`
-                );
+                const { data, error } = await supabase.functions.invoke('notify-admin-events', {
+                  body: {
+                    targetId: adminProfile.onesignal_id,
+                    title: '신규 회원 참여',
+                    message: `${name}님이 새로 참여하였습니다.`,
+                  },
+                });
+                console.log('📡 [Edge Function Result]:', data);
+                if (error) console.error('🚨 [Edge Function Error]:', error);
               }
             } catch (e) {
               console.warn('[RegisterView] admin push:', e);

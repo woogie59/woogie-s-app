@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Lock } from 'lucide-react';
 import { supabase } from '../../lib/supabaseClient';
-import { invokeNotifyAdminEvents, fetchAdminOnesignalProfile } from '../../utils/notifications';
+import { fetchAdminOnesignalProfile } from '../../utils/notifications';
 import { useGlobalModal } from '../../context/GlobalModalContext';
 import BackButton from '../../components/ui/BackButton';
 
@@ -217,11 +217,15 @@ const ClassBooking = ({ user, setView, goBack }) => {
               user?.user_metadata?.name ||
               user?.email ||
               '회원';
-            await invokeNotifyAdminEvents(
-              adminProfile.onesignal_id,
-              '새로운 세션 확정',
-              `${memberName}님 - ${date} ${timeSlot}`
-            );
+            const { data, error } = await supabase.functions.invoke('notify-admin-events', {
+              body: {
+                targetId: adminProfile.onesignal_id,
+                title: '새로운 세션 확정',
+                message: `${memberName}님 - ${date} ${timeSlot}`,
+              },
+            });
+            console.log('📡 [Edge Function Result]:', data);
+            if (error) console.error('🚨 [Edge Function Error]:', error);
           }
         } catch (e) {
           console.warn('[ClassBooking] admin push:', e);
