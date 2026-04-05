@@ -70,9 +70,8 @@ const LoginView = ({ setView }) => {
 
   return (
     <div className="flex flex-col items-center justify-center min-h-[100dvh] px-6 bg-white text-slate-900">
-      <div className="mb-14 text-center space-y-3">
+      <div className="mb-12 text-center">
         <LabDotBrand variant="hero" />
-        <p className="text-gray-400 text-[10px] tracking-[0.35em] uppercase font-medium">Silent Luxury Lab</p>
       </div>
 
       {!showForgotPassword ? (
