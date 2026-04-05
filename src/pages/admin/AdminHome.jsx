@@ -107,14 +107,17 @@ const AdminHome = ({ setView, logout, onOpenTrainingLog }) => {
 
   return (
     <div className="min-h-[100dvh] bg-gray-50 text-slate-900 flex flex-col font-sans relative pb-safe">
-      <header className="p-6 flex justify-between items-start shrink-0 bg-gray-50">
-        <div>
+      <header className="grid grid-cols-[1fr_auto_1fr] items-start gap-2 p-6 shrink-0 bg-gray-50">
+        <div aria-hidden className="min-w-0" />
+        <div className="flex min-w-0 flex-col items-center text-center">
           <LabDotBrand variant="header" />
-          <p className="text-gray-400 text-[10px] tracking-[0.2em] uppercase mt-1">Manager Mode</p>
+          <p className="mt-1 text-[10px] uppercase tracking-[0.2em] text-gray-400">Manager Mode</p>
         </div>
-        <button type="button" onClick={logout} aria-label="Log out" className="p-1.5 rounded-lg hover:bg-gray-100/80 transition-colors">
-          <LogOut size={20} strokeWidth={ICON_STROKE} className="text-gray-600" />
-        </button>
+        <div className="flex justify-end pt-0.5">
+          <button type="button" onClick={logout} aria-label="Log out" className="rounded-lg p-1.5 transition-colors hover:bg-gray-100/80">
+            <LogOut size={20} strokeWidth={ICON_STROKE} className="text-gray-600" />
+          </button>
+        </div>
       </header>
 
       {/* 일정 미확정 회원 — full-width data card (no in-app scheduling action) */}
@@ -162,7 +165,10 @@ const AdminHome = ({ setView, logout, onOpenTrainingLog }) => {
       </div>
 
       {/* 2×2 Bento menu */}
-      <nav className="w-full max-w-lg mx-auto px-6 flex-1 grid grid-cols-2 gap-3 pb-8" aria-label="관리 메뉴">
+      <nav
+        className="mx-auto grid w-full max-w-lg flex-1 grid-cols-2 gap-3 px-6 pb-8"
+        aria-label="관리 메뉴"
+      >
         {menuItems.map(({ icon: Icon, label, view, action }) => (
           <button
             key={view ?? action}
@@ -174,10 +180,10 @@ const AdminHome = ({ setView, logout, onOpenTrainingLog }) => {
                 setView(view);
               }
             }}
-            className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 flex flex-col items-start gap-3 transition-all duration-200 hover:bg-gray-50 active:bg-gray-100 active:scale-[0.98] cursor-pointer text-left"
+            className="aspect-square w-full min-h-0 bg-white rounded-2xl border border-gray-100 shadow-sm p-5 flex flex-col items-start justify-between transition-all duration-200 hover:bg-gray-50 active:bg-gray-100 active:scale-[0.98] cursor-pointer text-left"
           >
-            <Icon size={26} strokeWidth={ICON_STROKE} className="text-[#064e3b]" aria-hidden />
-            <span className="text-sm font-medium text-slate-900 tracking-tight">{label}</span>
+            <Icon size={26} strokeWidth={ICON_STROKE} className="text-[#064e3b] shrink-0" aria-hidden />
+            <span className="text-sm font-medium text-slate-900 tracking-tight leading-snug pr-1">{label}</span>
           </button>
         ))}
       </nav>

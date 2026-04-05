@@ -406,22 +406,23 @@ const ClientHome = ({ user, logout, setView }) => {
 
   return (
     <div className="min-h-[100dvh] bg-gray-50 text-slate-900 flex flex-col relative pb-safe font-sans antialiased">
-      <header className="px-5 pt-5 pb-3 flex justify-between items-start gap-3 shrink-0">
-        <div className="min-w-0">
+      <header className="grid shrink-0 grid-cols-[1fr_auto_1fr] items-start gap-2 px-5 pt-5 pb-3">
+        <div aria-hidden className="min-w-0" />
+        <div className="flex min-w-0 flex-col items-center text-center">
           <LabDotBrand variant="header" />
           {loading ? (
-            <div className="flex items-center gap-3 mt-2">
-              <Skeleton className="h-5 w-5 rounded-full shrink-0" />
+            <div className="mt-2 flex items-center justify-center gap-3">
+              <Skeleton className="h-5 w-5 shrink-0 rounded-full" />
               <Skeleton className="h-4 w-28" />
             </div>
           ) : (
-            <p className="text-gray-500 text-xs mt-2.5 font-light tracking-[0.12em]">
+            <p className="mt-2.5 text-xs font-light tracking-[0.12em] text-gray-500">
               <span className="text-slate-800">{profile?.name || '회원'}</span>
               <span className="text-gray-400"> 님</span>
             </p>
           )}
         </div>
-        <div className="flex items-center gap-0.5 shrink-0">
+        <div className="flex shrink-0 items-center justify-end gap-0.5 pt-0.5">
           <button
             type="button"
             onClick={() => setView('library')}

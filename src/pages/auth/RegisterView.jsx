@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { motion } from 'framer-motion';
 import { ArrowLeft, User, Calendar, Mail, Lock } from 'lucide-react';
 import { supabase } from '../../lib/supabaseClient';
 import { useGlobalModal } from '../../context/GlobalModalContext';
@@ -111,21 +112,28 @@ const RegisterView = ({ setView, goBack }) => {
   if (isSuccess) {
     const displayName = (formData.name || '').trim() || '회원';
     return (
-      <div className="min-h-[100dvh] bg-white text-slate-900 p-6 flex flex-col items-center justify-center">
-        <div className="w-full max-w-sm text-center space-y-8">
-          <LabDotBrand variant="header" />
-          <div>
+      <div className="min-h-[100dvh] bg-white text-slate-900 px-6 flex flex-col items-center justify-center">
+        <div className="w-full max-w-sm flex flex-col items-center">
+          <div className="mb-10 flex justify-center">
+            <LabDotBrand variant="header" />
+          </div>
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.8, ease: [0.22, 1, 0.36, 1] }}
+            className="w-full space-y-6 text-center"
+          >
             <p className="text-xl font-medium text-slate-900 tracking-tight">
               {displayName}님, 환영합니다.
             </p>
-          </div>
-          <button
-            type="button"
-            onClick={handleStart}
-            className="w-full bg-[#064e3b] text-white font-semibold py-4 rounded-xl text-[15px] tracking-wide shadow-md hover:bg-[#053d2f] active:scale-[0.99] transition-all"
-          >
-            시작하기
-          </button>
+            <button
+              type="button"
+              onClick={handleStart}
+              className="w-full bg-[#064e3b] text-white font-semibold py-4 rounded-xl text-[15px] tracking-wide shadow-md hover:bg-[#053d2f] active:scale-[0.99] transition-all duration-200"
+            >
+              시작하기
+            </button>
+          </motion.div>
         </div>
       </div>
     );
@@ -137,7 +145,7 @@ const RegisterView = ({ setView, goBack }) => {
         <button type="button" onClick={() => (goBack ? goBack() : setView('login'))}>
           <ArrowLeft className="text-gray-500 hover:text-slate-900 transition-colors" />
         </button>
-        <div className="mt-6">
+        <div className="mt-6 flex flex-col items-center">
           <LabDotBrand variant="header" />
         </div>
         <p className="text-gray-400 text-[10px] tracking-[0.3em] uppercase mt-3">Join · Silent Luxury Lab</p>

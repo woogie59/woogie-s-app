@@ -70,7 +70,7 @@ const LoginView = ({ setView }) => {
 
   return (
     <div className="flex flex-col items-center justify-center min-h-[100dvh] px-6 bg-white text-slate-900">
-      <div className="mb-12 text-center">
+      <div className="mb-12 flex w-full justify-center">
         <LabDotBrand variant="hero" />
       </div>
 
