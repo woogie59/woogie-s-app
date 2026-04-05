@@ -247,7 +247,9 @@ export default function App() {
     setSession(sessionData);
     if (!sessionData?.user?.id) {
       setUserProfileRole(null);
-      replaceView('login');
+      if (viewRef.current !== 'register') {
+        replaceView('login');
+      }
       setLoading(false);
       return;
     }
@@ -257,11 +259,11 @@ export default function App() {
       return;
     }
 
+    /** 회원가입 완료 직후: 환영 화면을 위해 자동 홈 이동 금지 (RegisterView에서만 시작하기 후 이동) */
     if (viewRef.current === 'register') {
-      setLoading(true);
       (async () => {
         try {
-          await new Promise((r) => setTimeout(r, 500));
+          await new Promise((r) => setTimeout(r, 300));
           let profile = null;
           for (let i = 0; i < 8; i++) {
             const { data } = await supabase
@@ -276,10 +278,8 @@ export default function App() {
             await new Promise((r) => setTimeout(r, 350));
           }
           setUserProfileRole(profile?.role ?? null);
-          replaceView(profile?.role === 'admin' ? 'admin_home' : 'client_home');
         } catch {
           setUserProfileRole(null);
-          replaceView('client_home');
         } finally {
           setLoading(false);
         }
@@ -777,7 +777,7 @@ export default function App() {
           {!showResetPassword && !loading && (
             <>
               {!session && view === 'login' && <LoginView setView={navigate} />}
-              {!session && view === 'register' && <RegisterView setView={navigate} goBack={goBack} />}
+              {view === 'register' && <RegisterView setView={navigate} goBack={goBack} />}
 
               {/* 로그인 했을 때 보여줄 화면 (일반 회원) */}
               {session && view === 'client_home' && <ClientHome user={session.user} logout={handleLogout} setView={navigate} goBack={goBack} />}

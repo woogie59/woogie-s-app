@@ -5,10 +5,11 @@ import { useGlobalModal } from '../../context/GlobalModalContext';
 import ButtonPrimary from '../../components/ui/ButtonPrimary';
 import { LabDotBrand } from '../../components/ui/LabDotBrand';
 
-const RegisterView = ({ setView, goBack, onSignupSuccess }) => {
+const RegisterView = ({ setView, goBack }) => {
   const { showAlert } = useGlobalModal();
   const [formData, setFormData] = useState({ email: '', password: '', name: '', dob: '', gender: 'M' });
   const [loading, setLoading] = useState(false);
+  const [isSuccess, setIsSuccess] = useState(false);
 
   const handleRegisterSubmit = async () => {
     if (!formData.email || !formData.password || !formData.name) {
@@ -23,7 +24,8 @@ const RegisterView = ({ setView, goBack, onSignupSuccess }) => {
     setLoading(true);
 
     try {
-      const { data, error } = await supabase.auth.signUp({
+      // 1. Auth Creation
+      const { data: authData, error: authError } = await supabase.auth.signUp({
         email: formData.email,
         password: formData.password,
         options: {
@@ -36,67 +38,60 @@ const RegisterView = ({ setView, goBack, onSignupSuccess }) => {
         },
       });
 
-      if (error) throw error;
+      if (authError) throw authError;
 
-      const { user } = data;
-      if (user) {
-        const { data: existingProfile } = await supabase
-          .from('profiles')
-          .select('id')
-          .eq('id', user.id)
-          .maybeSingle();
-
-        let profileReadyForNotify = false;
-
-        if (!existingProfile) {
-          const { data: createdProfile, error: insErr } = await supabase
-            .from('profiles')
-            .insert({
-              id: user.id,
-              email: user.email,
-              name: formData.name,
-              role: 'user',
-            })
-            .select('id')
-            .single();
-
-          if (insErr) {
-            console.error('❌ profiles insert 실패 (관리자 알림 전송 안 함):', insErr.message, insErr);
-          } else if (createdProfile?.id) {
-            profileReadyForNotify = true;
-          } else {
-            console.warn('⚠️ profiles insert 오류 없으나 select id 없음 — 알림 생략', { createdProfile });
-          }
-        } else {
-          console.log(
-            'ℹ️ profiles 행이 이미 존재 (트리거 등). insert 생략 — 동일 가입 플로우에서 관리자 알림은 아래에서 시도합니다.',
-            { userId: user.id }
-          );
-          profileReadyForNotify = true;
-        }
-
-        if (profileReadyForNotify) {
-          console.log('✅ 회원가입 DB 저장 완료. 관리자 알림 발송 시도...');
-
-          try {
-            const { data: notifyData, error: notifyError } = await supabase.functions.invoke('notify-admin-events', {
-              body: {
-                title: '신규 회원 가입',
-                message: `${formData.name || '신규'} 회원님이 가입하셨습니다. 승인해주세요.`,
-              },
-            });
-
-            if (notifyError) throw notifyError;
-            console.log('🎯 관리자 알림 스위치 격발 성공:', notifyData);
-          } catch (err) {
-            console.error('❌ 관리자 알림 스위치 격발 실패 (프론트엔드 에러):', err);
-          }
-        }
-      } else {
-        console.warn('⚠️ signUp 응답에 user 없음 — profiles/알림 생략');
+      const user = authData?.user;
+      if (!user) {
+        throw new Error('회원가입 응답에 사용자 정보가 없습니다.');
       }
 
-      if (onSignupSuccess) onSignupSuccess(formData.name);
+      // 2. Profile Creation
+      const { data: existingProfile } = await supabase
+        .from('profiles')
+        .select('id')
+        .eq('id', user.id)
+        .maybeSingle();
+
+      let profileReadyForNotify = false;
+
+      if (!existingProfile) {
+        const { data: createdProfile, error: insErr } = await supabase
+          .from('profiles')
+          .insert({
+            id: user.id,
+            email: user.email,
+            name: formData.name,
+            role: 'user',
+          })
+          .select('id')
+          .single();
+
+        if (insErr) throw insErr;
+        if (!createdProfile?.id) throw new Error('프로필 생성 응답이 비어 있습니다.');
+        profileReadyForNotify = true;
+      } else {
+        console.log('ℹ️ profiles 행 이미 존재 — insert 생략', { userId: user.id });
+        profileReadyForNotify = true;
+      }
+
+      // 3. Fire Admin Notification BEFORE moving on
+      if (profileReadyForNotify) {
+        try {
+          const { error: invokeErr } = await supabase.functions.invoke('notify-admin-events', {
+            body: {
+              title: '신규 회원 가입',
+              message: `${formData.name || '신규'} 회원님이 가입하셨습니다. 승인해주세요.`,
+            },
+          });
+          if (invokeErr) throw invokeErr;
+          console.log('🎯 관리자 알림 발송 성공');
+        } catch (notifyErr) {
+          console.error('❌ 알림 발송 실패:', notifyErr);
+        }
+      }
+
+      // 4. Trigger Welcome UI (no redirect here)
+      setIsSuccess(true);
     } catch (err) {
       console.error(err);
       showAlert({ message: `🚨 가입 실패: ${err.message}` });
@@ -104,6 +99,40 @@ const RegisterView = ({ setView, goBack, onSignupSuccess }) => {
       setLoading(false);
     }
   };
+
+  const handleStart = async () => {
+    try {
+      setView('login');
+      await supabase.auth.signOut();
+    } catch (e) {
+      console.error('[RegisterView] 시작하기:', e);
+      setView('login');
+    }
+  };
+
+  if (isSuccess) {
+    const displayName = (formData.name || '').trim() || '회원';
+    return (
+      <div className="min-h-[100dvh] bg-white text-slate-900 p-6 flex flex-col items-center justify-center">
+        <div className="w-full max-w-sm text-center space-y-8">
+          <LabDotBrand variant="header" />
+          <div className="space-y-3">
+            <p className="text-xl font-medium text-slate-900 tracking-tight">
+              {displayName}님, 환영합니다.
+            </p>
+            <p className="text-sm text-gray-500 font-light leading-relaxed">Silent Luxury Lab과 함께해 주셔서 감사합니다.</p>
+          </div>
+          <button
+            type="button"
+            onClick={handleStart}
+            className="w-full bg-[#064e3b] text-white font-semibold py-4 rounded-xl text-[15px] tracking-wide shadow-md hover:bg-[#053d2f] active:scale-[0.99] transition-all"
+          >
+            시작하기
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-[100dvh] bg-white text-slate-900 p-6 flex flex-col">
