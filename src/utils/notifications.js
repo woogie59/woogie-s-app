@@ -1,22 +1,42 @@
 import { supabase } from '../lib/supabaseClient';
 
 /**
- * Admin OneSignal player id (`profiles.onesignal_id`) for role=admin.
+ * Load admin push target: query `profiles` first, then RPC if RLS hides the admin row.
+ * @returns {{ adminProfile: { onesignal_id: string } | null, error: Error | null }}
  */
-export async function fetchAdminOnesignalPlayerId() {
-  const { data, error } = await supabase
+export async function fetchAdminOnesignalProfile() {
+  const { data: adminProfile, error } = await supabase
     .from('profiles')
     .select('onesignal_id')
     .eq('role', 'admin')
     .not('onesignal_id', 'is', null)
     .limit(1)
     .maybeSingle();
+
   if (error) {
-    console.warn('[fetchAdminOnesignalPlayerId]', error.message);
-    return null;
+    console.warn('[fetchAdminOnesignalProfile] profiles', error.message);
   }
-  if (!data?.onesignal_id) return null;
-  return String(data.onesignal_id);
+  if (adminProfile?.onesignal_id) {
+    return { adminProfile: { onesignal_id: String(adminProfile.onesignal_id) }, error: null };
+  }
+
+  const { data: rpcId, error: rpcError } = await supabase.rpc('get_admin_onesignal_player_id');
+  if (rpcError) {
+    console.warn('[fetchAdminOnesignalProfile] rpc', rpcError.message);
+    return { adminProfile: null, error: rpcError };
+  }
+  if (rpcId == null || rpcId === '') {
+    return { adminProfile: null, error: null };
+  }
+  return { adminProfile: { onesignal_id: String(rpcId) }, error: null };
+}
+
+/**
+ * Admin OneSignal player id (`profiles.onesignal_id`) for role=admin.
+ */
+export async function fetchAdminOnesignalPlayerId() {
+  const { adminProfile } = await fetchAdminOnesignalProfile();
+  return adminProfile?.onesignal_id ?? null;
 }
 
 /**

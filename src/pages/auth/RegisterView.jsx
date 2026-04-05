@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { ArrowLeft, User, Calendar, Mail, Lock } from 'lucide-react';
 import { supabase } from '../../lib/supabaseClient';
-import { invokeNotifyAdminEvents, fetchAdminOnesignalPlayerId } from '../../utils/notifications';
+import { invokeNotifyAdminEvents, fetchAdminOnesignalProfile } from '../../utils/notifications';
 import { useGlobalModal } from '../../context/GlobalModalContext';
 import ButtonPrimary from '../../components/ui/ButtonPrimary';
 import { LabDotBrand } from '../../components/ui/LabDotBrand';
@@ -55,15 +55,22 @@ const RegisterView = ({ setView, goBack, onSignupSuccess }) => {
           });
           if (!insErr) {
             try {
-              const adminId = await fetchAdminOnesignalPlayerId();
-              console.log('🎯 [Found Admin ID]:', adminId);
-              if (adminId == null || adminId === '') {
+              const { adminProfile, error: adminProfileErr } = await fetchAdminOnesignalProfile();
+              if (adminProfileErr) {
+                console.warn('[RegisterView] admin profile:', adminProfileErr.message);
+              }
+              console.log('🎯 Triggering Push to Admin ID:', adminProfile?.onesignal_id);
+              if (!adminProfile?.onesignal_id) {
                 console.warn(
-                  '🎯 [Found Admin ID]: null/undefined — push skipped (set profiles.onesignal_id for admin or check RLS)'
+                  '🎯 Push skipped: admin onesignal_id missing (set profiles.onesignal_id for admin or apply get_admin_onesignal_player_id migration)'
                 );
               } else {
                 const name = (form.name || '').trim() || '회원';
-                await invokeNotifyAdminEvents(adminId, '신규 회원 참여', `${name}님이 새로 참여하였습니다.`);
+                await invokeNotifyAdminEvents(
+                  adminProfile.onesignal_id,
+                  '신규 회원 참여',
+                  `${name}님이 새로 참여하였습니다.`
+                );
               }
             } catch (e) {
               console.warn('[RegisterView] admin push:', e);
