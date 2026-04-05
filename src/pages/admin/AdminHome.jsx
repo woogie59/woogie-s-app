@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import { LogOut, QrCode, Users, Calendar, Archive, NotebookPen } from 'lucide-react';
+import { motion } from 'framer-motion';
+import { LogOut, QrCode, Users, Calendar, Archive, NotebookPen, ChevronDown } from 'lucide-react';
 import { supabase } from '../../lib/supabaseClient';
 import LabDotBrand from '../../components/ui/LabDotBrand';
 
@@ -36,9 +37,12 @@ const daysSinceCheckIn = (iso) => {
   return Math.max(0, Math.floor((n.getTime() - d.getTime()) / 86400000));
 };
 
+const VISIBLE_UNCONFIRMED = 3;
+
 const AdminHome = ({ setView, logout, onOpenTrainingLog }) => {
   const [unscheduledVips, setUnscheduledVips] = useState([]);
   const [radarLoading, setRadarLoading] = useState(true);
+  const [unconfirmedExpanded, setUnconfirmedExpanded] = useState(false);
 
   const loadUnscheduledVipRadar = useCallback(async () => {
     setRadarLoading(true);
@@ -124,8 +128,7 @@ const AdminHome = ({ setView, logout, onOpenTrainingLog }) => {
       <section className="w-full max-w-lg mx-auto px-6 pb-5">
         <div className="w-full bg-white rounded-2xl border border-gray-100 shadow-sm p-5 flex flex-col items-start gap-4">
           <div className="w-full">
-            <p className="text-[10px] text-gray-400 tracking-widest uppercase">SESSION_STATUS</p>
-            <h2 className="text-base font-semibold text-slate-900 tracking-tight mt-1">일정 미확정 회원</h2>
+            <h2 className="text-base font-semibold text-slate-900 tracking-tight">일정 미확정 회원</h2>
           </div>
 
           {radarLoading ? (
@@ -133,21 +136,43 @@ const AdminHome = ({ setView, logout, onOpenTrainingLog }) => {
           ) : unscheduledVips.length === 0 ? (
             <p className="text-sm text-gray-500 font-light tracking-wide w-full">모든 활성 회원의 일정이 채워져 있습니다.</p>
           ) : (
-            <ul className="w-full space-y-5">
-              {unscheduledVips.map((u) => {
-                const days = u.lastCheckInAt != null ? daysSinceCheckIn(u.lastCheckInAt) : null;
-                const secondary =
-                  days != null
-                    ? `마지막 수업 후 ${days}일 경과`
-                    : `잔여 ${u.remaining_sessions ?? 0}회`;
-                return (
-                  <li key={u.id} className="w-full">
-                    <p className="text-sm font-semibold text-slate-900 tracking-tight">{u.name || 'Member'}</p>
-                    <p className="text-sm text-gray-500 mt-1 font-light tracking-wide">{secondary}</p>
-                  </li>
-                );
-              })}
-            </ul>
+            <>
+              <ul className="w-full space-y-5">
+                {(unconfirmedExpanded ? unscheduledVips : unscheduledVips.slice(0, VISIBLE_UNCONFIRMED)).map((u) => {
+                  const days = u.lastCheckInAt != null ? daysSinceCheckIn(u.lastCheckInAt) : null;
+                  const secondary =
+                    days != null
+                      ? `마지막 수업 후 ${days}일 경과`
+                      : `잔여 ${u.remaining_sessions ?? 0}회`;
+                  return (
+                    <motion.li
+                      key={u.id}
+                      layout
+                      transition={{ duration: 0.3, ease: 'easeInOut' }}
+                      className="w-full"
+                    >
+                      <p className="text-sm font-semibold text-slate-900 tracking-tight">{u.name || 'Member'}</p>
+                      <p className="text-sm text-gray-500 mt-1 font-light tracking-wide">{secondary}</p>
+                    </motion.li>
+                  );
+                })}
+              </ul>
+              {unscheduledVips.length > VISIBLE_UNCONFIRMED && (
+                <button
+                  type="button"
+                  onClick={() => setUnconfirmedExpanded((e) => !e)}
+                  className="mt-1 flex w-full cursor-pointer items-center justify-center gap-1.5 rounded-xl py-2.5 text-xs font-medium tracking-wide text-gray-500 transition-colors duration-300 ease-in-out hover:bg-gray-50 hover:text-gray-700"
+                  aria-expanded={unconfirmedExpanded}
+                >
+                  <span>{unconfirmedExpanded ? '접기' : '더 보기'}</span>
+                  <ChevronDown
+                    className={`h-4 w-4 transition-transform duration-300 ease-in-out ${unconfirmedExpanded ? 'rotate-180' : ''}`}
+                    strokeWidth={1.5}
+                    aria-hidden
+                  />
+                </button>
+              )}
+            </>
           )}
         </div>
       </section>

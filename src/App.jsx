@@ -102,6 +102,8 @@ export default function App() {
   const [isRevenueLoading, setIsRevenueLoading] = useState(false);
   const [selectedRevenueDay, setSelectedRevenueDay] = useState(null);
   const [schedulePayrollModalOpen, setSchedulePayrollModalOpen] = useState(false);
+  /** Week dashboard: per-day expanded class list (YYYY-MM-DD → boolean) */
+  const [weekScheduleExpandedByDate, setWeekScheduleExpandedByDate] = useState({});
 
   // Salary Configuration (Persist in LocalStorage)
   const [salaryConfig, setSalaryConfig] = useState(() => {
@@ -743,6 +745,10 @@ export default function App() {
     if (view !== 'admin_schedule') setSchedulePayrollModalOpen(false);
   }, [view]);
 
+  useEffect(() => {
+    setWeekScheduleExpandedByDate({});
+  }, [dashboardFocusDate, dashboardViewMode]);
+
   return (
     <div className="bg-white min-h-[100dvh] flex flex-col font-sans selection:bg-emerald-500/20 overflow-x-hidden">
       <AnimatePresence>
@@ -986,6 +992,10 @@ export default function App() {
                     {getWeekDates(dashboardFocusDate).map((dateKey) => {
                       const items = mergedItemsByDate[dateKey] || [];
                       const completed = items.filter((x) => x.status === 'Completed').length;
+                      const WEEK_MAX_VISIBLE = 4;
+                      const expanded = !!weekScheduleExpandedByDate[dateKey];
+                      const shownItems = expanded ? items : items.slice(0, WEEK_MAX_VISIBLE);
+                      const extraCount = items.length > WEEK_MAX_VISIBLE ? items.length - WEEK_MAX_VISIBLE : 0;
                       if (items.length === 0) {
                         return (
                           <div key={dateKey} className="bg-gray-50 rounded-xl border border-gray-200/70 px-4 py-2 flex items-center justify-between">
@@ -1000,15 +1010,39 @@ export default function App() {
                             <span>{formatDateHeader(dateKey)}</span>
                             <span className="text-gray-600 text-sm font-normal">{items.length} classes {completed > 0 && `(${completed} done)`}</span>
                           </div>
-                          <div className="divide-y divide-gray-200">
-                            {items.slice(0, 4).map((item, idx) => (
-                              <div key={idx} className={`flex items-center justify-between gap-4 px-4 py-2 ${item.status === 'Completed' ? 'bg-emerald-600/5' : ''}`}>
+                          <motion.div layout className="divide-y divide-gray-200">
+                            {shownItems.map((item, idx) => (
+                              <motion.div
+                                key={item.booking?.id ?? item.log?.id ?? `${dateKey}-${idx}`}
+                                layout
+                                transition={{ duration: 0.3, ease: 'easeInOut' }}
+                                className={`flex items-center justify-between gap-4 px-4 py-2 ${item.status === 'Completed' ? 'bg-emerald-600/5' : ''}`}
+                              >
                                 <span className="text-gray-600 font-mono text-sm">{item.time}</span>
                                 <span className="flex-1 text-slate-900 text-sm truncate text-center">{item.userName}</span>
-                              </div>
+                              </motion.div>
                             ))}
-                            {items.length > 4 && <div className="px-4 py-2 text-gray-600 text-xs">+{items.length - 4} more</div>}
-                          </div>
+                          </motion.div>
+                          {extraCount > 0 && (
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setWeekScheduleExpandedByDate((prev) => ({
+                                  ...prev,
+                                  [dateKey]: !prev[dateKey],
+                                }))
+                              }
+                              className="w-full cursor-pointer border-t border-gray-100/80 px-4 py-2.5 text-left text-xs font-medium text-gray-600 transition-colors duration-300 ease-in-out hover:bg-gray-50/90 active:bg-gray-100/80 flex items-center justify-between gap-2"
+                              aria-expanded={expanded}
+                            >
+                              <span className="tracking-wide">{expanded ? '접기' : `+${extraCount} more`}</span>
+                              <ChevronDown
+                                className={`h-4 w-4 shrink-0 opacity-60 transition-transform duration-300 ease-in-out ${expanded ? 'rotate-180' : ''}`}
+                                strokeWidth={2}
+                                aria-hidden
+                              />
+                            </button>
+                          )}
                         </div>
                       );
                     })}
