@@ -6,7 +6,14 @@ import { FileSpreadsheet } from 'lucide-react';
 
 const ICON_STROKE = 1.5;
 
-function monthBounds(year, month1to12) {
+/** Status values that count as a conducted (완료) class — normalized to lowercase with hyphens. */
+const CONDUCTED_STATUS_NORMALIZED = new Set(['attended', 'completed', 'checked-in']);
+
+/**
+ * Local calendar month as YYYY-MM-DD bounds (no UTC shift for `bookings.date` DATE column).
+ * `month1to12` is 1–12.
+ */
+function monthBoundsLocalCalendar(year, month1to12) {
   const y = Number(year);
   const m = Number(month1to12);
   const start = `${y}-${String(m).padStart(2, '0')}-01`;
@@ -15,9 +22,23 @@ function monthBounds(year, month1to12) {
   return { start, end };
 }
 
+function normalizeBookingStatus(status) {
+  if (status == null || typeof status !== 'string') return '';
+  return status.trim().toLowerCase().replace(/_/g, '-');
+}
+
+function isConductedStatus(status) {
+  return CONDUCTED_STATUS_NORMALIZED.has(normalizeBookingStatus(status));
+}
+
 /**
- * Monthly payroll Excel export (client_session_reports counts per member).
- * @param {{ compact?: boolean }} props — modal embedding: no outer card chrome
+ * If true, only bookings that also have a training log (`client_session_reports`) for the same member + calendar day count.
+ * Keep false to match broadly by booking status only (recommended when 일지 is not always filed).
+ */
+const REQUIRE_MATCHING_TRAINING_LOG = false;
+
+/**
+ * Monthly payroll Excel: member → count of conducted classes (bookings), not 일지 rows only.
  */
 export default function AdminPayrollExport({ compact = false }) {
   const now = useMemo(() => new Date(), []);
@@ -34,19 +55,53 @@ export default function AdminPayrollExport({ compact = false }) {
   const handleExport = async () => {
     setBusy(true);
     try {
-      const { start, end } = monthBounds(year, month);
-      const { data: rows, error } = await supabase
-        .from('client_session_reports')
-        .select('user_id')
-        .gte('report_date', start)
-        .lte('report_date', end);
+      const { start, end } = monthBoundsLocalCalendar(year, month);
 
-      if (error) throw error;
+      const { data: bookingRows, error: bookingErr } = await supabase
+        .from('bookings')
+        .select('id, user_id, date, time, status')
+        .gte('date', start)
+        .lte('date', end)
+        .limit(10000);
 
-      const list = Array.isArray(rows) ? rows : [];
+      if (bookingErr) throw bookingErr;
+
+      const rawList = Array.isArray(bookingRows) ? bookingRows : [];
+      const rawCount = rawList.length;
+
+      let conductedList = rawList.filter((b) => isConductedStatus(b?.status));
+
+      let reportKeySet = null;
+      if (REQUIRE_MATCHING_TRAINING_LOG && conductedList.length > 0) {
+        const { data: reportRows, error: reportErr } = await supabase
+          .from('client_session_reports')
+          .select('user_id, report_date')
+          .gte('report_date', start)
+          .lte('report_date', end)
+          .limit(20000);
+        if (reportErr) throw reportErr;
+        reportKeySet = new Set(
+          (Array.isArray(reportRows) ? reportRows : []).map((r) => `${r.user_id}|${r.report_date}`)
+        );
+        conductedList = conductedList.filter((b) => reportKeySet.has(`${b.user_id}|${b.date}`));
+      }
+
+      const afterConductedCount = conductedList.length;
+
+      console.log('[AdminPayrollExport] bookings in month (raw, before conducted filter):', rawCount);
+      console.log(
+        '[AdminPayrollExport] after conducted criteria:',
+        afterConductedCount,
+        REQUIRE_MATCHING_TRAINING_LOG ? '(status + training log on same day)' : '(status: attended / completed / checked-in)'
+      );
+      if (rawCount > 0 && afterConductedCount === 0) {
+        const distinctStatuses = [...new Set(rawList.map((b) => b?.status).filter(Boolean))];
+        console.log('[AdminPayrollExport] distinct booking status values this month (why none matched?):', distinctStatuses);
+      }
+
       const counts = new Map();
-      for (const r of list) {
-        const uid = r.user_id;
+      for (const b of conductedList) {
+        const uid = b.user_id;
         if (!uid) continue;
         counts.set(uid, (counts.get(uid) || 0) + 1);
       }
@@ -66,20 +121,20 @@ export default function AdminPayrollExport({ compact = false }) {
         }))
         .sort((a, b) => String(a.회원명).localeCompare(String(b.회원명), 'ko'));
 
+      if (sheetRows.length === 0) {
+        showAlert({ message: '선택한 달에 완료 처리된 수업이 없습니다.' });
+        return;
+      }
+
       const wb = XLSX.utils.book_new();
-      const ws = sheetRows.length
-        ? XLSX.utils.json_to_sheet(sheetRows)
-        : XLSX.utils.aoa_to_sheet([
-            ['회원명', '진행수업'],
-            ['(해당 월 일지 없음)', 0],
-          ]);
+      const ws = XLSX.utils.json_to_sheet(sheetRows);
       XLSX.utils.book_append_sheet(wb, ws, 'Payroll');
 
       const tag = `${year}-${String(month).padStart(2, '0')}`;
       const filename = `${tag}_Payroll_Woogie.xlsx`;
       XLSX.writeFile(wb, filename);
 
-      showToast(sheetRows.length ? `${sheetRows.length}명 · ${filename}` : '해당 월 일지 없음 · 템플릿만 저장');
+      showToast(`${sheetRows.length}명 · ${filename}`);
     } catch (e) {
       console.error('[AdminPayrollExport]', e);
       showAlert({ message: '내보내기 실패: ' + (e?.message || '') });
@@ -94,13 +149,13 @@ export default function AdminPayrollExport({ compact = false }) {
         <>
           <h2 className="text-base font-semibold text-slate-900 tracking-tight">월간 페이롤 정산</h2>
           <p className="text-xs text-gray-500 font-light leading-relaxed mt-1.5 mb-5">
-            선택한 달의 트레이닝 일지 건수를 회원별로 집계합니다.
+            선택한 달의 예약 중 완료·출석·체크인 처리된 수업 건수를 회원별로 집계합니다.
           </p>
         </>
       )}
       {compact && (
         <p className="text-xs text-gray-500 font-light leading-relaxed mb-4">
-          선택한 달의 트레이닝 일지 건수를 회원별로 집계합니다.
+          선택한 달의 예약 중 완료·출석·체크인 처리된 수업 건수를 회원별로 집계합니다.
         </p>
       )}
       <div className="flex flex-wrap items-end gap-4">
