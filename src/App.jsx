@@ -4,6 +4,7 @@ import { QrCode, Camera, ChevronRight, ChevronDown, ChevronUp, BookOpen, LogOut,
 import OneSignal from 'react-onesignal';
 
 import { supabase, REMEMBER_ME_KEY } from './lib/supabaseClient';
+import { invokeNotifyMemberEvents } from './utils/notifications';
 import { useGlobalModal } from './context/GlobalModalContext';
 import CinematicIntro from './components/ui/CinematicIntro';
 import LabDotBrand from './components/ui/LabDotBrand';
@@ -19,7 +20,6 @@ import ResetPasswordView from './pages/auth/ResetPasswordView';
 import ClientHome from './pages/client/ClientHome';
 
 import AdminHome from './pages/admin/AdminHome';
-import AdminSchedule from './pages/admin/AdminSchedule';
 import AdminSettings from './pages/admin/AdminSettings';
 import AdminRoute from './pages/admin/AdminRoute';
 import AdminPayrollExport from './features/admin/AdminPayrollExport';
@@ -532,6 +532,45 @@ export default function App() {
     }
   };
 
+  /** 관리자 일정 대시보드(Day/Week/Month)에서 예약 취소 */
+  const handleScheduleDashCancel = (item, dateKey) => {
+    if (!item?.booking?.id) return;
+    if (item.status === 'Completed') {
+      showAlert({ message: '이미 출석 처리된 예약은 취소할 수 없습니다.' });
+      return;
+    }
+    const b = item.booking;
+    const userName = item.userName || '회원';
+    showConfirm({
+      title: '예약 취소',
+      message: `${userName}님의 ${dateKey} ${item.time} 일정을 취소할까요?`,
+      confirmLabel: '예, 취소합니다',
+      cancelLabel: '닫기',
+      onConfirm: async (close) => {
+        const { error } = await supabase.from('bookings').delete().eq('id', b.id);
+        if (error) {
+          showAlert({ message: '취소 실패: ' + error.message });
+          return;
+        }
+        try {
+          if (b.user_id) {
+            await invokeNotifyMemberEvents(
+              b.user_id,
+              'LAB DOT · 예약',
+              `${dateKey} ${item.time} 예약이 취소되었습니다.`,
+              'booking_cancel'
+            );
+          }
+        } catch (e) {
+          console.warn('[admin_schedule] cancel notify member:', e);
+        }
+        await fetchRevenueData();
+        close();
+        showToast('예약이 취소되었습니다');
+      },
+    });
+  };
+
   const changeMonth = (delta) => {
     const newDate = new Date(currentRevenueDate);
     newDate.setMonth(newDate.getMonth() + delta);
@@ -964,9 +1003,20 @@ export default function App() {
                                     : 'bg-white border-gray-200'
                                 } ${isNextUp ? 'ring-2 ring-emerald-500/40 shadow-lg shadow-emerald-500/10' : ''}`}
                               >
-                                <div className="flex items-center justify-between gap-4">
-                                  <span className="text-gray-600 font-mono font-medium">{item.time}</span>
-                                  <span className="flex-1 text-slate-900 font-medium truncate text-center">{item.userName}</span>
+                                <div className="flex items-center justify-between gap-2">
+                                  <span className="text-gray-600 font-mono font-medium shrink-0">{item.time}</span>
+                                  <span className="flex-1 text-slate-900 font-medium truncate text-center min-w-0">{item.userName}</span>
+                                  {item.status !== 'Completed' && item.booking?.id && (
+                                    <button
+                                      type="button"
+                                      onClick={() => handleScheduleDashCancel(item, dayKey)}
+                                      className="shrink-0 p-2 rounded-lg bg-red-50 border border-red-100 text-red-600 hover:bg-red-100 active:scale-95 transition-all"
+                                      aria-label="예약 취소"
+                                      title="예약 취소"
+                                    >
+                                      <Trash2 size={18} />
+                                    </button>
+                                  )}
                                 </div>
                                 {isNextUp && <p className="text-emerald-600 text-xs mt-2">↑ Next up</p>}
                               </div>
@@ -1016,10 +1066,21 @@ export default function App() {
                                 key={item.booking?.id ?? item.log?.id ?? `${dateKey}-${idx}`}
                                 layout
                                 transition={{ duration: 0.3, ease: 'easeInOut' }}
-                                className={`flex items-center justify-between gap-4 px-4 py-2 ${item.status === 'Completed' ? 'bg-emerald-600/5' : ''}`}
+                                className={`flex items-center justify-between gap-2 px-4 py-2 ${item.status === 'Completed' ? 'bg-emerald-600/5' : ''}`}
                               >
-                                <span className="text-gray-600 font-mono text-sm">{item.time}</span>
-                                <span className="flex-1 text-slate-900 text-sm truncate text-center">{item.userName}</span>
+                                <span className="text-gray-600 font-mono text-sm shrink-0">{item.time}</span>
+                                <span className="flex-1 text-slate-900 text-sm truncate text-center min-w-0">{item.userName}</span>
+                                {item.status !== 'Completed' && item.booking?.id && (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleScheduleDashCancel(item, dateKey)}
+                                    className="shrink-0 p-1.5 rounded-lg bg-red-50 border border-red-100 text-red-600 hover:bg-red-100 active:scale-95 transition-all"
+                                    aria-label="예약 취소"
+                                    title="예약 취소"
+                                  >
+                                    <Trash2 size={16} />
+                                  </button>
+                                )}
                               </motion.div>
                             ))}
                           </motion.div>
@@ -1088,14 +1149,25 @@ export default function App() {
                         {(mergedItemsByDate[selectedRevenueDay] || []).map((item, idx) => (
                           <div
                             key={idx}
-                            className={`flex items-center justify-between gap-4 px-4 py-3 rounded-xl border ${
+                            className={`flex items-center justify-between gap-2 px-4 py-3 rounded-xl border ${
                               item.status === 'Completed'
                                 ? 'bg-emerald-600/10 border-emerald-600/30'
                                 : 'bg-white border-gray-200'
                             }`}
                           >
-                            <span className="font-mono text-gray-600">{item.time}</span>
-                            <span className="flex-1 text-slate-900 text-center truncate">{item.userName}</span>
+                            <span className="font-mono text-gray-600 shrink-0">{item.time}</span>
+                            <span className="flex-1 text-slate-900 text-center truncate min-w-0">{item.userName}</span>
+                            {item.status !== 'Completed' && item.booking?.id && (
+                              <button
+                                type="button"
+                                onClick={() => handleScheduleDashCancel(item, selectedRevenueDay)}
+                                className="shrink-0 p-2 rounded-lg bg-red-50 border border-red-100 text-red-600 hover:bg-red-100 active:scale-95 transition-all"
+                                aria-label="예약 취소"
+                                title="예약 취소"
+                              >
+                                <Trash2 size={18} />
+                              </button>
+                            )}
                           </div>
                         ))}
                       </div>
