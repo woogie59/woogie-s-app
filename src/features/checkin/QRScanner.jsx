@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { CheckCircle, XCircle } from 'lucide-react';
 import { Html5Qrcode } from 'html5-qrcode';
 import { supabase } from '../../lib/supabaseClient';
+import { invokeNotifyMemberEvents } from '../../utils/notifications';
 
 const QRScanner = ({ setView, goBack }) => {
   const [result, setResult] = useState(null);
@@ -29,6 +30,17 @@ const QRScanner = ({ setView, goBack }) => {
       if (!Number.isFinite(remaining)) remaining = 0;
 
       const userName = userData?.name || '회원';
+
+      try {
+        await invokeNotifyMemberEvents(
+          decodedText,
+          'LAB DOT · 출석',
+          '출석되었습니다',
+          'attendance'
+        );
+      } catch (e) {
+        console.warn('[QRScanner] member attendance push:', e);
+      }
 
       if (remaining === 3) {
         await supabase.functions.invoke('send-admin-alert', {

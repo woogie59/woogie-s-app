@@ -92,7 +92,30 @@ export async function invokeNotifyAdminEvents(targetId, title, message) {
       message,
     },
   });
-  console.log('📡 [Edge Function Result]:', data);
-  if (error) console.error('🚨 [Edge Function Error]:', error);
+  console.log('📡 [notify-admin-events]', data);
+  if (error) console.error('🚨 [notify-admin-events]', error);
+  return { data, error: error ?? null };
+}
+
+/**
+ * Member-bound push via `notify-member-events` (Service Role resolves `onesignal_id` from `user_id`).
+ * @param {string} userId — profiles.id
+ * @param {string} eventKind — e.g. 'attendance' | 'training_log'
+ */
+export async function invokeNotifyMemberEvents(userId, title, message, eventKind = 'member') {
+  if (!userId) {
+    console.warn('[invokeNotifyMemberEvents] missing userId');
+    return { error: new Error('missing userId') };
+  }
+  const { data, error } = await supabase.functions.invoke('notify-member-events', {
+    body: {
+      user_id: userId,
+      title,
+      message,
+      event_kind: eventKind,
+    },
+  });
+  console.log('📡 [notify-member-events]', data);
+  if (error) console.error('🚨 [notify-member-events]', error);
   return { data, error: error ?? null };
 }

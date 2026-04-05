@@ -1,7 +1,7 @@
 import React, { useState, useCallback, useMemo, useEffect } from 'react';
 import { X, Plus, Trash2, Sparkles } from 'lucide-react';
 import { supabase } from '../../lib/supabaseClient';
-import { invokeNotifyAdminEvents } from '../../utils/notifications';
+import { invokeNotifyMemberEvents } from '../../utils/notifications';
 import { useGlobalModal } from '../../context/GlobalModalContext';
 import { FOCUS_CHIPS, exercisesForFocus, stripBracketPrefix } from '../training/workoutPresets';
 
@@ -176,20 +176,12 @@ export default function AdminTrainingReportForm({ onClose, onSaved }) {
       const { error } = await supabase.from('client_session_reports').insert([payload]).select('id').single();
       if (error) throw error;
       try {
-        const { data: mem } = await supabase
-          .from('profiles')
-          .select('onesignal_id')
-          .eq('id', selectedMemberId)
-          .maybeSingle();
-        const pid = mem?.onesignal_id ? String(mem.onesignal_id) : null;
-        if (pid) {
-          const focus = sessionTitle.trim() || '트레이닝 세션';
-          await invokeNotifyAdminEvents(
-            pid,
-            '트레이닝 일지',
-            `${focus} · ${reportDate} 일지가 등록되었습니다.`
-          );
-        }
+        await invokeNotifyMemberEvents(
+          selectedMemberId,
+          'LAB DOT · 트레이닝 일지',
+          '새로운 트레이닝 일지가 등록되었습니다. 지금 확인해보세요!',
+          'training_log'
+        );
       } catch (e) {
         console.warn('[AdminTrainingReportForm] member push:', e);
       }

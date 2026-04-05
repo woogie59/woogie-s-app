@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   QrCode,
@@ -87,10 +87,27 @@ const formatUpcomingLine = (b) => {
 };
 
 const ClientHome = ({ user, logout, setView }) => {
-  const { showAlert } = useGlobalModal();
+  const { showAlert, showToast } = useGlobalModal();
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
   const [showQRModal, setShowQRModal] = useState(false);
+  /** Fade-out QR modal over 0.5s after realtime attendance_logs INSERT */
+  const [qrCheckInClosing, setQrCheckInClosing] = useState(false);
+  const showQRModalRef = useRef(false);
+  const qrCloseTimerRef = useRef(null);
+
+  useEffect(() => {
+    showQRModalRef.current = showQRModal;
+  }, [showQRModal]);
+
+  useEffect(() => {
+    return () => {
+      if (qrCloseTimerRef.current != null) {
+        clearTimeout(qrCloseTimerRef.current);
+        qrCloseTimerRef.current = null;
+      }
+    };
+  }, []);
   const [showScheduleModal, setShowScheduleModal] = useState(false);
   const [myBookings, setMyBookings] = useState([]);
   const [loadingBookings, setLoadingBookings] = useState(false);
@@ -180,7 +197,7 @@ const ClientHome = ({ user, logout, setView }) => {
     if (!user) return;
 
     const channel = supabase
-      .channel('attendance_changes')
+      .channel('attendance_logs_realtime_member')
       .on(
         'postgres_changes',
         {
@@ -190,7 +207,6 @@ const ClientHome = ({ user, logout, setView }) => {
           filter: `user_id=eq.${user.id}`,
         },
         () => {
-          showAlert({ message: '✅ 출석완료되었습니다' });
           const fetchProfile = async () => {
             const { data, error } = await supabase
               .from('profiles')
@@ -205,6 +221,21 @@ const ClientHome = ({ user, logout, setView }) => {
           fetchProfile();
           fetchSessionBatches();
           fetchMyBookings();
+
+          if (showQRModalRef.current) {
+            setQrCheckInClosing(true);
+            if (qrCloseTimerRef.current != null) {
+              clearTimeout(qrCloseTimerRef.current);
+            }
+            qrCloseTimerRef.current = window.setTimeout(() => {
+              qrCloseTimerRef.current = null;
+              setShowQRModal(false);
+              setQrCheckInClosing(false);
+              showToast('Check-in successful · 출석이 완료되었습니다');
+            }, 500);
+          } else {
+            showAlert({ message: '✅ 출석완료되었습니다' });
+          }
         }
       )
       .subscribe();
@@ -212,7 +243,7 @@ const ClientHome = ({ user, logout, setView }) => {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [user, showAlert, fetchSessionBatches, fetchMyBookings]);
+  }, [user, showAlert, showToast, fetchSessionBatches, fetchMyBookings]);
 
   useEffect(() => {
     if (!user?.id) return;
@@ -588,19 +619,21 @@ const ClientHome = ({ user, logout, setView }) => {
         </div>
       </main>
 
-      {/* QR Code Modal */}
+      {/* QR Code Modal — realtime INSERT on attendance_logs triggers 0.5s fade-out + toast */}
       <AnimatePresence>
         {showQRModal && (
           <motion.div
             initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
+            animate={{ opacity: qrCheckInClosing ? 0 : 1 }}
+            transition={{ duration: 0.5, ease: 'easeInOut' }}
             exit={{ opacity: 0 }}
             className="fixed inset-0 z-50 flex items-center justify-center p-6 bg-gray-900/30 backdrop-blur-sm"
-            onClick={() => setShowQRModal(false)}
+            onClick={() => !qrCheckInClosing && setShowQRModal(false)}
           >
             <motion.div
               initial={{ scale: 0.96, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
+              animate={{ scale: qrCheckInClosing ? 0.98 : 1, opacity: qrCheckInClosing ? 0 : 1 }}
+              transition={{ duration: 0.5, ease: 'easeInOut' }}
               exit={{ scale: 0.96, opacity: 0 }}
               className="bg-white border border-gray-100 rounded-2xl p-8 max-w-sm w-full shadow-2xl"
               onClick={(e) => e.stopPropagation()}
@@ -609,8 +642,9 @@ const ClientHome = ({ user, logout, setView }) => {
                 <h3 className="text-lg font-semibold text-[#064e3b] tracking-tight">체크인 QR</h3>
                 <button
                   type="button"
-                  onClick={() => setShowQRModal(false)}
-                  className="text-gray-500 hover:text-slate-900 transition-colors p-1"
+                  onClick={() => !qrCheckInClosing && setShowQRModal(false)}
+                  disabled={qrCheckInClosing}
+                  className="text-gray-500 hover:text-slate-900 transition-colors p-1 disabled:opacity-40"
                   aria-label="닫기"
                 >
                   <X size={22} strokeWidth={ICON_STROKE} />
@@ -647,8 +681,9 @@ const ClientHome = ({ user, logout, setView }) => {
 
               <button
                 type="button"
-                onClick={() => setShowQRModal(false)}
-                className="w-full mt-6 bg-[#064e3b] text-white font-semibold py-3.5 rounded-xl hover:bg-[#053d2f] active:scale-[0.99] transition-all"
+                onClick={() => !qrCheckInClosing && setShowQRModal(false)}
+                disabled={qrCheckInClosing}
+                className="w-full mt-6 bg-[#064e3b] text-white font-semibold py-3.5 rounded-xl hover:bg-[#053d2f] active:scale-[0.99] transition-all disabled:opacity-50"
               >
                 닫기
               </button>

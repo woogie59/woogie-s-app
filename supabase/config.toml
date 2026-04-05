@@ -18,6 +18,12 @@ verify_jwt = true
 import_map = "./functions/notify-admin-events/deno.json"
 entrypoint = "./functions/notify-admin-events/index.ts"
 
+[functions.notify-member-events]
+enabled = true
+verify_jwt = true
+import_map = "./functions/notify-member-events/deno.json"
+entrypoint = "./functions/notify-member-events/index.ts"
+
 [functions.send-admin-alert]
 enabled = true
 verify_jwt = true
