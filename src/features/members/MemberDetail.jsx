@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { CreditCard, History, Plus, Calendar, Sparkles } from 'lucide-react';
+import { CreditCard, History, Plus, Calendar, Sparkles, Pencil } from 'lucide-react';
 import { supabase } from '../../lib/supabaseClient';
 import BackButton from '../../components/ui/BackButton';
 import AddSessionModal from './AddSessionModal';
@@ -8,7 +8,8 @@ const MemberDetail = ({ selectedMemberId, goBack }) => {
   const [u, setU] = useState(null);
   const [batches, setBatches] = useState([]);
   const [loadingBatches, setLoadingBatches] = useState(true);
-  const [showAddModal, setShowAddModal] = useState(false);
+  /** null | 'add' | batch row — one modal with create vs edit */
+  const [sessionModal, setSessionModal] = useState(null);
 
   const fetchMemberDetails = async () => {
     const { data: userData } = await supabase.from('profiles').select('*').eq('id', selectedMemberId).single();
@@ -19,7 +20,6 @@ const MemberDetail = ({ selectedMemberId, goBack }) => {
       .from('session_batches')
       .select('*')
       .eq('user_id', selectedMemberId)
-      .gt('remaining_count', 0)
       .order('created_at', { ascending: true });
 
     if (batchError) {
@@ -37,7 +37,9 @@ const MemberDetail = ({ selectedMemberId, goBack }) => {
   }, [selectedMemberId]);
 
   const totalRemaining =
-    batches.length > 0 ? batches.reduce((sum, batch) => sum + batch.remaining_count, 0) : u?.remaining_sessions || 0;
+    batches.length > 0
+      ? batches.reduce((sum, batch) => sum + (Number(batch.remaining_count) || 0), 0)
+      : u?.remaining_sessions || 0;
 
   if (!u)
     return (
@@ -74,7 +76,7 @@ const MemberDetail = ({ selectedMemberId, goBack }) => {
         <div className="bg-white border border-gray-200 p-5 rounded-xl space-y-4 shadow-sm">
           <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
             <History size={16} className="text-emerald-600" />
-            Active Session Packs
+            Session Packs <span className="text-xs font-normal text-gray-500">(구매 건별 스냅샷)</span>
           </h3>
 
           {loadingBatches ? (
@@ -88,20 +90,24 @@ const MemberDetail = ({ selectedMemberId, goBack }) => {
                   .replace(/\. /g, '.')
                   .replace(/\.$/, '');
 
+                const exhausted = Number(batch.remaining_count) <= 0;
                 return (
                   <div
                     key={batch.id}
                     className={`bg-white rounded-lg p-4 transition-all ${
                       isInUse ? 'border-2 border-emerald-600/60 bg-emerald-600/5' : 'border border-gray-200'
-                    }`}
+                    } ${exhausted ? 'opacity-90' : ''}`}
                   >
-                    <div className="flex justify-between items-start mb-3">
-                      <div className="flex-1">
+                    <div className="flex justify-between items-start mb-3 gap-2">
+                      <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 mb-2">
                           <Calendar size={14} className={isInUse ? 'text-emerald-600' : 'text-gray-500'} />
                           <span className="text-sm text-gray-500">{batchDate}</span>
                           {isInUse && (
                             <span className="text-xs bg-emerald-600 text-white font-bold px-2 py-0.5 rounded">IN USE</span>
+                          )}
+                          {exhausted && (
+                            <span className="text-xs bg-gray-200 text-gray-700 font-medium px-2 py-0.5 rounded">사용 완료</span>
                           )}
                         </div>
 
@@ -116,18 +122,29 @@ const MemberDetail = ({ selectedMemberId, goBack }) => {
                           <div>
                             <span className="text-xs text-gray-500 block mb-1">💰 Price</span>
                             <span className="text-lg font-serif text-emerald-600">
-                              {batch.price_per_session.toLocaleString()}
+                              {(batch.price_per_session != null ? Number(batch.price_per_session) : 0).toLocaleString()}
                               <span className="text-xs ml-1">원</span>
                             </span>
                           </div>
                         </div>
                       </div>
+                      <button
+                        type="button"
+                        onClick={() => setSessionModal(batch)}
+                        className="shrink-0 flex items-center gap-1.5 text-xs font-medium text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200/80 rounded-lg px-3 py-2 transition-colors"
+                        aria-label="세션 팩 수정"
+                      >
+                        <Pencil size={14} className="shrink-0" aria-hidden />
+                        수정
+                      </button>
                     </div>
 
                     <div className="w-full bg-gray-200 rounded-full h-2 overflow-hidden">
                       <div
                         className={`h-full rounded-full transition-all ${isInUse ? 'bg-emerald-600' : 'bg-gray-300'}`}
-                        style={{ width: `${(batch.remaining_count / batch.total_count) * 100}%` }}
+                        style={{
+                          width: `${batch.total_count > 0 ? (batch.remaining_count / batch.total_count) * 100 : 0}%`,
+                        }}
                       ></div>
                     </div>
                   </div>
@@ -152,7 +169,7 @@ const MemberDetail = ({ selectedMemberId, goBack }) => {
           </h3>
 
           <button
-            onClick={() => setShowAddModal(true)}
+            onClick={() => setSessionModal('add')}
             className="w-full bg-emerald-600 text-white font-bold py-3 rounded-lg text-sm hover:bg-emerald-500 active:scale-95 transition-all disabled:opacity-50"
           >
             OPEN SESSION PACK FORM
@@ -179,10 +196,13 @@ const MemberDetail = ({ selectedMemberId, goBack }) => {
         </div>
       </div>
 
-      {showAddModal && (
+      {sessionModal && (
         <AddSessionModal
+          key={typeof sessionModal === 'object' && sessionModal?.id ? sessionModal.id : 'new-pack'}
           userId={selectedMemberId}
-          onClose={() => setShowAddModal(false)}
+          mode={typeof sessionModal === 'object' ? 'edit' : 'create'}
+          editBatch={typeof sessionModal === 'object' ? sessionModal : null}
+          onClose={() => setSessionModal(null)}
           onSaved={fetchMemberDetails}
         />
       )}

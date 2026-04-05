@@ -4,10 +4,22 @@ import { X } from 'lucide-react';
 import { supabase } from '../../lib/supabaseClient';
 import { useGlobalModal } from '../../context/GlobalModalContext';
 
+/** Row from `session_batches` — purchase snapshot (not a FK to a catalog pack). */
+export type SessionBatchRow = {
+  id: string;
+  total_count: number;
+  remaining_count: number;
+  price_per_session: number;
+  price?: number | null;
+};
+
 type Props = {
   userId: string;
   onClose: () => void;
   onSaved?: () => void;
+  /** create = new pack; edit = update existing `session_batches` row */
+  mode?: 'create' | 'edit';
+  editBatch?: SessionBatchRow | null;
   initialTotalPrice?: number;
   initialTotalSessions?: number;
   initialUsedSessions?: number;
@@ -28,18 +40,41 @@ const toNumericInput = (n: unknown): NumericInput => {
 
 const toNumberOrZero = (v: NumericInput) => (v === '' ? 0 : clampInt(v));
 
+function initialFormFromEdit(batch: SessionBatchRow) {
+  const used = Math.max(0, batch.total_count - batch.remaining_count);
+  const packPrice =
+    batch.price != null && Number.isFinite(Number(batch.price))
+      ? Number(batch.price)
+      : batch.price_per_session * batch.total_count;
+  return {
+    totalPrice: toNumericInput(packPrice),
+    totalSessions: toNumericInput(batch.total_count),
+    usedSessions: toNumericInput(used),
+  };
+}
+
 export default function AddSessionModal({
   userId,
   onClose,
   onSaved,
+  mode = 'create',
+  editBatch = null,
   initialTotalPrice = 0,
   initialTotalSessions = 0,
   initialUsedSessions = 0,
 }: Props) {
   const { showAlert } = useGlobalModal();
-  const [totalPrice, setTotalPrice] = useState<NumericInput>(toNumericInput(initialTotalPrice));
-  const [totalSessions, setTotalSessions] = useState<NumericInput>(toNumericInput(initialTotalSessions));
-  const [usedSessions, setUsedSessions] = useState<NumericInput>(toNumericInput(initialUsedSessions));
+  const defaults =
+    mode === 'edit' && editBatch
+      ? initialFormFromEdit(editBatch)
+      : {
+          totalPrice: toNumericInput(initialTotalPrice),
+          totalSessions: toNumericInput(initialTotalSessions),
+          usedSessions: toNumericInput(initialUsedSessions),
+        };
+  const [totalPrice, setTotalPrice] = useState<NumericInput>(defaults.totalPrice);
+  const [totalSessions, setTotalSessions] = useState<NumericInput>(defaults.totalSessions);
+  const [usedSessions, setUsedSessions] = useState<NumericInput>(defaults.usedSessions);
   const [saving, setSaving] = useState(false);
 
   const { remainingSessions, pricePerSession, error } = useMemo(() => {
@@ -70,34 +105,71 @@ export default function AddSessionModal({
     try {
       const totalPriceN = toNumberOrZero(totalPrice);
       const totalSessionsN = toNumberOrZero(totalSessions);
-      // `price` = pack total (KRW); Revenue screen sums this for the selected month
-      const { error: insertError } = await supabase.from('session_batches').insert({
-        user_id: userId,
-        total_count: totalSessionsN,
-        remaining_count: remainingSessions,
-        price_per_session: pricePerSession,
-        price: totalPriceN,
-      });
-      if (insertError) throw insertError;
+      const newRemaining = remainingSessions;
 
-      const { data: profileRow, error: profileFetchError } = await supabase
-        .from('profiles')
-        .select('remaining_sessions')
-        .eq('id', userId)
-        .single();
-      if (profileFetchError) throw profileFetchError;
+      if (mode === 'edit' && editBatch) {
+        const deltaRemaining = newRemaining - editBatch.remaining_count;
 
-      const nextRemaining = (profileRow?.remaining_sessions ?? 0) + remainingSessions;
-      const { error: profileUpdateError } = await supabase
-        .from('profiles')
-        .update({
-          remaining_sessions: nextRemaining,
+        const { error: updateError } = await supabase
+          .from('session_batches')
+          .update({
+            total_count: totalSessionsN,
+            remaining_count: newRemaining,
+            price_per_session: pricePerSession,
+            price: totalPriceN,
+          })
+          .eq('id', editBatch.id);
+        if (updateError) throw updateError;
+
+        const { data: profileRow, error: profileFetchError } = await supabase
+          .from('profiles')
+          .select('remaining_sessions')
+          .eq('id', userId)
+          .single();
+        if (profileFetchError) throw profileFetchError;
+
+        const nextProfileRemaining = Math.max(0, (profileRow?.remaining_sessions ?? 0) + deltaRemaining);
+        const { error: profileUpdateError } = await supabase
+          .from('profiles')
+          .update({
+            remaining_sessions: nextProfileRemaining,
+            price_per_session: pricePerSession,
+          })
+          .eq('id', userId);
+        if (profileUpdateError) throw profileUpdateError;
+
+        showAlert({ message: '세션 팩이 수정되었습니다.' });
+      } else {
+        // `price` = pack total (KRW); Revenue screen sums this for the selected month
+        const { error: insertError } = await supabase.from('session_batches').insert({
+          user_id: userId,
+          total_count: totalSessionsN,
+          remaining_count: newRemaining,
           price_per_session: pricePerSession,
-        })
-        .eq('id', userId);
-      if (profileUpdateError) throw profileUpdateError;
+          price: totalPriceN,
+        });
+        if (insertError) throw insertError;
 
-      showAlert({ message: 'Saved!' });
+        const { data: profileRow, error: profileFetchError } = await supabase
+          .from('profiles')
+          .select('remaining_sessions')
+          .eq('id', userId)
+          .single();
+        if (profileFetchError) throw profileFetchError;
+
+        const nextRemaining = (profileRow?.remaining_sessions ?? 0) + newRemaining;
+        const { error: profileUpdateError } = await supabase
+          .from('profiles')
+          .update({
+            remaining_sessions: nextRemaining,
+            price_per_session: pricePerSession,
+          })
+          .eq('id', userId);
+        if (profileUpdateError) throw profileUpdateError;
+
+        showAlert({ message: 'Saved!' });
+      }
+
       onSaved?.();
       onClose();
     } catch (e: any) {
@@ -128,7 +200,14 @@ export default function AddSessionModal({
           <div className="flex items-center justify-between mb-5">
             <div>
               <p className="text-[10px] tracking-[0.2em] uppercase text-gray-500">Admin</p>
-              <h3 className="text-xl font-serif text-emerald-600">Add Session Pack</h3>
+              <h3 className="text-xl font-serif text-emerald-600">
+                {mode === 'edit' ? '세션 팩 수정' : 'Add Session Pack'}
+              </h3>
+              {mode === 'edit' && editBatch && (
+                <p className="text-xs text-gray-500 mt-1 font-mono truncate" title={editBatch.id}>
+                  ID · {editBatch.id.slice(0, 8)}…
+                </p>
+              )}
             </div>
             <button
               onClick={onClose}
@@ -211,12 +290,18 @@ export default function AddSessionModal({
               disabled={!!error || saving}
               className="w-full bg-emerald-600 text-white font-bold py-3 rounded-xl hover:bg-emerald-500 active:scale-[0.99] transition disabled:opacity-50 disabled:hover:bg-emerald-600"
             >
-              {saving ? 'Saving...' : 'Save Session Pack'}
+              {saving ? 'Saving...' : mode === 'edit' ? '수정 저장' : 'Save Session Pack'}
             </button>
 
             <p className="text-xs text-gray-600 leading-relaxed">
               Remaining Sessions is computed as <span className="text-gray-900">Total Sessions − Used Sessions</span>. Price per session is{' '}
               <span className="text-gray-900">Total Price ÷ Total Sessions</span>.
+              {mode === 'edit' && (
+                <>
+                  {' '}
+                  이 행은 구매 시점 스냅샷(<code className="text-[11px]">session_batches</code>)만 바뀌며, 다른 회원·다른 구매 건에는 영향 없습니다.
+                </>
+              )}
             </p>
           </div>
         </motion.div>
