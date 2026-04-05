@@ -11,8 +11,32 @@ serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
 
   try {
-    const { targetId, title, message } = await req.json();
-    let finalTargetId = targetId;
+    const raw = (await req.json()) as Record<string, unknown>;
+    const row = raw?.record && typeof raw.record === 'object' && raw.record !== null
+      ? (raw.record as Record<string, unknown>)
+      : raw;
+
+    const isDatabaseWebhook =
+      row?.trigger_source === 'database_webhook' ||
+      raw?.trigger_source === 'database_webhook';
+
+    let title: string;
+    let message: string;
+    let finalTargetId: string | undefined =
+      typeof raw.targetId === 'string' ? raw.targetId : undefined;
+
+    if (isDatabaseWebhook) {
+      const name = String(row?.new_member_name ?? raw?.new_member_name ?? '').trim() || '신규';
+      title = '신규 회원 가입';
+      message = `${name} 회원님이 가입하셨습니다.`;
+      finalTargetId = undefined;
+    } else {
+      title = typeof raw.title === 'string' ? raw.title : '';
+      message = typeof raw.message === 'string' ? raw.message : '';
+      if (!title || !message) {
+        throw new Error('title과 message가 필요합니다 (또는 trigger_source: database_webhook 페이로드).');
+      }
+    }
 
     if (!finalTargetId) {
       const supabaseAdmin = createClient(
@@ -49,21 +73,20 @@ serve(async (req) => {
     });
 
     const data = await response.json();
-    
-    // 원시그널이 에러를 뱉었을 경우, 강제로 에러를 발생시켜 Supabase 로그에 빨간 줄을 긋게 만듭니다.
+
     if (!response.ok || data.errors) {
       throw new Error(`OneSignal API 거절됨: ${JSON.stringify(data)} / TargetID: ${finalTargetId}`);
     }
 
-    return new Response(JSON.stringify({ status: response.status, data }), { 
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+    return new Response(JSON.stringify({ status: response.status, data }), {
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
-
   } catch (error) {
-    console.error("🚨 엣지 펑션 치명적 에러:", error.message);
-    return new Response(JSON.stringify({ error: error.message }), { 
-      status: 400, 
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+    const msg = error instanceof Error ? error.message : String(error);
+    console.error("🚨 엣지 펑션 치명적 에러:", msg);
+    return new Response(JSON.stringify({ error: msg }), {
+      status: 400,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   }
 });

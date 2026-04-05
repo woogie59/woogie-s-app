@@ -24,9 +24,8 @@ const RegisterView = ({ setView, goBack }) => {
 
     setLoading(true);
 
-    // Order: 1) Auth + Profile → 2) notify-admin-events (await, before Welcome) → 3) setIsSuccess
+    // Auth + Profile → Welcome (관리자 알림은 DB 웹훅/트리거 → Edge Function에서 처리)
     try {
-      // 1. Create Auth & Profile
       const { data, error } = await supabase.auth.signUp({
         email: formData.email,
         password: formData.password,
@@ -71,22 +70,6 @@ const RegisterView = ({ setView, goBack }) => {
         console.log('ℹ️ profiles 행 이미 존재 — insert 생략', { userId: user.id });
       }
 
-      // 2. Trigger Admin Notification (Mandatory Await) — 반드시 환영 화면 전에 시도
-      try {
-        console.log('🔔 알림 발송 시도 중...');
-        const { error: invokeErr } = await supabase.functions.invoke('notify-admin-events', {
-          body: {
-            title: '신규 회원 가입',
-            message: `${formData.name || '신규'} 회원님이 가입하셨습니다.`,
-          },
-        });
-        if (invokeErr) throw invokeErr;
-        console.log('✅ 알림 발송 완료');
-      } catch (notifyErr) {
-        console.error('❌ 알림 발송 실패(무시하고 진행):', notifyErr);
-      }
-
-      // 3. Show Welcome Screen & Transition (ONLY after notification attempt)
       setIsSuccess(true);
     } catch (err) {
       console.error(err);
