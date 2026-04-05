@@ -8,19 +8,16 @@ const corsHeaders = {
 };
 
 serve(async (req) => {
-  if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders });
-  }
+  if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
 
   try {
     const { targetId, title, message } = await req.json();
     let finalTargetId = targetId;
 
-    // 프론트엔드에서 ID를 못 찾고 빈 값(null/undefined)을 보냈을 경우, 서버가 직접 마스터키로 DB를 뒤집니다.
     if (!finalTargetId) {
       const supabaseAdmin = createClient(
         Deno.env.get('SUPABASE_URL') ?? '',
-        Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '' // RLS 보안을 무시하는 절대 권한
+        Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
       );
 
       const { data: adminData, error: adminError } = await supabaseAdmin
@@ -30,7 +27,7 @@ serve(async (req) => {
         .single();
 
       if (adminError || !adminData?.onesignal_id) {
-        throw new Error("서버 마스터키로도 관리자 OneSignal ID를 찾지 못했습니다.");
+        throw new Error(`관리자 OneSignal ID 추출 실패: ${JSON.stringify(adminError)}`);
       }
       finalTargetId = adminData.onesignal_id;
     }
@@ -40,7 +37,6 @@ serve(async (req) => {
 
     const payload = {
       app_id: APP_ID,
-      include_subscription_ids: [finalTargetId],
       include_player_ids: [finalTargetId],
       headings: { en: title },
       contents: { en: message },
@@ -53,11 +49,18 @@ serve(async (req) => {
     });
 
     const data = await response.json();
-    return new Response(JSON.stringify({ status: response.status, target: finalTargetId, onesignalResponse: data }), { 
+    
+    // 원시그널이 에러를 뱉었을 경우, 강제로 에러를 발생시켜 Supabase 로그에 빨간 줄을 긋게 만듭니다.
+    if (!response.ok || data.errors) {
+      throw new Error(`OneSignal API 거절됨: ${JSON.stringify(data)} / TargetID: ${finalTargetId}`);
+    }
+
+    return new Response(JSON.stringify({ status: response.status, data }), { 
       headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
     });
 
   } catch (error) {
+    console.error("🚨 엣지 펑션 치명적 에러:", error.message);
     return new Response(JSON.stringify({ error: error.message }), { 
       status: 400, 
       headers: { ...corsHeaders, 'Content-Type': 'application/json' } 

@@ -100,14 +100,9 @@ const RegisterView = ({ setView, goBack }) => {
     }
   };
 
-  const handleStart = async () => {
-    try {
-      setView('login');
-      await supabase.auth.signOut();
-    } catch (e) {
-      console.error('[RegisterView] 시작하기:', e);
-      setView('login');
-    }
+  /** 이미 `signUp`으로 세션이 있으므로 로그인 화면·signOut 없이 회원 홈으로 이동 */
+  const handleStart = () => {
+    setView('client_home');
   };
 
   if (isSuccess) {
@@ -116,11 +111,10 @@ const RegisterView = ({ setView, goBack }) => {
       <div className="min-h-[100dvh] bg-white text-slate-900 p-6 flex flex-col items-center justify-center">
         <div className="w-full max-w-sm text-center space-y-8">
           <LabDotBrand variant="header" />
-          <div className="space-y-3">
+          <div>
             <p className="text-xl font-medium text-slate-900 tracking-tight">
               {displayName}님, 환영합니다.
             </p>
-            <p className="text-sm text-gray-500 font-light leading-relaxed">Silent Luxury Lab과 함께해 주셔서 감사합니다.</p>
           </div>
           <button
             type="button"
