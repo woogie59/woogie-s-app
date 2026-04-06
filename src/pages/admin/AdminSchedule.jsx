@@ -84,13 +84,14 @@ const AdminSchedule = ({ setView, goBack }) => {
     const { error } = await supabase.from('bookings').delete().eq('id', bookingToDelete.id);
 
     if (error) {
+      setCancelling(null);
       showAlert({ message: 'Error cancelling booking: ' + error.message });
     } else {
       setIsCancelModalOpen(false);
       setBookingToDelete(null);
       setCancelling(null);
       fetchBookings();
-      showAlert({ message: '취소가 완료되었습니다.', confirmLabel: '확인' });
+      showAlert({ message: '일정이 삭제되었습니다.', confirmLabel: '확인' });
     }
   };
 
@@ -202,9 +203,9 @@ const AdminSchedule = ({ setView, goBack }) => {
               transition={{ duration: 0.25, ease: [0.25, 0.46, 0.45, 0.94] }}
               className="bg-white border border-emerald-600/20 rounded-2xl shadow-xl shadow-gray-900/10 p-6 max-w-sm w-full"
             >
-              <h3 className="text-lg font-serif text-emerald-600 mb-2">예약 취소</h3>
+              <h3 className="text-lg font-serif text-emerald-600 mb-2">일정 삭제</h3>
               <p className="text-gray-600 text-sm mb-6">
-                {bookingToDelete.userName}님의 {bookingToDelete.date} {bookingToDelete.time} 예약을 취소할까요?
+                이 일정을 삭제하시겠습니까? 삭제 시 해당 시간은 다른 회원이 예약할 수 있게 즉시 개방됩니다.
               </p>
               <div className="flex gap-3 justify-end">
                 <button
@@ -221,7 +222,7 @@ const AdminSchedule = ({ setView, goBack }) => {
                   disabled={cancelling === bookingToDelete.id}
                   className="px-6 py-3 rounded-xl bg-emerald-600 text-white font-bold hover:bg-emerald-500 transition-all disabled:opacity-50 min-w-[80px]"
                 >
-                  {cancelling === bookingToDelete.id ? '처리 중...' : '예, 취소할게요'}
+                  {cancelling === bookingToDelete.id ? '처리 중...' : '삭제하기'}
                 </button>
               </div>
             </motion.div>

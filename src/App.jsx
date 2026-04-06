@@ -535,16 +535,13 @@ export default function App() {
   /** 관리자 일정 대시보드(Day/Week/Month)에서 예약 취소 */
   const handleScheduleDashCancel = (item, dateKey) => {
     if (!item?.booking?.id) return;
-    if (item.status === 'Completed') {
-      showAlert({ message: '이미 출석 처리된 예약은 취소할 수 없습니다.' });
-      return;
-    }
     const b = item.booking;
     const userName = item.userName || '회원';
     showConfirm({
-      title: '예약 취소',
-      message: `${userName}님의 ${dateKey} ${item.time} 일정을 취소할까요?`,
-      confirmLabel: '예, 취소합니다',
+      title: '일정 삭제',
+      message:
+        '이 일정을 삭제하시겠습니까? 삭제 시 해당 시간은 다른 회원이 예약할 수 있게 즉시 개방됩니다.',
+      confirmLabel: '삭제하기',
       cancelLabel: '닫기',
       onConfirm: async (close) => {
         const { error } = await supabase.from('bookings').delete().eq('id', b.id);
@@ -566,7 +563,7 @@ export default function App() {
         }
         await fetchRevenueData();
         close();
-        showToast('예약이 취소되었습니다');
+        showToast('일정이 삭제되었습니다');
       },
     });
   };
@@ -1006,13 +1003,13 @@ export default function App() {
                                 <div className="flex items-center justify-between gap-2">
                                   <span className="text-gray-600 font-mono font-medium shrink-0">{item.time}</span>
                                   <span className="flex-1 text-slate-900 font-medium truncate text-center min-w-0">{item.userName}</span>
-                                  {item.status !== 'Completed' && item.booking?.id && (
+                                  {item.booking?.id && (
                                     <button
                                       type="button"
                                       onClick={() => handleScheduleDashCancel(item, dayKey)}
                                       className="shrink-0 p-2 rounded-lg bg-red-50 border border-red-100 text-red-600 hover:bg-red-100 active:scale-95 transition-all"
-                                      aria-label="예약 취소"
-                                      title="예약 취소"
+                                      aria-label="일정 삭제"
+                                      title="일정 삭제"
                                     >
                                       <Trash2 size={18} />
                                     </button>
@@ -1070,13 +1067,13 @@ export default function App() {
                               >
                                 <span className="text-gray-600 font-mono text-sm shrink-0">{item.time}</span>
                                 <span className="flex-1 text-slate-900 text-sm truncate text-center min-w-0">{item.userName}</span>
-                                {item.status !== 'Completed' && item.booking?.id && (
+                                {item.booking?.id && (
                                   <button
                                     type="button"
                                     onClick={() => handleScheduleDashCancel(item, dateKey)}
                                     className="shrink-0 p-1.5 rounded-lg bg-red-50 border border-red-100 text-red-600 hover:bg-red-100 active:scale-95 transition-all"
-                                    aria-label="예약 취소"
-                                    title="예약 취소"
+                                    aria-label="일정 삭제"
+                                    title="일정 삭제"
                                   >
                                     <Trash2 size={16} />
                                   </button>
@@ -1157,13 +1154,13 @@ export default function App() {
                           >
                             <span className="font-mono text-gray-600 shrink-0">{item.time}</span>
                             <span className="flex-1 text-slate-900 text-center truncate min-w-0">{item.userName}</span>
-                            {item.status !== 'Completed' && item.booking?.id && (
+                            {item.booking?.id && (
                               <button
                                 type="button"
                                 onClick={() => handleScheduleDashCancel(item, selectedRevenueDay)}
                                 className="shrink-0 p-2 rounded-lg bg-red-50 border border-red-100 text-red-600 hover:bg-red-100 active:scale-95 transition-all"
-                                aria-label="예약 취소"
-                                title="예약 취소"
+                                aria-label="일정 삭제"
+                                title="일정 삭제"
                               >
                                 <Trash2 size={18} />
                               </button>

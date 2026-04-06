@@ -114,6 +114,7 @@ const ClassBooking = ({ user, setView, goBack }) => {
     const fetchBookings = async () => {
       setLoading(true);
       try {
+        // 회원 화면 슬롯 가용성: 해당 날짜의 bookings 행 수로 점유를 판단(countSlot). 행 삭제 시 슬롯이 즉시 비워짐.
         const { data, error } = await supabase.from('bookings').select('*').eq('date', selectedDate);
         if (error) throw error;
         setBookings(Array.isArray(data) ? data : []);

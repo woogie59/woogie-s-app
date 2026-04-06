@@ -254,6 +254,7 @@ const ClientHome = ({ user, logout, setView }) => {
 
     console.log('🎧 QR 실시간 감시 시작 (bookings 테이블)...');
 
+    // 스키마상 회원 FK는 `user_id` (setup_bookings.sql). 프로젝트가 `member_id` 등이면 아래 filter만 맞춰 변경.
     const checkinChannel = supabase
       .channel(`qr-checkin-${user.id}`)
       .on(
@@ -265,18 +266,14 @@ const ClientHome = ({ user, logout, setView }) => {
           filter: `user_id=eq.${user.id}`,
         },
         (payload) => {
-          console.log('🔥 DB 변경 감지됨!', payload);
-          const n = payload?.new ?? {};
-          const o = payload?.old ?? {};
-          const checkInDetected =
-            n.status === 'present' ||
-            n.is_attended === true ||
-            (n.status === 'completed' && o.status !== 'completed');
+          // 디버그: 이 사용자 행에 대한 UPDATE마다 날것 로그 (스캔 시 어떤 컬럼이 바뀌는지 확인 후 조건 복구)
+          console.log('🔥 DB 변경 감지됨! 날것의 데이터:', payload);
+          console.log('  · old:', payload?.old);
+          console.log('  · new:', payload?.new);
 
-          if (checkInDetected) {
-            console.log('✅ 출석 확인! 팝업을 닫습니다.');
-            handleMemberCheckInRealtime();
-          }
+          // if (payload.new.status === 'present' || payload.new.is_attended === true) {
+          //   handleMemberCheckInRealtime();
+          // }
         }
       )
       .subscribe((status) => {
@@ -287,7 +284,7 @@ const ClientHome = ({ user, logout, setView }) => {
       console.log('🧹 QR 감시 종료 (채널 제거)');
       supabase.removeChannel(checkinChannel);
     };
-  }, [user?.id, showQRModal, handleMemberCheckInRealtime]);
+  }, [user?.id, showQRModal]);
 
   useEffect(() => {
     if (!user?.id) return;
