@@ -98,46 +98,6 @@ const ClientHome = ({ user, logout, setView }) => {
   /** attendance_logs INSERT + bookings UPDATE 둘 다 올 때 토스트/팝업 중복 방지 */
   const lastCheckInRealtimeRef = useRef(0);
 
-  useEffect(() => {
-    showQRModalRef.current = showQRModal;
-  }, [showQRModal]);
-
-  useEffect(() => {
-    return () => {
-      if (qrCloseTimerRef.current != null) {
-        clearTimeout(qrCloseTimerRef.current);
-        qrCloseTimerRef.current = null;
-      }
-    };
-  }, []);
-
-  const handleMemberCheckInRealtime = useCallback(() => {
-    const now = Date.now();
-    if (now - lastCheckInRealtimeRef.current < 2000) return;
-    lastCheckInRealtimeRef.current = now;
-
-    const fetchProfile = async () => {
-      if (!user?.id) return;
-      const { data, error } = await supabase.from('profiles').select('*').eq('id', user.id).single();
-      if (!error && data) setProfile(data);
-    };
-    fetchProfile();
-    fetchSessionBatches();
-    fetchMyBookings();
-
-    if (showQRModalRef.current) {
-      setQrCheckInClosing(true);
-      if (qrCloseTimerRef.current != null) clearTimeout(qrCloseTimerRef.current);
-      qrCloseTimerRef.current = window.setTimeout(() => {
-        qrCloseTimerRef.current = null;
-        setShowQRModal(false);
-        setQrCheckInClosing(false);
-        showToast('Check-in successful · 출석이 완료되었습니다');
-      }, 500);
-    } else {
-      showAlert({ message: '✅ 출석완료되었습니다' });
-    }
-  }, [user?.id, showAlert, showToast, fetchSessionBatches, fetchMyBookings]);
   const [showScheduleModal, setShowScheduleModal] = useState(false);
   const [myBookings, setMyBookings] = useState([]);
   const [loadingBookings, setLoadingBookings] = useState(false);
@@ -158,6 +118,19 @@ const ClientHome = ({ user, logout, setView }) => {
     monday.setHours(0, 0, 0, 0);
     return monday;
   });
+
+  useEffect(() => {
+    showQRModalRef.current = showQRModal;
+  }, [showQRModal]);
+
+  useEffect(() => {
+    return () => {
+      if (qrCloseTimerRef.current != null) {
+        clearTimeout(qrCloseTimerRef.current);
+        qrCloseTimerRef.current = null;
+      }
+    };
+  }, []);
 
   useEffect(() => {
     const fetchProfile = async () => {
@@ -222,6 +195,34 @@ const ClientHome = ({ user, logout, setView }) => {
   useEffect(() => {
     fetchMyBookings();
   }, [fetchMyBookings]);
+
+  const handleMemberCheckInRealtime = useCallback(() => {
+    const now = Date.now();
+    if (now - lastCheckInRealtimeRef.current < 2000) return;
+    lastCheckInRealtimeRef.current = now;
+
+    const fetchProfileAfterCheckIn = async () => {
+      if (!user?.id) return;
+      const { data, error } = await supabase.from('profiles').select('*').eq('id', user.id).single();
+      if (!error && data) setProfile(data);
+    };
+    fetchProfileAfterCheckIn();
+    fetchSessionBatches();
+    fetchMyBookings();
+
+    if (showQRModalRef.current) {
+      setQrCheckInClosing(true);
+      if (qrCloseTimerRef.current != null) clearTimeout(qrCloseTimerRef.current);
+      qrCloseTimerRef.current = window.setTimeout(() => {
+        qrCloseTimerRef.current = null;
+        setShowQRModal(false);
+        setQrCheckInClosing(false);
+        showToast('Check-in successful · 출석이 완료되었습니다');
+      }, 500);
+    } else {
+      showAlert({ message: '✅ 출석완료되었습니다' });
+    }
+  }, [user?.id, showAlert, showToast, fetchSessionBatches, fetchMyBookings]);
 
   useEffect(() => {
     if (!user?.id) return;
@@ -411,8 +412,10 @@ const ClientHome = ({ user, logout, setView }) => {
   }, [myBookings]);
 
   const sessionMetrics = useMemo(() => {
-    const totalPurchased = sumTotalPurchasedFromBatches(sessionBatches);
-    const usedSessionCount = countUsedSessionsFromBookings(myBookings);
+    const batches = Array.isArray(sessionBatches) ? sessionBatches : [];
+    const bookings = Array.isArray(myBookings) ? myBookings : [];
+    const totalPurchased = sumTotalPurchasedFromBatches(batches);
+    const usedSessionCount = countUsedSessionsFromBookings(bookings);
     const remaining = computeRemainingSessions(totalPurchased, usedSessionCount);
     return { totalPurchased, usedSessionCount, remaining };
   }, [sessionBatches, myBookings]);
@@ -511,23 +514,40 @@ const ClientHome = ({ user, logout, setView }) => {
     return `${formatKoreanMonthDay(start)} - ${formatKoreanMonthDay(end)}`;
   };
 
+  if (!user) {
+    return (
+      <div className="min-h-[100dvh] flex flex-col items-center justify-center bg-gray-50 px-6">
+        <div
+          className="h-8 w-8 animate-spin rounded-full border-2 border-[#064e3b]/25 border-t-[#064e3b]"
+          aria-hidden
+        />
+        <p className="mt-4 text-center text-sm text-gray-500">회원 정보를 불러오는 중입니다…</p>
+      </div>
+    );
+  }
+
+  if (loading) {
+    return (
+      <div className="min-h-[100dvh] flex flex-col items-center justify-center bg-gray-50 px-6">
+        <div
+          className="h-8 w-8 animate-spin rounded-full border-2 border-[#064e3b]/25 border-t-[#064e3b]"
+          aria-hidden
+        />
+        <p className="mt-4 text-center text-sm text-gray-500">대시보드를 준비하는 중입니다…</p>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-[100dvh] bg-gray-50 text-slate-900 flex flex-col relative pb-safe font-sans antialiased">
       <header className="grid shrink-0 grid-cols-[1fr_auto_1fr] items-start gap-2 px-5 pt-5 pb-3">
         <div aria-hidden className="min-w-0" />
         <div className="flex min-w-0 flex-col items-center text-center">
           <LabDotBrand variant="header" />
-          {loading ? (
-            <div className="mt-2 flex items-center justify-center gap-3">
-              <Skeleton className="h-5 w-5 shrink-0 rounded-full" />
-              <Skeleton className="h-4 w-28" />
-            </div>
-          ) : (
-            <p className="mt-2.5 text-xs font-light tracking-[0.12em] text-gray-500">
-              <span className="text-slate-800">{profile?.name || '회원'}</span>
-              <span className="text-gray-400"> 님</span>
-            </p>
-          )}
+          <p className="mt-2.5 text-xs font-light tracking-[0.12em] text-gray-500">
+            <span className="text-slate-800">{profile?.name || '회원'}</span>
+            <span className="text-gray-400"> 님</span>
+          </p>
         </div>
         <div className="flex shrink-0 items-center justify-end gap-0.5 pt-0.5">
           <button
@@ -591,13 +611,9 @@ const ClientHome = ({ user, logout, setView }) => {
             </div>
 
             <div className="flex sm:justify-end sm:max-w-[32%] sm:min-w-[7rem] shrink-0 border-t border-white/10 pt-2 sm:border-t-0 sm:pt-0">
-              {loading ? (
-                <Skeleton className="h-5 w-20 bg-white/15 rounded ml-auto sm:ml-0" />
-              ) : (
-                <p className="text-[12px] sm:text-[11px] font-light tabular-nums tracking-wide text-emerald-50/95 text-right w-full sm:text-right">
-                  {sessionRemainLabel}
-                </p>
-              )}
+              <p className="text-[12px] sm:text-[11px] font-light tabular-nums tracking-wide text-emerald-50/95 text-right w-full sm:text-right">
+                {sessionRemainLabel}
+              </p>
             </div>
           </div>
         </div>
