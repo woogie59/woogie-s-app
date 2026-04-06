@@ -224,11 +224,17 @@ const ClientHome = ({ user, logout, setView }) => {
     }
   }, [user?.id, showAlert, showToast, fetchSessionBatches, fetchMyBookings]);
 
+  const handleMemberCheckInRealtimeRef = useRef(handleMemberCheckInRealtime);
   useEffect(() => {
-    if (!user?.id) return;
+    handleMemberCheckInRealtimeRef.current = handleMemberCheckInRealtime;
+  }, [handleMemberCheckInRealtime]);
+
+  /** 모달이 닫혀 있을 때만 출석 INSERT 구독 — QR 모달 열림 시 아래 전용 채널과 중복되지 않게 분리 */
+  useEffect(() => {
+    if (!user?.id || showQRModal) return;
 
     const channel = supabase
-      .channel('attendance_logs_realtime_member')
+      .channel(`attendance_logs_rt_${user.id}`)
       .on(
         'postgres_changes',
         {
@@ -238,42 +244,41 @@ const ClientHome = ({ user, logout, setView }) => {
           filter: `user_id=eq.${user.id}`,
         },
         () => {
-          handleMemberCheckInRealtime();
+          handleMemberCheckInRealtimeRef.current();
         }
       )
-      .subscribe();
+      .subscribe((status) => {
+        console.log('📡 구독 상태 (모달 닫힘 · attendance_logs INSERT):', status);
+      });
 
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [user?.id, handleMemberCheckInRealtime]);
+  }, [user?.id, showQRModal]);
 
-  /** QR 팝업이 열려 있을 때만 `bookings` UPDATE 구독 — 모달 닫힘 시 채널 제거로 WS 루프 방지 */
+  /**
+   * QR 모달이 열렸을 때만 구독. 관리자 QR 스캔은 check_in_user RPC로 attendance_logs INSERT가 먼저 일어남.
+   * bookings UPDATE는 선택적이라 리스너는 attendance_logs에 맞춤.
+   */
   useEffect(() => {
-    if (!user?.id || !showQRModal) return;
+    if (!showQRModal || !user?.id) return;
 
-    console.log('🎧 QR 실시간 감시 시작 (bookings 테이블)...');
+    console.log('🎧 QR 실시간 감시 시작...');
 
-    // 스키마상 회원 FK는 `user_id` (setup_bookings.sql). 프로젝트가 `member_id` 등이면 아래 filter만 맞춰 변경.
-    const checkinChannel = supabase
-      .channel(`qr-checkin-${user.id}`)
+    const channel = supabase.channel(`qr-room-${user.id}`);
+
+    channel
       .on(
         'postgres_changes',
         {
-          event: 'UPDATE',
+          event: '*',
           schema: 'public',
-          table: 'bookings',
+          table: 'attendance_logs',
           filter: `user_id=eq.${user.id}`,
         },
         (payload) => {
-          // 디버그: 이 사용자 행에 대한 UPDATE마다 날것 로그 (스캔 시 어떤 컬럼이 바뀌는지 확인 후 조건 복구)
-          console.log('🔥 DB 변경 감지됨! 날것의 데이터:', payload);
-          console.log('  · old:', payload?.old);
-          console.log('  · new:', payload?.new);
-
-          // if (payload.new.status === 'present' || payload.new.is_attended === true) {
-          //   handleMemberCheckInRealtime();
-          // }
+          console.log('🔥 DB 변경 데이터 포획:', payload);
+          handleMemberCheckInRealtimeRef.current();
         }
       )
       .subscribe((status) => {
@@ -281,10 +286,10 @@ const ClientHome = ({ user, logout, setView }) => {
       });
 
     return () => {
-      console.log('🧹 QR 감시 종료 (채널 제거)');
-      supabase.removeChannel(checkinChannel);
+      console.log('🧹 QR 감시 채널 정리 (Clean up)');
+      supabase.removeChannel(channel);
     };
-  }, [user?.id, showQRModal]);
+  }, [showQRModal, user?.id]);
 
   useEffect(() => {
     if (!user?.id) return;
