@@ -442,6 +442,14 @@ const ClientHome = ({ user, logout, setView }) => {
       return;
     }
 
+    setMyBookings((prev) => prev.filter((b) => b.id !== bookingId));
+    setShowQRModal(false);
+    setQrCheckInClosing(false);
+    if (qrCloseTimerRef.current != null) {
+      clearTimeout(qrCloseTimerRef.current);
+      qrCloseTimerRef.current = null;
+    }
+
     try {
       const pid = await fetchAdminOnesignalPlayerId();
       if (pid) {

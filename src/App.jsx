@@ -590,6 +590,7 @@ export default function App() {
           }
 
           await fetchRevenueData();
+          setDashboardBookings((prev) => prev.filter((row) => row.id !== bookingId));
           close();
           showToast('일정이 삭제되었습니다');
         } catch (err) {

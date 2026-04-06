@@ -45,7 +45,7 @@ const AdminSchedule = ({ setView, goBack }) => {
     }
   }, [scheduleDatesSorted]);
 
-  const fetchBookings = async (silent = false) => {
+  const fetchBookings = async (silent = false, dropBookingId = null) => {
     if (!silent) setLoading(true);
     try {
       const { data, error } = await supabase
@@ -55,7 +55,8 @@ const AdminSchedule = ({ setView, goBack }) => {
         .order('time', { ascending: true });
 
       if (error) throw error;
-      setBookings(data || []);
+      const rows = data || [];
+      setBookings(dropBookingId ? rows.filter((item) => item.id !== dropBookingId) : rows);
     } catch (err) {
       console.error('[AdminSchedule] fetch error:', err);
       if (!silent) setBookings([]);
@@ -95,7 +96,7 @@ const AdminSchedule = ({ setView, goBack }) => {
       console.log('✅ DB 삭제 성공:', data);
       setBookings((prev) => prev.filter((item) => item.id !== bookingId));
       window.alert('일정이 삭제되었습니다.');
-      await fetchBookings(true);
+      await fetchBookings(true, bookingId);
     } catch (err) {
       console.error('🚨 예기치 못한 에러:', err);
       window.alert('삭제 중 예기치 못한 오류가 발생했습니다.');

@@ -5,6 +5,15 @@ import { Html5Qrcode } from 'html5-qrcode';
 import { supabase } from '../../lib/supabaseClient';
 import { invokeNotifyMemberEvents } from '../../utils/notifications';
 
+/** KST 기준 오늘 날짜 키 (bookings.date TEXT와 동일 형식) */
+const kstTodayDateKey = () =>
+  new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Seoul',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(new Date());
+
 const QRScanner = ({ setView, goBack }) => {
   const [result, setResult] = useState(null);
   const [cameraError, setCameraError] = useState(null);
@@ -16,6 +25,19 @@ const QRScanner = ({ setView, goBack }) => {
     if (navigator.vibrate) navigator.vibrate(200);
 
     try {
+      try {
+        const { data: todayBookingsData, error: prefetchErr } = await supabase
+          .from('bookings')
+          .select('*')
+          .eq('user_id', decodedText)
+          .eq('date', kstTodayDateKey())
+          .order('created_at', { ascending: false });
+        if (prefetchErr) console.warn('[QRScanner] 오늘 예약 조회:', prefetchErr);
+        console.log('🎯 스캔된 유저의 오늘 예약 목록:', todayBookingsData);
+      } catch (e) {
+        console.warn('[QRScanner] 오늘 예약 조회 실패:', e);
+      }
+
       const { data, error } = await supabase.rpc('check_in_user', { user_uuid: decodedText });
       if (error) throw error;
 
