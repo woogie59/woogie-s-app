@@ -93,8 +93,7 @@ const AdminSchedule = ({ setView, goBack }) => {
       }
 
       console.log('✅ DB 삭제 성공:', data);
-      // 회원 알림 없음 — DB 반영 후 목록만 갱신
-      await fetchBookings();
+      setBookings((prev) => prev.filter((item) => item.id !== bookingId));
       window.alert('일정이 삭제되었습니다.');
     } catch (err) {
       console.error('🚨 예기치 못한 에러:', err);

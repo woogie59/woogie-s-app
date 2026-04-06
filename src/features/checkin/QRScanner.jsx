@@ -4,7 +4,6 @@ import { CheckCircle, XCircle } from 'lucide-react';
 import { Html5Qrcode } from 'html5-qrcode';
 import { supabase } from '../../lib/supabaseClient';
 import { invokeNotifyMemberEvents } from '../../utils/notifications';
-import { todayDateKeysForBookingMatch } from '../../utils/bookingDateKeys';
 
 const QRScanner = ({ setView, goBack }) => {
   const [result, setResult] = useState(null);
@@ -18,33 +17,29 @@ const QRScanner = ({ setView, goBack }) => {
 
     try {
       const scannedUserId = decodedText.trim();
-      const todayKeys = todayDateKeysForBookingMatch();
+      const todayString = new Date().toLocaleDateString('en-CA');
 
-      console.log('🔍 [QR 스캔] 타겟 유저 ID:', scannedUserId);
-      console.log('🔍 [QR 스캔] 오늘 날짜 키 후보 (TEXT date):', todayKeys);
-
-      // 오늘 달력에 해당하는 예약만, 가장 최근 생성(재예약·삭제 후 신규 행 우선) 1건
-      const { data: bookingData, error: fetchError } = await supabase
+      const { data, error } = await supabase
         .from('bookings')
         .select('*')
         .eq('user_id', scannedUserId)
-        .in('date', todayKeys)
+        .like('date', `${todayString}%`)
         .order('created_at', { ascending: false })
         .limit(1)
-        .maybeSingle();
+        .single();
 
-      console.log('🔍 [QR 스캔] 오늘 최신 예약 1건:', bookingData, '에러:', fetchError);
+      console.log('QR Scan DB Result:', data, error);
 
-      const { data, error } = await supabase.rpc('check_in_user', { user_uuid: scannedUserId });
-      if (error) throw error;
+      const { data: rpcData, error: rpcError } = await supabase.rpc('check_in_user', { user_uuid: scannedUserId });
+      if (rpcError) throw rpcError;
 
       const { data: userData } = await supabase.from('profiles').select('name').eq('id', scannedUserId).single();
 
       let remaining = 0;
-      if (data && typeof data === 'object' && !Array.isArray(data)) {
-        remaining = Number(data.remaining ?? data.remaining_sessions ?? 0);
-      } else if (Array.isArray(data) && data[0] != null) {
-        remaining = Number(data[0].remaining ?? data[0].remaining_sessions ?? 0);
+      if (rpcData && typeof rpcData === 'object' && !Array.isArray(rpcData)) {
+        remaining = Number(rpcData.remaining ?? rpcData.remaining_sessions ?? 0);
+      } else if (Array.isArray(rpcData) && rpcData[0] != null) {
+        remaining = Number(rpcData[0].remaining ?? rpcData[0].remaining_sessions ?? 0);
       }
       if (!Number.isFinite(remaining)) remaining = 0;
 

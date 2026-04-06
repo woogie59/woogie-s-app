@@ -573,9 +573,6 @@ export default function App() {
           console.log('✅ DB 삭제 성공:', data);
 
           setDashboardBookings((prev) => prev.filter((row) => row.id !== bookingId));
-
-          await fetchRevenueData();
-          setDashboardBookings((prev) => prev.filter((row) => row.id !== bookingId));
           close();
           showToast('일정이 삭제되었습니다');
         } catch (err) {
