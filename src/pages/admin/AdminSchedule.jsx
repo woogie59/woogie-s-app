@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Calendar, Clock, ChevronUp, ChevronDown, Trash2 } from 'lucide-react';
 import { supabase } from '../../lib/supabaseClient';
-import { deleteAttendanceLogsForBooking } from '../../utils/cascadeAttendance';
+import { deleteAttendanceLogsForBooking, toTime24h } from '../../utils/cascadeAttendance';
 import BackButton from '../../components/ui/BackButton';
 import Skeleton from '../../components/ui/Skeleton';
 
@@ -78,26 +78,37 @@ const AdminSchedule = ({ setView, goBack }) => {
 
     setDeletingId(bookingId);
     try {
-      console.log(`🗑️ 예약(ID: ${bookingId}) 삭제 시도 중...`);
+      const targetUserId = booking.user_id;
+      const targetTime = toTime24h(booking.time);
 
-      const { error: logDelErr } = await deleteAttendanceLogsForBooking(supabase, booking);
-      if (logDelErr) console.warn('[AdminSchedule] attendance_logs 삭제:', logDelErr);
+      console.log(`🗑️ 예약(ID: ${bookingId}) 삭제 시도…`, { targetUserId, targetTime });
 
-      const { data, error } = await supabase.from('bookings').delete().eq('id', bookingId).select();
+      const { data: attData, error: attErr } = await deleteAttendanceLogsForBooking(supabase, booking);
+      if (attErr) {
+        console.error('[AdminSchedule] attendance_logs 삭제 실패:', attErr);
+        window.alert('출석 기록 삭제 실패: ' + attErr.message);
+        return;
+      }
+      console.log('[AdminSchedule] attendance_logs 삭제 결과(행):', attData?.length ?? 0);
 
-      if (error) {
-        console.error('❌ 삭제 실패 (Supabase 에러):', error);
-        window.alert('삭제 중 오류가 발생했습니다. 권한(RLS) 문제일 수 있습니다.');
+      const { data: bookData, error: bookErr } = await supabase
+        .from('bookings')
+        .delete()
+        .eq('id', bookingId)
+        .select();
+
+      if (bookErr) {
+        console.error('❌ bookings 삭제 실패:', bookErr);
+        window.alert('예약 삭제 실패: ' + bookErr.message);
         return;
       }
 
-      if (!data || data.length === 0) {
-        console.warn('⚠️ 삭제된 데이터가 없습니다. (이미 삭제되었거나 ID가 틀림)');
-        window.alert('삭제할 예약을 찾지 못했습니다. 이미 삭제되었거나 권한이 없을 수 있습니다.');
+      if (!bookData || bookData.length === 0) {
+        window.alert('DB에서 삭제되지 않았습니다! (권한 또는 ID 문제)');
         return;
       }
 
-      console.log('✅ DB 삭제 성공:', data);
+      console.log('✅ bookings 삭제 확인:', bookData);
       setBookings((prev) => prev.filter((item) => item.id !== bookingId));
       window.alert('일정이 삭제되었습니다.');
     } catch (err) {

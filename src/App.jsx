@@ -547,34 +547,34 @@ export default function App() {
         try {
           console.log(`🗑️ 예약(ID: ${bookingId}) 삭제 시도 중...`);
 
-          const { error: logDelErr } = await deleteAttendanceLogsForBooking(supabase, b);
-          if (logDelErr) console.warn('[schedule_dash] attendance_logs 삭제:', logDelErr);
+          const { data: attData, error: attErr } = await deleteAttendanceLogsForBooking(supabase, b);
+          if (attErr) {
+            console.error('[schedule_dash] attendance_logs 삭제 실패:', attErr);
+            showAlert({ message: '출석 기록 삭제 실패: ' + attErr.message });
+            return;
+          }
+          console.log('[schedule_dash] attendance_logs 삭제 행 수:', attData?.length ?? 0);
 
-          const { data, error } = await supabase
+          const { data: bookData, error: bookErr } = await supabase
             .from('bookings')
             .delete()
             .eq('id', bookingId)
             .select();
 
-          if (error) {
-            console.error('❌ 삭제 실패 (Supabase 에러):', error);
+          if (bookErr) {
+            console.error('❌ bookings 삭제 실패:', bookErr);
+            showAlert({ message: '예약 삭제 실패: ' + bookErr.message });
+            return;
+          }
+
+          if (!bookData || bookData.length === 0) {
             showAlert({
-              message:
-                '삭제 중 오류가 발생했습니다. 권한(RLS) 문제일 수 있습니다. ' + error.message,
+              message: 'DB에서 삭제되지 않았습니다! (권한 또는 ID 문제)',
             });
             return;
           }
 
-          if (!data || data.length === 0) {
-            console.warn('⚠️ 삭제된 데이터가 없습니다. (이미 삭제되었거나 ID가 틀림)');
-            showAlert({
-              message:
-                '삭제할 예약을 찾지 못했습니다. 이미 삭제되었거나 권한이 없을 수 있습니다.',
-            });
-            return;
-          }
-
-          console.log('✅ DB 삭제 성공:', data);
+          console.log('✅ bookings 삭제 확인:', bookData);
 
           setDashboardBookings((prev) => prev.filter((row) => row.id !== bookingId));
           setRevenueLogs((prev) =>

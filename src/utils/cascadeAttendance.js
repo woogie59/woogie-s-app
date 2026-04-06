@@ -20,12 +20,13 @@ export function bookingDateToUtcRangeISO(dateStr) {
 
 /**
  * 예약 삭제 시 좀비 출석 로그 제거: 같은 user, 같은 수업일(check_in_at), 같은 session_time_fixed.
+ * 반드시 .select()로 삭제된 행을 반환받음 (0건이어도 에러 아님).
  */
 export async function deleteAttendanceLogsForBooking(supabase, booking) {
   const userId = booking?.user_id;
   const range = bookingDateToUtcRangeISO(booking?.date);
   const timeNorm = toTime24h(booking?.time);
-  if (!userId || !range) return { error: null };
+  if (!userId || !range) return { data: [], error: null };
 
   let q = supabase
     .from('attendance_logs')
@@ -36,6 +37,6 @@ export async function deleteAttendanceLogsForBooking(supabase, booking) {
 
   if (timeNorm) q = q.eq('session_time_fixed', timeNorm);
 
-  const { error } = await q;
-  return { error };
+  const { data, error } = await q.select();
+  return { data: data ?? [], error };
 }
