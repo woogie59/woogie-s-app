@@ -91,10 +91,12 @@ const ClientHome = ({ user, logout, setView }) => {
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
   const [showQRModal, setShowQRModal] = useState(false);
-  /** Fade-out QR modal over 0.5s after realtime attendance_logs INSERT */
+  /** Fade-out QR modal over 0.5s after 출석 감지 (attendance_logs INSERT 또는 bookings UPDATE) */
   const [qrCheckInClosing, setQrCheckInClosing] = useState(false);
   const showQRModalRef = useRef(false);
   const qrCloseTimerRef = useRef(null);
+  /** attendance_logs INSERT + bookings UPDATE 둘 다 올 때 토스트/팝업 중복 방지 */
+  const lastCheckInRealtimeRef = useRef(0);
 
   useEffect(() => {
     showQRModalRef.current = showQRModal;
@@ -108,6 +110,34 @@ const ClientHome = ({ user, logout, setView }) => {
       }
     };
   }, []);
+
+  const handleMemberCheckInRealtime = useCallback(() => {
+    const now = Date.now();
+    if (now - lastCheckInRealtimeRef.current < 2000) return;
+    lastCheckInRealtimeRef.current = now;
+
+    const fetchProfile = async () => {
+      if (!user?.id) return;
+      const { data, error } = await supabase.from('profiles').select('*').eq('id', user.id).single();
+      if (!error && data) setProfile(data);
+    };
+    fetchProfile();
+    fetchSessionBatches();
+    fetchMyBookings();
+
+    if (showQRModalRef.current) {
+      setQrCheckInClosing(true);
+      if (qrCloseTimerRef.current != null) clearTimeout(qrCloseTimerRef.current);
+      qrCloseTimerRef.current = window.setTimeout(() => {
+        qrCloseTimerRef.current = null;
+        setShowQRModal(false);
+        setQrCheckInClosing(false);
+        showToast('Check-in successful · 출석이 완료되었습니다');
+      }, 500);
+    } else {
+      showAlert({ message: '✅ 출석완료되었습니다' });
+    }
+  }, [user?.id, showAlert, showToast, fetchSessionBatches, fetchMyBookings]);
   const [showScheduleModal, setShowScheduleModal] = useState(false);
   const [myBookings, setMyBookings] = useState([]);
   const [loadingBookings, setLoadingBookings] = useState(false);
@@ -194,7 +224,7 @@ const ClientHome = ({ user, logout, setView }) => {
   }, [fetchMyBookings]);
 
   useEffect(() => {
-    if (!user) return;
+    if (!user?.id) return;
 
     const channel = supabase
       .channel('attendance_logs_realtime_member')
@@ -207,35 +237,7 @@ const ClientHome = ({ user, logout, setView }) => {
           filter: `user_id=eq.${user.id}`,
         },
         () => {
-          const fetchProfile = async () => {
-            const { data, error } = await supabase
-              .from('profiles')
-              .select('*')
-              .eq('id', user.id)
-              .single();
-
-            if (!error && data) {
-              setProfile(data);
-            }
-          };
-          fetchProfile();
-          fetchSessionBatches();
-          fetchMyBookings();
-
-          if (showQRModalRef.current) {
-            setQrCheckInClosing(true);
-            if (qrCloseTimerRef.current != null) {
-              clearTimeout(qrCloseTimerRef.current);
-            }
-            qrCloseTimerRef.current = window.setTimeout(() => {
-              qrCloseTimerRef.current = null;
-              setShowQRModal(false);
-              setQrCheckInClosing(false);
-              showToast('Check-in successful · 출석이 완료되었습니다');
-            }, 500);
-          } else {
-            showAlert({ message: '✅ 출석완료되었습니다' });
-          }
+          handleMemberCheckInRealtime();
         }
       )
       .subscribe();
@@ -243,7 +245,48 @@ const ClientHome = ({ user, logout, setView }) => {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [user, showAlert, showToast, fetchSessionBatches, fetchMyBookings]);
+  }, [user?.id, handleMemberCheckInRealtime]);
+
+  /** QR 팝업: `bookings` 행이 출석 처리로 UPDATE될 때 (실시간 publication 활성화 가정) */
+  useEffect(() => {
+    if (!user?.id) return;
+
+    console.log('🎧 QR 실시간 감시 시작 (bookings 테이블)...');
+
+    const checkinChannel = supabase
+      .channel('qr-checkin-listener')
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'bookings',
+          filter: `user_id=eq.${user.id}`,
+        },
+        (payload) => {
+          console.log('🔥 DB 변경 감지됨!', payload);
+
+          const n = payload?.new ?? {};
+          const o = payload?.old ?? {};
+          const isAttended = n.is_attended === true;
+          const statusPresent = n.status === 'present';
+          const statusCompleted =
+            n.status === 'completed' && o.status !== 'completed';
+
+          if (isAttended || statusPresent || statusCompleted) {
+            console.log('✅ 출석 확인! 팝업을 닫습니다.');
+            handleMemberCheckInRealtime();
+          }
+        }
+      )
+      .subscribe((status) => {
+        console.log('📡 구독 상태:', status);
+      });
+
+    return () => {
+      supabase.removeChannel(checkinChannel);
+    };
+  }, [user?.id, handleMemberCheckInRealtime]);
 
   useEffect(() => {
     if (!user?.id) return;
@@ -619,7 +662,7 @@ const ClientHome = ({ user, logout, setView }) => {
         </div>
       </main>
 
-      {/* QR Code Modal — realtime INSERT on attendance_logs triggers 0.5s fade-out + toast */}
+      {/* QR Code Modal — realtime 출석 감지 시 0.5s fade-out + toast */}
       <AnimatePresence>
         {showQRModal && (
           <motion.div
