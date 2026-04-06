@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Calendar, Clock, ChevronUp, ChevronDown, Trash2 } from 'lucide-react';
 import { supabase } from '../../lib/supabaseClient';
+import { deleteAttendanceLogsForBooking } from '../../utils/cascadeAttendance';
 import BackButton from '../../components/ui/BackButton';
 import Skeleton from '../../components/ui/Skeleton';
 
@@ -68,7 +69,8 @@ const AdminSchedule = ({ setView, goBack }) => {
     fetchBookings();
   }, []);
 
-  const handleDelete = async (bookingId) => {
+  const handleDelete = async (booking) => {
+    const bookingId = booking.id;
     const confirmDelete = window.confirm(
       '이 일정을 삭제하시겠습니까? 해당 시간은 즉시 개방됩니다.'
     );
@@ -77,6 +79,9 @@ const AdminSchedule = ({ setView, goBack }) => {
     setDeletingId(bookingId);
     try {
       console.log(`🗑️ 예약(ID: ${bookingId}) 삭제 시도 중...`);
+
+      const { error: logDelErr } = await deleteAttendanceLogsForBooking(supabase, booking);
+      if (logDelErr) console.warn('[AdminSchedule] attendance_logs 삭제:', logDelErr);
 
       const { data, error } = await supabase.from('bookings').delete().eq('id', bookingId).select();
 
@@ -165,7 +170,7 @@ const AdminSchedule = ({ setView, goBack }) => {
                             <span>{toTime24h(booking.time)}</span>
                           </div>
                           <button
-                            onClick={() => handleDelete(booking.id)}
+                            onClick={() => handleDelete(booking)}
                             disabled={deletingId === booking.id}
                             className="p-2 rounded-lg bg-red-50 border border-red-200 text-red-700 hover:bg-red-100 active:scale-95 transition-all disabled:opacity-50"
                           >

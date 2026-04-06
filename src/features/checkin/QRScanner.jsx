@@ -19,6 +19,7 @@ const QRScanner = ({ setView, goBack }) => {
       const scannedUserId = decodedText.trim();
       const todayString = new Date().toLocaleDateString('en-CA');
 
+      // 오늘 활성 예약 1건(최신 생성). 좀비 attendance_logs는 이 조회와 무관 — 출석은 RPC가 새 로그 INSERT.
       const { data, error } = await supabase
         .from('bookings')
         .select('*')
@@ -26,12 +27,20 @@ const QRScanner = ({ setView, goBack }) => {
         .like('date', `${todayString}%`)
         .order('created_at', { ascending: false })
         .limit(1)
-        .single();
+        .maybeSingle();
 
       console.log('QR Scan DB Result:', data, error);
 
       const { data: rpcData, error: rpcError } = await supabase.rpc('check_in_user', { user_uuid: scannedUserId });
       if (rpcError) throw rpcError;
+
+      if (data?.id) {
+        const { error: statusErr } = await supabase
+          .from('bookings')
+          .update({ status: 'completed' })
+          .eq('id', data.id);
+        if (statusErr) console.warn('[QRScanner] booking status update:', statusErr);
+      }
 
       const { data: userData } = await supabase.from('profiles').select('name').eq('id', scannedUserId).single();
 

@@ -4,6 +4,7 @@ import { QrCode, Camera, ChevronRight, ChevronDown, ChevronUp, BookOpen, LogOut,
 import OneSignal from 'react-onesignal';
 
 import { supabase, REMEMBER_ME_KEY } from './lib/supabaseClient';
+import { deleteAttendanceLogsForBooking, toTime24h } from './utils/cascadeAttendance';
 import { useGlobalModal } from './context/GlobalModalContext';
 import CinematicIntro from './components/ui/CinematicIntro';
 import LabDotBrand from './components/ui/LabDotBrand';
@@ -546,6 +547,9 @@ export default function App() {
         try {
           console.log(`🗑️ 예약(ID: ${bookingId}) 삭제 시도 중...`);
 
+          const { error: logDelErr } = await deleteAttendanceLogsForBooking(supabase, b);
+          if (logDelErr) console.warn('[schedule_dash] attendance_logs 삭제:', logDelErr);
+
           const { data, error } = await supabase
             .from('bookings')
             .delete()
@@ -573,6 +577,18 @@ export default function App() {
           console.log('✅ DB 삭제 성공:', data);
 
           setDashboardBookings((prev) => prev.filter((row) => row.id !== bookingId));
+          setRevenueLogs((prev) =>
+            prev.filter((log) => {
+              if (log.user_id !== b.user_id) return true;
+              const logDay = toDateKey(log.check_in_at);
+              const bDay = String(b.date).slice(0, 10);
+              if (logDay !== bDay) return true;
+              const logTimeNorm = log.session_time_fixed
+                ? toTime24h(log.session_time_fixed)
+                : toTime24h(getSessionTime24h(log));
+              return logTimeNorm !== toTime24h(b.time);
+            })
+          );
           close();
           showToast('일정이 삭제되었습니다');
         } catch (err) {
