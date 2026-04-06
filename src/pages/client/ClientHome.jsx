@@ -257,28 +257,42 @@ const ClientHome = ({ user, logout, setView }) => {
   }, [user?.id, showQRModal]);
 
   /**
-   * QR 모달이 열렸을 때만 구독. 관리자 QR 스캔은 check_in_user RPC로 attendance_logs INSERT가 먼저 일어남.
-   * bookings UPDATE는 선택적이라 리스너는 attendance_logs에 맞춤.
+   * QR 모달 전용: attendance_logs INSERT만 구독. 관리자 스캔은 RPC로 로그 INSERT.
+   * 의존성은 [showQRModal, user?.id]만 — 다른 값을 넣으면 불필요한 재구독/즉시 cleanup이 납니다.
    */
   useEffect(() => {
     if (!showQRModal || !user?.id) return;
 
-    console.log('🎧 QR 실시간 감시 시작...');
+    const uid = user.id;
 
-    const channel = supabase.channel(`qr-room-${user.id}`);
+    console.log('🎧 QR 실시간 감시 시작 (attendance_logs)...');
+
+    const channel = supabase.channel(`qr-room-${uid}`);
 
     channel
       .on(
         'postgres_changes',
         {
-          event: '*',
+          event: 'INSERT',
           schema: 'public',
           table: 'attendance_logs',
-          filter: `user_id=eq.${user.id}`,
+          filter: `user_id=eq.${uid}`,
         },
         (payload) => {
-          console.log('🔥 DB 변경 데이터 포획:', payload);
-          handleMemberCheckInRealtimeRef.current();
+          console.log('🔥 DB 변경 데이터 포획 성공! 모달 닫기 진행:', payload);
+          if (qrCloseTimerRef.current != null) {
+            clearTimeout(qrCloseTimerRef.current);
+            qrCloseTimerRef.current = null;
+          }
+          setQrCheckInClosing(false);
+          setShowQRModal(false);
+          showToast('Check-in successful · 출석이 완료되었습니다');
+          void (async () => {
+            const { data, error } = await supabase.from('profiles').select('*').eq('id', uid).single();
+            if (!error && data) setProfile(data);
+            fetchSessionBatches();
+            fetchMyBookings();
+          })();
         }
       )
       .subscribe((status) => {
@@ -289,6 +303,7 @@ const ClientHome = ({ user, logout, setView }) => {
       console.log('🧹 QR 감시 채널 정리 (Clean up)');
       supabase.removeChannel(channel);
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- QR 채널은 모달·유저 id만으로 생명주기 고정
   }, [showQRModal, user?.id]);
 
   useEffect(() => {
