@@ -6,6 +6,12 @@ verify_jwt = false
 import_map = "./functions/morning-concierge/deno.json"
 entrypoint = "./functions/morning-concierge/index.ts"
 
+[functions.daily-class-reminder]
+enabled = true
+verify_jwt = false
+import_map = "./functions/daily-class-reminder/deno.json"
+entrypoint = "./functions/daily-class-reminder/index.ts"
+
 [functions.send-session-reminder]
 enabled = true
 verify_jwt = false
