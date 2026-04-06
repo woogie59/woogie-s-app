@@ -4,7 +4,6 @@ import { QrCode, Camera, ChevronRight, ChevronDown, ChevronUp, BookOpen, LogOut,
 import OneSignal from 'react-onesignal';
 
 import { supabase, REMEMBER_ME_KEY } from './lib/supabaseClient';
-import { invokeNotifyMemberEvents } from './utils/notifications';
 import { useGlobalModal } from './context/GlobalModalContext';
 import CinematicIntro from './components/ui/CinematicIntro';
 import LabDotBrand from './components/ui/LabDotBrand';
@@ -536,7 +535,6 @@ export default function App() {
   const handleScheduleDashCancel = (item, dateKey) => {
     if (!item?.booking?.id) return;
     const b = item.booking;
-    const userName = item.userName || '회원';
     showConfirm({
       title: '일정 삭제',
       message:
@@ -575,19 +573,6 @@ export default function App() {
           console.log('✅ DB 삭제 성공:', data);
 
           setDashboardBookings((prev) => prev.filter((row) => row.id !== bookingId));
-
-          try {
-            if (b.user_id) {
-              await invokeNotifyMemberEvents(
-                b.user_id,
-                'LAB DOT · 예약',
-                `${dateKey} ${item.time} 예약이 취소되었습니다.`,
-                'booking_cancel'
-              );
-            }
-          } catch (e) {
-            console.warn('[admin_schedule] cancel notify member:', e);
-          }
 
           await fetchRevenueData();
           setDashboardBookings((prev) => prev.filter((row) => row.id !== bookingId));

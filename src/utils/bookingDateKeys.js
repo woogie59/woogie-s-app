@@ -17,7 +17,16 @@ export function kstDateKey(d = new Date()) {
   }).format(d);
 }
 
-/** QR/체크인용: 로컬·KST 둘 다 후보 (타임존 불일치로 빈 조회 방지) */
+/**
+ * QR/체크인용: 오늘 문자열 후보 (TEXT 컬럼 bookings.date 와 동일 형식만 사용).
+ * en-CA는 YYYY-MM-DD; gte/lte ISO 시각은 컬럼 타입이 TEXT일 때는 쓰지 않음.
+ */
 export function todayDateKeysForBookingMatch() {
-  return [...new Set([localCalendarDateKey(), kstDateKey()])];
+  return [
+    ...new Set([
+      localCalendarDateKey(),
+      kstDateKey(),
+      new Date().toLocaleDateString('en-CA'),
+    ]),
+  ];
 }
