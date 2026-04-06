@@ -4,15 +4,7 @@ import { CheckCircle, XCircle } from 'lucide-react';
 import { Html5Qrcode } from 'html5-qrcode';
 import { supabase } from '../../lib/supabaseClient';
 import { invokeNotifyMemberEvents } from '../../utils/notifications';
-
-/** KST 기준 오늘 날짜 키 (bookings.date TEXT와 동일 형식) */
-const kstTodayDateKey = () =>
-  new Intl.DateTimeFormat('en-CA', {
-    timeZone: 'Asia/Seoul',
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-  }).format(new Date());
+import { localCalendarDateKey, kstDateKey, todayDateKeysForBookingMatch } from '../../utils/bookingDateKeys';
 
 const QRScanner = ({ setView, goBack }) => {
   const [result, setResult] = useState(null);
@@ -25,23 +17,41 @@ const QRScanner = ({ setView, goBack }) => {
     if (navigator.vibrate) navigator.vibrate(200);
 
     try {
+      const scannedUserId = decodedText.trim();
+      const dateKeysToday = todayDateKeysForBookingMatch();
+
+      console.log('🔍 [QR 스캔] 원본 디코드 길이/앞 8자:', decodedText.length, String(decodedText).slice(0, 8));
+      console.log('🔍 [QR 스캔] 타겟 유저 ID:', scannedUserId);
+
       try {
-        const { data: todayBookingsData, error: prefetchErr } = await supabase
+        const { data: recentRows, error: recentErr } = await supabase
           .from('bookings')
-          .select('*')
-          .eq('user_id', decodedText)
-          .eq('date', kstTodayDateKey())
-          .order('created_at', { ascending: false });
-        if (prefetchErr) console.warn('[QRScanner] 오늘 예약 조회:', prefetchErr);
-        console.log('🎯 스캔된 유저의 오늘 예약 목록:', todayBookingsData);
+          .select('id,date,time,user_id,created_at')
+          .eq('user_id', scannedUserId)
+          .order('created_at', { ascending: false })
+          .limit(20);
+        console.log('🔍 [QR 스캔] 최근 예약(날짜 필터 없음):', recentRows, '에러:', recentErr);
       } catch (e) {
-        console.warn('[QRScanner] 오늘 예약 조회 실패:', e);
+        console.warn('🔍 [QR 스캔] 최근 예약 조회 실패:', e);
       }
 
-      const { data, error } = await supabase.rpc('check_in_user', { user_uuid: decodedText });
+      console.log('🔍 [QR 스캔] 날짜 키 비교 — 로컬 달력:', localCalendarDateKey(), '| KST:', kstDateKey(), '| 조회에 사용:', dateKeysToday);
+
+      const { data: todayRows, error: todayErr } = await supabase
+        .from('bookings')
+        .select('*')
+        .eq('user_id', scannedUserId)
+        .in('date', dateKeysToday)
+        .order('created_at', { ascending: false });
+
+      console.log('🔍 [QR 스캔] DB 조회 결과(오늘 후보 날짜):', todayRows, '에러:', todayErr);
+      console.log('🎯 스캔된 유저의 오늘 예약 목록:', todayRows);
+      if (todayErr) console.warn('[QRScanner] 오늘 예약 조회:', todayErr);
+
+      const { data, error } = await supabase.rpc('check_in_user', { user_uuid: scannedUserId });
       if (error) throw error;
 
-      const { data: userData } = await supabase.from('profiles').select('name').eq('id', decodedText).single();
+      const { data: userData } = await supabase.from('profiles').select('name').eq('id', scannedUserId).single();
 
       let remaining = 0;
       if (data && typeof data === 'object' && !Array.isArray(data)) {
@@ -55,7 +65,7 @@ const QRScanner = ({ setView, goBack }) => {
 
       try {
         await invokeNotifyMemberEvents(
-          decodedText,
+          scannedUserId,
           'LAB DOT · 출석',
           '출석되었습니다',
           'attendance'
