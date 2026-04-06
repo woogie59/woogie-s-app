@@ -248,14 +248,14 @@ const ClientHome = ({ user, logout, setView }) => {
     };
   }, [user?.id, handleMemberCheckInRealtime]);
 
-  /** QR 팝업: `bookings` 행이 출석 처리로 UPDATE될 때 (실시간 publication 활성화 가정) */
+  /** QR 팝업이 열려 있을 때만 `bookings` UPDATE 구독 — 모달 닫힘 시 채널 제거로 WS 루프 방지 */
   useEffect(() => {
-    if (!user?.id) return;
+    if (!user?.id || !showQRModal) return;
 
     console.log('🎧 QR 실시간 감시 시작 (bookings 테이블)...');
 
     const checkinChannel = supabase
-      .channel('qr-checkin-listener')
+      .channel(`qr-checkin-${user.id}`)
       .on(
         'postgres_changes',
         {
@@ -266,15 +266,14 @@ const ClientHome = ({ user, logout, setView }) => {
         },
         (payload) => {
           console.log('🔥 DB 변경 감지됨!', payload);
-
           const n = payload?.new ?? {};
           const o = payload?.old ?? {};
-          const isAttended = n.is_attended === true;
-          const statusPresent = n.status === 'present';
-          const statusCompleted =
-            n.status === 'completed' && o.status !== 'completed';
+          const checkInDetected =
+            n.status === 'present' ||
+            n.is_attended === true ||
+            (n.status === 'completed' && o.status !== 'completed');
 
-          if (isAttended || statusPresent || statusCompleted) {
+          if (checkInDetected) {
             console.log('✅ 출석 확인! 팝업을 닫습니다.');
             handleMemberCheckInRealtime();
           }
@@ -285,9 +284,10 @@ const ClientHome = ({ user, logout, setView }) => {
       });
 
     return () => {
+      console.log('🧹 QR 감시 종료 (채널 제거)');
       supabase.removeChannel(checkinChannel);
     };
-  }, [user?.id, handleMemberCheckInRealtime]);
+  }, [user?.id, showQRModal, handleMemberCheckInRealtime]);
 
   useEffect(() => {
     if (!user?.id) return;
