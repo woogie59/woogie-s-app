@@ -544,26 +544,58 @@ export default function App() {
       confirmLabel: '삭제하기',
       cancelLabel: '닫기',
       onConfirm: async (close) => {
-        const { error } = await supabase.from('bookings').delete().eq('id', b.id);
-        if (error) {
-          showAlert({ message: '취소 실패: ' + error.message });
-          return;
-        }
+        const bookingId = b.id;
         try {
-          if (b.user_id) {
-            await invokeNotifyMemberEvents(
-              b.user_id,
-              'LAB DOT · 예약',
-              `${dateKey} ${item.time} 예약이 취소되었습니다.`,
-              'booking_cancel'
-            );
+          console.log(`🗑️ 예약(ID: ${bookingId}) 삭제 시도 중...`);
+
+          const { data, error } = await supabase
+            .from('bookings')
+            .delete()
+            .eq('id', bookingId)
+            .select();
+
+          if (error) {
+            console.error('❌ 삭제 실패 (Supabase 에러):', error);
+            showAlert({
+              message:
+                '삭제 중 오류가 발생했습니다. 권한(RLS) 문제일 수 있습니다. ' + error.message,
+            });
+            return;
           }
-        } catch (e) {
-          console.warn('[admin_schedule] cancel notify member:', e);
+
+          if (!data || data.length === 0) {
+            console.warn('⚠️ 삭제된 데이터가 없습니다. (이미 삭제되었거나 ID가 틀림)');
+            showAlert({
+              message:
+                '삭제할 예약을 찾지 못했습니다. 이미 삭제되었거나 권한이 없을 수 있습니다.',
+            });
+            return;
+          }
+
+          console.log('✅ DB 삭제 성공:', data);
+
+          setDashboardBookings((prev) => prev.filter((row) => row.id !== bookingId));
+
+          try {
+            if (b.user_id) {
+              await invokeNotifyMemberEvents(
+                b.user_id,
+                'LAB DOT · 예약',
+                `${dateKey} ${item.time} 예약이 취소되었습니다.`,
+                'booking_cancel'
+              );
+            }
+          } catch (e) {
+            console.warn('[admin_schedule] cancel notify member:', e);
+          }
+
+          await fetchRevenueData();
+          close();
+          showToast('일정이 삭제되었습니다');
+        } catch (err) {
+          console.error('🚨 예기치 못한 에러:', err);
+          showAlert({ message: '삭제 중 예기치 못한 오류가 발생했습니다.' });
         }
-        await fetchRevenueData();
-        close();
-        showToast('일정이 삭제되었습니다');
       },
     });
   };

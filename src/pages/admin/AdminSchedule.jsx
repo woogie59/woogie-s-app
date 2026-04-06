@@ -1,8 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
 import { Calendar, Clock, ChevronUp, ChevronDown, Trash2 } from 'lucide-react';
 import { supabase } from '../../lib/supabaseClient';
-import { useGlobalModal } from '../../context/GlobalModalContext';
 import BackButton from '../../components/ui/BackButton';
 import Skeleton from '../../components/ui/Skeleton';
 
@@ -14,12 +12,9 @@ const toTime24h = (t) => {
 };
 
 const AdminSchedule = ({ setView, goBack }) => {
-  const { showAlert } = useGlobalModal();
   const [bookings, setBookings] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [cancelling, setCancelling] = useState(null);
-  const [isCancelModalOpen, setIsCancelModalOpen] = useState(false);
-  const [bookingToDelete, setBookingToDelete] = useState(null);
+  const [deletingId, setDeletingId] = useState(null);
   const [expandedScheduleDates, setExpandedScheduleDates] = useState(new Set());
 
   const bookingsByDate = useMemo(() => {
@@ -50,8 +45,8 @@ const AdminSchedule = ({ setView, goBack }) => {
     }
   }, [scheduleDatesSorted]);
 
-  const fetchBookings = async () => {
-    setLoading(true);
+  const fetchBookings = async (silent = false) => {
+    if (!silent) setLoading(true);
     try {
       const { data, error } = await supabase
         .from('bookings')
@@ -63,9 +58,9 @@ const AdminSchedule = ({ setView, goBack }) => {
       setBookings(data || []);
     } catch (err) {
       console.error('[AdminSchedule] fetch error:', err);
-      setBookings([]);
+      if (!silent) setBookings([]);
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   };
 
@@ -73,25 +68,39 @@ const AdminSchedule = ({ setView, goBack }) => {
     fetchBookings();
   }, []);
 
-  const handleCancelBooking = (bookingId, userName, date, time) => {
-    setBookingToDelete({ id: bookingId, userName, date, time });
-    setIsCancelModalOpen(true);
-  };
+  const handleDelete = async (bookingId) => {
+    const confirmDelete = window.confirm(
+      '이 일정을 삭제하시겠습니까? 해당 시간은 즉시 개방됩니다.'
+    );
+    if (!confirmDelete) return;
 
-  const confirmCancelAction = async () => {
-    if (!bookingToDelete) return;
-    setCancelling(bookingToDelete.id);
-    const { error } = await supabase.from('bookings').delete().eq('id', bookingToDelete.id);
+    setDeletingId(bookingId);
+    try {
+      console.log(`🗑️ 예약(ID: ${bookingId}) 삭제 시도 중...`);
 
-    if (error) {
-      setCancelling(null);
-      showAlert({ message: 'Error cancelling booking: ' + error.message });
-    } else {
-      setIsCancelModalOpen(false);
-      setBookingToDelete(null);
-      setCancelling(null);
-      fetchBookings();
-      showAlert({ message: '일정이 삭제되었습니다.', confirmLabel: '확인' });
+      const { data, error } = await supabase.from('bookings').delete().eq('id', bookingId).select();
+
+      if (error) {
+        console.error('❌ 삭제 실패 (Supabase 에러):', error);
+        window.alert('삭제 중 오류가 발생했습니다. 권한(RLS) 문제일 수 있습니다.');
+        return;
+      }
+
+      if (!data || data.length === 0) {
+        console.warn('⚠️ 삭제된 데이터가 없습니다. (이미 삭제되었거나 ID가 틀림)');
+        window.alert('삭제할 예약을 찾지 못했습니다. 이미 삭제되었거나 권한이 없을 수 있습니다.');
+        return;
+      }
+
+      console.log('✅ DB 삭제 성공:', data);
+      setBookings((prev) => prev.filter((item) => item.id !== bookingId));
+      window.alert('일정이 삭제되었습니다.');
+      await fetchBookings(true);
+    } catch (err) {
+      console.error('🚨 예기치 못한 에러:', err);
+      window.alert('삭제 중 예기치 못한 오류가 발생했습니다.');
+    } finally {
+      setDeletingId(null);
     }
   };
 
@@ -157,15 +166,8 @@ const AdminSchedule = ({ setView, goBack }) => {
                             <span>{toTime24h(booking.time)}</span>
                           </div>
                           <button
-                            onClick={() =>
-                              handleCancelBooking(
-                                booking.id,
-                                booking.profiles?.name || 'User',
-                                booking.date,
-                                booking.time
-                              )
-                            }
-                            disabled={cancelling === booking.id}
+                            onClick={() => handleDelete(booking.id)}
+                            disabled={deletingId === booking.id}
                             className="p-2 rounded-lg bg-red-50 border border-red-200 text-red-700 hover:bg-red-100 active:scale-95 transition-all disabled:opacity-50"
                           >
                             <Trash2 size={18} />
@@ -187,48 +189,6 @@ const AdminSchedule = ({ setView, goBack }) => {
         </div>
       )}
 
-      <AnimatePresence>
-        {isCancelModalOpen && bookingToDelete && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-gray-900/20"
-            style={{ backdropFilter: 'blur(8px)' }}
-          >
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.98 }}
-              transition={{ duration: 0.25, ease: [0.25, 0.46, 0.45, 0.94] }}
-              className="bg-white border border-emerald-600/20 rounded-2xl shadow-xl shadow-gray-900/10 p-6 max-w-sm w-full"
-            >
-              <h3 className="text-lg font-serif text-emerald-600 mb-2">일정 삭제</h3>
-              <p className="text-gray-600 text-sm mb-6">
-                이 일정을 삭제하시겠습니까? 삭제 시 해당 시간은 다른 회원이 예약할 수 있게 즉시 개방됩니다.
-              </p>
-              <div className="flex gap-3 justify-end">
-                <button
-                  onClick={() => {
-                    setIsCancelModalOpen(false);
-                    setBookingToDelete(null);
-                  }}
-                  className="px-6 py-3 rounded-xl text-gray-600 hover:text-emerald-700 hover:bg-gray-100 transition-all font-medium min-w-[80px]"
-                >
-                  취소
-                </button>
-                <button
-                  onClick={confirmCancelAction}
-                  disabled={cancelling === bookingToDelete.id}
-                  className="px-6 py-3 rounded-xl bg-emerald-600 text-white font-bold hover:bg-emerald-500 transition-all disabled:opacity-50 min-w-[80px]"
-                >
-                  {cancelling === bookingToDelete.id ? '처리 중...' : '삭제하기'}
-                </button>
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
     </div>
   );
 };
