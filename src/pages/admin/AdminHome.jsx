@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { motion } from 'framer-motion';
-import { LogOut, QrCode, Users, Calendar, Archive, NotebookPen, ChevronDown } from 'lucide-react';
+import { LogOut, QrCode, Users, Calendar, Archive, NotebookPen, ChevronDown, Table2 } from 'lucide-react';
 import { supabase } from '../../lib/supabaseClient';
 import LabDotBrand from '../../components/ui/LabDotBrand';
 
@@ -104,6 +104,7 @@ const AdminHome = ({ setView, logout, onOpenTrainingLog }) => {
 
   const menuItems = [
     { icon: Users, label: '회원 관리', view: 'member_list' },
+    { icon: Table2, label: 'Payroll · Attendance', view: 'admin_payroll' },
     { icon: Calendar, label: '일정 관리', view: 'admin_schedule' },
     { icon: Archive, label: '라이브러리', view: 'library' },
     { icon: NotebookPen, label: '트레이닝 일지', action: 'training_log' },

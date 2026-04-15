@@ -23,6 +23,7 @@ import AdminHome from './pages/admin/AdminHome';
 import AdminSettings from './pages/admin/AdminSettings';
 import AdminRoute from './pages/admin/AdminRoute';
 import AdminPayrollExport from './features/admin/AdminPayrollExport';
+import AdminPayrollDashboard from './pages/admin/AdminPayrollDashboard';
 
 import LibraryArticleScreen from './features/library/LibraryArticleScreen';
 import TrainingLogList from './features/training/TrainingLogList';
@@ -875,6 +876,12 @@ export default function App() {
           {view === 'admin_settings' && (
             <AdminRoute session={session} replaceView={replaceView}>
               <AdminSettings setView={navigate} goBack={goBack} />
+            </AdminRoute>
+          )}
+
+          {view === 'admin_payroll' && (
+            <AdminRoute session={session} replaceView={replaceView}>
+              <AdminPayrollDashboard goBack={goBack} />
             </AdminRoute>
           )}
 
