@@ -5,6 +5,7 @@ import OneSignal from 'react-onesignal';
 
 import { supabase, REMEMBER_ME_KEY } from './lib/supabaseClient';
 import { deleteAttendanceLogsForBooking, toTime24h } from './utils/cascadeAttendance';
+import { emitSessionBalanceRefresh } from './utils/sessionBalanceEvents';
 import { useGlobalModal } from './context/GlobalModalContext';
 import CinematicIntro from './components/ui/CinematicIntro';
 import LabDotBrand from './components/ui/LabDotBrand';
@@ -593,6 +594,7 @@ export default function App() {
           );
           close();
           showToast('일정이 삭제되었습니다');
+          emitSessionBalanceRefresh();
         } catch (err) {
           console.error('🚨 예기치 못한 에러:', err);
           showAlert({ message: '삭제 중 예기치 못한 오류가 발생했습니다.' });

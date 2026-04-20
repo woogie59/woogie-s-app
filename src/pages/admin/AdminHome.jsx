@@ -1,7 +1,8 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { motion } from 'framer-motion';
 import { LogOut, QrCode, Users, Calendar, Archive, NotebookPen, ChevronDown, Table2 } from 'lucide-react';
 import { supabase } from '../../lib/supabaseClient';
+import { fetchMembersBalanceSummaries } from '../../utils/sessionHelpers';
 import LabDotBrand from '../../components/ui/LabDotBrand';
 
 const ICON_STROKE = 1.5;
@@ -50,13 +51,22 @@ const AdminHome = ({ setView, logout, onOpenTrainingLog }) => {
   const loadUnscheduledVipRadar = useCallback(async () => {
     setRadarLoading(true);
     try {
-      const { data: members, error: memErr } = await supabase
+      const { data: allMembers, error: memErr } = await supabase
         .from('profiles')
-        .select('id, name, remaining_sessions, email, role')
-        .gt('remaining_sessions', 0)
+        .select('id, name, email, role')
         .neq('role', 'admin');
 
       if (memErr) throw memErr;
+
+      const memberRows = allMembers || [];
+      const memberIds = memberRows.map((p) => p.id).filter(Boolean);
+      const summaries = await fetchMembersBalanceSummaries(supabase, memberIds);
+      const members = memberRows
+        .map((p) => ({
+          ...p,
+          computedRemaining: summaries[p.id]?.remaining ?? 0,
+        }))
+        .filter((p) => p.computedRemaining > 0);
 
       const schSelect = 'user_id, date, time, status';
       const fromBookings = await supabase.from('bookings').select(schSelect);
@@ -103,6 +113,27 @@ const AdminHome = ({ setView, logout, onOpenTrainingLog }) => {
 
   useEffect(() => {
     loadUnscheduledVipRadar();
+  }, [loadUnscheduledVipRadar]);
+
+  const radarDebounceRef = useRef(null);
+  useEffect(() => {
+    const schedule = () => {
+      if (radarDebounceRef.current != null) clearTimeout(radarDebounceRef.current);
+      radarDebounceRef.current = window.setTimeout(() => {
+        radarDebounceRef.current = null;
+        void loadUnscheduledVipRadar();
+      }, 450);
+    };
+    const ch = supabase
+      .channel('admin_home_unscheduled_radar_rt')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'attendance_logs' }, schedule)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'session_batches' }, schedule)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'bookings' }, schedule)
+      .subscribe();
+    return () => {
+      if (radarDebounceRef.current != null) clearTimeout(radarDebounceRef.current);
+      supabase.removeChannel(ch);
+    };
   }, [loadUnscheduledVipRadar]);
 
   const menuItems = [
@@ -152,7 +183,7 @@ const AdminHome = ({ setView, logout, onOpenTrainingLog }) => {
                   const secondary =
                     days != null
                       ? `마지막 수업 후 ${days}일 경과`
-                      : `잔여 ${u.remaining_sessions ?? 0}회`;
+                      : `잔여 ${u.computedRemaining ?? 0}회`;
                   return (
                     <motion.li
                       key={u.id}

@@ -1,22 +1,67 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { User, ChevronRight } from 'lucide-react';
 import { supabase } from '../../lib/supabaseClient';
+import { fetchMembersBalanceSummaries } from '../../utils/sessionHelpers';
+import { SESSION_BALANCE_REFRESH_EVENT } from '../../utils/sessionBalanceEvents';
 import BackButton from '../../components/ui/BackButton';
 import Skeleton from '../../components/ui/Skeleton';
 
 const MemberList = ({ setView, goBack, setSelectedMemberId }) => {
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
+  const debounceRef = useRef(null);
+
+  const fetchUsers = useCallback(async () => {
+    const { data: profiles, error } = await supabase.from('profiles').select('*').eq('role', 'user');
+    if (error) {
+      console.error(error);
+      setUsers([]);
+      setLoading(false);
+      return;
+    }
+    const list = profiles || [];
+    const ids = list.map((p) => p.id).filter(Boolean);
+    const summaries = await fetchMembersBalanceSummaries(supabase, ids);
+    setUsers(
+      list.map((p) => ({
+        ...p,
+        computedRemaining: summaries[p.id]?.remaining ?? 0,
+      }))
+    );
+    setLoading(false);
+  }, []);
 
   useEffect(() => {
-    const fetchUsers = async () => {
-      const { data, error } = await supabase.from('profiles').select('*').eq('role', 'user');
-      if (error) console.error(error);
-      else setUsers(data);
-      setLoading(false);
-    };
     fetchUsers();
-  }, []);
+  }, [fetchUsers]);
+
+  useEffect(() => {
+    const onRefresh = () => {
+      void fetchUsers();
+    };
+    window.addEventListener(SESSION_BALANCE_REFRESH_EVENT, onRefresh);
+    return () => window.removeEventListener(SESSION_BALANCE_REFRESH_EVENT, onRefresh);
+  }, [fetchUsers]);
+
+  useEffect(() => {
+    const schedule = () => {
+      if (debounceRef.current != null) clearTimeout(debounceRef.current);
+      debounceRef.current = window.setTimeout(() => {
+        debounceRef.current = null;
+        void fetchUsers();
+      }, 400);
+    };
+    const ch = supabase
+      .channel('member_list_session_balance_rt')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'attendance_logs' }, schedule)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'session_batches' }, schedule)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'bookings' }, schedule)
+      .subscribe();
+    return () => {
+      if (debounceRef.current != null) clearTimeout(debounceRef.current);
+      supabase.removeChannel(ch);
+    };
+  }, [fetchUsers]);
 
   return (
     <div className="min-h-[100dvh] bg-white text-slate-900 p-6">
@@ -63,7 +108,7 @@ const MemberList = ({ setView, goBack, setSelectedMemberId }) => {
               <div className="flex items-center gap-4">
                 <div className="text-right">
                   <span className="block text-[10px] text-gray-500 uppercase tracking-wider">Remaining</span>
-                  <span className="text-lg font-serif text-emerald-600">{u.remaining_sessions}</span>
+                  <span className="text-lg font-serif text-emerald-600">{u.computedRemaining ?? 0}</span>
                 </div>
                 <ChevronRight size={20} className="text-gray-400" />
               </div>

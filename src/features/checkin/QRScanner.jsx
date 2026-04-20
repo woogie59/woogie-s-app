@@ -4,6 +4,8 @@ import { CheckCircle, XCircle } from 'lucide-react';
 import { Html5Qrcode } from 'html5-qrcode';
 import { supabase } from '../../lib/supabaseClient';
 import { invokeNotifyMemberEvents } from '../../utils/notifications';
+import { emitSessionBalanceRefresh } from '../../utils/sessionBalanceEvents';
+import { fetchSessionBalanceMetrics } from '../../utils/sessionHelpers';
 
 const QRScanner = ({ setView, goBack }) => {
   const [result, setResult] = useState(null);
@@ -44,13 +46,8 @@ const QRScanner = ({ setView, goBack }) => {
 
       const { data: userData } = await supabase.from('profiles').select('name').eq('id', scannedUserId).single();
 
-      let remaining = 0;
-      if (rpcData && typeof rpcData === 'object' && !Array.isArray(rpcData)) {
-        remaining = Number(rpcData.remaining ?? rpcData.remaining_sessions ?? 0);
-      } else if (Array.isArray(rpcData) && rpcData[0] != null) {
-        remaining = Number(rpcData[0].remaining ?? rpcData[0].remaining_sessions ?? 0);
-      }
-      if (!Number.isFinite(remaining)) remaining = 0;
+      const metrics = await fetchSessionBalanceMetrics(supabase, scannedUserId);
+      const remaining = metrics.remaining;
 
       const userName = userData?.name || '회원';
 
@@ -74,10 +71,12 @@ const QRScanner = ({ setView, goBack }) => {
         });
       }
 
+      emitSessionBalanceRefresh();
+
       setResult({
         success: true,
         userName,
-        message: `출석 완료 (잔여: ${remaining}회)`,
+        message: `출석 완료 (${metrics.usedSessionCount}회 / 총 ${metrics.totalPurchased}회 · 잔여 ${remaining}회)`,
         remainingSessions: remaining,
       });
     } catch (error) {

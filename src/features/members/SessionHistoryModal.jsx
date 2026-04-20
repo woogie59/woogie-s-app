@@ -4,7 +4,7 @@ import { X } from 'lucide-react';
 import { supabase } from '../../lib/supabaseClient';
 import {
   computeRemainingSessions,
-  countUsedSessionsFromBookings,
+  countEligibleAttendanceLogs,
   sumTotalPurchasedFromBatches,
 } from '../../utils/sessionHelpers';
 
@@ -71,7 +71,7 @@ const SessionHistoryModal = ({ user, onClose }) => {
   }, [user?.id]);
 
   const totalPurchased = sumTotalPurchasedFromBatches(sessionBatches);
-  const sessionUsedCount = countUsedSessionsFromBookings(bookings);
+  const sessionUsedCount = countEligibleAttendanceLogs(logs, bookings);
   const remainingCount = computeRemainingSessions(totalPurchased, sessionUsedCount);
   const totalCount = totalPurchased;
   const usedCount = sessionUsedCount;

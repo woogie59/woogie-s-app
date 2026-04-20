@@ -17,9 +17,11 @@ import { invokeNotifyAdminEvents, fetchAdminOnesignalPlayerId } from '../../util
 import { deriveSessionFocus, formatKoreanDateFromYmd } from '../../features/training/trainingLogUtils';
 import {
   computeRemainingSessions,
-  countUsedSessionsFromBookings,
+  countEligibleAttendanceLogs,
+  fetchSessionBalanceMetrics,
   sumTotalPurchasedFromBatches,
 } from '../../utils/sessionHelpers';
+import { emitSessionBalanceRefresh } from '../../utils/sessionBalanceEvents';
 import { useGlobalModal } from '../../context/GlobalModalContext';
 import LabDotBrand from '../../components/ui/LabDotBrand';
 import Skeleton from '../../components/ui/Skeleton';
@@ -106,6 +108,8 @@ const ClientHome = ({ user, logout, setView }) => {
   const [loadingBookings, setLoadingBookings] = useState(false);
   /** All packs for this user — sum(total_count) = purchased sessions (source of truth for 잔여). */
   const [sessionBatches, setSessionBatches] = useState([]);
+  /** attendance_logs rows for eligible count (with bookings, excludes zombies). */
+  const [attendanceLogs, setAttendanceLogs] = useState([]);
   const [cancelling, setCancelling] = useState(null);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [bookingToDelete, setBookingToDelete] = useState(null);
@@ -156,20 +160,16 @@ const ClientHome = ({ user, logout, setView }) => {
     fetchProfile();
   }, [user]);
 
-  const fetchSessionBatches = useCallback(async () => {
+  const loadSessionMetrics = useCallback(async () => {
     if (!user?.id) return;
-    const { data, error } = await supabase.from('session_batches').select('total_count').eq('user_id', user.id);
-    if (error) {
-      console.warn('[ClientHome] session_batches:', error);
-      setSessionBatches([]);
-      return;
-    }
-    setSessionBatches(Array.isArray(data) ? data : []);
+    const m = await fetchSessionBalanceMetrics(supabase, user.id);
+    setSessionBatches(Array.isArray(m.batches) ? m.batches : []);
+    setAttendanceLogs(Array.isArray(m.logs) ? m.logs : []);
   }, [user]);
 
   useEffect(() => {
-    fetchSessionBatches();
-  }, [fetchSessionBatches]);
+    loadSessionMetrics();
+  }, [loadSessionMetrics]);
 
   const fetchMyBookings = useCallback(async () => {
     if (!user) return;
@@ -199,40 +199,53 @@ const ClientHome = ({ user, logout, setView }) => {
     fetchMyBookings();
   }, [fetchMyBookings]);
 
+  const refreshAfterAttendanceChange = useCallback(async () => {
+    if (!user?.id) return null;
+    await Promise.all([fetchMyBookings(), loadSessionMetrics()]);
+    emitSessionBalanceRefresh();
+    const { data, error } = await supabase.from('profiles').select('*').eq('id', user.id).single();
+    if (!error && data) setProfile(data);
+    return fetchSessionBalanceMetrics(supabase, user.id);
+  }, [user?.id, fetchMyBookings, loadSessionMetrics]);
+
   const handleMemberCheckInRealtime = useCallback(() => {
     const now = Date.now();
     if (now - lastCheckInRealtimeRef.current < 2000) return;
     lastCheckInRealtimeRef.current = now;
 
-    const fetchProfileAfterCheckIn = async () => {
-      if (!user?.id) return;
-      const { data, error } = await supabase.from('profiles').select('*').eq('id', user.id).single();
-      if (!error && data) setProfile(data);
-    };
-    fetchProfileAfterCheckIn();
-    fetchSessionBatches();
-    fetchMyBookings();
+    void (async () => {
+      const m = await refreshAfterAttendanceChange();
+      const msg =
+        m != null
+          ? `출석이 완료되었습니다! (${m.usedSessionCount}회 / 총 ${m.totalPurchased}회)`
+          : '✅ 출석완료되었습니다';
 
-    if (showQRModalRef.current) {
-      setQrCheckInClosing(true);
-      if (qrCloseTimerRef.current != null) clearTimeout(qrCloseTimerRef.current);
-      qrCloseTimerRef.current = window.setTimeout(() => {
-        qrCloseTimerRef.current = null;
-        setShowQRModal(false);
-        setQrCheckInClosing(false);
-        showToast('Check-in successful · 출석이 완료되었습니다');
-      }, 500);
-    } else {
-      showAlert({ message: '✅ 출석완료되었습니다' });
-    }
-  }, [user?.id, showAlert, showToast, fetchSessionBatches, fetchMyBookings]);
+      if (showQRModalRef.current) {
+        showToast(msg);
+        setQrCheckInClosing(true);
+        if (qrCloseTimerRef.current != null) clearTimeout(qrCloseTimerRef.current);
+        qrCloseTimerRef.current = window.setTimeout(() => {
+          qrCloseTimerRef.current = null;
+          setShowQRModal(false);
+          setQrCheckInClosing(false);
+        }, 500);
+      } else {
+        showToast(msg);
+      }
+    })();
+  }, [refreshAfterAttendanceChange, showToast]);
 
   const handleMemberCheckInRealtimeRef = useRef(handleMemberCheckInRealtime);
   useEffect(() => {
     handleMemberCheckInRealtimeRef.current = handleMemberCheckInRealtime;
   }, [handleMemberCheckInRealtime]);
 
-  /** 모달이 닫혀 있을 때만 출석 INSERT 구독 — QR 모달 열림 시 아래 전용 채널과 중복되지 않게 분리 */
+  const refreshAfterAttendanceChangeRef = useRef(refreshAfterAttendanceChange);
+  useEffect(() => {
+    refreshAfterAttendanceChangeRef.current = refreshAfterAttendanceChange;
+  }, [refreshAfterAttendanceChange]);
+
+  /** 모달이 닫혀 있을 때만 — INSERT 시 토스트+새로고침, DELETE 시 잔여 재계산만 */
   useEffect(() => {
     if (!user?.id || showQRModal) return;
 
@@ -241,17 +254,25 @@ const ClientHome = ({ user, logout, setView }) => {
       .on(
         'postgres_changes',
         {
-          event: 'INSERT',
+          event: '*',
           schema: 'public',
           table: 'attendance_logs',
           filter: `user_id=eq.${user.id}`,
         },
-        () => {
-          handleMemberCheckInRealtimeRef.current();
+        (payload) => {
+          if (payload.eventType === 'DELETE') {
+            void refreshAfterAttendanceChangeRef.current?.();
+            return;
+          }
+          if (payload.eventType === 'INSERT') {
+            handleMemberCheckInRealtimeRef.current();
+            return;
+          }
+          void refreshAfterAttendanceChangeRef.current?.();
         }
       )
       .subscribe((status) => {
-        console.log('📡 구독 상태 (모달 닫힘 · attendance_logs INSERT):', status);
+        console.log('📡 구독 상태 (모달 닫힘 · attendance_logs):', status);
       });
 
     return () => {
@@ -281,20 +302,24 @@ const ClientHome = ({ user, logout, setView }) => {
           table: 'attendance_logs',
           filter: `user_id=eq.${uid}`,
         },
-        (payload) => {
-          console.log('🔥 DB 변경 데이터 포획 성공! 모달 닫기 진행:', payload);
-          if (qrCloseTimerRef.current != null) {
-            clearTimeout(qrCloseTimerRef.current);
-            qrCloseTimerRef.current = null;
-          }
-          setQrCheckInClosing(false);
-          setShowQRModal(false);
-          showToast('Check-in successful · 출석이 완료되었습니다');
+        () => {
           void (async () => {
-            const { data, error } = await supabase.from('profiles').select('*').eq('id', uid).single();
-            if (!error && data) setProfile(data);
-            fetchSessionBatches();
-            fetchMyBookings();
+            const m = await refreshAfterAttendanceChangeRef.current?.();
+            const msg =
+              m != null
+                ? `출석이 완료되었습니다! (${m.usedSessionCount}회 / 총 ${m.totalPurchased}회)`
+                : '출석이 완료되었습니다!';
+            showToast(msg);
+            if (qrCloseTimerRef.current != null) {
+              clearTimeout(qrCloseTimerRef.current);
+              qrCloseTimerRef.current = null;
+            }
+            setQrCheckInClosing(true);
+            qrCloseTimerRef.current = window.setTimeout(() => {
+              qrCloseTimerRef.current = null;
+              setShowQRModal(false);
+              setQrCheckInClosing(false);
+            }, 500);
           })();
         }
       )
@@ -323,7 +348,11 @@ const ClientHome = ({ user, logout, setView }) => {
           filter: `user_id=eq.${user.id}`,
         },
         () => {
-          fetchMyBookings();
+          void (async () => {
+            await fetchMyBookings();
+            await loadSessionMetrics();
+            emitSessionBalanceRefresh();
+          })();
         }
       )
       .subscribe();
@@ -331,7 +360,7 @@ const ClientHome = ({ user, logout, setView }) => {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [user?.id, fetchMyBookings]);
+  }, [user?.id, fetchMyBookings, loadSessionMetrics]);
 
   useEffect(() => {
     if (!user?.id) return;
@@ -342,7 +371,10 @@ const ClientHome = ({ user, logout, setView }) => {
         'postgres_changes',
         { event: '*', schema: 'public', table: 'session_batches', filter: `user_id=eq.${user.id}` },
         () => {
-          fetchSessionBatches();
+          void (async () => {
+            await loadSessionMetrics();
+            emitSessionBalanceRefresh();
+          })();
         }
       )
       .subscribe();
@@ -350,7 +382,7 @@ const ClientHome = ({ user, logout, setView }) => {
     return () => {
       supabase.removeChannel(ch);
     };
-  }, [user?.id, fetchSessionBatches]);
+  }, [user?.id, loadSessionMetrics]);
 
   const fetchLatestReport = useCallback(async () => {
     if (!user?.id) return;
@@ -434,11 +466,12 @@ const ClientHome = ({ user, logout, setView }) => {
   const sessionMetrics = useMemo(() => {
     const batches = Array.isArray(sessionBatches) ? sessionBatches : [];
     const bookings = Array.isArray(myBookings) ? myBookings : [];
+    const logs = Array.isArray(attendanceLogs) ? attendanceLogs : [];
     const totalPurchased = sumTotalPurchasedFromBatches(batches);
-    const usedSessionCount = countUsedSessionsFromBookings(bookings);
+    const usedSessionCount = countEligibleAttendanceLogs(logs, bookings);
     const remaining = computeRemainingSessions(totalPurchased, usedSessionCount);
     return { totalPurchased, usedSessionCount, remaining };
-  }, [sessionBatches, myBookings]);
+  }, [sessionBatches, myBookings, attendanceLogs]);
 
   const sessionRemainLabel = useMemo(() => {
     const { totalPurchased, remaining } = sessionMetrics;
@@ -494,7 +527,9 @@ const ClientHome = ({ user, logout, setView }) => {
     setIsDeleteModalOpen(false);
     setBookingToDelete(null);
     setCancelling(null);
-    fetchMyBookings();
+    await fetchMyBookings();
+    await loadSessionMetrics();
+    emitSessionBalanceRefresh();
     showAlert({ message: '취소가 완료되었습니다.', confirmLabel: '확인' });
   };
 

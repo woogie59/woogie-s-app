@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { Calendar, Clock, ChevronUp, ChevronDown, Trash2 } from 'lucide-react';
 import { supabase } from '../../lib/supabaseClient';
 import { deleteAttendanceLogsForBooking, toTime24h } from '../../utils/cascadeAttendance';
+import { emitSessionBalanceRefresh } from '../../utils/sessionBalanceEvents';
 import BackButton from '../../components/ui/BackButton';
 import Skeleton from '../../components/ui/Skeleton';
 
@@ -110,6 +111,7 @@ const AdminSchedule = ({ setView, goBack }) => {
 
       console.log('✅ bookings 삭제 확인:', bookData);
       setBookings((prev) => prev.filter((item) => item.id !== bookingId));
+      emitSessionBalanceRefresh();
       window.alert('일정이 삭제되었습니다.');
     } catch (err) {
       console.error('🚨 예기치 못한 에러:', err);

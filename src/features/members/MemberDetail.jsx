@@ -1,6 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { CreditCard, History, Plus, Calendar, Sparkles, Pencil } from 'lucide-react';
 import { supabase } from '../../lib/supabaseClient';
+import { fetchSessionBalanceMetrics } from '../../utils/sessionHelpers';
+import { SESSION_BALANCE_REFRESH_EVENT } from '../../utils/sessionBalanceEvents';
 import BackButton from '../../components/ui/BackButton';
 import AddSessionModal from './AddSessionModal';
 
@@ -8,6 +10,8 @@ const MemberDetail = ({ selectedMemberId, goBack }) => {
   const [u, setU] = useState(null);
   const [batches, setBatches] = useState([]);
   const [loadingBatches, setLoadingBatches] = useState(true);
+  /** 잔여: 구매 합 − 출석 로그(유효 건만) — batch.remaining_count 미사용 */
+  const [sessionBalance, setSessionBalance] = useState(null);
   /** null | 'add' | batch row — one modal with create vs edit */
   const [sessionModal, setSessionModal] = useState(null);
 
@@ -16,18 +20,22 @@ const MemberDetail = ({ selectedMemberId, goBack }) => {
     setU(userData);
 
     setLoadingBatches(true);
-    const { data: batchData, error: batchError } = await supabase
-      .from('session_batches')
-      .select('*')
-      .eq('user_id', selectedMemberId)
-      .order('created_at', { ascending: true });
+    const [batchRes, balanceRes] = await Promise.all([
+      supabase
+        .from('session_batches')
+        .select('*')
+        .eq('user_id', selectedMemberId)
+        .order('created_at', { ascending: true }),
+      fetchSessionBalanceMetrics(supabase, selectedMemberId),
+    ]);
 
-    if (batchError) {
-      console.error('Error fetching batches:', batchError);
+    if (batchRes.error) {
+      console.error('Error fetching batches:', batchRes.error);
       setBatches([]);
     } else {
-      setBatches(batchData || []);
+      setBatches(batchRes.data || []);
     }
+    setSessionBalance(balanceRes);
 
     setLoadingBatches(false);
   };
@@ -36,10 +44,37 @@ const MemberDetail = ({ selectedMemberId, goBack }) => {
     fetchMemberDetails();
   }, [selectedMemberId]);
 
-  const totalRemaining =
-    batches.length > 0
-      ? batches.reduce((sum, batch) => sum + (Number(batch.remaining_count) || 0), 0)
-      : u?.remaining_sessions || 0;
+  const reloadBalanceOnly = useCallback(async () => {
+    const m = await fetchSessionBalanceMetrics(supabase, selectedMemberId);
+    setSessionBalance(m);
+  }, [selectedMemberId]);
+
+  useEffect(() => {
+    const onEvt = () => {
+      void reloadBalanceOnly();
+    };
+    window.addEventListener(SESSION_BALANCE_REFRESH_EVENT, onEvt);
+    return () => window.removeEventListener(SESSION_BALANCE_REFRESH_EVENT, onEvt);
+  }, [reloadBalanceOnly]);
+
+  useEffect(() => {
+    if (!selectedMemberId) return;
+    const uid = selectedMemberId;
+    const schedule = () => {
+      void reloadBalanceOnly();
+    };
+    const ch = supabase
+      .channel(`member_detail_balance_${uid}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'attendance_logs', filter: `user_id=eq.${uid}` }, schedule)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'session_batches', filter: `user_id=eq.${uid}` }, schedule)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'bookings', filter: `user_id=eq.${uid}` }, schedule)
+      .subscribe();
+    return () => {
+      supabase.removeChannel(ch);
+    };
+  }, [selectedMemberId, reloadBalanceOnly]);
+
+  const totalRemaining = sessionBalance?.remaining ?? 0;
 
   if (!u)
     return (
@@ -155,9 +190,6 @@ const MemberDetail = ({ selectedMemberId, goBack }) => {
             <div className="text-center py-8 border border-gray-200 rounded-lg bg-gray-50 shadow-sm">
               <CreditCard size={40} className="mx-auto mb-3 opacity-20 text-gray-400" />
               <p className="text-sm text-gray-600 mb-1">No detailed purchase history available</p>
-              {u.remaining_sessions > 0 && (
-                <p className="text-xs text-gray-600">(Showing legacy balance: {u.remaining_sessions} sessions)</p>
-              )}
             </div>
           )}
         </div>
