@@ -39,6 +39,9 @@ const daysSinceCheckIn = (iso) => {
 
 const VISIBLE_UNCONFIRMED = 3;
 
+/** MVP: 지식창고(라이브러리)·트레이닝 일지 메뉴 비표시 — 라우트/컴포넌트는 유지 */
+const MVP_HIDE_LIBRARY_AND_TRAINING_NAV = true;
+
 const AdminHome = ({ setView, logout, onOpenTrainingLog }) => {
   const [unscheduledVips, setUnscheduledVips] = useState([]);
   const [radarLoading, setRadarLoading] = useState(true);
@@ -108,7 +111,12 @@ const AdminHome = ({ setView, logout, onOpenTrainingLog }) => {
     { icon: Calendar, label: '일정 관리', view: 'admin_schedule' },
     { icon: Archive, label: '라이브러리', view: 'library' },
     { icon: NotebookPen, label: '트레이닝 일지', action: 'training_log' },
-  ];
+  ].filter((item) => {
+    if (!MVP_HIDE_LIBRARY_AND_TRAINING_NAV) return true;
+    if (item.view === 'library') return false;
+    if (item.action === 'training_log') return false;
+    return true;
+  });
 
   return (
     <div className="min-h-[100dvh] bg-gray-50 text-slate-900 flex flex-col font-sans relative pb-safe">

@@ -25,6 +25,9 @@ import LabDotBrand from '../../components/ui/LabDotBrand';
 import Skeleton from '../../components/ui/Skeleton';
 import SessionHistoryModal from '../../features/members/SessionHistoryModal';
 
+/** MVP: 라이브러리·트레이닝 일지 진입 UI 비표시 — 라우트/화면은 유지 */
+const MVP_HIDE_LIBRARY_AND_TRAINING_NAV = true;
+
 /** Lucide: ~1px hairline for premium UI */
 const ICON_STROKE = 1;
 /** Bento nav: slightly bolder stroke for clarity */
@@ -575,15 +578,17 @@ const ClientHome = ({ user, logout, setView }) => {
           </p>
         </div>
         <div className="flex shrink-0 items-center justify-end gap-0.5 pt-0.5">
-          <button
-            type="button"
-            onClick={() => setView('library')}
-            className="p-2 rounded-xl text-gray-500 hover:text-[#064e3b] hover:bg-white transition-colors"
-            aria-label="인사이트 · 라이브러리"
-            title="인사이트"
-          >
-            <BookOpen size={20} strokeWidth={ICON_STROKE} />
-          </button>
+          {!MVP_HIDE_LIBRARY_AND_TRAINING_NAV && (
+            <button
+              type="button"
+              onClick={() => setView('library')}
+              className="p-2 rounded-xl text-gray-500 hover:text-[#064e3b] hover:bg-white transition-colors"
+              aria-label="인사이트 · 라이브러리"
+              title="인사이트"
+            >
+              <BookOpen size={20} strokeWidth={ICON_STROKE} />
+            </button>
+          )}
           {profile?.role === 'admin' && (
             <button
               type="button"
@@ -673,33 +678,34 @@ const ClientHome = ({ user, logout, setView }) => {
               <span className="text-[15px] font-light tracking-wide text-slate-900 leading-tight">내 일정</span>
             </button>
           </div>
-          {/* Training log gateway — archive entry */}
-          <button
-            type="button"
-            onClick={() => setView('training_log')}
-            className="w-full bg-white rounded-2xl border border-gray-100 shadow-sm p-5 text-left transition-all duration-200 active:scale-[0.98] active:bg-gray-50 hover:bg-gray-50/80"
-          >
-            <div className="flex items-center gap-2 mb-2">
-              <span className="h-1.5 w-1.5 rounded-full bg-[#064e3b] shrink-0" aria-hidden />
-              <span className="text-[10px] tracking-[0.22em] uppercase text-gray-500 font-medium">TRAINING LOG</span>
-            </div>
-            <div className="flex items-start justify-between gap-3">
-              <div className="min-w-0 flex-1">
-                <h3 className="text-[15px] font-medium text-slate-900 tracking-tight mb-1.5">트레이닝 일지</h3>
-                {latestReportLoading ? (
-                  <Skeleton className="h-4 w-48 max-w-full rounded" />
-                ) : trainingLogTeaser ? (
-                  <p className="text-xs text-gray-400 font-light tracking-wide leading-relaxed line-clamp-2">{trainingLogTeaser}</p>
-                ) : (
-                  <p className="text-xs text-gray-400 font-light tracking-wide leading-relaxed">기록이 없습니다</p>
-                )}
+          {!MVP_HIDE_LIBRARY_AND_TRAINING_NAV && (
+            <button
+              type="button"
+              onClick={() => setView('training_log')}
+              className="w-full bg-white rounded-2xl border border-gray-100 shadow-sm p-5 text-left transition-all duration-200 active:scale-[0.98] active:bg-gray-50 hover:bg-gray-50/80"
+            >
+              <div className="flex items-center gap-2 mb-2">
+                <span className="h-1.5 w-1.5 rounded-full bg-[#064e3b] shrink-0" aria-hidden />
+                <span className="text-[10px] tracking-[0.22em] uppercase text-gray-500 font-medium">TRAINING LOG</span>
               </div>
-              <div className="flex flex-col items-end gap-0.5 shrink-0 text-[#064e3b]/85 pt-0.5">
-                <span className="text-[10px] tracking-[0.12em] uppercase font-medium">전체 보기</span>
-                <ChevronRight size={20} strokeWidth={BENTO_ICON_STROKE} aria-hidden />
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0 flex-1">
+                  <h3 className="text-[15px] font-medium text-slate-900 tracking-tight mb-1.5">트레이닝 일지</h3>
+                  {latestReportLoading ? (
+                    <Skeleton className="h-4 w-48 max-w-full rounded" />
+                  ) : trainingLogTeaser ? (
+                    <p className="text-xs text-gray-400 font-light tracking-wide leading-relaxed line-clamp-2">{trainingLogTeaser}</p>
+                  ) : (
+                    <p className="text-xs text-gray-400 font-light tracking-wide leading-relaxed">기록이 없습니다</p>
+                  )}
+                </div>
+                <div className="flex flex-col items-end gap-0.5 shrink-0 text-[#064e3b]/85 pt-0.5">
+                  <span className="text-[10px] tracking-[0.12em] uppercase font-medium">전체 보기</span>
+                  <ChevronRight size={20} strokeWidth={BENTO_ICON_STROKE} aria-hidden />
+                </div>
               </div>
-            </div>
-          </button>
+            </button>
+          )}
         </div>
       </main>
 

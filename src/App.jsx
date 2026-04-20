@@ -306,6 +306,7 @@ export default function App() {
         data = retry;
       }
       setUserProfileRole(data?.role ?? null);
+      // MVP: 회원 → client_home(수업 예약·일정·출석), 관리자 → admin_home(회원·일정·Payroll 등). 라이브러리/트레이닝 일지는 네비에서 비표시.
       replaceView(data?.role === 'admin' ? 'admin_home' : 'client_home');
     } catch {
       setUserProfileRole(null);
