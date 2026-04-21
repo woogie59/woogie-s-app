@@ -30,6 +30,9 @@ import SessionHistoryModal from '../../features/members/SessionHistoryModal';
 /** MVP: 라이브러리·트레이닝 일지 진입 UI 비표시 — 라우트/화면은 유지 */
 const MVP_HIDE_LIBRARY_AND_TRAINING_NAV = true;
 
+/** Admin RPC 출석 INSERT와 동일한 Realtime 채널 (필터 user_id=eq.<uuid>와 함께 사용). */
+const memberAttendanceChannelName = (userId) => `qr-check-in-channel:${String(userId)}`;
+
 /** Lucide: ~1px hairline for premium UI */
 const ICON_STROKE = 1;
 /** Bento nav: slightly bolder stroke for clarity */
@@ -101,6 +104,10 @@ const ClientHome = ({ user, logout, setView }) => {
   const qrCloseTimerRef = useRef(null);
   /** attendance_logs INSERT + bookings UPDATE 둘 다 올 때 토스트/팝업 중복 방지 */
   const lastCheckInRealtimeRef = useRef(0);
+  const showQRModalRef = useRef(false);
+  useEffect(() => {
+    showQRModalRef.current = showQRModal;
+  }, [showQRModal]);
 
   const [showScheduleModal, setShowScheduleModal] = useState(false);
   const [myBookings, setMyBookings] = useState([]);
@@ -203,103 +210,60 @@ const ClientHome = ({ user, logout, setView }) => {
     return fetchSessionBalanceMetrics(supabase, user.id);
   }, [user?.id, fetchMyBookings, loadSessionMetrics]);
 
-  /** 모달 밖에서 출석 INSERT 시 — native alert 후 전체 새로고침으로 잔여 동기화 */
-  const handleMemberCheckInRealtime = useCallback(() => {
-    const now = Date.now();
-    if (now - lastCheckInRealtimeRef.current < 2000) return;
-    lastCheckInRealtimeRef.current = now;
-    alert('출석이 완료되었습니다!');
-    window.location.reload();
-  }, []);
-
-  const handleMemberCheckInRealtimeRef = useRef(handleMemberCheckInRealtime);
-  useEffect(() => {
-    handleMemberCheckInRealtimeRef.current = handleMemberCheckInRealtime;
-  }, [handleMemberCheckInRealtime]);
-
   const refreshAfterAttendanceChangeRef = useRef(refreshAfterAttendanceChange);
   useEffect(() => {
     refreshAfterAttendanceChangeRef.current = refreshAfterAttendanceChange;
   }, [refreshAfterAttendanceChange]);
 
-  /** 모달이 닫혀 있을 때만 — INSERT 시 토스트+새로고침, DELETE 시 잔여 재계산만 */
-  useEffect(() => {
-    if (!user?.id || showQRModal) return;
-
-    const channel = supabase
-      .channel(`attendance_logs_rt_${user.id}`)
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'attendance_logs',
-          filter: `user_id=eq.${user.id}`,
-        },
-        (payload) => {
-          if (payload.eventType === 'DELETE') {
-            void refreshAfterAttendanceChangeRef.current?.();
-            return;
-          }
-          if (payload.eventType === 'INSERT') {
-            handleMemberCheckInRealtimeRef.current();
-            return;
-          }
-          void refreshAfterAttendanceChangeRef.current?.();
-        }
-      )
-      .subscribe((status) => {
-        console.log('📡 구독 상태 (모달 닫힘 · attendance_logs):', status);
-      });
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [user?.id, showQRModal]);
-
   /**
-   * QR 모달 전용: attendance_logs INSERT만 구독. 관리자 스캔은 RPC로 로그 INSERT.
-   * 의존성은 [showQRModal, user?.id]만 — 다른 값을 넣으면 불필요한 재구독/즉시 cleanup이 납니다.
+   * 출석 INSERT/변경: 단일 채널 · 모달 열림 여부와 무관하게 항상 구독.
+   * 필터 user_id=eq.<uuid>는 auth.uid()와 동일한 profiles.id 문자열을 사용.
    */
   useEffect(() => {
-    if (!showQRModal || !user?.id) return;
+    if (!user?.id) return;
 
-    const uid = user.id;
-
-    console.log('🎧 QR 실시간 감시 시작 (attendance_logs)...');
-
-    const channel = supabase.channel(`qr-room-${uid}`);
-
-    channel
-      .on(
-        'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'attendance_logs',
-          filter: `user_id=eq.${uid}`,
-        },
-        () => {
-          if (qrCloseTimerRef.current != null) {
-            clearTimeout(qrCloseTimerRef.current);
-            qrCloseTimerRef.current = null;
-          }
-          setQrCheckInClosing(false);
-          setShowQRModal(false);
-          alert('출석이 완료되었습니다!');
-          window.location.reload();
+    const uid = String(user.id);
+    const channel = supabase.channel(memberAttendanceChannelName(uid)).on(
+      'postgres_changes',
+      {
+        event: '*',
+        schema: 'public',
+        table: 'attendance_logs',
+        filter: `user_id=eq.${uid}`,
+      },
+      (payload) => {
+        if (payload.eventType === 'DELETE') {
+          void refreshAfterAttendanceChangeRef.current?.();
+          return;
         }
-      )
-      .subscribe((status) => {
-        console.log('📡 구독 상태:', status);
-      });
+        if (payload.eventType === 'INSERT') {
+          const now = Date.now();
+          if (now - lastCheckInRealtimeRef.current < 2000) return;
+          lastCheckInRealtimeRef.current = now;
+          if (showQRModalRef.current) {
+            if (qrCloseTimerRef.current != null) {
+              clearTimeout(qrCloseTimerRef.current);
+              qrCloseTimerRef.current = null;
+            }
+            setQrCheckInClosing(false);
+            setShowQRModal(false);
+          }
+          alert('출석 완료!');
+          window.location.reload();
+          return;
+        }
+        void refreshAfterAttendanceChangeRef.current?.();
+      }
+    );
+
+    channel.subscribe((status) => {
+      console.log('📡 [qr-check-in-channel] attendance_logs:', status);
+    });
 
     return () => {
-      console.log('🧹 QR 감시 채널 정리 (Clean up)');
       supabase.removeChannel(channel);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- QR 채널은 모달·유저 id만으로 생명주기 고정
-  }, [showQRModal, user?.id]);
+  }, [user?.id]);
 
   useEffect(() => {
     if (!user?.id) return;
