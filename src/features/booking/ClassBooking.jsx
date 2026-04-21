@@ -46,10 +46,14 @@ const isNextWeekUnlocked = (now = new Date()) => {
   return now >= dropAt;
 };
 
+// TODO: REMOVE GOD MODE AND FIX TIMEZONE AFTER TEST
+/** `true` = 다음 주 버튼 항상 활성(시간 로직 무시). UI 밸브 점검용. */
+const GOD_MODE_NEXT_WEEK_ALWAYS_UNLOCKED = true;
+
 // TODO: REVERT TO SATURDAY 10 AM AFTER TESTING
 // When false: `nextUnlocked` uses `isNextWeekUnlocked` (토요일 정오 12:00 local, see getDropSaturdayNoon).
 // When true: unlock is fixed to `Date.now() + 2 minutes` once per page load (for QA only).
-const USE_TEST_NEXT_WEEK_UNLOCK = true;
+const USE_TEST_NEXT_WEEK_UNLOCK = false;
 const TEST_NEXT_WEEK_UNLOCK_MS_FROM_NOW = 2 * 60 * 1000;
 
 const weekDayLabelsKo = ['월', '화', '수', '목', '금', '토', '일'];
@@ -108,6 +112,7 @@ const ClassBooking = ({ user, setView, goBack }) => {
   const activeWeekStart = weekMode === 'current' ? thisMonday : nextMonday;
 
   const nextUnlocked = useMemo(() => {
+    if (GOD_MODE_NEXT_WEEK_ALWAYS_UNLOCKED) return true;
     const t = new Date();
     if (USE_TEST_NEXT_WEEK_UNLOCK) {
       const targetMs = testNextWeekUnlockAtMsRef.current ?? t.getTime();
@@ -292,6 +297,17 @@ const ClassBooking = ({ user, setView, goBack }) => {
   };
 
   const showNextWeekLocked = weekMode === 'next' && !nextUnlocked;
+
+  // 위의 "KST Hour"는 라벨일 뿐이며 `getHours()`는 브라우저 **로컬** 시간대입니다. 실제 서울 시각은 아래 줄 참고.
+  console.log(
+    '⏰ Current System Time:',
+    new Date().toString(),
+    ' | KST Hour:',
+    new Date().getHours(),
+    ' | Day:',
+    new Date().getDay()
+  );
+  console.log('⏰ Asia/Seoul (wall clock):', new Date().toLocaleString('sv-SE', { timeZone: 'Asia/Seoul' }));
 
   return (
     <div className="bg-gray-50 text-slate-900 flex flex-col overflow-hidden max-w-full min-h-[100dvh] font-sans antialiased">
