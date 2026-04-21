@@ -104,10 +104,6 @@ const ClientHome = ({ user, logout, setView }) => {
   const qrCloseTimerRef = useRef(null);
   /** attendance_logs INSERT + bookings UPDATE 둘 다 올 때 토스트/팝업 중복 방지 */
   const lastCheckInRealtimeRef = useRef(0);
-  const showQRModalRef = useRef(false);
-  useEffect(() => {
-    showQRModalRef.current = showQRModal;
-  }, [showQRModal]);
 
   const [showScheduleModal, setShowScheduleModal] = useState(false);
   const [myBookings, setMyBookings] = useState([]);
@@ -217,51 +213,80 @@ const ClientHome = ({ user, logout, setView }) => {
 
   /**
    * 출석 INSERT/변경: 단일 채널 · 모달 열림 여부와 무관하게 항상 구독.
-   * 필터 user_id=eq.<uuid>는 auth.uid()와 동일한 profiles.id 문자열을 사용.
+   * 카메라/백그라운드 후 WebSocket 재연결을 위해 visibility 시 재구독.
    */
   useEffect(() => {
     if (!user?.id) return;
 
     const uid = String(user.id);
-    const channel = supabase.channel(memberAttendanceChannelName(uid)).on(
-      'postgres_changes',
-      {
-        event: '*',
-        schema: 'public',
-        table: 'attendance_logs',
-        filter: `user_id=eq.${uid}`,
-      },
-      (payload) => {
-        if (payload.eventType === 'DELETE') {
-          void refreshAfterAttendanceChangeRef.current?.();
-          return;
-        }
-        if (payload.eventType === 'INSERT') {
-          const now = Date.now();
-          if (now - lastCheckInRealtimeRef.current < 2000) return;
-          lastCheckInRealtimeRef.current = now;
-          if (showQRModalRef.current) {
+    let channel = null;
+
+    const attachAttendanceListener = () => {
+      if (channel) {
+        supabase.removeChannel(channel);
+        channel = null;
+      }
+
+      channel = supabase.channel(memberAttendanceChannelName(uid)).on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'attendance_logs',
+          filter: `user_id=eq.${uid}`,
+        },
+        (payload) => {
+          console.log('🔥 Change Detected:', payload);
+
+          if (payload.eventType === 'DELETE') {
+            void refreshAfterAttendanceChangeRef.current?.();
+            return;
+          }
+
+          if (payload.eventType === 'INSERT') {
             if (qrCloseTimerRef.current != null) {
               clearTimeout(qrCloseTimerRef.current);
               qrCloseTimerRef.current = null;
             }
             setQrCheckInClosing(false);
             setShowQRModal(false);
-          }
-          alert('출석 완료!');
-          window.location.reload();
-          return;
-        }
-        void refreshAfterAttendanceChangeRef.current?.();
-      }
-    );
 
-    channel.subscribe((status) => {
-      console.log('📡 [qr-check-in-channel] attendance_logs:', status);
-    });
+            const now = Date.now();
+            if (now - lastCheckInRealtimeRef.current < 2000) return;
+            lastCheckInRealtimeRef.current = now;
+
+            alert('출석이 완료되었습니다!');
+            window.location.reload();
+            return;
+          }
+
+          void refreshAfterAttendanceChangeRef.current?.();
+        }
+      );
+
+      channel.subscribe((status) => {
+        console.log('📡 [qr-check-in-channel] attendance_logs:', status);
+        if (status === 'SUBSCRIBED') {
+          console.log('📡 Realtime Connected');
+        }
+      });
+    };
+
+    attachAttendanceListener();
+
+    const onVisibility = () => {
+      if (document.visibilityState === 'visible') {
+        attachAttendanceListener();
+      }
+    };
+    document.addEventListener('visibilitychange', onVisibility);
 
     return () => {
-      supabase.removeChannel(channel);
+      document.removeEventListener('visibilitychange', onVisibility);
+      if (channel) {
+        supabase.removeChannel(channel);
+        channel = null;
+      }
     };
   }, [user?.id]);
 
