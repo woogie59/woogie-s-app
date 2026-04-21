@@ -114,10 +114,29 @@ const MemberDetail = ({ selectedMemberId, goBack }) => {
             Session Packs <span className="text-xs font-normal text-gray-500">(구매 건별 스냅샷)</span>
           </h3>
 
+          {!loadingBatches && sessionBalance && sessionBalance.totalPurchased > 0 && (
+            <div className="rounded-lg border border-emerald-100 bg-emerald-50/50 px-3 py-2 text-sm text-slate-800">
+              <span className="font-semibold tabular-nums">
+                잔여 {sessionBalance.remaining} / 총 {sessionBalance.totalPurchased}회
+              </span>
+              <span className="text-gray-600 ml-2">· 출석 완료(COMPLETED) {sessionBalance.usedSessionCount}회</span>
+            </div>
+          )}
+
           {loadingBatches ? (
             <p className="text-gray-500 text-center py-6">Loading tickets...</p>
           ) : batches.length > 0 ? (
             <div className="space-y-3">
+              {sessionBalance && sessionBalance.totalPurchased > 0 && (
+                <div className="w-full bg-gray-200 rounded-full h-2 overflow-hidden">
+                  <div
+                    className="h-full rounded-full bg-emerald-600 transition-all"
+                    style={{
+                      width: `${(sessionBalance.remaining / sessionBalance.totalPurchased) * 100}%`,
+                    }}
+                  />
+                </div>
+              )}
               {batches.map((batch, index) => {
                 const isInUse = index === 0;
                 const batchDate = new Date(batch.created_at)
@@ -125,13 +144,12 @@ const MemberDetail = ({ selectedMemberId, goBack }) => {
                   .replace(/\. /g, '.')
                   .replace(/\.$/, '');
 
-                const exhausted = Number(batch.remaining_count) <= 0;
                 return (
                   <div
                     key={batch.id}
                     className={`bg-white rounded-lg p-4 transition-all ${
                       isInUse ? 'border-2 border-emerald-600/60 bg-emerald-600/5' : 'border border-gray-200'
-                    } ${exhausted ? 'opacity-90' : ''}`}
+                    }`}
                   >
                     <div className="flex justify-between items-start mb-3 gap-2">
                       <div className="flex-1 min-w-0">
@@ -141,17 +159,12 @@ const MemberDetail = ({ selectedMemberId, goBack }) => {
                           {isInUse && (
                             <span className="text-xs bg-emerald-600 text-white font-bold px-2 py-0.5 rounded">IN USE</span>
                           )}
-                          {exhausted && (
-                            <span className="text-xs bg-gray-200 text-gray-700 font-medium px-2 py-0.5 rounded">사용 완료</span>
-                          )}
                         </div>
 
                         <div className="flex items-center gap-6">
                           <div>
-                            <span className="text-xs text-gray-500 block mb-1">🎫 Status</span>
-                            <span className="text-lg font-bold text-slate-900">
-                              {batch.remaining_count} / {batch.total_count}
-                            </span>
+                            <span className="text-xs text-gray-500 block mb-1">🎫 구매</span>
+                            <span className="text-lg font-bold text-slate-900">{batch.total_count}회</span>
                           </div>
                           <div className="h-10 w-px bg-gray-200"></div>
                           <div>
@@ -172,15 +185,6 @@ const MemberDetail = ({ selectedMemberId, goBack }) => {
                         <Pencil size={14} className="shrink-0" aria-hidden />
                         수정
                       </button>
-                    </div>
-
-                    <div className="w-full bg-gray-200 rounded-full h-2 overflow-hidden">
-                      <div
-                        className={`h-full rounded-full transition-all ${isInUse ? 'bg-emerald-600' : 'bg-gray-300'}`}
-                        style={{
-                          width: `${batch.total_count > 0 ? (batch.remaining_count / batch.total_count) * 100 : 0}%`,
-                        }}
-                      ></div>
                     </div>
                   </div>
                 );

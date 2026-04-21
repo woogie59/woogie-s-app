@@ -17,7 +17,7 @@ import { invokeNotifyAdminEvents, fetchAdminOnesignalPlayerId } from '../../util
 import { deriveSessionFocus, formatKoreanDateFromYmd } from '../../features/training/trainingLogUtils';
 import {
   computeRemainingSessions,
-  countEligibleAttendanceLogs,
+  countCompletedAttendanceLogs,
   fetchSessionBalanceMetrics,
   sumTotalPurchasedFromBatches,
 } from '../../utils/sessionHelpers';
@@ -465,13 +465,12 @@ const ClientHome = ({ user, logout, setView }) => {
 
   const sessionMetrics = useMemo(() => {
     const batches = Array.isArray(sessionBatches) ? sessionBatches : [];
-    const bookings = Array.isArray(myBookings) ? myBookings : [];
     const logs = Array.isArray(attendanceLogs) ? attendanceLogs : [];
     const totalPurchased = sumTotalPurchasedFromBatches(batches);
-    const usedSessionCount = countEligibleAttendanceLogs(logs, bookings);
+    const usedSessionCount = countCompletedAttendanceLogs(logs);
     const remaining = computeRemainingSessions(totalPurchased, usedSessionCount);
     return { totalPurchased, usedSessionCount, remaining };
-  }, [sessionBatches, myBookings, attendanceLogs]);
+  }, [sessionBatches, attendanceLogs]);
 
   const sessionRemainLabel = useMemo(() => {
     const { totalPurchased, remaining } = sessionMetrics;

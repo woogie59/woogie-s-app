@@ -1,71 +1,30 @@
 // Shared helpers for session & pack calculations
 
-import { toTime24h } from './cascadeAttendance';
-
-/** Calendar YYYY-MM-DD in Asia/Seoul for an ISO timestamp (aligns with bookings.date). */
-export function dateKeySeoulFromISO(iso) {
-  if (!iso) return '';
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return '';
-  return d.toLocaleDateString('en-CA', { timeZone: 'Asia/Seoul' });
+/**
+ * Single source of truth for "used sessions": rows in attendance_logs whose status is COMPLETED
+ * (case-insensitive). Legacy rows without `status` count as completed check-ins.
+ * Explicitly excluded: CANCELLED, VOID, INVALID, PENDING, etc.
+ */
+export function normalizeAttendanceLogStatus(status) {
+  if (status == null || typeof status !== 'string') return '';
+  return status.trim().toUpperCase().replace(/-/g, '_');
 }
 
-/**
- * Booking row counts as "this class was completed / 출석 반영" for pairing with attendance_logs.
- * Excludes cancelled / pending-only rows so deleted or never-held classes do not validate a log.
- */
-export function isAttendanceBookingConsumed(status) {
-  const n = normalizeBookingStatusForSession(status);
-  if (n === 'cancelled' || n === 'canceled') return false;
-  return n === 'completed' || n === 'attended' || n === 'checked-in';
-}
-
-/**
- * Count an attendance_logs row toward "used sessions" only if it matches a still-existing booking
- * that is completed/attended/checked-in (same calendar day + time). Orphans (zombie logs) are excluded.
- */
-export function shouldCountAttendanceLog(log, bookings) {
-  if (!log?.user_id || !Array.isArray(bookings)) return false;
-  const logDate = dateKeySeoulFromISO(log.check_in_at);
-  if (!logDate) return false;
-  const logTime = toTime24h(log.session_time_fixed);
-  const sameDay = bookings.filter(
-    (b) =>
-      b?.user_id === log.user_id &&
-      String(b.date ?? '')
-        .slice(0, 10)
-        .trim() === logDate
-  );
-  if (sameDay.length === 0) return false;
-
-  const consumed = (b) => isAttendanceBookingConsumed(b?.status);
-
-  if (logTime) {
-    return sameDay.some((b) => toTime24h(b.time) === logTime && consumed(b));
+export function isAttendanceLogCompletedForBalance(log) {
+  if (!log) return false;
+  const raw = log.status;
+  if (raw == null || String(raw).trim() === '') return true;
+  const n = normalizeAttendanceLogStatus(raw);
+  if (n === 'CANCELLED' || n === 'CANCELED' || n === 'VOID' || n === 'INVALID' || n === 'PENDING') {
+    return false;
   }
-
-  const consumedRows = sameDay.filter(consumed);
-  if (consumedRows.length === 1) return true;
-  if (consumedRows.length === 0) return false;
-
-  const logMs = new Date(log.check_in_at).getTime();
-  if (!Number.isFinite(logMs)) return false;
-  return consumedRows.some((b) => {
-    const parts = String(b.time || '').match(/(\d{1,2}):(\d{2})/);
-    if (!parts) return false;
-    const bh = parseInt(parts[1], 10);
-    const bm = parseInt(parts[2], 10);
-    const d = new Date(log.check_in_at);
-    const lh = d.getHours();
-    const lmin = d.getMinutes();
-    const diff = Math.abs(lh * 60 + lmin - (bh * 60 + bm));
-    return diff <= 180;
-  });
+  return n === 'COMPLETED';
 }
 
-export function countEligibleAttendanceLogs(logs, bookings) {
+/** Used session count = attendance_logs rows counted as completed (see isAttendanceLogCompletedForBalance). */
+export function countCompletedAttendanceLogs(logs) {
   if (!Array.isArray(logs)) return 0;
-  return logs.filter((log) => shouldCountAttendanceLog(log, bookings)).length;
+  return logs.filter((log) => isAttendanceLogCompletedForBalance(log)).length;
 }
 
 export const getRemainingSessions = (user) => {
@@ -110,14 +69,14 @@ export function sumTotalPurchasedFromBatches(batches) {
   return batches.reduce((sum, b) => sum + (Number(b.total_count) || 0), 0);
 }
 
-/** Remaining = total purchased − consumed sessions (eligible attendance_logs rows). */
+/** Remaining = total purchased − completed attendance_logs count. */
 export function computeRemainingSessions(totalPurchased, usedSessionCount) {
   return Math.max(0, (Number(totalPurchased) || 0) - (Number(usedSessionCount) || 0));
 }
 
 /**
- * Single source of truth for 잔여: sum(session_batches.total_count) − eligible attendance_logs count.
- * Pass supabase client + user id. Does not use profiles.remaining_sessions or batch.remaining_count.
+ * 잔여: sum(session_batches.total_count) − count(attendance_logs with status COMPLETED).
+ * Does not use profiles.remaining_sessions or session_batches.remaining_count.
  */
 function groupByUserId(rows) {
   const m = {};
@@ -137,23 +96,20 @@ export async function fetchMembersBalanceSummaries(supabase, userIds) {
   const empty = {};
   if (!supabase || ids.length === 0) return empty;
 
-  const [batchesRes, logsRes, bookingsRes] = await Promise.all([
+  const [batchesRes, logsRes] = await Promise.all([
     supabase.from('session_batches').select('user_id, total_count').in('user_id', ids),
-    supabase.from('attendance_logs').select('*').in('user_id', ids),
-    supabase.from('bookings').select('*').in('user_id', ids),
+    supabase.from('attendance_logs').select('id, user_id, status, check_in_at').in('user_id', ids),
   ]);
 
   const batchesByUser = groupByUserId(batchesRes.error ? [] : batchesRes.data);
   const logsByUser = groupByUserId(logsRes.error ? [] : logsRes.data);
-  const bookingsByUser = groupByUserId(bookingsRes.error ? [] : bookingsRes.data);
 
   const result = {};
   for (const id of ids) {
     const tb = batchesByUser[id] || [];
     const tl = logsByUser[id] || [];
-    const tbk = bookingsByUser[id] || [];
     const totalPurchased = sumTotalPurchasedFromBatches(tb);
-    const usedSessionCount = countEligibleAttendanceLogs(tl, tbk);
+    const usedSessionCount = countCompletedAttendanceLogs(tl);
     const remaining = computeRemainingSessions(totalPurchased, usedSessionCount);
     result[id] = { remaining, totalPurchased, usedSessionCount };
   }
@@ -167,20 +123,17 @@ export async function fetchSessionBalanceMetrics(supabase, userId) {
       usedSessionCount: 0,
       remaining: 0,
       logs: [],
-      bookings: [],
       batches: [],
     };
   }
-  const [batchesRes, logsRes, bookingsRes] = await Promise.all([
+  const [batchesRes, logsRes] = await Promise.all([
     supabase.from('session_batches').select('total_count').eq('user_id', userId),
     supabase.from('attendance_logs').select('*').eq('user_id', userId),
-    supabase.from('bookings').select('*').eq('user_id', userId),
   ]);
   const batches = batchesRes.error ? [] : batchesRes.data || [];
   const logs = logsRes.error ? [] : logsRes.data || [];
-  const bookings = bookingsRes.error ? [] : bookingsRes.data || [];
   const totalPurchased = sumTotalPurchasedFromBatches(batches);
-  const usedSessionCount = countEligibleAttendanceLogs(logs, bookings);
+  const usedSessionCount = countCompletedAttendanceLogs(logs);
   const remaining = computeRemainingSessions(totalPurchased, usedSessionCount);
-  return { totalPurchased, usedSessionCount, remaining, logs, bookings, batches };
+  return { totalPurchased, usedSessionCount, remaining, logs, batches };
 }
