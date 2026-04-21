@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { Lock } from 'lucide-react';
 import { supabase } from '../../lib/supabaseClient';
 import { fetchAdminOnesignalProfile } from '../../utils/notifications';
@@ -39,12 +39,18 @@ const getDropSaturdayNoon = (weekMonday) => {
   return sat;
 };
 
-/** Next week (Mon–Sun) unlocks after this week's Saturday noon */
+/** Next week (Mon–Sun) unlocks after this week's Saturday noon (local time). */
 const isNextWeekUnlocked = (now = new Date()) => {
   const mon = getMonday(now);
   const dropAt = getDropSaturdayNoon(mon);
   return now >= dropAt;
 };
+
+// TODO: REVERT TO SATURDAY 10 AM AFTER TESTING
+// When false: `nextUnlocked` uses `isNextWeekUnlocked` (토요일 정오 12:00 local, see getDropSaturdayNoon).
+// When true: unlock is fixed to `Date.now() + 2 minutes` once per page load (for QA only).
+const USE_TEST_NEXT_WEEK_UNLOCK = true;
+const TEST_NEXT_WEEK_UNLOCK_MS_FROM_NOW = 2 * 60 * 1000;
 
 const weekDayLabelsKo = ['월', '화', '수', '목', '금', '토', '일'];
 
@@ -80,13 +86,52 @@ const ClassBooking = ({ user, setView, goBack }) => {
   /** Non-blocking toast when next week is still locked */
   const [weekToast, setWeekToast] = useState(null);
 
+  /** Test mode: single unlock instant = mount time + 2 minutes (local) */
+  const testNextWeekUnlockAtMsRef = useRef(null);
+  const testNextWeekPrevUnlockedRef = useRef(null);
+  if (USE_TEST_NEXT_WEEK_UNLOCK && testNextWeekUnlockAtMsRef.current === null) {
+    testNextWeekUnlockAtMsRef.current = Date.now() + TEST_NEXT_WEEK_UNLOCK_MS_FROM_NOW;
+  }
+
+  /** Recompute `nextUnlocked` every second while testing (unlock flips at T+2m) */
+  const [nextWeekClockTick, setNextWeekClockTick] = useState(0);
+  useEffect(() => {
+    if (!USE_TEST_NEXT_WEEK_UNLOCK) return undefined;
+    const id = window.setInterval(() => setNextWeekClockTick((n) => n + 1), 1000);
+    return () => window.clearInterval(id);
+  }, []);
+
   const now = useMemo(() => new Date(), []);
   const thisMonday = useMemo(() => getMonday(now), [now]);
   const nextMonday = useMemo(() => addDays(thisMonday, 7), [thisMonday]);
 
   const activeWeekStart = weekMode === 'current' ? thisMonday : nextMonday;
 
-  const nextUnlocked = isNextWeekUnlocked();
+  const nextUnlocked = useMemo(() => {
+    const t = new Date();
+    if (USE_TEST_NEXT_WEEK_UNLOCK) {
+      const targetMs = testNextWeekUnlockAtMsRef.current ?? t.getTime();
+      const unlocked = t.getTime() >= targetMs;
+      const edge = testNextWeekPrevUnlockedRef.current !== unlocked;
+      if (edge) testNextWeekPrevUnlockedRef.current = unlocked;
+      // Initial tick, 잠금→해제 전환, 또는 ~10초마다 하트비트
+      if (edge || nextWeekClockTick === 0 || nextWeekClockTick % 10 === 0) {
+        console.log(
+          '%c[TEST] Next week time-lock',
+          'background:#064e3b;color:#fff;padding:2px 6px;font-weight:bold;',
+          {
+            currentTime: t.toLocaleString(),
+            currentTimeISO: t.toISOString(),
+            targetUnlock: new Date(targetMs).toLocaleString(),
+            targetUnlockISO: new Date(targetMs).toISOString(),
+            isNextWeekUnlocked: unlocked,
+          }
+        );
+      }
+      return unlocked;
+    }
+    return isNextWeekUnlocked(t);
+  }, [nextWeekClockTick]);
 
   const weekDates = useMemo(() => {
     const arr = [];
