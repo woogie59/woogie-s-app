@@ -26,7 +26,6 @@ import { useGlobalModal } from '../../context/GlobalModalContext';
 import LabDotBrand from '../../components/ui/LabDotBrand';
 import Skeleton from '../../components/ui/Skeleton';
 import SessionHistoryModal from '../../features/members/SessionHistoryModal';
-import AttendanceCompleteModal from '../../components/ui/AttendanceCompleteModal';
 
 /** MVP: 라이브러리·트레이닝 일지 진입 UI 비표시 — 라우트/화면은 유지 */
 const MVP_HIDE_LIBRARY_AND_TRAINING_NAV = true;
@@ -110,8 +109,6 @@ const ClientHome = ({ user, logout, setView }) => {
   const [sessionBatches, setSessionBatches] = useState([]);
   /** attendance_logs rows for eligible count (with bookings, excludes zombies). */
   const [attendanceLogs, setAttendanceLogs] = useState([]);
-  /** Post–QR scan: 출석 완료 알림 (회차 / 총 세션) */
-  const [postScanNotice, setPostScanNotice] = useState(null);
   const [cancelling, setCancelling] = useState(null);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [bookingToDelete, setBookingToDelete] = useState(null);
@@ -206,36 +203,14 @@ const ClientHome = ({ user, logout, setView }) => {
     return fetchSessionBalanceMetrics(supabase, user.id);
   }, [user?.id, fetchMyBookings, loadSessionMetrics]);
 
-  const handlePostScanDismiss = useCallback(async () => {
-    setPostScanNotice(null);
-    try {
-      await refreshAfterAttendanceChange();
-    } catch (e) {
-      console.warn('[ClientHome] post-scan refresh:', e);
-    }
-    emitSessionBalanceRefresh();
-    window.location.reload();
-  }, [refreshAfterAttendanceChange]);
-
-  /** QR 모달이 닫힌 상태에서만 구독 — 출석 INSERT 시 알림 (QR 전용 채널과 중복 없음) */
+  /** 모달 밖에서 출석 INSERT 시 — native alert 후 전체 새로고침으로 잔여 동기화 */
   const handleMemberCheckInRealtime = useCallback(() => {
     const now = Date.now();
     if (now - lastCheckInRealtimeRef.current < 2000) return;
     lastCheckInRealtimeRef.current = now;
-
-    void (async () => {
-      const m = await refreshAfterAttendanceChange();
-      if (m != null) {
-        setPostScanNotice({ current: m.usedSessionCount, total: m.totalPurchased });
-      } else {
-        showAlert({
-          title: '출석',
-          message: '출석이 반영되었습니다.',
-          confirmLabel: '확인',
-        });
-      }
-    })();
-  }, [refreshAfterAttendanceChange, showAlert]);
+    alert('출석이 완료되었습니다!');
+    window.location.reload();
+  }, []);
 
   const handleMemberCheckInRealtimeRef = useRef(handleMemberCheckInRealtime);
   useEffect(() => {
@@ -305,31 +280,14 @@ const ClientHome = ({ user, logout, setView }) => {
           filter: `user_id=eq.${uid}`,
         },
         () => {
-          void (async () => {
-            const m = await refreshAfterAttendanceChangeRef.current?.();
-            if (qrCloseTimerRef.current != null) {
-              clearTimeout(qrCloseTimerRef.current);
-              qrCloseTimerRef.current = null;
-            }
-            setQrCheckInClosing(true);
-            qrCloseTimerRef.current = window.setTimeout(() => {
-              qrCloseTimerRef.current = null;
-              setShowQRModal(false);
-              setQrCheckInClosing(false);
-              if (m != null) {
-                setPostScanNotice({
-                  current: m.usedSessionCount,
-                  total: m.totalPurchased,
-                });
-              } else {
-                showAlert({
-                  title: '출석',
-                  message: '출석이 반영되었습니다. 잠시 후에도 숫자가 맞지 않으면 새로고침해 주세요.',
-                  confirmLabel: '확인',
-                });
-              }
-            }, 500);
-          })();
+          if (qrCloseTimerRef.current != null) {
+            clearTimeout(qrCloseTimerRef.current);
+            qrCloseTimerRef.current = null;
+          }
+          setQrCheckInClosing(false);
+          setShowQRModal(false);
+          alert('출석이 완료되었습니다!');
+          window.location.reload();
         }
       )
       .subscribe((status) => {
@@ -341,7 +299,7 @@ const ClientHome = ({ user, logout, setView }) => {
       supabase.removeChannel(channel);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps -- QR 채널은 모달·유저 id만으로 생명주기 고정
-  }, [showQRModal, user?.id, showAlert]);
+  }, [showQRModal, user?.id]);
 
   useEffect(() => {
     if (!user?.id) return;
@@ -824,13 +782,6 @@ const ClientHome = ({ user, logout, setView }) => {
           </motion.div>
         )}
       </AnimatePresence>
-
-      <AttendanceCompleteModal
-        open={postScanNotice != null}
-        currentCount={postScanNotice?.current}
-        totalCount={postScanNotice?.total}
-        onConfirm={handlePostScanDismiss}
-      />
 
       {/* My Schedule Modal */}
       <AnimatePresence>

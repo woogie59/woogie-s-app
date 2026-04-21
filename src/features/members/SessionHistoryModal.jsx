@@ -19,10 +19,10 @@ const getMondayOfWeek = (d) => {
   return monday;
 };
 
-const getWeekLabel = (weekIndex) => {
-  if (weekIndex === 0) return 'This Week';
-  if (weekIndex === 1) return 'Last Week';
-  return `${weekIndex} Weeks Ago`;
+const getWeekLabelKo = (weekIndex) => {
+  if (weekIndex === 0) return '이번 주';
+  if (weekIndex === 1) return '지난 주';
+  return `${weekIndex}주 전`;
 };
 
 const formatSessionDate = (checkInAt) => {
@@ -32,7 +32,7 @@ const formatSessionDate = (checkInAt) => {
   const day = String(d.getDate()).padStart(2, '0');
   const dayName = DAY_NAMES_KO[d.getDay()];
   const time = d.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', hour12: false });
-  return `${y}.${m}.${day} (${dayName}) - ${time}`;
+  return `${y}.${m}.${day} (${dayName}) ${time}`;
 };
 
 const SessionHistoryModal = ({ user, onClose }) => {
@@ -90,13 +90,13 @@ const SessionHistoryModal = ({ user, onClose }) => {
       }).length;
 
       weeks.push({
-        label: getWeekLabel(i),
+        label: getWeekLabelKo(i),
         count,
         isThisWeek: i === 0,
       });
     }
-    const maxCount = Math.max(1, ...weeks.map((w) => w.count));
-    return { weeklyData: weeks, maxCount };
+    const maxC = Math.max(1, ...weeks.map((w) => w.count));
+    return { weeklyData: weeks, maxCount: maxC };
   }, [logs]);
 
   return (
@@ -105,85 +105,83 @@ const SessionHistoryModal = ({ user, onClose }) => {
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
-        className="fixed inset-0 z-50 flex items-end justify-center sm:items-center sm:p-6 bg-gray-900/20"
+        className="fixed inset-0 z-50 flex items-end justify-center sm:items-center sm:p-8 bg-black/25"
         onClick={onClose}
       >
         <motion.div
           initial={{ y: '100%', opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}
           exit={{ y: '100%', opacity: 0 }}
-          transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-          className="bg-white border-t border-gray-200 sm:rounded-2xl w-full max-w-md max-h-[85vh] flex flex-col shadow-xl"
+          transition={{ type: 'spring', damping: 28, stiffness: 280 }}
+          className="bg-white w-full max-w-md max-h-[88vh] flex flex-col sm:max-h-[85vh] sm:rounded-sm shadow-2xl shadow-black/10"
           onClick={(e) => e.stopPropagation()}
         >
-          {/* Header */}
-          <div className="flex items-center justify-between p-4 border-b border-gray-200/70 shrink-0">
-            <h3 className="text-lg font-serif tracking-wide text-emerald-600">MY JOURNEY</h3>
+          <div className="flex items-center justify-between px-6 pt-8 pb-6 shrink-0">
+            <h3 className="text-[15px] font-medium tracking-tight text-neutral-950">수강 내역</h3>
             <button
+              type="button"
               onClick={onClose}
-              className="p-2 rounded-lg text-gray-600 hover:text-slate-900 hover:bg-gray-100 transition-colors"
-              aria-label="Close"
+              className="p-1.5 text-neutral-400 hover:text-neutral-900 transition-colors"
+              aria-label="닫기"
             >
-              <X size={22} />
+              <X size={20} strokeWidth={1.5} />
             </button>
           </div>
 
-          <div className="flex-1 overflow-y-auto p-4 space-y-6">
+          <div className="flex-1 overflow-y-auto px-6 pb-10 space-y-12">
             {loading ? (
-              <div className="flex items-center justify-center py-12">
-                <div className="w-8 h-8 border-2 border-emerald-600 border-t-transparent rounded-full animate-spin" />
+              <div className="flex items-center justify-center py-20">
+                <div className="h-px w-8 bg-neutral-900/20 animate-pulse" aria-hidden />
               </div>
             ) : (
               <>
-                {/* Session Summary Card */}
-                <div className="bg-gray-50 rounded-2xl p-6 mb-6 border border-gray-200">
-                  <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
+                <section className="space-y-6">
+                  <div className="h-px bg-neutral-900/10 rounded-full overflow-hidden">
                     <motion.div
                       initial={{ width: 0 }}
                       animate={{ width: `${progressPercentage}%` }}
-                      transition={{ duration: 0.6, ease: 'easeOut' }}
-                      className="h-full bg-emerald-600 rounded-full"
+                      transition={{ duration: 0.5, ease: 'easeOut' }}
+                      className="h-full bg-[#064e3b]"
                     />
                   </div>
-                  <div className="flex justify-between mt-4">
+                  <div className="grid grid-cols-3 gap-6 text-center">
                     <div>
-                      <p className="text-xs text-gray-500 uppercase tracking-wider">TOTAL</p>
-                      <p className="text-xl text-slate-900 font-medium">{totalCount.toLocaleString()}</p>
+                      <p className="text-[10px] font-medium tracking-[0.14em] text-neutral-500 mb-2">총 횟수</p>
+                      <p className="text-lg font-semibold tabular-nums text-neutral-950">{totalCount.toLocaleString()}</p>
                     </div>
                     <div>
-                      <p className="text-xs text-gray-500 uppercase tracking-wider">DONE</p>
-                      <p className="text-xl text-slate-900 font-medium">{usedCount.toLocaleString()}</p>
+                      <p className="text-[10px] font-medium tracking-[0.14em] text-neutral-500 mb-2">진행</p>
+                      <p className="text-lg font-semibold tabular-nums text-neutral-950">{usedCount.toLocaleString()}</p>
                     </div>
                     <div>
-                      <p className="text-xs text-emerald-600/80 uppercase tracking-wider">LEFT</p>
-                      <p className="text-xl text-emerald-600 font-bold">{remainingCount.toLocaleString()}</p>
+                      <p className="text-[10px] font-medium tracking-[0.14em] text-[#064e3b]/80 mb-2">잔여</p>
+                      <p className="text-lg font-semibold tabular-nums text-[#064e3b]">{remainingCount.toLocaleString()}</p>
                     </div>
                   </div>
-                </div>
+                </section>
 
-                {/* Weekly Bar Chart */}
-                <div>
-                  <p className="text-xs text-gray-500 uppercase tracking-widest mb-3">Weekly Rhythm</p>
-                  <div className="flex items-end justify-between gap-3">
+                <section>
+                  <p className="text-[10px] font-medium tracking-[0.18em] text-neutral-500 mb-8">주간 출석</p>
+                  <div className="flex items-end justify-between gap-2">
                     {weeklyData.map((week, i) => {
-                      const barHeight = maxCount > 0 ? (week.count / maxCount) * 72 : 0;
+                      const barHeight = maxCount > 0 ? (week.count / maxCount) * 56 : 0;
                       return (
-                        <div key={i} className="flex-1 flex flex-col items-center gap-2 min-w-0">
-                          <div className="w-full h-20 flex flex-col justify-end items-center">
+                        <div key={i} className="flex-1 flex flex-col items-center gap-3 min-w-0">
+                          <div className="w-full h-14 flex flex-col justify-end items-center">
                             <motion.div
                               initial={{ height: 0 }}
                               animate={{ height: barHeight }}
-                              transition={{ delay: i * 0.05, duration: 0.4, ease: 'easeOut' }}
-                              className={`w-full max-w-[44px] rounded-t ${
-                                week.isThisWeek ? 'bg-emerald-600' : 'bg-gray-200'
+                              transition={{ delay: i * 0.04, duration: 0.35, ease: 'easeOut' }}
+                              className={`w-full max-w-[36px] ${
+                                week.isThisWeek ? 'bg-[#064e3b]' : 'bg-neutral-200'
                               }`}
-                              style={{ minHeight: week.count > 0 ? 4 : 0 }}
+                              style={{ minHeight: week.count > 0 ? 3 : 0 }}
                             />
                           </div>
-                          <span className="text-[10px] font-medium text-gray-500">{week.count}</span>
+                          <span className="text-[11px] tabular-nums text-neutral-600">{week.count}</span>
                           <span
-                            className={`text-[10px] truncate w-full text-center ${
-                              week.isThisWeek ? 'text-emerald-600 font-bold' : 'text-gray-500'
+                            className={`text-[10px] text-center leading-tight w-full truncate ${
+                              week.isThisWeek ? 'text-[#064e3b] font-medium' : 'text-neutral-500'
                             }`}
                           >
                             {week.label}
@@ -192,31 +190,27 @@ const SessionHistoryModal = ({ user, onClose }) => {
                       );
                     })}
                   </div>
-                </div>
+                </section>
 
-                {/* History List */}
-                <div>
-                  <p className="text-xs text-gray-500 uppercase tracking-widest mb-3">Session History</p>
-                  <div className="bg-gray-50 rounded-xl border border-gray-200 overflow-hidden font-mono text-sm">
-                    {logs.length === 0 ? (
-                      <div className="px-4 py-8 text-center text-gray-500 text-xs">
-                        No sessions yet
-                      </div>
-                    ) : (
-                      <div className="divide-y divide-gray-200">
-                        {logs.map((log) => (
-                          <div
-                            key={log.id}
-                            className="px-4 py-3 flex items-center justify-between text-gray-600 hover:bg-gray-100 transition-colors"
-                          >
-                            <span>{formatSessionDate(log.check_in_at)}</span>
-                            <span className="text-emerald-600 text-xs">✓</span>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                </div>
+                <section>
+                  <p className="text-[10px] font-medium tracking-[0.18em] text-neutral-500 mb-6">상세 기록</p>
+                  {logs.length === 0 ? (
+                    <p className="text-[13px] text-neutral-400 py-4">기록이 없습니다.</p>
+                  ) : (
+                    <ul className="divide-y divide-neutral-100">
+                      {logs.map((log) => (
+                        <li key={log.id} className="flex items-center justify-between gap-6 py-3.5 first:pt-0">
+                          <span className="text-[13px] text-neutral-900 leading-snug">
+                            {formatSessionDate(log.check_in_at)}
+                          </span>
+                          <span className="text-neutral-300/90 text-[11px] font-extralight shrink-0" aria-hidden>
+                            ✓
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </section>
               </>
             )}
           </div>
