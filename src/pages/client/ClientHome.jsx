@@ -26,6 +26,7 @@ import { useGlobalModal } from '../../context/GlobalModalContext';
 import LabDotBrand from '../../components/ui/LabDotBrand';
 import Skeleton from '../../components/ui/Skeleton';
 import SessionHistoryModal from '../../features/members/SessionHistoryModal';
+import AttendanceCompleteModal from '../../components/ui/AttendanceCompleteModal';
 
 /** MVP: 라이브러리·트레이닝 일지 진입 UI 비표시 — 라우트/화면은 유지 */
 const MVP_HIDE_LIBRARY_AND_TRAINING_NAV = true;
@@ -92,13 +93,12 @@ const formatUpcomingLine = (b) => {
 };
 
 const ClientHome = ({ user, logout, setView }) => {
-  const { showAlert, showToast } = useGlobalModal();
+  const { showAlert } = useGlobalModal();
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
   const [showQRModal, setShowQRModal] = useState(false);
   /** Fade-out QR modal over 0.5s after 출석 감지 (attendance_logs INSERT 또는 bookings UPDATE) */
   const [qrCheckInClosing, setQrCheckInClosing] = useState(false);
-  const showQRModalRef = useRef(false);
   const qrCloseTimerRef = useRef(null);
   /** attendance_logs INSERT + bookings UPDATE 둘 다 올 때 토스트/팝업 중복 방지 */
   const lastCheckInRealtimeRef = useRef(0);
@@ -110,6 +110,8 @@ const ClientHome = ({ user, logout, setView }) => {
   const [sessionBatches, setSessionBatches] = useState([]);
   /** attendance_logs rows for eligible count (with bookings, excludes zombies). */
   const [attendanceLogs, setAttendanceLogs] = useState([]);
+  /** Post–QR scan: 출석 완료 알림 (회차 / 총 세션) */
+  const [postScanNotice, setPostScanNotice] = useState(null);
   const [cancelling, setCancelling] = useState(null);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [bookingToDelete, setBookingToDelete] = useState(null);
@@ -125,10 +127,6 @@ const ClientHome = ({ user, logout, setView }) => {
     monday.setHours(0, 0, 0, 0);
     return monday;
   });
-
-  useEffect(() => {
-    showQRModalRef.current = showQRModal;
-  }, [showQRModal]);
 
   useEffect(() => {
     return () => {
@@ -208,6 +206,18 @@ const ClientHome = ({ user, logout, setView }) => {
     return fetchSessionBalanceMetrics(supabase, user.id);
   }, [user?.id, fetchMyBookings, loadSessionMetrics]);
 
+  const handlePostScanDismiss = useCallback(async () => {
+    setPostScanNotice(null);
+    try {
+      await refreshAfterAttendanceChange();
+    } catch (e) {
+      console.warn('[ClientHome] post-scan refresh:', e);
+    }
+    emitSessionBalanceRefresh();
+    window.location.reload();
+  }, [refreshAfterAttendanceChange]);
+
+  /** QR 모달이 닫힌 상태에서만 구독 — 출석 INSERT 시 알림 (QR 전용 채널과 중복 없음) */
   const handleMemberCheckInRealtime = useCallback(() => {
     const now = Date.now();
     if (now - lastCheckInRealtimeRef.current < 2000) return;
@@ -215,25 +225,17 @@ const ClientHome = ({ user, logout, setView }) => {
 
     void (async () => {
       const m = await refreshAfterAttendanceChange();
-      const msg =
-        m != null
-          ? `출석이 완료되었습니다! (${m.usedSessionCount}회 / 총 ${m.totalPurchased}회)`
-          : '✅ 출석완료되었습니다';
-
-      if (showQRModalRef.current) {
-        showToast(msg);
-        setQrCheckInClosing(true);
-        if (qrCloseTimerRef.current != null) clearTimeout(qrCloseTimerRef.current);
-        qrCloseTimerRef.current = window.setTimeout(() => {
-          qrCloseTimerRef.current = null;
-          setShowQRModal(false);
-          setQrCheckInClosing(false);
-        }, 500);
+      if (m != null) {
+        setPostScanNotice({ current: m.usedSessionCount, total: m.totalPurchased });
       } else {
-        showToast(msg);
+        showAlert({
+          title: '출석',
+          message: '출석이 반영되었습니다.',
+          confirmLabel: '확인',
+        });
       }
     })();
-  }, [refreshAfterAttendanceChange, showToast]);
+  }, [refreshAfterAttendanceChange, showAlert]);
 
   const handleMemberCheckInRealtimeRef = useRef(handleMemberCheckInRealtime);
   useEffect(() => {
@@ -305,11 +307,6 @@ const ClientHome = ({ user, logout, setView }) => {
         () => {
           void (async () => {
             const m = await refreshAfterAttendanceChangeRef.current?.();
-            const msg =
-              m != null
-                ? `출석이 완료되었습니다! (${m.usedSessionCount}회 / 총 ${m.totalPurchased}회)`
-                : '출석이 완료되었습니다!';
-            showToast(msg);
             if (qrCloseTimerRef.current != null) {
               clearTimeout(qrCloseTimerRef.current);
               qrCloseTimerRef.current = null;
@@ -319,6 +316,18 @@ const ClientHome = ({ user, logout, setView }) => {
               qrCloseTimerRef.current = null;
               setShowQRModal(false);
               setQrCheckInClosing(false);
+              if (m != null) {
+                setPostScanNotice({
+                  current: m.usedSessionCount,
+                  total: m.totalPurchased,
+                });
+              } else {
+                showAlert({
+                  title: '출석',
+                  message: '출석이 반영되었습니다. 잠시 후에도 숫자가 맞지 않으면 새로고침해 주세요.',
+                  confirmLabel: '확인',
+                });
+              }
             }, 500);
           })();
         }
@@ -332,7 +341,7 @@ const ClientHome = ({ user, logout, setView }) => {
       supabase.removeChannel(channel);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps -- QR 채널은 모달·유저 id만으로 생명주기 고정
-  }, [showQRModal, user?.id]);
+  }, [showQRModal, user?.id, showAlert]);
 
   useEffect(() => {
     if (!user?.id) return;
@@ -743,7 +752,7 @@ const ClientHome = ({ user, logout, setView }) => {
         </div>
       </main>
 
-      {/* QR Code Modal — realtime 출석 감지 시 0.5s fade-out + toast */}
+      {/* QR Code Modal — realtime 출석 감지 시 0.5s fade-out → 출석 완료 알림 */}
       <AnimatePresence>
         {showQRModal && (
           <motion.div
@@ -815,6 +824,13 @@ const ClientHome = ({ user, logout, setView }) => {
           </motion.div>
         )}
       </AnimatePresence>
+
+      <AttendanceCompleteModal
+        open={postScanNotice != null}
+        currentCount={postScanNotice?.current}
+        totalCount={postScanNotice?.total}
+        onConfirm={handlePostScanDismiss}
+      />
 
       {/* My Schedule Modal */}
       <AnimatePresence>

@@ -100,9 +100,9 @@ const AdminPayrollDashboard = ({ goBack }) => {
       const { data: logRows, error: lErr } = await supabase
         .from('attendance_logs')
         .select('*')
-        .gte('created_at', firstDay)
-        .lte('created_at', lastDay)
-        .order('created_at', { ascending: false });
+        .gte('check_in_at', firstDay)
+        .lte('check_in_at', lastDay)
+        .order('check_in_at', { ascending: false });
 
       if (lErr) throw lErr;
 
@@ -157,12 +157,12 @@ const AdminPayrollDashboard = ({ goBack }) => {
       const na = nameByUserId[a.user_id] || '';
       const nb = nameByUserId[b.user_id] || '';
       if (na !== nb) return na.localeCompare(nb, 'ko');
-      return new Date(b.created_at || 0) - new Date(a.created_at || 0);
+      return new Date(b.check_in_at || 0) - new Date(a.check_in_at || 0);
     });
 
     sorted.forEach((log) => {
       const name = nameByUserId[log.user_id] || '—';
-      const dateStr = formatDateOnly(log.check_in_at || log.created_at);
+      const dateStr = formatDateOnly(log.check_in_at);
       const start = normalizeSessionTime(log.session_time_fixed) || sessionTimeFromCheckIn(log.check_in_at);
       const end = start !== '—' ? addMinutesToHhMm(start, 60) : '—';
       const total = counts[log.user_id] ?? 0;
@@ -181,7 +181,7 @@ const AdminPayrollDashboard = ({ goBack }) => {
             <BackButton onClick={goBack} />
             <h1 className="mt-6 text-2xl font-semibold tracking-tight text-neutral-950">Payroll · Attendance</h1>
             <p className="mt-2 text-sm text-neutral-500 font-normal tracking-wide">
-              Digital evidence — {monthLabel} · created_at range
+              Digital evidence — {monthLabel} · check_in_at range
             </p>
           </div>
           <button
@@ -250,21 +250,21 @@ const AdminPayrollDashboard = ({ goBack }) => {
                         <th className="py-3 px-4 font-semibold text-neutral-900 whitespace-nowrap">Date</th>
                         <th className="py-3 px-4 font-semibold text-neutral-900 whitespace-nowrap">Session time</th>
                         <th className="py-3 px-4 font-semibold text-neutral-900 whitespace-nowrap">Status</th>
-                        <th className="py-3 px-4 font-semibold text-neutral-900 whitespace-nowrap">Created at</th>
+                        <th className="py-3 px-4 font-semibold text-neutral-900 whitespace-nowrap">Check-in</th>
                       </tr>
                     </thead>
                     <tbody>
                       {filteredLogs.map((log) => (
                         <tr key={log.id} className="border-b border-neutral-100 last:border-0">
                           <td className="py-3 px-4 text-neutral-800 tabular-nums whitespace-nowrap">
-                            {formatDateOnly(log.check_in_at || log.created_at)}
+                            {formatDateOnly(log.check_in_at)}
                           </td>
                           <td className="py-3 px-4 text-neutral-800 tabular-nums whitespace-nowrap">
                             {normalizeSessionTime(log.session_time_fixed) || sessionTimeFromCheckIn(log.check_in_at)}
                           </td>
                           <td className="py-3 px-4 text-neutral-800 whitespace-nowrap">Completed</td>
                           <td className="py-3 px-4 text-neutral-600 tabular-nums whitespace-nowrap text-xs">
-                            {formatDateTime(log.created_at)}
+                            {formatDateTime(log.check_in_at)}
                           </td>
                         </tr>
                       ))}
