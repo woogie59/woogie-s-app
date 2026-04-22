@@ -68,17 +68,16 @@ export function isMemberAppCancellationAllowed(
 /**
  * Rolling time-lock: "다음 주" 탭 — 이번 KST 주의 지정 요일·시각 이후 열리고, 이후로 계속 열림.
  *
- * @see NEXT_WEEK_UNLOCK — 테스트(수 21:00) 끝나면 `SATURDAY_10AM`으로 되돌릴 것.
+ * @see NEXT_WEEK_UNLOCK — 운영: `SATURDAY_10AM`. QA 시 `WEDNESDAY_9PM_TEST` 만 ACTIVE 로 바꿔 쓰면 됨.
  */
 const NEXT_WEEK_UNLOCK = {
-  /** 본가(운영): 토요일 10:00 KST */
+  /** 운영: 토요일 10:00 KST */
   SATURDAY_10AM: { weekdayFromMon: 5, hour: 10, minute: 0 },
-  /** 임시 테스트: 수요일 21:00 KST — 확인 후 ACTIVE_NEXT_WEEK_UNLOCK 을 SATURDAY_10AM 로 바꿀 것 */
+  /** QA용: 수요일 21:00 KST */
   WEDNESDAY_9PM_TEST: { weekdayFromMon: 2, hour: 21, minute: 0 },
 };
 
-/** 테스트 끝나면 `NEXT_WEEK_UNLOCK.SATURDAY_10AM` 로 바꾸세요. */
-const ACTIVE_NEXT_WEEK_UNLOCK = NEXT_WEEK_UNLOCK.WEDNESDAY_9PM_TEST;
+const ACTIVE_NEXT_WEEK_UNLOCK = NEXT_WEEK_UNLOCK.SATURDAY_10AM;
 
 /** 수업 예약 화면 잠금 토스트·카피 (ACTIVE_NEXT_WEEK_UNLOCK 과 동기화) */
 export const NEXT_WEEK_LOCKED_TOAST_MESSAGE =
