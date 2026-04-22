@@ -1,5 +1,7 @@
 // Shared helpers for session & pack calculations
 
+import { localCalendarDateKey } from './bookingDateKeys';
+
 /**
  * Single source of truth for "used sessions": rows in attendance_logs whose status is COMPLETED
  * (case-insensitive). Legacy rows without `status` count as completed check-ins.
@@ -72,6 +74,36 @@ export function sumTotalPurchasedFromBatches(batches) {
 /** Remaining = total purchased − completed attendance_logs count. */
 export function computeRemainingSessions(totalPurchased, usedSessionCount) {
   return Math.max(0, (Number(totalPurchased) || 0) - (Number(usedSessionCount) || 0));
+}
+
+/**
+ * 오늘 이후(당일 포함)·취소 아닌 예약 건수 — 디버그/로그용. 잔여 소진액(티켓) 계산에 빼지 않는다(예약은 아직 출석이 아님).
+ */
+export function countScheduledSessionsForBalance(bookings, now = new Date()) {
+  const todayKey = localCalendarDateKey(now);
+  if (!Array.isArray(bookings)) return 0;
+  return bookings.filter((b) => {
+    const n = normalizeBookingStatusForSession(b?.status);
+    if (n === 'cancelled') return false;
+    const d = String(b?.date || '').slice(0, 10);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(d)) return false;
+    return d >= todayKey;
+  }).length;
+}
+
+/** 예약/체크인 경계 이슼 재현 시: total·출석·예약(참고)·실제 잔여(= total − completed) */
+export function logBoundaryMathCheck({
+  totalSessions,
+  completedSessions,
+  scheduledSessions,
+  calculatedRemaining,
+}) {
+  console.log('🚨 Boundary Math Check:', {
+    totalSessions,
+    completedSessions,
+    scheduledSessions,
+    calculatedRemaining,
+  });
 }
 
 /**

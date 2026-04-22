@@ -5,7 +5,12 @@ import { Html5Qrcode } from 'html5-qrcode';
 import { supabase } from '../../lib/supabaseClient';
 import { invokeNotifyMemberEvents } from '../../utils/notifications';
 import { emitSessionBalanceRefresh } from '../../utils/sessionBalanceEvents';
-import { fetchSessionBalanceMetrics } from '../../utils/sessionHelpers';
+import {
+  computeRemainingSessions,
+  countScheduledSessionsForBalance,
+  fetchSessionBalanceMetrics,
+  logBoundaryMathCheck,
+} from '../../utils/sessionHelpers';
 
 const QRScanner = ({ setView, goBack }) => {
   const [result, setResult] = useState(null);
@@ -14,11 +19,11 @@ const QRScanner = ({ setView, goBack }) => {
 
   const processCheckIn = async (decodedText) => {
     if (!decodedText || typeof decodedText !== 'string') return;
+    const scannedUserId = decodedText.trim();
 
     if (navigator.vibrate) navigator.vibrate(200);
 
     try {
-      const scannedUserId = decodedText.trim();
       const todayString = new Date().toLocaleDateString('en-CA');
 
       // 오늘 활성 예약 1건(최신 생성). 좀비 attendance_logs는 이 조회와 무관 — 출석은 RPC가 새 로그 INSERT.
@@ -82,10 +87,38 @@ const QRScanner = ({ setView, goBack }) => {
     } catch (error) {
       console.log('QR Check-in error (full object):', error);
       const errMsg = error?.message ?? '';
+      const isNoSession =
+        errMsg.includes('ERR_NO_SESSIONS') ||
+        errMsg.includes('NO_SESSIONS_LEFT') ||
+        errMsg.includes('No remaining') ||
+        errMsg.toLowerCase().includes('no remaining');
+      if (isNoSession && scannedUserId) {
+        void (async () => {
+          try {
+            const metrics = await fetchSessionBalanceMetrics(supabase, scannedUserId);
+            const { data: bks } = await supabase
+              .from('bookings')
+              .select('date, time, status')
+              .eq('user_id', scannedUserId);
+            const totalSessions = metrics.totalPurchased;
+            const completedSessions = metrics.usedSessionCount;
+            const scheduledSessions = countScheduledSessionsForBalance(bks || []);
+            const calculatedRemaining = computeRemainingSessions(totalSessions, completedSessions);
+            logBoundaryMathCheck({
+              totalSessions,
+              completedSessions,
+              scheduledSessions,
+              calculatedRemaining,
+            });
+          } catch (e) {
+            console.warn('[QRScanner] boundary log failed', e);
+          }
+        })();
+      }
       let msg;
       if (errMsg.includes('ERR_NO_BOOKING_TODAY')) {
         msg = '오늘 예약된 내역을 찾을 수 없습니다. (DB 날짜 형식을 확인하세요)';
-      } else if (errMsg.includes('ERR_NO_SESSIONS') || errMsg.includes('NO_SESSIONS_LEFT') || errMsg.includes('No remaining')) {
+      } else if (isNoSession) {
         msg = '남은 세션이 없습니다.';
       } else {
         msg = errMsg || 'QR 인식 오류: 다시 시도해주세요.';

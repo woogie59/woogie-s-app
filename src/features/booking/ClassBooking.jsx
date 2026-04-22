@@ -2,6 +2,12 @@ import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { Lock } from 'lucide-react';
 import { supabase } from '../../lib/supabaseClient';
 import { fetchAdminOnesignalProfile } from '../../utils/notifications';
+import {
+  computeRemainingSessions,
+  countScheduledSessionsForBalance,
+  fetchSessionBalanceMetrics,
+  logBoundaryMathCheck,
+} from '../../utils/sessionHelpers';
 import { useGlobalModal } from '../../context/GlobalModalContext';
 import BackButton from '../../components/ui/BackButton';
 
@@ -245,8 +251,44 @@ const ClassBooking = ({ user, setView, goBack }) => {
       message: `${date} ${timeSlot} 수업을 예약하시겠습니까?`,
       confirmLabel: '예약확인',
       onConfirm: async () => {
+        const metrics = await fetchSessionBalanceMetrics(supabase, user.id);
+        const { data: userBookings, error: bookingsLoadErr } = await supabase
+          .from('bookings')
+          .select('date, time, status')
+          .eq('user_id', user.id);
+        if (bookingsLoadErr) console.warn('[ClassBooking] bookings for balance:', bookingsLoadErr.message);
+
+        const totalSessions = metrics.totalPurchased;
+        const completedSessions = metrics.usedSessionCount;
+        const scheduledSessions = countScheduledSessionsForBalance(userBookings || []);
+        const calculatedRemaining = computeRemainingSessions(totalSessions, completedSessions);
+
+        if (calculatedRemaining <= 0) {
+          logBoundaryMathCheck({
+            totalSessions,
+            completedSessions,
+            scheduledSessions,
+            calculatedRemaining,
+          });
+          showAlert({ message: '사용가능한 티켓이 없습니다.', confirmLabel: '확인' });
+          return;
+        }
+
         const { error } = await supabase.from('bookings').insert([{ user_id: user.id, date, time: timeSlot }]).select();
-        if (error) throw error;
+        if (error) {
+          const em = error?.message ?? '';
+          if (/ticket|티켓|session|세션|remaining|잔여/i.test(em) || em.toLowerCase().includes('no remaining')) {
+            logBoundaryMathCheck({
+              totalSessions,
+              completedSessions,
+              scheduledSessions,
+              calculatedRemaining: computeRemainingSessions(totalSessions, completedSessions),
+            });
+            showAlert({ message: '사용가능한 티켓이 없습니다.', confirmLabel: '확인' });
+            return;
+          }
+          throw error;
+        }
         showAlert({ message: '예약이 완료되었습니다!', confirmLabel: '확인' });
         const { data: updated } = await supabase.from('bookings').select('*').eq('date', date);
         setBookings(updated || []);
