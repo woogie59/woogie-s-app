@@ -66,18 +66,55 @@ export function isMemberAppCancellationAllowed(
 }
 
 /**
- * Rolling time-lock: 이번 Mon–Sun 주의 **KST** 토요일 10:00 이후부터 "다음 주" 예약 탭이 열리고, 이후로 계속 열림(일요일에 닫지 않음).
- * 앵커 시각(브라우저)과 한국 토요일 10:00(고정 +09)을 직접 비교.
+ * Rolling time-lock: "다음 주" 탭 — 이번 KST 주의 지정 요일·시각 이후 열리고, 이후로 계속 열림.
+ *
+ * @see NEXT_WEEK_UNLOCK — 테스트(수 21:00) 끝나면 `SATURDAY_10AM`으로 되돌릴 것.
  */
-export function isNextWeekBookingUnlockedKST(anchor = new Date()) {
+const NEXT_WEEK_UNLOCK = {
+  /** 본가(운영): 토요일 10:00 KST */
+  SATURDAY_10AM: { weekdayFromMon: 5, hour: 10, minute: 0 },
+  /** 임시 테스트: 수요일 21:00 KST — 확인 후 ACTIVE_NEXT_WEEK_UNLOCK 을 SATURDAY_10AM 로 바꿀 것 */
+  WEDNESDAY_9PM_TEST: { weekdayFromMon: 2, hour: 21, minute: 0 },
+};
+
+/** 테스트 끝나면 `NEXT_WEEK_UNLOCK.SATURDAY_10AM` 로 바꾸세요. */
+const ACTIVE_NEXT_WEEK_UNLOCK = NEXT_WEEK_UNLOCK.WEDNESDAY_9PM_TEST;
+
+/** 수업 예약 화면 잠금 토스트·카피 (ACTIVE_NEXT_WEEK_UNLOCK 과 동기화) */
+export const NEXT_WEEK_LOCKED_TOAST_MESSAGE =
+  ACTIVE_NEXT_WEEK_UNLOCK === NEXT_WEEK_UNLOCK.WEDNESDAY_9PM_TEST
+    ? '다음 주 수업은 수요일 오후 9시(한국시간, 테스트)부터 신청 가능합니다.'
+    : '다음 주 수업은 토요일 오전 10시(한국시간)부터 신청 가능합니다.';
+
+/** 잠금 전체 화면 본문 (HTML 아님, 문장만) */
+export const NEXT_WEEK_LOCKED_BANNER_HTML =
+  ACTIVE_NEXT_WEEK_UNLOCK === NEXT_WEEK_UNLOCK.WEDNESDAY_9PM_TEST
+    ? {
+        lead: '다음 주 예약은 ',
+        highlight: '매주 수요일 오후 9:00(한국시간·테스트)',
+        trail: '부터 열리며, 확인 후 토요일 오전 10:00으로 복구 예정입니다.',
+      }
+    : {
+        lead: '다음 주 예약은 ',
+        highlight: '매주 토요일 오전 10:00(한국시간)',
+        trail: '부터 열리며, 이후에도 계속 예약하실 수 있습니다.',
+      };
+
+function buildKstThisWeekUnlockInstant(anchor, cfg) {
   const ymd = kstDateKey(anchor);
   const [y, m, d] = ymd.split('-').map(Number);
   const ref = new Date(`${y}-${p2(m)}-${p2(d)}T12:00:00+09:00`);
   const dow = ref.getUTCDay();
   const offsetMon = dow === 0 ? 6 : dow - 1;
-  const daysToSat = 5 - offsetMon;
-  const satInstant = new Date(ref.getTime() + daysToSat * 86400000);
-  const [ys, ms, ds] = kstDateKey(satInstant).split('-').map(Number);
-  const unlock = new Date(`${ys}-${p2(ms)}-${p2(ds)}T10:00:00+09:00`);
+  const daysToUnlockDay = cfg.weekdayFromMon - offsetMon;
+  const dayInstant = new Date(ref.getTime() + daysToUnlockDay * 86400000);
+  const [yu, mu, du] = kstDateKey(dayInstant).split('-').map(Number);
+  return new Date(
+    `${yu}-${p2(mu)}-${p2(du)}T${p2(cfg.hour)}:${p2(cfg.minute)}:00+09:00`
+  );
+}
+
+export function isNextWeekBookingUnlockedKST(anchor = new Date()) {
+  const unlock = buildKstThisWeekUnlockInstant(anchor, ACTIVE_NEXT_WEEK_UNLOCK);
   return anchor.getTime() >= unlock.getTime();
 }

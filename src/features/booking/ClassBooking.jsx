@@ -10,13 +10,15 @@ import {
 } from '../../utils/sessionHelpers';
 import { useGlobalModal } from '../../context/GlobalModalContext';
 import BackButton from '../../components/ui/BackButton';
-import { isNextWeekBookingUnlockedKST } from '../../utils/bookingDateKeys';
+import {
+  isNextWeekBookingUnlockedKST,
+  NEXT_WEEK_LOCKED_BANNER_HTML,
+  NEXT_WEEK_LOCKED_TOAST_MESSAGE,
+} from '../../utils/bookingDateKeys';
 
 const ICON_STROKE = 1;
 /** 1:1 — one booking per slot; used for full/disabled state only (no UI count) */
 const MAX_PER_SLOT = 1;
-
-const NEXT_WEEK_LOCKED_TOAST = '다음 주 수업은 토요일 오전 10시부터 신청가능합니다.';
 
 const toDateKey = (d) => {
   const x = new Date(d);
@@ -274,7 +276,7 @@ const ClassBooking = ({ user, setView, goBack }) => {
 
   const handleSelectWeekMode = (mode) => {
     if (mode === 'next' && !nextUnlocked) {
-      setWeekToast(NEXT_WEEK_LOCKED_TOAST);
+      setWeekToast(NEXT_WEEK_LOCKED_TOAST_MESSAGE);
       return;
     }
     setWeekMode(mode);
@@ -328,7 +330,9 @@ const ClassBooking = ({ user, setView, goBack }) => {
               <Lock size={40} strokeWidth={ICON_STROKE} className="text-gray-300" aria-hidden />
             </div>
             <p className="text-sm font-light text-slate-800 leading-relaxed tracking-wide">
-              다음 주 예약은 <span className="text-slate-900 font-medium">매주 토요일 오전 10:00(한국시간)</span>부터 열리며, 이후에도 계속 예약하실 수 있습니다.
+              {NEXT_WEEK_LOCKED_BANNER_HTML.lead}
+              <span className="text-slate-900 font-medium">{NEXT_WEEK_LOCKED_BANNER_HTML.highlight}</span>
+              {NEXT_WEEK_LOCKED_BANNER_HTML.trail}
             </p>
             <p className="text-xs font-light text-gray-400 mt-4 leading-relaxed tracking-wide">
               최상의 세션 퀄리티를 위해 주간 단위로 일정을 오픈합니다.
