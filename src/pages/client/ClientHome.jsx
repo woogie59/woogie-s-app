@@ -26,6 +26,11 @@ import { useGlobalModal } from '../../context/GlobalModalContext';
 import LabDotBrand from '../../components/ui/LabDotBrand';
 import Skeleton from '../../components/ui/Skeleton';
 import SessionHistoryModal from '../../features/members/SessionHistoryModal';
+import {
+  isMemberAppCancellationAllowed,
+  MEMBER_CANCEL_LOCK_TOOLTIP,
+  parseBookingToLocalDate,
+} from '../../utils/bookingDateKeys';
 
 /** MVP: 라이브러리·트레이닝 일지 진입 UI 비표시 — 라우트/화면은 유지 */
 const MVP_HIDE_LIBRARY_AND_TRAINING_NAV = true;
@@ -53,17 +58,7 @@ const getWeekDates = (weekStart) => {
   return arr;
 };
 
-const bookingDateTime = (b) => {
-  if (!b?.date) return null;
-  const parts = String(b.date).slice(0, 10).split('-').map(Number);
-  if (parts.length !== 3 || parts.some((n) => !Number.isFinite(n))) return null;
-  const [y, m, d] = parts;
-  const tm = b.time || '09:00';
-  const mm = String(tm).match(/(\d{1,2}):(\d{2})/);
-  const hh = mm ? parseInt(mm[1], 10) : 9;
-  const min = mm ? parseInt(mm[2], 10) : 0;
-  return new Date(y, m - 1, d, hh, min);
-};
+const bookingDateTime = parseBookingToLocalDate;
 
 const formatTime24hStatic = (t) => {
   if (!t || typeof t !== 'string') return '—';
@@ -436,14 +431,24 @@ const ClientHome = ({ user, logout, setView }) => {
     return `잔여 ${remaining}회`;
   }, [sessionMetrics]);
 
-  const handleCancelBooking = (bookingId, date, time) => {
-    setBookingToDelete({ id: bookingId, date, time });
+  const handleCancelBooking = (booking) => {
+    if (!isMemberAppCancellationAllowed(booking)) {
+      showAlert({ message: MEMBER_CANCEL_LOCK_TOOLTIP, confirmLabel: '확인' });
+      return;
+    }
+    setBookingToDelete({ id: booking.id, date: booking.date, time: booking.time });
     setIsDeleteModalOpen(true);
   };
 
   const confirmDeleteAction = async () => {
     if (!bookingToDelete) return;
     const { id: bookingId, date, time } = bookingToDelete;
+    if (!isMemberAppCancellationAllowed({ id: bookingId, date, time })) {
+      showAlert({ message: MEMBER_CANCEL_LOCK_TOOLTIP, confirmLabel: '확인' });
+      setIsDeleteModalOpen(false);
+      setBookingToDelete(null);
+      return;
+    }
     setCancelling(bookingId);
     const { error } = await supabase.from('bookings').delete().eq('id', bookingId);
 
@@ -487,6 +492,14 @@ const ClientHome = ({ user, logout, setView }) => {
     emitSessionBalanceRefresh();
     showAlert({ message: '취소가 완료되었습니다.', confirmLabel: '확인' });
   };
+
+  /** 내 일정 모달 열림: 2시간 락 경계·버튼 활성이 시간에 맞게 갱신되도록 */
+  const [memberCancelUiTick, setMemberCancelUiTick] = useState(0);
+  useEffect(() => {
+    if (!showScheduleModal) return undefined;
+    const id = window.setInterval(() => setMemberCancelUiTick((n) => n + 1), 15_000);
+    return () => clearInterval(id);
+  }, [showScheduleModal]);
 
   const handleOpenSchedule = () => {
     setShowScheduleModal(true);
@@ -788,6 +801,7 @@ const ClientHome = ({ user, logout, setView }) => {
               exit={{ scale: 0.96, opacity: 0 }}
               className="bg-white border border-gray-100 rounded-2xl p-6 max-w-md w-full max-h-[85vh] flex flex-col shadow-2xl"
               onClick={(e) => e.stopPropagation()}
+              data-lock-tick={memberCancelUiTick}
             >
               <div className="flex justify-between items-center mb-4">
                 <div>
@@ -866,10 +880,16 @@ const ClientHome = ({ user, logout, setView }) => {
                                 </div>
                                 <button
                                   type="button"
-                                  onClick={() => handleCancelBooking(booking.id, booking.date, booking.time)}
-                                  disabled={cancelling === booking.id}
-                                  className="p-2 rounded-lg bg-red-50 border border-red-100 text-red-600 hover:bg-red-100 active:scale-95 transition-all disabled:opacity-50"
-                                  title="예약 취소"
+                                  onClick={() => handleCancelBooking(booking)}
+                                  disabled={cancelling === booking.id || !isMemberAppCancellationAllowed(booking)}
+                                  className={`p-2 rounded-lg border text-red-600 transition-all disabled:opacity-50 ${
+                                    isMemberAppCancellationAllowed(booking)
+                                      ? 'bg-red-50 border-red-100 hover:bg-red-100 active:scale-95'
+                                      : 'bg-gray-100 border-gray-200 cursor-not-allowed'
+                                  }`}
+                                  title={
+                                    isMemberAppCancellationAllowed(booking) ? '예약 취소' : MEMBER_CANCEL_LOCK_TOOLTIP
+                                  }
                                 >
                                   <Trash2 size={18} strokeWidth={ICON_STROKE} />
                                 </button>
