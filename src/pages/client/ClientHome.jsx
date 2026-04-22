@@ -11,6 +11,7 @@ import {
   Calendar,
   Clock,
   BookOpen,
+  Lock,
 } from 'lucide-react';
 import { supabase } from '../../lib/supabaseClient';
 import { invokeNotifyAdminEvents, fetchAdminOnesignalPlayerId } from '../../utils/notifications';
@@ -28,6 +29,7 @@ import Skeleton from '../../components/ui/Skeleton';
 import SessionHistoryModal from '../../features/members/SessionHistoryModal';
 import {
   isMemberAppCancellationAllowed,
+  MEMBER_CANCEL_COACH_CONTACT_MESSAGE,
   MEMBER_CANCEL_LOCK_TOOLTIP,
   parseBookingToLocalDate,
 } from '../../utils/bookingDateKeys';
@@ -110,6 +112,8 @@ const ClientHome = ({ user, logout, setView }) => {
   const [cancelling, setCancelling] = useState(null);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [bookingToDelete, setBookingToDelete] = useState(null);
+  /** 수업 2시간 이내 취소 시도 — ClassBooking「다음 주」잠금과 동일 톤의 안내 */
+  const [showCancelPolicyLockModal, setShowCancelPolicyLockModal] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
   /** Most recent training log row (`client_session_reports`) for gateway teaser */
   const [latestReport, setLatestReport] = useState(null);
@@ -433,7 +437,7 @@ const ClientHome = ({ user, logout, setView }) => {
 
   const handleCancelBooking = (booking) => {
     if (!isMemberAppCancellationAllowed(booking)) {
-      showAlert({ message: MEMBER_CANCEL_LOCK_TOOLTIP, confirmLabel: '확인' });
+      setShowCancelPolicyLockModal(true);
       return;
     }
     setBookingToDelete({ id: booking.id, date: booking.date, time: booking.time });
@@ -444,9 +448,9 @@ const ClientHome = ({ user, logout, setView }) => {
     if (!bookingToDelete) return;
     const { id: bookingId, date, time } = bookingToDelete;
     if (!isMemberAppCancellationAllowed({ id: bookingId, date, time })) {
-      showAlert({ message: MEMBER_CANCEL_LOCK_TOOLTIP, confirmLabel: '확인' });
       setIsDeleteModalOpen(false);
       setBookingToDelete(null);
+      setShowCancelPolicyLockModal(true);
       return;
     }
     setCancelling(bookingId);
@@ -499,6 +503,10 @@ const ClientHome = ({ user, logout, setView }) => {
     if (!showScheduleModal) return undefined;
     const id = window.setInterval(() => setMemberCancelUiTick((n) => n + 1), 15_000);
     return () => clearInterval(id);
+  }, [showScheduleModal]);
+
+  useEffect(() => {
+    if (!showScheduleModal) setShowCancelPolicyLockModal(false);
   }, [showScheduleModal]);
 
   const handleOpenSchedule = () => {
@@ -881,17 +889,19 @@ const ClientHome = ({ user, logout, setView }) => {
                                 <button
                                   type="button"
                                   onClick={() => handleCancelBooking(booking)}
-                                  disabled={cancelling === booking.id || !isMemberAppCancellationAllowed(booking)}
-                                  className={`p-2 rounded-lg border text-red-600 transition-all disabled:opacity-50 ${
-                                    isMemberAppCancellationAllowed(booking)
-                                      ? 'bg-red-50 border-red-100 hover:bg-red-100 active:scale-95'
-                                      : 'bg-gray-100 border-gray-200 cursor-not-allowed'
+                                  disabled={cancelling === booking.id}
+                                  className={`p-2 rounded-xl text-xs font-light tracking-wide transition-all duration-200 active:scale-[0.98] ${
+                                    cancelling === booking.id
+                                      ? 'opacity-50 border border-gray-100 bg-gray-50 text-gray-400'
+                                      : isMemberAppCancellationAllowed(booking)
+                                        ? 'bg-red-50 border border-red-100 text-red-600 hover:bg-red-100'
+                                        : 'bg-gray-100 border border-gray-100/90 text-gray-400 shadow-sm'
                                   }`}
                                   title={
                                     isMemberAppCancellationAllowed(booking) ? '예약 취소' : MEMBER_CANCEL_LOCK_TOOLTIP
                                   }
                                 >
-                                  <Trash2 size={18} strokeWidth={ICON_STROKE} />
+                                  <Trash2 size={18} strokeWidth={ICON_STROKE} className="mx-auto" />
                                 </button>
                               </div>
                             ))}
@@ -913,6 +923,40 @@ const ClientHome = ({ user, logout, setView }) => {
                 className="w-full mt-4 bg-[#064e3b] text-white font-semibold py-3.5 rounded-xl hover:bg-[#053d2f] active:scale-[0.99] transition-all"
               >
                 닫기
+              </button>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* 2시간 이내 취소 불가 — 수업 예약「다음 주」잠금과 동일한 임상적 톤 */}
+      <AnimatePresence>
+        {showCancelPolicyLockModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[60] flex items-center justify-center p-6 bg-gray-900/30 backdrop-blur-sm"
+            onClick={() => setShowCancelPolicyLockModal(false)}
+          >
+            <motion.div
+              initial={{ scale: 0.96, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.98, opacity: 0 }}
+              transition={{ duration: 0.2, ease: [0.25, 0.46, 0.45, 0.94] }}
+              className="bg-white rounded-2xl border border-gray-100 shadow-sm p-10 max-w-sm w-full text-center"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex justify-center mb-6">
+                <Lock size={40} strokeWidth={ICON_STROKE} className="text-gray-300" aria-hidden />
+              </div>
+              <p className="text-sm font-light text-slate-800 leading-relaxed tracking-wide">{MEMBER_CANCEL_COACH_CONTACT_MESSAGE}</p>
+              <button
+                type="button"
+                onClick={() => setShowCancelPolicyLockModal(false)}
+                className="w-full mt-8 py-3 rounded-xl text-sm font-light tracking-wide bg-[#064e3b] text-white shadow-sm hover:bg-[#053d2f] active:scale-[0.98] transition-all duration-200"
+              >
+                확인
               </button>
             </motion.div>
           </motion.div>

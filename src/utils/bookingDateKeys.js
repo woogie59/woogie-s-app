@@ -51,9 +51,13 @@ export function parseBookingToLocalDate(booking) {
   return new Date(y, m - 1, d, hh, min, 0, 0);
 }
 
-/** 수업 2시간 전까지만 앱 취소 (회원). 관리자 화면은 이 제한을 적용하지 않음. */
+/** 수업 시작 시각 기준 2시간 미만이면 앱에서 취소 불가 (회원). 관리자 화면은 미적용. */
 export const MEMBER_CANCEL_MIN_LEAD_MS = 2 * 60 * 60 * 1000;
-export const MEMBER_CANCEL_LOCK_TOOLTIP = '수업 2시간 전까지만 앱에서 취소 가능합니다.';
+/** 리스트 버튼·title — 짧게 */
+export const MEMBER_CANCEL_LOCK_TOOLTIP = '수업 2시간 이내 · 취소 안내';
+/** 2시간 이내로 취소 시도 시 모달 본문 (ClassBooking「다음 주」잠금 톤과 맞춤) */
+export const MEMBER_CANCEL_COACH_CONTACT_MESSAGE =
+  '수업 2시간 이내 취소는 우기쌤에게 문의하시길 바랍니다.';
 
 export function isMemberAppCancellationAllowed(
   booking,

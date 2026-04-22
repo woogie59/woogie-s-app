@@ -36,16 +36,6 @@ function scheduleStartUtcMs(dateStr: string, scheduleTime: string): number | nul
   return Number.isNaN(d.getTime()) ? null : d.getTime();
 }
 
-function formatKstHHMM(utcMs: number): string {
-  const s = new Intl.DateTimeFormat("en-GB", {
-    timeZone: "Asia/Seoul",
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: false,
-  }).format(new Date(utcMs));
-  return s.replace(/\s/g, "");
-}
-
 async function sendOneSignalNotification(params: {
   appId: string;
   restKey: string;
@@ -109,6 +99,21 @@ Deno.serve(async (req: Request) => {
 
   const rows = (bookingRows ?? []) as BookingRow[];
 
+  const userIds = [...new Set(rows.map((r) => r.user_id).filter(Boolean))];
+  const nameByUserId = new Map<string, string>();
+  if (userIds.length > 0) {
+    const { data: profileRows, error: profErr } = await supabase
+      .from("profiles")
+      .select("id, name")
+      .in("id", userIds);
+    if (profErr) {
+      console.error("[send-class-reminders] profiles error:", profErr);
+    }
+    for (const p of profileRows ?? []) {
+      if (p?.id && typeof p.name === "string") nameByUserId.set(p.id, p.name);
+    }
+  }
+
   const results = [];
 
   // 3. 1분마다 타겟 시간과 일치하는지 스캔 후 발사
@@ -117,14 +122,18 @@ Deno.serve(async (req: Request) => {
     if (startMs === null) continue;
     
     const classMinute = Math.floor(startMs / 60000) * 60000;
-    const hhmm = formatKstHHMM(startMs);
 
     // 회원 타격 (60분 전) — 관리자 10분 전은 send-session-reminder Edge Function
     if (classMinute === clientTargetMinute) {
+      const rawName = nameByUserId.get(row.user_id)?.trim() ?? "";
+      const body =
+        rawName.length > 0
+          ? `${rawName}회원님, 수업 1시간 전입니다. 곧 센터에서 뵙도록 하겠습니다. :-)`
+          : `회원님, 수업 1시간 전입니다. 곧 센터에서 뵙도록 하겠습니다. :-)`;
       const r = await sendOneSignalNotification({
         appId, restKey, externalUserIds: [row.user_id],
         title: "수업 1시간 전",
-        body: `오늘 ${hhmm} 수업 시작 1시간 전입니다. LAB DOT에서 뵙겠습니다.`,
+        body,
       });
       results.push({ schedule_id: row.id, kind: "client_60", sent: r.ok });
     }
