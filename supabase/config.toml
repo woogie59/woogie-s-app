@@ -30,6 +30,13 @@ verify_jwt = true
 import_map = "./functions/notify-member-events/deno.json"
 entrypoint = "./functions/notify-member-events/index.ts"
 
+[functions.google-calendar-sync]
+enabled = true
+# Invoked with Authorization: Bearer <SUPABASE_SERVICE_ROLE_KEY> (DB webhook or pg_net)
+verify_jwt = false
+import_map = "./functions/google-calendar-sync/deno.json"
+entrypoint = "./functions/google-calendar-sync/index.ts"
+
 [functions.send-admin-alert]
 enabled = true
 verify_jwt = true
