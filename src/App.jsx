@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { QrCode, Camera, ChevronRight, ChevronDown, ChevronUp, BookOpen, LogOut, Plus, User, X, Search, ArrowLeft, Edit3, Save, Sparkles, MessageSquare, Calendar, Clock, ChevronLeft, Trash2, Edit, Image, DollarSign, Download, Printer } from 'lucide-react';
+import { QrCode, Camera, ChevronRight, ChevronUp, BookOpen, LogOut, Plus, User, X, Search, ArrowLeft, Edit3, Save, Sparkles, MessageSquare, Calendar, Clock, ChevronLeft, Edit, Image, DollarSign, Download, Printer } from 'lucide-react';
 import OneSignal from 'react-onesignal';
 
 import { supabase, REMEMBER_ME_KEY } from './lib/supabaseClient';
@@ -23,8 +23,10 @@ import ClientHome from './pages/client/ClientHome';
 import AdminHome from './pages/admin/AdminHome';
 import AdminSettings from './pages/admin/AdminSettings';
 import AdminRoute from './pages/admin/AdminRoute';
-import AdminPayrollExport from './features/admin/AdminPayrollExport';
 import AdminPayrollDashboard from './pages/admin/AdminPayrollDashboard';
+import AdminBookingSettingsPanel from './features/admin/AdminBookingSettingsPanel';
+import AdminScheduleFullCalendar from './features/admin/AdminScheduleFullCalendar';
+import { buildAdminCalendarEvents } from './utils/adminScheduleCalendarEvents';
 
 import LibraryArticleScreen from './features/library/LibraryArticleScreen';
 import TrainingLogList from './features/training/TrainingLogList';
@@ -93,8 +95,6 @@ export default function App() {
 
   // [Smart Revenue / Dashboard State]
   const [currentRevenueDate, setCurrentRevenueDate] = useState(new Date());
-  const [dashboardFocusDate, setDashboardFocusDate] = useState(new Date());
-  const [dashboardViewMode, setDashboardViewMode] = useState('day');
   const [revenueLogs, setRevenueLogs] = useState([]);
   const [dashboardBookings, setDashboardBookings] = useState([]);
   /** Month-scoped: scheduled class count (bookings/schedules), not attendance logs */
@@ -102,10 +102,8 @@ export default function App() {
   /** Month-scoped: sum of pack revenue from session_batches (price or total_count × price_per_session) */
   const [monthlyPackSalesKrw, setMonthlyPackSalesKrw] = useState(0);
   const [isRevenueLoading, setIsRevenueLoading] = useState(false);
-  const [selectedRevenueDay, setSelectedRevenueDay] = useState(null);
-  const [schedulePayrollModalOpen, setSchedulePayrollModalOpen] = useState(false);
-  /** Week dashboard: per-day expanded class list (YYYY-MM-DD → boolean) */
-  const [weekScheduleExpandedByDate, setWeekScheduleExpandedByDate] = useState({});
+  /** OneSignal deep link → open schedule on a specific day */
+  const [scheduleCalendarSeed, setScheduleCalendarSeed] = useState(null);
 
   // Salary Configuration (Persist in LocalStorage)
   const [salaryConfig, setSalaryConfig] = useState(() => {
@@ -237,9 +235,8 @@ export default function App() {
       const bd = data.booking_date;
       if (typeof bd === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(bd)) {
         const d = new Date(`${bd}T12:00:00`);
-        if (!Number.isNaN(d.getTime())) setDashboardFocusDate(d);
+        if (!Number.isNaN(d.getTime())) setScheduleCalendarSeed(d);
       }
-      setDashboardViewMode('day');
       navigate('admin_schedule');
     };
 
@@ -476,17 +473,50 @@ export default function App() {
     return tc * pps;
   };
 
+  const toDateKey = (d) => {
+    const x = new Date(d);
+    return `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, '0')}-${String(x.getDate()).padStart(2, '0')}`;
+  };
+
   const fetchRevenueData = async () => {
     if (!supabase) return;
     setIsRevenueLoading(true);
-    const year = currentRevenueDate.getFullYear();
-    const month = currentRevenueDate.getMonth();
-    const startDate = new Date(year, month, 1, 0, 0, 0, 0);
-    const endDate = new Date(year, month + 1, 0, 23, 59, 59, 999);
+    const isAdminSchedule = view === 'admin_schedule';
+
+    let startDate;
+    let endDate;
+    let startKey;
+    let endKey;
+
+    if (isAdminSchedule) {
+      const a = new Date();
+      a.setDate(a.getDate() - 60);
+      a.setHours(0, 0, 0, 0);
+      const b = new Date();
+      b.setDate(b.getDate() + 180);
+      b.setHours(23, 59, 59, 999);
+      startDate = a;
+      endDate = b;
+    } else {
+      const year = currentRevenueDate.getFullYear();
+      const month = currentRevenueDate.getMonth();
+      startDate = new Date(year, month, 1, 0, 0, 0, 0);
+      endDate = new Date(year, month + 1, 0, 23, 59, 59, 999);
+    }
+
     const startISO = startDate.toISOString();
     const endISO = endDate.toISOString();
-    const startKey = `${year}-${String(month + 1).padStart(2, '0')}-01`;
-    const endKey = `${year}-${String(month + 1).padStart(2, '0')}-${String(endDate.getDate()).padStart(2, '0')}`;
+    if (isAdminSchedule) {
+      startKey = toDateKey(startDate);
+      endKey = toDateKey(endDate);
+    } else {
+      const year = currentRevenueDate.getFullYear();
+      const month = currentRevenueDate.getMonth();
+      startKey = `${year}-${String(month + 1).padStart(2, '0')}-01`;
+      endKey = `${year}-${String(month + 1).padStart(2, '0')}-${String(
+        new Date(year, month + 1, 0).getDate()
+      ).padStart(2, '0')}`;
+    }
 
     try {
       const bookingsQuery = supabase
@@ -497,34 +527,47 @@ export default function App() {
         .order('date', { ascending: true })
         .order('time', { ascending: true });
 
-      const batchesQuery = supabase
-        .from('session_batches')
-        .select('total_count, price_per_session, price, created_at')
-        .gte('created_at', startISO)
-        .lte('created_at', endISO);
+      const logsQuery = supabase
+        .from('attendance_logs')
+        .select('*, profiles(name)')
+        .gte('check_in_at', startISO)
+        .lte('check_in_at', endISO)
+        .order('check_in_at', { ascending: false });
 
-      const [bookingsRes, batchesRes, logsRes] = await Promise.all([
-        bookingsQuery,
-        batchesQuery,
-        supabase.from('attendance_logs').select('*, profiles(name)').gte('check_in_at', startISO).lte('check_in_at', endISO).order('check_in_at', { ascending: false }),
-      ]);
-
-      if (logsRes.error) throw logsRes.error;
-      if (bookingsRes.error) throw bookingsRes.error;
-      const scheduleRows = bookingsRes.data || [];
-
-      setRevenueLogs(logsRes.data || []);
-      setDashboardBookings(scheduleRows);
-
-      const scheduledInMonth = (scheduleRows || []).filter((b) => b?.status !== 'cancelled').length;
-      setMonthlyScheduledCount(scheduledInMonth);
-
-      if (batchesRes.error) {
-        console.warn('[Dashboard] session_batches:', batchesRes.error);
-        setMonthlyPackSalesKrw(0);
+      if (isAdminSchedule) {
+        const [bookingsRes, logsRes] = await Promise.all([bookingsQuery, logsQuery]);
+        if (logsRes.error) throw logsRes.error;
+        if (bookingsRes.error) throw bookingsRes.error;
+        const scheduleRows = bookingsRes.data || [];
+        setRevenueLogs(logsRes.data || []);
+        setDashboardBookings(scheduleRows);
+        setMonthlyScheduledCount((scheduleRows || []).filter((b) => b?.status !== 'cancelled').length);
       } else {
-        const packSales = (batchesRes.data || []).reduce((sum, row) => sum + sumSessionBatchRowRevenue(row), 0);
-        setMonthlyPackSalesKrw(packSales);
+        const batchesQuery = supabase
+          .from('session_batches')
+          .select('total_count, price_per_session, price, created_at')
+          .gte('created_at', startISO)
+          .lte('created_at', endISO);
+
+        const [bookingsRes, batchesRes, logsRes] = await Promise.all([bookingsQuery, batchesQuery, logsQuery]);
+
+        if (logsRes.error) throw logsRes.error;
+        if (bookingsRes.error) throw bookingsRes.error;
+        const scheduleRows = bookingsRes.data || [];
+
+        setRevenueLogs(logsRes.data || []);
+        setDashboardBookings(scheduleRows);
+
+        const scheduledInMonth = (scheduleRows || []).filter((b) => b?.status !== 'cancelled').length;
+        setMonthlyScheduledCount(scheduledInMonth);
+
+        if (batchesRes.error) {
+          console.warn('[Dashboard] session_batches:', batchesRes.error);
+          setMonthlyPackSalesKrw(0);
+        } else {
+          const packSales = (batchesRes.data || []).reduce((sum, row) => sum + sumSessionBatchRowRevenue(row), 0);
+          setMonthlyPackSalesKrw(packSales);
+        }
       }
     } catch (err) {
       console.error('Error fetching dashboard:', err);
@@ -535,8 +578,8 @@ export default function App() {
     }
   };
 
-  /** 관리자 일정 대시보드(Day/Week/Month)에서 예약 취소 */
-  const handleScheduleDashCancel = (item, dateKey) => {
+  /** 관리자 일정(캘린더)에서 예약 삭제 */
+  const handleScheduleDashCancel = (item) => {
     if (!item?.booking?.id) return;
     const b = item.booking;
     showConfirm({
@@ -607,31 +650,7 @@ export default function App() {
     const newDate = new Date(currentRevenueDate);
     newDate.setMonth(newDate.getMonth() + delta);
     setCurrentRevenueDate(newDate);
-    setSelectedRevenueDay(null);
   };
-
-  const toDateKey = (d) => {
-    const x = new Date(d);
-    return `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, '0')}-${String(x.getDate()).padStart(2, '0')}`;
-  };
-
-  const formatDateHeader = (dateKey) => {
-    const [y, m, d] = dateKey.split('-');
-    const date = new Date(parseInt(y), parseInt(m) - 1, parseInt(d));
-    const monthDay = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-    const weekday = date.toLocaleDateString('en-US', { weekday: 'short' });
-    return `${monthDay} (${weekday})`;
-  };
-
-  const revenueSessionsByDate = React.useMemo(() => {
-    const map = {};
-    revenueLogs.forEach((log) => {
-      const key = toDateKey(log.check_in_at);
-      if (!map[key]) map[key] = [];
-      map[key].push(log);
-    });
-    return map;
-  }, [revenueLogs]);
 
   const getSessionTime24h = (log) => {
     if (log?.session_time_fixed && typeof log.session_time_fixed === 'string') {
@@ -686,40 +705,10 @@ export default function App() {
     return result;
   }, [revenueLogs, dashboardBookings]);
 
-  const revenueDatesSorted = React.useMemo(() => {
-    const allKeys = new Set([...Object.keys(revenueSessionsByDate), ...Object.keys(mergedItemsByDate)]);
-    return Array.from(allKeys).sort((a, b) => b.localeCompare(a));
-  }, [revenueSessionsByDate, mergedItemsByDate]);
-
-  const getWeekDates = (d) => {
-    const date = new Date(d);
-    const day = date.getDay();
-    const monday = new Date(date);
-    monday.setDate(date.getDate() - (day === 0 ? 6 : day - 1));
-    const week = [];
-    for (let i = 0; i < 7; i++) {
-      const dd = new Date(monday);
-      dd.setDate(monday.getDate() + i);
-      week.push(toDateKey(dd));
-    }
-    return week;
-  };
-
-  const revenueCalendarDays = React.useMemo(() => {
-    const y = currentRevenueDate.getFullYear();
-    const m = currentRevenueDate.getMonth();
-    const first = new Date(y, m, 1);
-    const last = new Date(y, m + 1, 0);
-    const startPad = first.getDay();
-    const daysInMonth = last.getDate();
-    const cells = [];
-    for (let i = 0; i < startPad; i++) cells.push({ type: 'pad', value: null });
-    for (let d = 1; d <= daysInMonth; d++) {
-      const key = `${y}-${String(m + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
-      cells.push({ type: 'day', value: d, key, count: (revenueSessionsByDate[key] || []).length });
-    }
-    return cells;
-  }, [currentRevenueDate, revenueSessionsByDate]);
+  const adminCalendarEvents = React.useMemo(
+    () => buildAdminCalendarEvents(mergedItemsByDate),
+    [mergedItemsByDate],
+  );
 
   // Helper to handle input changes
   const handleConfigChange = (key, value) => {
@@ -785,24 +774,6 @@ export default function App() {
     }
   }, [view, currentRevenueDate]);
 
-  useEffect(() => {
-    if ((view === 'revenue' || view === 'admin_schedule') && dashboardViewMode === 'day') {
-      const fd = dashboardFocusDate;
-      const cd = currentRevenueDate;
-      if (fd.getMonth() !== cd.getMonth() || fd.getFullYear() !== cd.getFullYear()) {
-        setCurrentRevenueDate(new Date(fd));
-      }
-    }
-  }, [dashboardFocusDate, dashboardViewMode]);
-
-  useEffect(() => {
-    if (view === 'revenue' || view === 'admin_schedule') {
-      const now = new Date();
-      setDashboardViewMode('day');
-      setDashboardFocusDate(now);
-    }
-  }, [view]);
-
   // Macro calculator removed from client UI; normalize stale view state
   useEffect(() => {
     if (view === 'macro_calculator') replaceView('client_home');
@@ -813,12 +784,8 @@ export default function App() {
   }, [view]);
 
   useEffect(() => {
-    if (view !== 'admin_schedule') setSchedulePayrollModalOpen(false);
+    if (view !== 'admin_schedule') setScheduleCalendarSeed(null);
   }, [view]);
-
-  useEffect(() => {
-    setWeekScheduleExpandedByDate({});
-  }, [dashboardFocusDate, dashboardViewMode]);
 
   return (
     <div className="bg-white min-h-[100dvh] flex flex-col font-sans selection:bg-emerald-500/20 overflow-x-hidden">
@@ -878,7 +845,7 @@ export default function App() {
 
           {view === 'admin_settings' && (
             <AdminRoute session={session} replaceView={replaceView}>
-              <AdminSettings setView={navigate} goBack={goBack} />
+              <AdminSettings goBack={goBack} />
             </AdminRoute>
           )}
 
@@ -902,367 +869,45 @@ export default function App() {
             </AdminRoute>
           )}
 
-          {/* Schedule dashboard: calendar & class list (no payroll) */}
+          {/* Schedule: FullCalendar + embedded 예약 설정 */}
           {view === 'admin_schedule' && (
             <AdminRoute session={session} replaceView={replaceView}>
-              <div className="min-h-[100dvh] bg-white flex flex-col text-slate-900 overflow-y-auto pb-20">
-                <div className="p-6 pb-2">
-                  <div className="flex items-center justify-between gap-4 mb-4 flex-wrap">
-                    <BackButton onClick={goBack} />
-                    <div className="flex items-center gap-2 shrink-0">
-                      <button
-                        type="button"
-                        onClick={() => setSchedulePayrollModalOpen(true)}
-                        className="text-xs font-medium text-slate-700 border border-gray-200 px-3 py-2 rounded-lg bg-white hover:bg-gray-50 active:scale-[0.99] transition-colors min-h-[40px]"
-                      >
-                        월간 수업 갯수
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => navigate('admin_settings')}
-                        className="shrink-0 text-[10px] font-medium tracking-[0.28em] uppercase text-[#064e3b] border border-[#064e3b]/25 px-3 py-2 rounded-lg bg-white hover:bg-[#064e3b]/5 active:scale-[0.99] transition-colors min-h-[40px]"
-                      >
-                        예약 설정
-                      </button>
+              <div className="min-h-[100dvh] bg-gradient-to-b from-white to-emerald-50/20 text-slate-900 flex flex-col overflow-y-auto pb-24">
+                <div className="px-4 sm:px-6 pt-4 sm:pt-6 pb-2 max-w-7xl w-full mx-auto">
+                  <div className="flex items-start justify-between gap-3 flex-wrap">
+                    <div className="min-w-0">
+                      <BackButton onClick={goBack} />
+                      <h1 className="mt-3 text-lg sm:text-xl font-light tracking-wide text-[#064e3b]">일정 &amp; 예약</h1>
+                      <p className="text-xs sm:text-sm text-slate-500 mt-0.5">50분 세션 · 예약을 누르면 삭제 확인</p>
                     </div>
-                  </div>
-
-                  {/* Segmented Control: Day | Week | Month */}
-                  <div className="flex gap-1 p-1 bg-gray-50 rounded-xl border border-gray-200 w-fit mb-4 shadow-sm">
-                    {(['day', 'week', 'month']).map((mode) => (
-                      <button
-                        key={mode}
-                        onClick={() => setDashboardViewMode(mode)}
-                        className={`px-4 py-2 rounded-lg text-sm font-medium transition capitalize ${
-                          dashboardViewMode === mode
-                            ? 'bg-emerald-600 text-white'
-                            : 'text-gray-500 hover:text-slate-900'
-                        }`}
-                      >
-                        {mode === 'day' ? 'Day' : mode === 'week' ? 'Week' : 'Month'}
-                      </button>
-                    ))}
-                  </div>
-
-                  {/* Header: date navigator */}
-                  <div className="flex flex-col sm:flex-row sm:items-center gap-4 mb-4">
-                    <div className="flex items-center gap-3 bg-gray-50 px-4 py-3 rounded-xl border border-gray-200">
-                      <button
-                        onClick={() => {
-                          const d = new Date(dashboardViewMode === 'day' ? dashboardFocusDate : currentRevenueDate);
-                          if (dashboardViewMode === 'day') { d.setDate(d.getDate() - 1); setDashboardFocusDate(d); }
-                          else if (dashboardViewMode === 'week') { d.setDate(d.getDate() - 7); setDashboardFocusDate(d); setCurrentRevenueDate(d); }
-                          else changeMonth(-1);
-                        }}
-                        className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-500 hover:text-emerald-600 transition"
-                      >
-                        <ChevronLeft size={24} />
-                      </button>
-                      <div className="flex items-center gap-2 min-w-[140px] justify-center">
-                        <Calendar size={20} className="text-emerald-600" />
-                        <span className="text-lg font-bold">
-                          {dashboardViewMode === 'day' && formatDateHeader(toDateKey(dashboardFocusDate))}
-                          {dashboardViewMode === 'week' && `Week of ${formatDateHeader(getWeekDates(dashboardFocusDate)[0])}`}
-                          {dashboardViewMode === 'month' && `${currentRevenueDate.toLocaleDateString('en-US', { month: 'short' })} ${currentRevenueDate.getFullYear()}`}
-                        </span>
-                      </div>
-                      <button
-                        onClick={() => {
-                          const d = new Date(dashboardViewMode === 'day' ? dashboardFocusDate : currentRevenueDate);
-                          if (dashboardViewMode === 'day') { d.setDate(d.getDate() + 1); setDashboardFocusDate(d); }
-                          else if (dashboardViewMode === 'week') { d.setDate(d.getDate() + 7); setDashboardFocusDate(d); setCurrentRevenueDate(d); }
-                          else changeMonth(1);
-                        }}
-                        className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-500 hover:text-emerald-600 transition"
-                      >
-                        <ChevronRight size={24} />
-                      </button>
-                    </div>
+                    <button
+                      type="button"
+                      onClick={() => navigate('admin_settings')}
+                      className="shrink-0 text-[10px] sm:text-xs font-medium tracking-wider text-[#064e3b] border border-[#064e3b]/30 px-3 py-2 rounded-lg bg-white/95 hover:bg-emerald-50/90 active:scale-[0.99] min-h-[40px] transition-colors"
+                    >
+                      예약 설정 (전체)
+                    </button>
                   </div>
                 </div>
-
-                {/* ========== DAY VIEW ========== */}
-                {dashboardViewMode === 'day' && (() => {
-                  const dayKey = toDateKey(dashboardFocusDate);
-                  const items = mergedItemsByDate[dayKey] || [];
-                  const completed = items.filter((x) => x.status === 'Completed').length;
-                  const total = items.length;
-                  const now = new Date();
-                  const nowMinutes = now.getHours() * 60 + now.getMinutes();
-                  const isToday = toDateKey(now) === dayKey;
-                  let nextUpIndex = -1;
-                  let nowLineIndex = -1;
-                  if (isToday && items.length > 0) {
-                    for (let i = 0; i < items.length; i++) {
-                      const [h, m] = (items[i].time || '00:00').split(':').map(Number);
-                      if (h * 60 + m > nowMinutes) { nextUpIndex = i; nowLineIndex = i; break; }
-                    }
-                    if (nextUpIndex < 0) nowLineIndex = items.length;
-                  }
-                  return (
-                    <div className="px-6 flex-1">
-                      <div className="mb-6">
-                        <h2 className="text-2xl font-bold text-emerald-600 mb-1">{formatDateHeader(dayKey)}</h2>
-                        {total > 0 && (
-                          <div className="flex items-center gap-2">
-                            <div className="flex-1 h-2 bg-gray-200 rounded-full overflow-hidden">
-                              <div className="h-full bg-emerald-600 rounded-full transition-all" style={{ width: total ? `${(completed / total) * 100}%` : 0 }} />
-                            </div>
-                            <span className="text-gray-600 text-sm whitespace-nowrap">{completed}/{total} Done</span>
-                          </div>
-                        )}
-                      </div>
-                      {items.length === 0 ? (
-                        <div className="flex flex-col items-center justify-center py-16 text-center">
-                          <Calendar size={64} className="text-gray-300 mb-4" />
-                          <p className="text-gray-500 font-medium">No classes today</p>
-                          <p className="text-gray-600 text-sm mt-1">Take a breather 💪</p>
-                        </div>
-                      ) : (
-                        <div className="space-y-3 relative">
-                          {items.map((item, idx) => {
-                            const isNextUp = isToday && idx === nextUpIndex;
-                            const showNowBefore = isToday && nowLineIndex >= 0 && idx === nowLineIndex;
-                            const showNowAfter = isToday && nowLineIndex === items.length && idx === items.length - 1;
-                            return (
-                              <React.Fragment key={item.booking?.id || item.log?.id || idx}>
-                                {showNowBefore && (
-                                  <div className="flex items-center gap-2 py-2">
-                                    <div className="flex-1 h-px bg-red-500" />
-                                    <span className="text-red-400 text-xs font-mono">Now</span>
-                                    <div className="flex-1 h-px bg-red-500" />
-                                  </div>
-                                )}
-                              <div
-                                key={item.booking?.id || item.log?.id || idx}
-                                className={`rounded-xl border p-4 transition-all ${
-                                  item.status === 'Completed'
-                                    ? 'bg-emerald-600/10 border-emerald-600/30'
-                                    : 'bg-white border-gray-200'
-                                } ${isNextUp ? 'ring-2 ring-emerald-500/40 shadow-lg shadow-emerald-500/10' : ''}`}
-                              >
-                                <div className="flex items-center justify-between gap-2">
-                                  <span className="text-gray-600 font-mono font-medium shrink-0">{item.time}</span>
-                                  <span className="flex-1 text-slate-900 font-medium truncate text-center min-w-0">{item.userName}</span>
-                                  {item.booking?.id && (
-                                    <button
-                                      type="button"
-                                      onClick={() => handleScheduleDashCancel(item, dayKey)}
-                                      className="shrink-0 p-2 rounded-lg bg-red-50 border border-red-100 text-red-600 hover:bg-red-100 active:scale-95 transition-all"
-                                      aria-label="일정 삭제"
-                                      title="일정 삭제"
-                                    >
-                                      <Trash2 size={18} />
-                                    </button>
-                                  )}
-                                </div>
-                                {isNextUp && <p className="text-emerald-600 text-xs mt-2">↑ Next up</p>}
-                              </div>
-                              {showNowAfter && (
-                                <div className="flex items-center gap-2 py-2">
-                                  <div className="flex-1 h-px bg-red-500" />
-                                  <span className="text-red-400 text-xs font-mono">Now</span>
-                                  <div className="flex-1 h-px bg-red-500" />
-                                </div>
-                              )}
-                              </React.Fragment>
-                            );
-                          })}
-                        </div>
-                      )}
-                    </div>
-                  );
-                })()}
-
-                {/* ========== WEEK VIEW ========== */}
-                {dashboardViewMode === 'week' && (
-                  <div className="px-6 flex-1 space-y-2">
-                    {getWeekDates(dashboardFocusDate).map((dateKey) => {
-                      const items = mergedItemsByDate[dateKey] || [];
-                      const completed = items.filter((x) => x.status === 'Completed').length;
-                      const WEEK_MAX_VISIBLE = 4;
-                      const expanded = !!weekScheduleExpandedByDate[dateKey];
-                      const shownItems = expanded ? items : items.slice(0, WEEK_MAX_VISIBLE);
-                      const extraCount = items.length > WEEK_MAX_VISIBLE ? items.length - WEEK_MAX_VISIBLE : 0;
-                      if (items.length === 0) {
-                        return (
-                          <div key={dateKey} className="bg-gray-50 rounded-xl border border-gray-200/70 px-4 py-2 flex items-center justify-between">
-                            <span className="text-gray-600 text-sm">{formatDateHeader(dateKey)}</span>
-                            <span className="text-gray-700 text-xs">—</span>
-                          </div>
-                        );
-                      }
-                      return (
-                        <div key={dateKey} className="bg-white rounded-xl border border-gray-200 overflow-hidden shadow-sm">
-                          <div className="px-4 py-2 bg-gray-50 font-bold text-slate-900 flex items-center justify-between">
-                            <span>{formatDateHeader(dateKey)}</span>
-                            <span className="text-gray-600 text-sm font-normal">{items.length} classes {completed > 0 && `(${completed} done)`}</span>
-                          </div>
-                          <motion.div layout className="divide-y divide-gray-200">
-                            {shownItems.map((item, idx) => (
-                              <motion.div
-                                key={item.booking?.id ?? item.log?.id ?? `${dateKey}-${idx}`}
-                                layout
-                                transition={{ duration: 0.3, ease: 'easeInOut' }}
-                                className={`flex items-center justify-between gap-2 px-4 py-2 ${item.status === 'Completed' ? 'bg-emerald-600/5' : ''}`}
-                              >
-                                <span className="text-gray-600 font-mono text-sm shrink-0">{item.time}</span>
-                                <span className="flex-1 text-slate-900 text-sm truncate text-center min-w-0">{item.userName}</span>
-                                {item.booking?.id && (
-                                  <button
-                                    type="button"
-                                    onClick={() => handleScheduleDashCancel(item, dateKey)}
-                                    className="shrink-0 p-1.5 rounded-lg bg-red-50 border border-red-100 text-red-600 hover:bg-red-100 active:scale-95 transition-all"
-                                    aria-label="일정 삭제"
-                                    title="일정 삭제"
-                                  >
-                                    <Trash2 size={16} />
-                                  </button>
-                                )}
-                              </motion.div>
-                            ))}
-                          </motion.div>
-                          {extraCount > 0 && (
-                            <button
-                              type="button"
-                              onClick={() =>
-                                setWeekScheduleExpandedByDate((prev) => ({
-                                  ...prev,
-                                  [dateKey]: !prev[dateKey],
-                                }))
-                              }
-                              className="w-full cursor-pointer border-t border-gray-100/80 px-4 py-2.5 text-left text-xs font-medium text-gray-600 transition-colors duration-300 ease-in-out hover:bg-gray-50/90 active:bg-gray-100/80 flex items-center justify-between gap-2"
-                              aria-expanded={expanded}
-                            >
-                              <span className="tracking-wide">{expanded ? '접기' : `+${extraCount} more`}</span>
-                              <ChevronDown
-                                className={`h-4 w-4 shrink-0 opacity-60 transition-transform duration-300 ease-in-out ${expanded ? 'rotate-180' : ''}`}
-                                strokeWidth={2}
-                                aria-hidden
-                              />
-                            </button>
-                          )}
-                        </div>
-                      );
-                    })}
+                <div className="flex-1 px-4 sm:px-6 max-w-7xl w-full mx-auto flex flex-col gap-4">
+                  <AdminBookingSettingsPanel variant="embed" className="shrink-0" />
+                  <div className="min-h-[min(60vh,640px)] flex-1 pb-3">
+                    <AdminScheduleFullCalendar
+                      key={scheduleCalendarSeed ? String(scheduleCalendarSeed.getTime()) : 'cal'}
+                      events={adminCalendarEvents}
+                      loading={isRevenueLoading}
+                      initialDate={scheduleCalendarSeed ?? undefined}
+                      onEventClick={(info) => {
+                        const item = info?.event?.extendedProps?.item;
+                        const dateKey = info?.event?.extendedProps?.dateKey;
+                        if (item && dateKey) handleScheduleDashCancel(item);
+                      }}
+                    />
                   </div>
-                )}
-
-                {/* ========== MONTH VIEW ========== */}
-                {dashboardViewMode === 'month' && (
-                  <div className="px-6 flex-1">
-                    <div className="bg-white rounded-xl p-4 mb-6 border border-gray-200 shadow-sm">
-                      <div className="grid grid-cols-7 gap-1">
-                        {['일', '월', '화', '수', '목', '금', '토'].map((d) => (
-                          <div key={d} className="text-center text-gray-500 text-[10px] font-medium py-1">{d}</div>
-                        ))}
-                        {isRevenueLoading ? (
-                          <div className="col-span-7 py-8 text-center text-gray-500 text-sm">Loading...</div>
-                        ) : (
-                          revenueCalendarDays.map((cell, i) =>
-                            cell.type === 'pad' ? (
-                              <div key={`pad-${i}`} className="aspect-square" />
-                            ) : (
-                              <button
-                                key={cell.key}
-                                onClick={() => { setSelectedRevenueDay(selectedRevenueDay === cell.key ? null : cell.key); setDashboardFocusDate(new Date(cell.key + 'T12:00:00')); setDashboardViewMode('day'); }}
-                                className={`aspect-square rounded-lg flex flex-col items-center justify-center text-sm font-medium transition min-h-[36px] ${
-                                  selectedRevenueDay === cell.key
-                                    ? 'bg-emerald-600 text-white ring-2 ring-emerald-500/40'
-                                    : 'bg-gray-50 hover:bg-gray-100 text-gray-700'
-                                }`}
-                              >
-                                <span>{cell.value}</span>
-                                {(mergedItemsByDate[cell.key] || []).length > 0 && (
-                                  <span className={`mt-0.5 rounded-full ${(mergedItemsByDate[cell.key] || []).length >= 6 ? 'w-2.5 h-2.5' : (mergedItemsByDate[cell.key] || []).length >= 3 ? 'w-2 h-2' : 'w-1.5 h-1.5'} bg-emerald-600`} />
-                                )}
-                              </button>
-                            )
-                          )
-                        )}
-                      </div>
-                    </div>
-                    {selectedRevenueDay && (
-                      <div className="space-y-2 mb-6">
-                        {(mergedItemsByDate[selectedRevenueDay] || []).map((item, idx) => (
-                          <div
-                            key={idx}
-                            className={`flex items-center justify-between gap-2 px-4 py-3 rounded-xl border ${
-                              item.status === 'Completed'
-                                ? 'bg-emerald-600/10 border-emerald-600/30'
-                                : 'bg-white border-gray-200'
-                            }`}
-                          >
-                            <span className="font-mono text-gray-600 shrink-0">{item.time}</span>
-                            <span className="flex-1 text-slate-900 text-center truncate min-w-0">{item.userName}</span>
-                            {item.booking?.id && (
-                              <button
-                                type="button"
-                                onClick={() => handleScheduleDashCancel(item, selectedRevenueDay)}
-                                className="shrink-0 p-2 rounded-lg bg-red-50 border border-red-100 text-red-600 hover:bg-red-100 active:scale-95 transition-all"
-                                aria-label="일정 삭제"
-                                title="일정 삭제"
-                              >
-                                <Trash2 size={18} />
-                              </button>
-                            )}
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                {/* Sticky Footer — sessions only (payroll moved to Revenue) */}
-                <div className="sticky bottom-0 left-0 right-0 py-3 px-6 bg-white border-t border-gray-200/70 text-center shadow-sm">
-                  <p className="text-gray-600 text-xs">
-                    Total Monthly Sessions: <span className="text-emerald-600 font-semibold">{isRevenueLoading ? '—' : monthlyScheduledCount}</span>
-                  </p>
                 </div>
               </div>
             </AdminRoute>
           )}
-
-          <AnimatePresence>
-            {schedulePayrollModalOpen && (
-              <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                transition={{ duration: 0.2 }}
-                className="fixed inset-0 z-[190] flex items-center justify-center p-4 bg-gray-900/35"
-                style={{ backdropFilter: 'blur(6px)' }}
-                role="dialog"
-                aria-modal="true"
-                aria-labelledby="schedule-payroll-modal-title"
-                onClick={() => setSchedulePayrollModalOpen(false)}
-              >
-                <motion.div
-                  initial={{ opacity: 0, scale: 0.96 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  exit={{ opacity: 0, scale: 0.98 }}
-                  transition={{ duration: 0.22, ease: [0.25, 0.46, 0.45, 0.94] }}
-                  className="w-full max-w-md max-h-[min(90vh,560px)] overflow-y-auto bg-white rounded-2xl border border-gray-100 shadow-xl p-6"
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  <div className="flex items-start justify-between gap-4 mb-4">
-                    <h2 id="schedule-payroll-modal-title" className="text-base font-semibold text-slate-900 tracking-tight pr-2">
-                      월간 페이롤 정산
-                    </h2>
-                    <button
-                      type="button"
-                      onClick={() => setSchedulePayrollModalOpen(false)}
-                      className="p-2 rounded-lg text-gray-500 hover:bg-gray-100 hover:text-slate-900 transition-colors shrink-0"
-                      aria-label="닫기"
-                    >
-                      <X size={20} />
-                    </button>
-                  </div>
-                  <AdminPayrollExport compact />
-                </motion.div>
-              </motion.div>
-            )}
-          </AnimatePresence>
 
           {/* Revenue: monthly payroll & CSV only (was Private/Manager on Schedule) */}
           {view === 'revenue' && (

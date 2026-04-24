@@ -1,6 +1,6 @@
 /**
  * Webhook: public.bookings — Google Calendar (service account).
- * Secrets: GOOGLE_SERVICE_ACCOUNT_JSON, GOOGLE_CALENDAR_ID, SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY
+ * Secrets: GOOGLE_SERVICE_ACCOUNT_JSON, GOOGLE_CALENDAR_ID, SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY (for admin client; gateway validates JWT)
  */
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { importPKCS8, SignJWT } from "https://deno.land/x/jose@v4.15.0/index.ts";
@@ -231,16 +231,6 @@ Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
   if (req.method !== "POST") {
     return j({ error: "Method not allowed" }, 405);
-  }
-
-  const authHeader = req.headers.get("Authorization")?.trim();
-  const expectedAuth = `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? ""}`.trim();
-  if (authHeader !== expectedAuth) {
-    console.error("Auth mismatch inside function.");
-    return new Response(JSON.stringify({ error: "Auth mismatch in Deno code" }), {
-      status: 401,
-      headers: { "Content-Type": "application/json" },
-    });
   }
 
   const serviceKey = (Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "").trim();

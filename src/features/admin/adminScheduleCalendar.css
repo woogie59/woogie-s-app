@@ -1,0 +1,80 @@
+/* LabDot — FullCalendar skin (dark green clinical) */
+.labdot-fc-wrap .fc {
+  --fc-border-color: rgba(6, 78, 59, 0.12);
+  --fc-button-bg-color: #064e3b;
+  --fc-button-border-color: #064e3b;
+  --fc-button-hover-bg-color: #043d2d;
+  --fc-button-hover-border-color: #043d2d;
+  --fc-button-active-bg-color: #022c22;
+  --fc-today-bg-color: rgba(16, 185, 129, 0.08);
+  --fc-now-indicator-color: #dc2626;
+  font-family: inherit;
+}
+
+.labdot-fc-wrap .fc .fc-toolbar-title {
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: #064e3b;
+  letter-spacing: 0.02em;
+}
+
+.labdot-fc-wrap .fc .fc-button {
+  font-size: 0.75rem;
+  text-transform: none;
+  padding: 0.35em 0.65em;
+  border-radius: 0.5rem;
+}
+
+.labdot-fc-wrap .fc .fc-button-primary:not(:disabled):active,
+.labdot-fc-wrap .fc .fc-button-primary:not(:disabled).fc-button-active {
+  background-color: #022c22;
+  border-color: #022c22;
+}
+
+.labdot-fc-wrap .fc .fc-col-header-cell-cushion {
+  color: #334155;
+  font-weight: 600;
+  font-size: 0.7rem;
+}
+
+.labdot-fc-wrap .fc .fc-timegrid-slot-label {
+  font-size: 0.65rem;
+  color: #64748b;
+}
+
+.labdot-fc-wrap .fc .fc-event {
+  border-radius: 0.45rem;
+  border: none !important;
+  padding: 2px 4px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  box-shadow: 0 1px 2px rgba(6, 78, 59, 0.12);
+}
+
+.labdot-fc-wrap .fc .fc-event.labdot-session-scheduled {
+  background: linear-gradient(135deg, #064e3b 0%, #047857 100%);
+  color: #ecfdf5;
+}
+
+.labdot-fc-wrap .fc .fc-event.labdot-session-done {
+  background: linear-gradient(135deg, #0d9488 0%, #14b8a6 100%);
+  color: #f0fdfa;
+  opacity: 0.95;
+}
+
+.labdot-fc-wrap .fc .fc-list-event:hover td {
+  background: rgba(6, 78, 59, 0.04);
+}
+
+@media (max-width: 639px) {
+  .labdot-fc-wrap .fc .fc-toolbar {
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+  .labdot-fc-wrap .fc .fc-toolbar-chunk {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 0.25rem;
+  }
+}
