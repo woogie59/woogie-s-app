@@ -164,14 +164,25 @@ async function getAccessToken(svc: ServiceAccountJson): Promise<string> {
       assertion,
     }),
   });
-  const body = (await r.json()) as { access_token?: string; error?: string; error_description?: string };
-  if (!r.ok || !body.access_token) {
-    throw new Error(
-      `OAuth2 token: ${r.status} ${body.error ?? ""} ${body.error_description ?? JSON.stringify(body)}`,
-    );
+  const text = await r.text();
+  let parsed: { access_token?: string; error?: string; error_description?: string } = {};
+  try {
+    if (text) parsed = JSON.parse(text) as typeof parsed;
+  } catch {
+    // leave parsed for throw below
   }
-  cached = { at: now, token: body.access_token };
-  return body.access_token;
+  if (!r.ok || !parsed.access_token) {
+    console.error(
+      `[google-calendar-sync] Google OAuth2 token error (https://oauth2.googleapis.com/token) status=${r.status} body:`,
+      text,
+    );
+    const detail = !r.ok
+      ? `${r.status} ${parsed.error ?? ""} ${parsed.error_description ?? text}`
+      : "missing access_token in success response";
+    throw new Error(String(detail).trim() || "OAuth2 token request failed");
+  }
+  cached = { at: now, token: parsed.access_token };
+  return parsed.access_token;
 }
 
 function calendarBase(calId: string) {
@@ -192,6 +203,12 @@ async function gcal(
     body: body === undefined ? undefined : JSON.stringify(body),
   });
   const text = await r.text();
+  if (!r.ok) {
+    console.error(
+      `[google-calendar-sync] Google Calendar API error ${method} ${url} status=${r.status} body:`,
+      text,
+    );
+  }
   let parsed: unknown;
   try {
     parsed = text ? JSON.parse(text) : {};
@@ -216,11 +233,17 @@ Deno.serve(async (req: Request) => {
     return j({ error: "Method not allowed" }, 405);
   }
 
-  const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
-  const auth = req.headers.get("Authorization") ?? "";
-  if (!serviceKey || auth !== `Bearer ${serviceKey}`) {
-    return j({ error: "Unauthorized" }, 401);
+  const authHeader = req.headers.get("Authorization")?.trim();
+  const expectedAuth = `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? ""}`.trim();
+  if (authHeader !== expectedAuth) {
+    console.error("Auth mismatch inside function.");
+    return new Response(JSON.stringify({ error: "Auth mismatch in Deno code" }), {
+      status: 401,
+      headers: { "Content-Type": "application/json" },
+    });
   }
+
+  const serviceKey = (Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "").trim();
 
   const supabaseUrl = Deno.env.get("SUPABASE_URL");
   if (!supabaseUrl) return j({ error: "Missing SUPABASE_URL" }, 500);
@@ -256,7 +279,7 @@ Deno.serve(async (req: Request) => {
     token = await getAccessToken(svc);
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
-    console.error("[google-calendar-sync] auth:", msg);
+    console.error("[google-calendar-sync] getAccessToken threw after Google OAuth2 logging above:", msg);
     return j({ error: msg }, 500);
   }
 
