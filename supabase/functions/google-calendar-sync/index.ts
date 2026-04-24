@@ -220,7 +220,7 @@ async function gcal(
 
 function buildEventBody(userName: string, start: string, end: string) {
   return {
-    summary: `[LabDot PT] ${userName} 회원님`,
+    summary: `${userName}님 수업`,
     start: { dateTime: start, timeZone: KST },
     end: { dateTime: end, timeZone: KST },
     reminders: { useDefault: false, overrides: [{ method: "popup", minutes: 10 }] },
