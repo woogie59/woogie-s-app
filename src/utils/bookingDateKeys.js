@@ -70,37 +70,40 @@ export function isMemberAppCancellationAllowed(
 }
 
 /**
- * Rolling time-lock: "다음 주" 탭 — 이번 KST 주의 지정 요일·시각 이후 열리고, 이후로 계속 열림.
+ * Rolling time-lock: "다음 주" 탭 — 매주 KST **토요일 13:00** 이후 열림 (트레이너 `trainer_settings`·토요 휴무와 무관).
  *
- * @see NEXT_WEEK_UNLOCK — 운영: `SATURDAY_10AM`. QA 시 `WEDNESDAY_9PM_TEST` 만 ACTIVE 로 바꿔 쓰면 됨.
+ * @see NEXT_WEEK_UNLOCK — 운영: `SATURDAY_1PM`. QA는 `WEDNESDAY_9PM_TEST` 만 ACTIVE로 바꿔 쓰면 됨.
  */
 const NEXT_WEEK_UNLOCK = {
-  /** 운영: 토요일 10:00 KST */
-  SATURDAY_10AM: { weekdayFromMon: 5, hour: 10, minute: 0 },
+  /** 운영: 매주 토요일 13:00(오후 1시) KST */
+  SATURDAY_1PM: { weekdayFromMon: 5, hour: 13, minute: 0 },
   /** QA용: 수요일 21:00 KST */
   WEDNESDAY_9PM_TEST: { weekdayFromMon: 2, hour: 21, minute: 0 },
 };
 
-const ACTIVE_NEXT_WEEK_UNLOCK = NEXT_WEEK_UNLOCK.SATURDAY_10AM;
+const ACTIVE_NEXT_WEEK_UNLOCK = NEXT_WEEK_UNLOCK.SATURDAY_1PM;
 
-/** 수업 예약 화면 잠금 토스트·카피 (ACTIVE_NEXT_WEEK_UNLOCK 과 동기화) */
+/** "다음 주" 잠금 시 탭/토스트 — 운영 문구 (요청 확정) */
+const NEXT_WEEK_OPEN_COPY = '다음 주 예약은 오후 1시에 오픈됩니다.';
+
+/** 수업 예약 화면 잠금 토스트 (ClassBooking: 다음 주 클릭 시) */
 export const NEXT_WEEK_LOCKED_TOAST_MESSAGE =
   ACTIVE_NEXT_WEEK_UNLOCK === NEXT_WEEK_UNLOCK.WEDNESDAY_9PM_TEST
     ? '다음 주 수업은 수요일 오후 9시(한국시간, 테스트)부터 신청 가능합니다.'
-    : '다음 주 수업은 토요일 오전 10시(한국시간)부터 신청 가능합니다.';
+    : NEXT_WEEK_OPEN_COPY;
 
-/** 잠금 전체 화면 본문 (HTML 아님, 문장만) */
+/** 잠금 전체 화면 (lead+highlight+trail = 한 문장) */
 export const NEXT_WEEK_LOCKED_BANNER_HTML =
   ACTIVE_NEXT_WEEK_UNLOCK === NEXT_WEEK_UNLOCK.WEDNESDAY_9PM_TEST
     ? {
         lead: '다음 주 예약은 ',
         highlight: '매주 수요일 오후 9:00(한국시간·테스트)',
-        trail: '부터 열리며, 확인 후 토요일 오전 10:00으로 복구 예정입니다.',
+        trail: '부터 열리며, 확인 후 토요일 오후 1시(운영)으로 복구 예정입니다.',
       }
     : {
         lead: '다음 주 예약은 ',
-        highlight: '매주 토요일 오전 10:00(한국시간)',
-        trail: '부터 열리며, 이후에도 계속 예약하실 수 있습니다.',
+        highlight: '오후 1시',
+        trail: '에 오픈됩니다.',
       };
 
 function buildKstThisWeekUnlockInstant(anchor, cfg) {
