@@ -67,8 +67,28 @@ function readFromSessionStorageFirst(userId) {
   if (typeof window === 'undefined' || !userId) {
     return { ymd: null, week: null };
   }
-  const rawDate = window.sessionStorage.getItem(keyBookingSelectedDate(userId));
-  const rawWeek = window.sessionStorage.getItem(keyBookingWeekMode(userId));
+  let rawDate = null;
+  let rawWeek = null;
+  try {
+    rawDate = window.sessionStorage.getItem(keyBookingSelectedDate(userId));
+    rawWeek = window.sessionStorage.getItem(keyBookingWeekMode(userId));
+  } catch {
+    /* ignore */
+  }
+  if (!rawDate) {
+    try {
+      rawDate = window.localStorage.getItem(keyBookingSelectedDate(userId));
+    } catch {
+      /* ignore */
+    }
+  }
+  if (!rawWeek) {
+    try {
+      rawWeek = window.localStorage.getItem(keyBookingWeekMode(userId));
+    } catch {
+      /* ignore */
+    }
+  }
   const week = rawWeek === 'next' ? 'next' : rawWeek === 'current' ? 'current' : null;
   const ymd = parseStoredDateToYmd(rawDate);
   return { ymd, week };
@@ -125,6 +145,19 @@ export function writeBookingPwaToSessionAndUrl(userId, { selectedDate, weekMode 
     /* ignore */
   }
   try {
+    if (selectedDate) {
+      const iso = ymdToIsoStorage(selectedDate);
+      if (iso) {
+        window.localStorage.setItem(keyBookingSelectedDate(userId), iso);
+      }
+    } else {
+      window.localStorage.removeItem(keyBookingSelectedDate(userId));
+    }
+    window.localStorage.setItem(keyBookingWeekMode(userId), weekMode === 'next' ? 'next' : 'current');
+  } catch {
+    /* ignore */
+  }
+  try {
     const u = new URL(window.location.href);
     if (selectedDate) {
       u.searchParams.set(URL_DATE, selectedDate);
@@ -157,6 +190,12 @@ export function clearBookingPwaState(userId) {
   try {
     window.sessionStorage.removeItem(keyBookingSelectedDate(userId));
     window.sessionStorage.removeItem(keyBookingWeekMode(userId));
+  } catch {
+    /* ignore */
+  }
+  try {
+    window.localStorage.removeItem(keyBookingSelectedDate(userId));
+    window.localStorage.removeItem(keyBookingWeekMode(userId));
   } catch {
     /* ignore */
   }

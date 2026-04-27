@@ -7,6 +7,7 @@ import { supabase, REMEMBER_ME_KEY } from './lib/supabaseClient';
 import { deleteAttendanceLogsForBooking, toTime24h } from './utils/cascadeAttendance';
 import { emitSessionBalanceRefresh } from './utils/sessionBalanceEvents';
 import { clearBookingPwaState } from './utils/bookingPwaState';
+import { readPersistedView, writePersistedView, clearPersistedView } from './utils/appViewPersistence';
 import { useGlobalModal } from './context/GlobalModalContext';
 import CinematicIntro from './components/ui/CinematicIntro';
 import LabDotBrand from './components/ui/LabDotBrand';
@@ -205,6 +206,13 @@ export default function App() {
   const viewRef = useRef(view);
   viewRef.current = view;
 
+  /** PWA 백그라운드/새로고침 후 `processAuth(INITIAL_SESSION)`에서 view 복원용 */
+  useEffect(() => {
+    if (!session?.user?.id) return;
+    if (view === 'login' || view === 'register' || showResetPassword) return;
+    writePersistedView(session.user.id, view);
+  }, [view, session?.user?.id, showResetPassword]);
+
   /** Prompt push permission once per auth session when user reaches Home (client or admin) */
   const pushPromptForSessionRef = useRef(null);
   useEffect(() => {
@@ -305,11 +313,24 @@ export default function App() {
         data = retry;
       }
       setUserProfileRole(data?.role ?? null);
-      // MVP: 회원 → client_home(수업 예약·일정·출석), 관리자 → admin_home(회원·일정·Payroll 등). 라이브러리/트레이닝 일지는 네비에서 비표시.
-      replaceView(data?.role === 'admin' ? 'admin_home' : 'client_home');
+      const role = data?.role ?? null;
+      const def = role === 'admin' ? 'admin_home' : 'client_home';
+      // SIGNED_IN: 방금 로그인 → 항상 홈. INITIAL_SESSION(새로고침/PWA 복귀) → 저장된 view 복원.
+      // USER_UPDATED 등: replaceView 하지 않음(탭/예약 화면 유지).
+      if (authEvent === 'SIGNED_IN') {
+        replaceView(def);
+      } else if (authEvent === 'INITIAL_SESSION') {
+        const p = readPersistedView(sessionData.user.id, role);
+        replaceView(p || def);
+      }
     } catch {
       setUserProfileRole(null);
-      replaceView('client_home');
+      if (authEvent === 'INITIAL_SESSION' && sessionData?.user?.id) {
+        const p = readPersistedView(sessionData.user.id, null);
+        replaceView(p || 'client_home');
+      } else {
+        replaceView('client_home');
+      }
     } finally {
       setLoading(false);
     }
@@ -362,6 +383,7 @@ export default function App() {
     const uid = session?.user?.id;
     if (uid) {
       clearBookingPwaState(uid);
+      clearPersistedView(uid);
     }
     try {
       await OneSignal.logout();

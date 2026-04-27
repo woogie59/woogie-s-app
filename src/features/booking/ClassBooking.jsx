@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useLayoutEffect, useMemo, useCallback } from 'react';
-import { Lock } from 'lucide-react';
+import { Lock, ChevronRight } from 'lucide-react';
 import { supabase } from '../../lib/supabaseClient';
 import { fetchAdminOnesignalProfile } from '../../utils/notifications';
 import {
@@ -10,10 +10,13 @@ import {
 } from '../../utils/sessionHelpers';
 import { useGlobalModal } from '../../context/GlobalModalContext';
 import BackButton from '../../components/ui/BackButton';
+import MemberCancelBookingModals from '../../components/member/MemberCancelBookingModals';
+import { emitSessionBalanceRefresh } from '../../utils/sessionBalanceEvents';
 import {
   isNextWeekBookingUnlockedKST,
   NEXT_WEEK_LOCKED_BANNER_HTML,
   NEXT_WEEK_LOCKED_TOAST_MESSAGE,
+  parseBookingToLocalDate,
 } from '../../utils/bookingDateKeys';
 import {
   getBookingInitialPwaState,
@@ -47,6 +50,21 @@ const addDays = (d, n) => {
 };
 
 const weekDayLabelsKo = ['월', '화', '수', '목', '금', '토', '일'];
+const KO_WEEKDAYS_SHORT = ['일', '월', '화', '수', '목', '금', '토'];
+const bookingDateTime = parseBookingToLocalDate;
+
+const formatKoreanDayHeader = (date) => {
+  const m = date.getMonth() + 1;
+  const d = date.getDate();
+  const w = KO_WEEKDAYS_SHORT[date.getDay()];
+  return `${m}월 ${d}일 (${w})`;
+};
+
+const formatTime24hDisplay = (t) => {
+  if (!t || typeof t !== 'string') return t || '—';
+  const m = String(t).match(/(\d{1,2}):(\d{2})/);
+  return m ? `${m[1].padStart(2, '0')}:${m[2]}` : t;
+};
 
 function normalizeAvailableHours(raw) {
   if (raw == null) return [];
@@ -79,6 +97,12 @@ const ClassBooking = ({ user, setView, goBack }) => {
   const [holidays, setHolidays] = useState([]);
   /** Non-blocking toast when next week is still locked */
   const [weekToast, setWeekToast] = useState(null);
+  /** 내 예약 슬롯·티켓 탭 → 공통 취소 모달 */
+  const [cancelIntent, setCancelIntent] = useState(null);
+  /** 전체 예약(캘린더 점 + 다가오는 일정) — 본인 행만 */
+  const [myAllBookings, setMyAllBookings] = useState([]);
+  /** 2h 취소 잠금 경계 UI 갱신 */
+  const [memberCancelUiTick, setMemberCancelUiTick] = useState(0);
 
   const now = useMemo(() => new Date(), []);
   const thisMonday = useMemo(() => getMonday(now), [now]);
@@ -93,6 +117,44 @@ const ClassBooking = ({ user, setView, goBack }) => {
   }, []);
 
   const nextUnlocked = useMemo(() => isNextWeekBookingUnlockedKST(new Date()), [nextWeekLockTick]);
+
+  const fetchMyAllBookings = useCallback(async () => {
+    if (!user?.id) return;
+    const { data, error } = await supabase
+      .from('bookings')
+      .select('*')
+      .eq('user_id', user.id)
+      .order('date', { ascending: true })
+      .order('time', { ascending: true });
+    if (error) setMyAllBookings([]);
+    else setMyAllBookings(Array.isArray(data) ? data : []);
+  }, [user?.id]);
+
+  useEffect(() => {
+    fetchMyAllBookings();
+  }, [fetchMyAllBookings]);
+
+  useEffect(() => {
+    const id = window.setInterval(() => setMemberCancelUiTick((n) => n + 1), 15_000);
+    return () => clearInterval(id);
+  }, []);
+
+  const myDatesWithBooking = useMemo(() => {
+    const s = new Set();
+    (myAllBookings || []).forEach((b) => {
+      if (b?.date) s.add(b.date);
+    });
+    return s;
+  }, [myAllBookings]);
+
+  const upcomingMyBookings = useMemo(() => {
+    const now = new Date();
+    return (myAllBookings || [])
+      .map((b) => ({ b, dt: bookingDateTime(b) }))
+      .filter((x) => x.dt && x.dt >= now)
+      .sort((a, b) => a.dt - b.dt)
+      .map((x) => x.b);
+  }, [myAllBookings, memberCancelUiTick]);
 
   const weekDates = useMemo(() => {
     const arr = [];
@@ -275,6 +337,7 @@ const ClassBooking = ({ user, setView, goBack }) => {
         showAlert({ message: '예약이 완료되었습니다!', confirmLabel: '확인' });
         const { data: updated } = await supabase.from('bookings').select('*').eq('date', date);
         setBookings(updated || []);
+        fetchMyAllBookings();
         try {
           const { adminProfile, error: adminProfileErr } = await fetchAdminOnesignalProfile();
           if (adminProfileErr) {
@@ -310,6 +373,16 @@ const ClassBooking = ({ user, setView, goBack }) => {
     });
   };
 
+  const syncAfterBookingChange = useCallback(async () => {
+    if (selectedDate) {
+      const { data: updated, error } = await supabase.from('bookings').select('*').eq('date', selectedDate);
+      if (error) setBookings([]);
+      else setBookings(updated || []);
+    }
+    await fetchMyAllBookings();
+    emitSessionBalanceRefresh();
+  }, [selectedDate, fetchMyAllBookings]);
+
   const handleSelectWeekMode = (mode) => {
     if (mode === 'next' && !nextUnlocked) {
       setWeekToast(NEXT_WEEK_LOCKED_TOAST_MESSAGE);
@@ -322,12 +395,15 @@ const ClassBooking = ({ user, setView, goBack }) => {
   const showNextWeekLocked = weekMode === 'next' && !nextUnlocked;
 
   return (
-    <div className="bg-gray-50 text-slate-900 flex flex-col overflow-hidden max-w-full min-h-[100dvh] font-sans antialiased">
+    <div
+      className="bg-gray-50 text-slate-900 flex flex-col max-w-full min-h-[100dvh] font-sans antialiased"
+      data-lock-tick={memberCancelUiTick}
+    >
       <div className="shrink-0 px-5 pt-6 pb-3 border-b border-gray-100/90 bg-gray-50">
         <BackButton onClick={goBack} />
         <header className="mt-4 mb-5">
-          <p className="text-[10px] tracking-widest uppercase text-gray-400 font-medium">CLASS BOOKING</p>
-          <h1 className="text-xl font-light text-slate-900 tracking-wide mt-1">수업 예약</h1>
+          <p className="text-[10px] tracking-widest uppercase text-gray-400 font-medium">SCHEDULE & BOOKING</p>
+          <h1 className="text-xl font-light text-slate-900 tracking-wide mt-1">수업 예약 및 일정</h1>
         </header>
 
         {/* Week toggle — silent luxury */}
@@ -376,7 +452,7 @@ const ClassBooking = ({ user, setView, goBack }) => {
           </div>
         </div>
       ) : (
-        <>
+        <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
           <div className="shrink-0 px-5 pt-4 pb-2 overflow-hidden">
             <p className="text-[10px] tracking-widest uppercase text-gray-400 mb-3 font-medium">
               {weekMode === 'current' ? 'THIS_WEEK' : 'NEXT_WEEK'}
@@ -394,6 +470,7 @@ const ClassBooking = ({ user, setView, goBack }) => {
                 const isToday = dateStr === todayKey;
                 const isPast = dateStr < todayKey;
                 const isHolidayDate = isHoliday(dateStr);
+                const hasMine = myDatesWithBooking.has(dateStr);
                 return (
                   <button
                     key={dateStr}
@@ -407,11 +484,21 @@ const ClassBooking = ({ user, setView, goBack }) => {
                           ? 'bg-gray-100/80 border-transparent text-gray-300 cursor-not-allowed opacity-60'
                           : isHolidayDate
                             ? 'bg-red-50/80 border-red-100 text-red-700/90'
-                            : 'bg-white border-gray-100 text-slate-700 hover:border-gray-200 shadow-sm'
+                            : hasMine
+                              ? 'bg-white border-[#064e3b]/35 text-slate-700 ring-1 ring-[#064e3b]/15 shadow-sm'
+                              : 'bg-white border-gray-100 text-slate-700 hover:border-gray-200 shadow-sm'
                     }`}
                   >
                     <span className="text-[10px] font-light tracking-widest uppercase opacity-80">{labelKo}</span>
                     <span className="text-lg font-light tabular-nums mt-0.5">{dayNum}</span>
+                    {hasMine && (
+                      <span
+                        className={`mt-1 h-1.5 w-1.5 rounded-full shrink-0 ${
+                          isSelected ? 'bg-white shadow-sm' : 'bg-[#064e3b]'
+                        }`}
+                        aria-hidden
+                      />
+                    )}
                     {isToday && (
                       <span className="text-[9px] font-light mt-0.5 opacity-90">오늘</span>
                     )}
@@ -423,7 +510,7 @@ const ClassBooking = ({ user, setView, goBack }) => {
 
           <div
             id="time-slots-container"
-            className="flex-1 min-h-0 overflow-y-auto overscroll-y-none px-5 pb-safe pt-2"
+            className="flex-1 min-h-0 overflow-y-auto overscroll-y-none px-5 pb-safe pt-2 scrollable"
             style={{ WebkitOverflowScrolling: 'touch' }}
           >
             {selectedDate && (
@@ -455,7 +542,7 @@ const ClassBooking = ({ user, setView, goBack }) => {
                       let slotClass = basePad;
                       if (isMine) {
                         slotClass +=
-                          ' cursor-default border-[#064e3b] bg-[#064e3b] text-white shadow-md ring-1 ring-[#043d2d]/30';
+                          ' cursor-pointer border-[#064e3b] bg-[#064e3b] text-white shadow-md ring-1 ring-[#043d2d]/30 hover:brightness-110 active:scale-[0.98]';
                       } else if (isOther) {
                         slotClass +=
                           ' cursor-not-allowed border-gray-200/90 bg-gray-100 text-gray-400 opacity-80';
@@ -470,18 +557,24 @@ const ClassBooking = ({ user, setView, goBack }) => {
                           ' opacity-45 cursor-not-allowed border-gray-100/90 bg-gray-50/80 text-gray-400';
                       }
 
-                      const slotDisabled = !clickable || isMine;
+                      const slotButtonDisabled = isOther || (!isMine && !clickable);
 
                       return (
                         <button
                           key={time}
                           type="button"
-                          disabled={slotDisabled}
-                          onClick={() => handleBookSlot(time)}
+                          disabled={slotButtonDisabled}
+                          onClick={() => {
+                            if (isMine && bookingAtSlot) {
+                              setCancelIntent(bookingAtSlot);
+                              return;
+                            }
+                            handleBookSlot(time);
+                          }}
                           className={slotClass}
                           aria-label={
                             isMine
-                              ? `${time} 내 예약`
+                              ? `${time} 내 예약 — 탭하여 취소`
                               : isOther
                                 ? `${time} 다른 회원 예약`
                                 : `${time} ${clickable ? '예약 가능' : '예약 불가'}`
@@ -515,9 +608,63 @@ const ClassBooking = ({ user, setView, goBack }) => {
             {!selectedDate && (
               <p className="text-center text-sm font-light text-gray-400 py-16 tracking-wide">날짜를 선택해 주세요.</p>
             )}
+
+            <section className="mt-10 mb-6 border-t border-gray-200/80 pt-8">
+              <p className="text-[10px] tracking-[0.2em] uppercase text-gray-400 font-medium mb-1">Upcoming</p>
+              <h2 className="text-base font-semibold text-slate-900 tracking-tight">나의 다가오는 일정</h2>
+              <p className="text-xs text-gray-500 font-light mt-1 mb-4">캘린더·목록에서 내 예약을 탭하면 취소 절차로 이동합니다.</p>
+              {upcomingMyBookings.length === 0 ? (
+                <div className="rounded-2xl border border-dashed border-gray-200 bg-white/60 px-4 py-8 text-center">
+                  <p className="text-sm text-gray-500 font-light">예정된 수업이 없어요.</p>
+                  <p className="text-xs text-gray-400 mt-1">위 캘린더에서 날짜를 고른 뒤 슬롯을 예약해 보세요.</p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {upcomingMyBookings.map((booking) => {
+                    const bdt = bookingDateTime(booking);
+                    return (
+                      <button
+                        key={booking.id}
+                        type="button"
+                        onClick={() => setCancelIntent(booking)}
+                        className="w-full text-left rounded-2xl border border-gray-200/60 bg-white px-5 py-5 shadow-sm shadow-slate-900/[0.04] hover:shadow-md hover:border-gray-200 active:scale-[0.99] transition-all duration-200 group"
+                      >
+                        <div className="flex items-center justify-between gap-4 min-w-0">
+                          <div className="min-w-0 flex-1">
+                            <p className="text-[15px] sm:text-base font-semibold text-slate-900 tracking-tight">
+                              {bdt ? formatKoreanDayHeader(bdt) : '—'}
+                            </p>
+                            <p className="text-[1.6rem] sm:text-3xl font-bold text-[#064e3b] tabular-nums mt-2.5 leading-none tracking-tight">
+                              {formatTime24hDisplay(booking.time)}
+                            </p>
+                          </div>
+                          <div className="shrink-0 flex items-center gap-0.5 pl-2">
+                            <span className="text-sm font-medium text-gray-500 group-hover:text-[#064e3b] transition-colors">취소</span>
+                            <ChevronRight
+                              size={20}
+                              strokeWidth={ICON_STROKE}
+                              className="text-gray-300 group-hover:text-[#064e3b]/60"
+                              aria-hidden
+                            />
+                          </div>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </section>
           </div>
-        </>
+        </div>
       )}
+
+      <MemberCancelBookingModals
+        user={user}
+        memberDisplayName={user?.user_metadata?.full_name || user?.email?.split('@')[0]}
+        openBooking={cancelIntent}
+        onOpenBookingChange={setCancelIntent}
+        onAfterSuccessConfirm={syncAfterBookingChange}
+      />
 
       {/* Sleek toast — next week locked (non-blocking) */}
       {weekToast && (

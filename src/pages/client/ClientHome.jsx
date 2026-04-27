@@ -1,20 +1,7 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import {
-  QrCode,
-  LogOut,
-  X,
-  ChevronLeft,
-  ChevronRight,
-  History,
-  Calendar,
-  Clock,
-  BookOpen,
-  Lock,
-  Check,
-} from 'lucide-react';
+import { QrCode, LogOut, X, ChevronRight, History, Calendar, BookOpen } from 'lucide-react';
 import { supabase } from '../../lib/supabaseClient';
-import { invokeNotifyAdminEvents, fetchAdminOnesignalPlayerId } from '../../utils/notifications';
 import { deriveSessionFocus, formatKoreanDateFromYmd } from '../../features/training/trainingLogUtils';
 import {
   computeRemainingSessions,
@@ -27,16 +14,10 @@ import { useGlobalModal } from '../../context/GlobalModalContext';
 import LabDotBrand from '../../components/ui/LabDotBrand';
 import Skeleton from '../../components/ui/Skeleton';
 import SessionHistoryModal from '../../features/members/SessionHistoryModal';
-import {
-  isMemberAppCancellationAllowed,
-  MEMBER_CANCEL_COACH_CONTACT_MESSAGE,
-  MEMBER_CANCEL_LOCK_TOOLTIP,
-  parseBookingToLocalDate,
-} from '../../utils/bookingDateKeys';
+import { parseBookingToLocalDate } from '../../utils/bookingDateKeys';
 
 /** MVP: 라이브러리·트레이닝 일지 진입 UI 비표시 — 라우트/화면은 유지 */
 const MVP_HIDE_LIBRARY_AND_TRAINING_NAV = true;
-
 /** Admin RPC 출석 INSERT와 동일한 Realtime 채널 (필터 user_id=eq.<uuid>와 함께 사용). */
 const memberAttendanceChannelName = (userId) => `qr-check-in-channel:${String(userId)}`;
 
@@ -44,21 +25,6 @@ const memberAttendanceChannelName = (userId) => `qr-check-in-channel:${String(us
 const ICON_STROKE = 1;
 /** Bento nav: slightly bolder stroke for clarity */
 const BENTO_ICON_STROKE = 1.5;
-
-const toDateKey = (d) => {
-  const x = new Date(d);
-  return `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, '0')}-${String(x.getDate()).padStart(2, '0')}`;
-};
-
-const getWeekDates = (weekStart) => {
-  const arr = [];
-  for (let i = 0; i < 7; i++) {
-    const dd = new Date(weekStart);
-    dd.setDate(weekStart.getDate() + i);
-    arr.push({ date: dd, key: toDateKey(dd) });
-  }
-  return arr;
-};
 
 const bookingDateTime = parseBookingToLocalDate;
 
@@ -68,24 +34,7 @@ const formatTime24hStatic = (t) => {
   return m ? `${m[1].padStart(2, '0')}:${m[2]}` : t;
 };
 
-/** Schedule modal: "3월 30일" / "4월 3일 (금)" — matches date-fns `M월 d일`, `M월 d일 (EEE)` with ko locale */
 const KO_WEEKDAYS_SHORT = ['일', '월', '화', '수', '목', '금', '토'];
-
-/** `getWeekDates` week row: index 0 = Mon … 6 = Sun */
-const WEEK_STRIP_LABELS = ['월', '화', '수', '목', '금', '토', '일'];
-
-const formatKoreanMonthDay = (date) => {
-  const m = date.getMonth() + 1;
-  const d = date.getDate();
-  return `${m}월 ${d}일`;
-};
-
-const formatKoreanDayHeader = (date) => {
-  const m = date.getMonth() + 1;
-  const d = date.getDate();
-  const w = KO_WEEKDAYS_SHORT[date.getDay()];
-  return `${m}월 ${d}일 (${w})`;
-};
 
 const formatUpcomingLine = (b) => {
   const dt = bookingDateTime(b);
@@ -105,37 +54,16 @@ const ClientHome = ({ user, logout, setView }) => {
   /** attendance_logs INSERT + bookings UPDATE 둘 다 올 때 토스트/팝업 중복 방지 */
   const lastCheckInRealtimeRef = useRef(0);
 
-  const [showScheduleModal, setShowScheduleModal] = useState(false);
   const [myBookings, setMyBookings] = useState([]);
   const [loadingBookings, setLoadingBookings] = useState(false);
   /** All packs for this user — sum(total_count) = purchased sessions (source of truth for 잔여). */
   const [sessionBatches, setSessionBatches] = useState([]);
   /** attendance_logs rows for eligible count (with bookings, excludes zombies). */
   const [attendanceLogs, setAttendanceLogs] = useState([]);
-  const [cancelling, setCancelling] = useState(null);
-  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
-  const [bookingToDelete, setBookingToDelete] = useState(null);
-  /** `confirm` → `loading` → `success` (성공 시 토스트 없이 동일 모달에서 마무리) */
-  const [cancelDeleteModalView, setCancelDeleteModalView] = useState('confirm');
-  /** 수업 2시간 이내 취소 시도 — ClassBooking「다음 주」잠금과 동일 톤의 안내 */
-  const [showCancelPolicyLockModal, setShowCancelPolicyLockModal] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
   /** Most recent training log row (`client_session_reports`) for gateway teaser */
   const [latestReport, setLatestReport] = useState(null);
   const [latestReportLoading, setLatestReportLoading] = useState(true);
-  const [currentWeekStart, setCurrentWeekStart] = useState(() => {
-    const d = new Date();
-    const day = d.getDay();
-    const monday = new Date(d);
-    monday.setDate(d.getDate() - (day === 0 ? 6 : day - 1));
-    monday.setHours(0, 0, 0, 0);
-    return monday;
-  });
-  /** Tap session card → bottom sheet (mobile) or modal (md+) — no cancel on the card */
-  const [selectedSessionDetail, setSelectedSessionDetail] = useState(null);
-  const [scheduleDetailMdUp, setScheduleDetailMdUp] = useState(() =>
-    typeof window !== 'undefined' ? window.matchMedia('(min-width: 768px)').matches : false
-  );
 
   useEffect(() => {
     return () => {
@@ -145,18 +73,6 @@ const ClientHome = ({ user, logout, setView }) => {
       }
     };
   }, []);
-
-  useEffect(() => {
-    const mq = window.matchMedia('(min-width: 768px)');
-    const onChange = () => setScheduleDetailMdUp(mq.matches);
-    onChange();
-    mq.addEventListener('change', onChange);
-    return () => mq.removeEventListener('change', onChange);
-  }, []);
-
-  useEffect(() => {
-    setSelectedSessionDetail(null);
-  }, [currentWeekStart]);
 
   useEffect(() => {
     const fetchProfile = async () => {
@@ -457,150 +373,6 @@ const ClientHome = ({ user, logout, setView }) => {
     return `잔여 ${remaining}회`;
   }, [sessionMetrics]);
 
-  /** From session detail only — list/cards do not show cancel. */
-  const handleRequestSessionCancel = (booking) => {
-    if (!isMemberAppCancellationAllowed(booking)) {
-      setSelectedSessionDetail(null);
-      setShowCancelPolicyLockModal(true);
-      return;
-    }
-    setSelectedSessionDetail(null);
-    setCancelDeleteModalView('confirm');
-    setBookingToDelete({ id: booking.id, date: booking.date, time: booking.time });
-    setIsDeleteModalOpen(true);
-  };
-
-  const confirmDeleteAction = async () => {
-    if (!bookingToDelete) return;
-    const { id: bookingId, date, time } = bookingToDelete;
-    if (cancelling === bookingId) return;
-    if (!isMemberAppCancellationAllowed({ id: bookingId, date, time })) {
-      setIsDeleteModalOpen(false);
-      setBookingToDelete(null);
-      setShowCancelPolicyLockModal(true);
-      return;
-    }
-    setCancelling(bookingId);
-    setCancelDeleteModalView('loading');
-    const { error } = await supabase.from('bookings').delete().eq('id', bookingId);
-
-    if (error) {
-      showAlert({ message: '취소 실패: ' + error.message });
-      setCancelling(null);
-      setCancelDeleteModalView('confirm');
-      return;
-    }
-
-    setMyBookings((prev) => prev.filter((b) => b.id !== bookingId));
-    setShowQRModal(false);
-    setQrCheckInClosing(false);
-    if (qrCloseTimerRef.current != null) {
-      clearTimeout(qrCloseTimerRef.current);
-      qrCloseTimerRef.current = null;
-    }
-
-    setCancelling(null);
-    setCancelDeleteModalView('success');
-    // 토스트 제거: 동일 모달에서 성공 화면 → 확인 시 닫힘 + 갱신
-
-    try {
-      const pid = await fetchAdminOnesignalPlayerId();
-      if (pid) {
-        const memberName =
-          profile?.name?.trim() ||
-          user?.user_metadata?.full_name ||
-          user?.email?.split('@')[0] ||
-          '회원';
-        await invokeNotifyAdminEvents(
-          pid,
-          '세션 취소 알림',
-          `${memberName}님 - ${date} ${time} 예약이 취소되었습니다.`
-        );
-      }
-    } catch (e) {
-      console.warn('[ClientHome] cancel push:', e);
-    }
-  };
-
-  const closeCancelSuccessAndRefresh = useCallback(async () => {
-    setIsDeleteModalOpen(false);
-    setBookingToDelete(null);
-    setCancelDeleteModalView('confirm');
-    await fetchMyBookings();
-    await loadSessionMetrics();
-    emitSessionBalanceRefresh();
-  }, [fetchMyBookings, loadSessionMetrics]);
-
-  /** 내 일정 모달 열림: 2시간 락 경계·버튼 활성이 시간에 맞게 갱신되도록 */
-  const [memberCancelUiTick, setMemberCancelUiTick] = useState(0);
-  useEffect(() => {
-    if (!showScheduleModal) return undefined;
-    const id = window.setInterval(() => setMemberCancelUiTick((n) => n + 1), 15_000);
-    return () => clearInterval(id);
-  }, [showScheduleModal]);
-
-  useEffect(() => {
-    if (!showScheduleModal) setShowCancelPolicyLockModal(false);
-  }, [showScheduleModal]);
-
-  const handleOpenSchedule = () => {
-    setSelectedSessionDetail(null);
-    setShowScheduleModal(true);
-    const d = new Date();
-    const day = d.getDay();
-    const monday = new Date(d);
-    monday.setDate(d.getDate() - (day === 0 ? 6 : day - 1));
-    monday.setHours(0, 0, 0, 0);
-    setCurrentWeekStart(monday);
-    fetchMyBookings();
-  };
-
-  const closeScheduleModal = useCallback(() => {
-    setShowScheduleModal(false);
-    setSelectedSessionDetail(null);
-  }, []);
-
-  const todayKey = toDateKey(new Date());
-
-  const bookingsInWeek = useMemo(() => {
-    const week = getWeekDates(currentWeekStart);
-    const start = week[0].key;
-    const end = week[6].key;
-    return (myBookings || []).filter((b) => b.date >= start && b.date <= end);
-  }, [myBookings, currentWeekStart]);
-
-  const bookingsByDay = useMemo(() => {
-    const map = {};
-    bookingsInWeek.forEach((b) => {
-      if (!map[b.date]) map[b.date] = [];
-      map[b.date].push(b);
-    });
-    Object.values(map).forEach((arr) =>
-      arr.sort((a, b) => (a.time || '').localeCompare(b.time || ''))
-    );
-    return map;
-  }, [bookingsInWeek]);
-
-  const formatTime24h = (t) => {
-    if (!t || typeof t !== 'string') return t || '—';
-    const m = String(t).match(/(\d{1,2}):(\d{2})/);
-    return m ? `${m[1].padStart(2, '0')}:${m[2]}` : t;
-  };
-
-  const weekLabel = () => {
-    const start = getWeekDates(currentWeekStart)[0].date;
-    const end = getWeekDates(currentWeekStart)[6].date;
-    return `${formatKoreanMonthDay(start)} - ${formatKoreanMonthDay(end)}`;
-  };
-
-  const sortedWeekBookings = useMemo(() => {
-    return [...(bookingsInWeek || [])].sort((a, b) => {
-      const c = (a.date || '').localeCompare(b.date || '');
-      if (c !== 0) return c;
-      return (a.time || '').localeCompare(b.time || '');
-    });
-  }, [bookingsInWeek]);
-
   if (!user) {
     return (
       <div className="min-h-[100dvh] flex flex-col items-center justify-center bg-gray-50 px-6">
@@ -664,7 +436,7 @@ const ClientHome = ({ user, logout, setView }) => {
       </header>
 
       <main className="flex-1 flex flex-col px-5 gap-4 pb-6 overflow-y-auto scrollable min-h-0">
-        {/* 1. Upcoming Class — read-only billboard; 일정은 벤토「내 일정」에서만 열림 */}
+        {/* 1. Upcoming Class — read-only billboard; 전체 일정은「수업 예약 및 일정」화면 */}
         <div className="w-full rounded-xl bg-[#064e3b] px-3 py-3 text-left text-white shadow-md ring-1 ring-white/10 shrink-0 sm:px-4 sm:py-3">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-3 sm:justify-between">
             <div className="flex items-start gap-2 sm:max-w-[32%] min-w-0">
@@ -695,7 +467,7 @@ const ClientHome = ({ user, logout, setView }) => {
                   {formatUpcomingLine(upcomingBooking)}
                 </p>
               ) : (
-                <p className="text-[12px] font-light tracking-wide text-emerald-100/85">예약 없음 · 수업 예약에서 일정을 잡아보세요.</p>
+                <p className="text-[12px] font-light tracking-wide text-emerald-100/85">예약 없음 · 수업 예약 및 일정에서 잡아보세요.</p>
               )}
             </div>
 
@@ -717,26 +489,22 @@ const ClientHome = ({ user, logout, setView }) => {
           <span className="text-[15px] font-light tracking-wide text-slate-900">출석하기</span>
         </button>
 
-        {/* 3. Navigation — 2+1 asymmetrical bento */}
+        {/* 3. Navigation — 수업 예약 및 일정(통합); 별도 내 일정 메뉴는 비표시 */}
         <div className="flex flex-col gap-4">
-          <div className="grid grid-cols-2 gap-4">
-            <button
-              type="button"
-              onClick={() => setView('class_booking')}
-              className="aspect-square bg-white rounded-2xl border border-gray-100 shadow-sm p-5 flex flex-col items-start justify-between text-left transition-all duration-200 active:scale-[0.98] active:bg-gray-50 hover:bg-gray-50/80 cursor-pointer"
-            >
-              <Calendar size={26} strokeWidth={BENTO_ICON_STROKE} className="text-[#064e3b] shrink-0" aria-hidden />
-              <span className="text-[15px] font-light tracking-wide text-slate-900 leading-tight">수업 예약</span>
-            </button>
-            <button
-              type="button"
-              onClick={handleOpenSchedule}
-              className="aspect-square bg-white rounded-2xl border border-gray-100 shadow-sm p-5 flex flex-col items-start justify-between text-left transition-all duration-200 active:scale-[0.98] active:bg-gray-50 hover:bg-gray-50/80 cursor-pointer"
-            >
-              <Clock size={26} strokeWidth={BENTO_ICON_STROKE} className="text-[#064e3b] shrink-0" aria-hidden />
-              <span className="text-[15px] font-light tracking-wide text-slate-900 leading-tight">내 일정</span>
-            </button>
-          </div>
+          <button
+            type="button"
+            onClick={() => setView('class_booking')}
+            className="w-full min-h-[6.5rem] bg-white rounded-2xl border border-gray-100 shadow-sm p-5 flex flex-row items-center justify-between text-left gap-4 transition-all duration-200 active:scale-[0.98] active:bg-gray-50 hover:bg-gray-50/80 hover:border-emerald-100/80 cursor-pointer"
+          >
+            <div className="flex items-center gap-4 min-w-0">
+              <Calendar size={28} strokeWidth={BENTO_ICON_STROKE} className="text-[#064e3b] shrink-0" aria-hidden />
+              <div className="min-w-0">
+                <p className="text-[10px] tracking-[0.18em] uppercase text-gray-400 font-medium">Schedule</p>
+                <span className="text-[16px] font-light tracking-wide text-slate-900 leading-snug block mt-0.5">수업 예약 및 일정</span>
+              </div>
+            </div>
+            <ChevronRight size={22} strokeWidth={BENTO_ICON_STROKE} className="text-gray-300 shrink-0" aria-hidden />
+          </button>
           {!MVP_HIDE_LIBRARY_AND_TRAINING_NAV && (
             <button
               type="button"
@@ -841,289 +609,6 @@ const ClientHome = ({ user, logout, setView }) => {
         )}
       </AnimatePresence>
 
-      {/* My Schedule — weekly strip + session cards; cancel only inside detail sheet/modal */}
-      <AnimatePresence>
-        {showScheduleModal && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 flex items-end justify-center md:items-center p-0 md:p-6 bg-gray-900/30 backdrop-blur-sm"
-            onClick={closeScheduleModal}
-          >
-            <motion.div
-              initial={{ scale: 0.96, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.96, opacity: 0 }}
-              className="bg-white border border-gray-100 md:rounded-2xl rounded-t-3xl p-5 md:p-6 w-full max-w-lg max-h-[88dvh] md:max-h-[85vh] flex flex-col shadow-[0_8px_40px_-12px_rgba(0,0,0,0.12)]"
-              onClick={(e) => e.stopPropagation()}
-              data-lock-tick={memberCancelUiTick}
-            >
-              <div className="flex justify-between items-center mb-1">
-                <div>
-                  <p className="text-[10px] tracking-[0.2em] uppercase text-gray-400">Schedule</p>
-                  <h3 className="text-lg font-semibold text-[#064e3b] mt-0.5">내 일정</h3>
-                </div>
-                <button type="button" onClick={closeScheduleModal} className="text-gray-500 hover:text-slate-900 p-1 rounded-xl" aria-label="닫기">
-                  <X size={22} strokeWidth={ICON_STROKE} />
-                </button>
-              </div>
-
-              <p className="text-xs text-gray-500 font-light tracking-wide mt-0.5 mb-3">예약이 있는 날이 강조됩니다. 항목을 누르면 상세·취소로 이동합니다.</p>
-
-              <div className="flex items-center justify-between gap-2 md:gap-4 mb-3">
-                <button
-                  type="button"
-                  onClick={() => {
-                    const prev = new Date(currentWeekStart);
-                    prev.setDate(prev.getDate() - 7);
-                    setCurrentWeekStart(prev);
-                  }}
-                  className="p-2.5 rounded-xl hover:bg-slate-50 text-gray-500 hover:text-[#064e3b] transition shrink-0"
-                >
-                  <ChevronLeft size={22} strokeWidth={ICON_STROKE} />
-                </button>
-                <span className="text-sm font-semibold text-slate-900 min-w-0 text-center flex-1 tabular-nums tracking-tight">
-                  {weekLabel()}
-                </span>
-                <button
-                  type="button"
-                  onClick={() => {
-                    const next = new Date(currentWeekStart);
-                    next.setDate(next.getDate() + 7);
-                    setCurrentWeekStart(next);
-                  }}
-                  className="p-2.5 rounded-xl hover:bg-slate-50 text-gray-500 hover:text-[#064e3b] transition shrink-0"
-                >
-                  <ChevronRight size={22} strokeWidth={ICON_STROKE} />
-                </button>
-              </div>
-
-              {/* Mon–Sun mini week strip */}
-              <div className="grid grid-cols-7 gap-0.5 sm:gap-1 mb-4">
-                {getWeekDates(currentWeekStart).map(({ date, key }, idx) => {
-                  const hasBooking = (bookingsByDay[key] || []).length > 0;
-                  const isToday = key === todayKey;
-                  return (
-                    <button
-                      type="button"
-                      key={key}
-                      onClick={() => {
-                        const el = document.getElementById(`schedule-day-${key}`);
-                        el?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-                      }}
-                      className={`flex flex-col items-center justify-center min-w-0 rounded-xl py-2 px-0.5 sm:px-1 transition-all ${
-                        isToday
-                          ? 'ring-2 ring-[#064e3b]/20 bg-emerald-50/90'
-                          : hasBooking
-                            ? 'bg-emerald-50/60 shadow-sm'
-                            : 'bg-slate-50/80'
-                      } ${hasBooking ? 'text-[#064e3b]' : 'text-slate-500'}`}
-                    >
-                      <span className="text-[9px] sm:text-[10px] font-medium text-gray-500 leading-none mb-1">{WEEK_STRIP_LABELS[idx]}</span>
-                      <span
-                        className={`text-sm sm:text-base font-semibold tabular-nums leading-none ${isToday ? 'text-[#064e3b]' : 'text-slate-800'}`}
-                      >
-                        {date.getDate()}
-                      </span>
-                      <span
-                        className={`mt-1.5 h-1.5 w-1.5 rounded-full shrink-0 ${
-                          hasBooking ? 'bg-[#064e3b] shadow-sm' : 'bg-transparent'
-                        }`}
-                        aria-hidden
-                      />
-                    </button>
-                  );
-                })}
-              </div>
-
-              <div className="flex-1 overflow-y-auto min-h-0 scrollable -mx-0.5 px-0.5 space-y-4">
-                {loadingBookings && cancelling === null ? (
-                  <>
-                    <div className="rounded-2xl p-5 bg-slate-50/80 border border-slate-100/80 h-[5.5rem] animate-pulse" />
-                    <div className="rounded-2xl p-5 bg-slate-50/80 border border-slate-100/80 h-[5.5rem] animate-pulse" />
-                  </>
-                ) : sortedWeekBookings.length === 0 ? (
-                  <div className="rounded-2xl border border-dashed border-gray-200 bg-gray-50/50 px-5 py-10 text-center">
-                    <p className="text-gray-500 text-sm font-light">이번 주 예약이 없어요.</p>
-                    <p className="text-gray-400 text-xs mt-2">수업 예약에서 일정을 잡아보세요.</p>
-                  </div>
-                ) : (
-                  sortedWeekBookings.map((booking, idx) => {
-                    const bdt = bookingDateTime(booking);
-                    const isFirstOfDay = idx === 0 || sortedWeekBookings[idx - 1].date !== booking.date;
-                    return (
-                      <button
-                        key={booking.id}
-                        type="button"
-                        id={isFirstOfDay ? `schedule-day-${booking.date}` : undefined}
-                        onClick={() => setSelectedSessionDetail(booking)}
-                        className="w-full text-left rounded-2xl border border-gray-200/60 bg-white px-5 py-5 shadow-sm shadow-slate-900/[0.04] hover:shadow-md hover:border-gray-200 active:scale-[0.99] transition-all duration-200 group"
-                      >
-                        <div className="flex items-center justify-between gap-4 min-w-0">
-                          <div className="min-w-0 flex-1">
-                            <p className="text-[15px] sm:text-base font-semibold text-slate-900 tracking-tight text-left">
-                              {bdt ? formatKoreanDayHeader(bdt) : '—'}
-                            </p>
-                            <p className="text-[1.6rem] sm:text-3xl font-bold text-[#064e3b] tabular-nums mt-2.5 leading-none tracking-tight text-left">
-                              {formatTime24h(booking.time)}
-                            </p>
-                          </div>
-                          <div className="shrink-0 flex items-center gap-0.5 pl-2 self-stretch">
-                            <span className="text-sm font-medium text-gray-500 group-hover:text-[#064e3b] transition-colors">
-                              상세
-                            </span>
-                            <ChevronRight size={20} strokeWidth={ICON_STROKE} className="text-gray-300 group-hover:text-[#064e3b]/60" aria-hidden />
-                          </div>
-                        </div>
-                      </button>
-                    );
-                  })
-                )}
-              </div>
-
-              <button
-                type="button"
-                onClick={closeScheduleModal}
-                className="w-full mt-5 bg-[#064e3b] text-white font-semibold py-3.5 rounded-xl hover:bg-[#053d2f] active:scale-[0.99] transition-all shadow-sm"
-              >
-                닫기
-              </button>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* Session detail — bottom sheet (narrow) / modal (md+) — cancel only here */}
-      <AnimatePresence>
-        {showScheduleModal && selectedSessionDetail && (
-          <>
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="fixed inset-0 z-[70] cursor-default bg-gray-900/40 backdrop-blur-[2px]"
-              role="presentation"
-              onClick={() => setSelectedSessionDetail(null)}
-            />
-            <motion.div
-              role="dialog"
-              aria-modal
-              initial={
-                scheduleDetailMdUp
-                  ? { opacity: 0, scale: 0.94, y: 0 }
-                  : { opacity: 0, y: '100%' }
-              }
-              animate={scheduleDetailMdUp ? { opacity: 1, scale: 1, y: 0 } : { opacity: 1, y: 0, scale: 1 }}
-              exit={scheduleDetailMdUp ? { opacity: 0, scale: 0.98 } : { opacity: 0, y: '100%' }}
-              transition={{ type: 'spring', damping: 30, stiffness: 320 }}
-              className={`fixed z-[80] w-full max-w-md bg-white border border-gray-100 shadow-[0_-12px_48px_-12px_rgba(0,0,0,0.18)] flex flex-col max-h-[min(90dvh,640px)] overflow-hidden
-                left-0 right-0 bottom-0 rounded-t-3xl
-                md:left-1/2 md:top-1/2 md:right-auto md:bottom-auto md:max-h-[min(88dvh,560px)] md:-translate-x-1/2 md:-translate-y-1/2 md:rounded-2xl md:shadow-2xl`}
-              onClick={(e) => e.stopPropagation()}
-              data-lock-tick={memberCancelUiTick}
-            >
-              {(() => {
-                const detailDt = bookingDateTime(selectedSessionDetail);
-                const canCancel = isMemberAppCancellationAllowed(selectedSessionDetail);
-                return (
-                  <>
-                    <div className="shrink-0 flex md:hidden justify-center pt-2 pb-1" aria-hidden>
-                      <span className="h-1 w-10 rounded-full bg-gray-200/90" />
-                    </div>
-                    <div className="shrink-0 flex items-center justify-between px-5 md:px-6 pt-2 md:pt-5 pb-2 border-b border-gray-100/80">
-                      <div>
-                        <p className="text-[10px] tracking-[0.2em] uppercase text-gray-400">Detail</p>
-                        <h4 className="text-lg font-semibold text-slate-900">예약 상세</h4>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => setSelectedSessionDetail(null)}
-                        className="p-2 rounded-xl text-gray-500 hover:bg-gray-50 hover:text-slate-900"
-                        aria-label="닫기"
-                      >
-                        <X size={20} strokeWidth={ICON_STROKE} />
-                      </button>
-                    </div>
-                    <div className="flex-1 overflow-y-auto scrollable px-5 md:px-6 py-5 space-y-5">
-                      <div className="rounded-2xl bg-slate-50/80 border border-slate-100/90 px-4 py-4 space-y-3">
-                        <div className="flex justify-between gap-4 text-sm">
-                          <span className="text-gray-500 font-light">날짜</span>
-                          <span className="text-slate-900 font-medium text-right">
-                            {detailDt ? formatKoreanDayHeader(detailDt) : '—'}
-                          </span>
-                        </div>
-                        <div className="flex justify-between gap-4 text-sm">
-                          <span className="text-gray-500 font-light">시간</span>
-                          <span className="text-[#064e3b] font-mono font-semibold text-lg tabular-nums">
-                            {formatTime24h(selectedSessionDetail.time)}
-                          </span>
-                        </div>
-                        <div className="flex justify-between gap-4 text-sm">
-                          <span className="text-gray-500 font-light">상태</span>
-                          <span className="text-slate-800 font-medium">예약 확정</span>
-                        </div>
-                      </div>
-                      <p className="text-xs text-gray-500 font-light leading-relaxed">
-                        수업 시작 2시간 전까지 앱에서 취소할 수 있어요. 그 이후에는 코치에게 문의해 주세요.
-                      </p>
-                    </div>
-                    <div className="shrink-0 px-5 md:px-6 pt-2 pb-[max(1.25rem,env(safe-area-inset-bottom))] border-t border-gray-100/80 bg-white/95 backdrop-blur-sm space-y-3">
-                      <button
-                        type="button"
-                        onClick={() => handleRequestSessionCancel(selectedSessionDetail)}
-                        className={`w-full py-3.5 rounded-xl text-sm font-semibold tracking-wide transition-all border-2 ${
-                          canCancel
-                            ? 'border-red-200/90 text-red-800 bg-red-50/50 hover:bg-red-50 active:scale-[0.99] shadow-sm'
-                            : 'border-slate-200/90 text-slate-600 bg-white hover:bg-slate-50 active:scale-[0.99]'
-                        }`}
-                        title={canCancel ? '예약 취소' : MEMBER_CANCEL_LOCK_TOOLTIP}
-                      >
-                        {canCancel ? '예약 취소' : '취소 불가 (안내)'}
-                      </button>
-                    </div>
-                  </>
-                );
-              })()}
-            </motion.div>
-          </>
-        )}
-      </AnimatePresence>
-
-      {/* 2시간 이내 취소 불가 — 수업 예약「다음 주」잠금과 동일한 임상적 톤 */}
-      <AnimatePresence>
-        {showCancelPolicyLockModal && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[60] flex items-center justify-center p-6 bg-gray-900/30 backdrop-blur-sm"
-            onClick={() => setShowCancelPolicyLockModal(false)}
-          >
-            <motion.div
-              initial={{ scale: 0.96, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.98, opacity: 0 }}
-              transition={{ duration: 0.2, ease: [0.25, 0.46, 0.45, 0.94] }}
-              className="bg-white rounded-2xl border border-gray-100 shadow-sm p-10 max-w-sm w-full text-center"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <div className="flex justify-center mb-6">
-                <Lock size={40} strokeWidth={ICON_STROKE} className="text-gray-300" aria-hidden />
-              </div>
-              <p className="text-sm font-light text-slate-800 leading-relaxed tracking-wide">{MEMBER_CANCEL_COACH_CONTACT_MESSAGE}</p>
-              <button
-                type="button"
-                onClick={() => setShowCancelPolicyLockModal(false)}
-                className="w-full mt-8 py-3 rounded-xl text-sm font-light tracking-wide bg-[#064e3b] text-white shadow-sm hover:bg-[#053d2f] active:scale-[0.98] transition-all duration-200"
-              >
-                확인
-              </button>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
       {/* Session History Modal */}
       <AnimatePresence>
         {showHistory && (
@@ -1131,91 +616,6 @@ const ClientHome = ({ user, logout, setView }) => {
         )}
       </AnimatePresence>
 
-      {/* Delete: 확인 → 로딩 → 성공(글로벌 예약 완료 모달 톤) — 성공에서만 확인으로 닫힘+갱신 */}
-      <AnimatePresence>
-        {isDeleteModalOpen && bookingToDelete && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-gray-900/20"
-            style={{ backdropFilter: 'blur(8px)' }}
-            onClick={() => {
-              if (cancelDeleteModalView === 'loading' || cancelDeleteModalView === 'success') return;
-              setIsDeleteModalOpen(false);
-              setBookingToDelete(null);
-              setCancelDeleteModalView('confirm');
-            }}
-          >
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.98 }}
-              transition={{ duration: 0.2, ease: [0.25, 0.46, 0.45, 0.94] }}
-              className="w-full max-w-md bg-white/95 border border-emerald-600/20 rounded-2xl shadow-xl shadow-gray-900/10 p-6 backdrop-blur-xl"
-              onClick={(e) => e.stopPropagation()}
-            >
-              {cancelDeleteModalView === 'success' ? (
-                <div className="flex min-h-[220px] flex-col items-center justify-center text-center">
-                  <div
-                    className="mb-5 flex h-16 w-16 items-center justify-center rounded-full bg-gradient-to-br from-emerald-50 to-emerald-100/80 ring-1 ring-emerald-500/25"
-                    aria-hidden
-                  >
-                    <Check className="h-8 w-8 text-emerald-600" strokeWidth={2.5} />
-                  </div>
-                  <p className="text-base sm:text-lg font-medium text-slate-800 leading-snug tracking-tight">예약이 취소되었습니다.</p>
-                  <button
-                    type="button"
-                    onClick={closeCancelSuccessAndRefresh}
-                    className="mt-8 w-full max-w-xs py-3.5 rounded-xl font-semibold text-white bg-gradient-to-r from-emerald-600 to-emerald-700 hover:from-emerald-500 hover:to-emerald-600 active:scale-[0.98] transition-all shadow-lg shadow-emerald-900/20 border border-emerald-600/30"
-                  >
-                    확인
-                  </button>
-                </div>
-              ) : cancelDeleteModalView === 'loading' ? (
-                <div
-                  className="flex min-h-[200px] flex-col items-center justify-center gap-3 py-2"
-                  role="status"
-                  aria-live="polite"
-                >
-                  <div
-                    className="h-9 w-9 animate-spin rounded-full border-2 border-[#064e3b]/20 border-t-[#064e3b]"
-                    aria-hidden
-                  />
-                  <p className="text-sm font-medium text-slate-600">처리 중…</p>
-                </div>
-              ) : (
-                <>
-                  <h3 className="text-lg font-serif text-[#064e3b] mb-2">예약 취소</h3>
-                  <p className="text-gray-600 text-sm leading-relaxed mb-6 whitespace-pre-line">
-                    {bookingToDelete.date} {bookingToDelete.time} 수업 예약을 취소할까요?
-                  </p>
-                  <div className="flex gap-3 justify-end">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setIsDeleteModalOpen(false);
-                        setBookingToDelete(null);
-                        setCancelDeleteModalView('confirm');
-                      }}
-                      className="px-5 py-3 rounded-xl text-gray-600 hover:text-emerald-700 hover:bg-gray-100 transition-all font-medium min-w-[80px]"
-                    >
-                      취소
-                    </button>
-                    <button
-                      type="button"
-                      onClick={confirmDeleteAction}
-                      className="px-5 py-3 rounded-xl font-medium text-white bg-gradient-to-r from-emerald-600 to-emerald-700 hover:from-emerald-500 hover:to-emerald-600 active:scale-[0.98] transition-all shadow-lg shadow-emerald-900/20 border border-emerald-600/30 min-w-[80px]"
-                    >
-                      예, 취소할게요
-                    </button>
-                  </div>
-                </>
-              )}
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
     </div>
   );
 };
