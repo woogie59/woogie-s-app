@@ -1,10 +1,57 @@
 import React, { useMemo, useState } from 'react';
-import * as XLSX from 'xlsx';
+import * as XLSX from 'xlsx-js-style';
 import { supabase } from '../../lib/supabaseClient';
 import { useGlobalModal } from '../../context/GlobalModalContext';
 import { FileSpreadsheet } from 'lucide-react';
+import { kstDateKey } from '../../utils/bookingDateKeys';
+import {
+  fetchMembersBalanceSummaries,
+  isAttendanceLogCompletedForBalance,
+} from '../../utils/sessionHelpers';
 
 const ICON_STROKE = 1.5;
+
+const BLACK_BORDER = {
+  top: { style: 'thin', color: { rgb: '000000' } },
+  left: { style: 'thin', color: { rgb: '000000' } },
+  bottom: { style: 'thin', color: { rgb: '000000' } },
+  right: { style: 'thin', color: { rgb: '000000' } },
+};
+
+const ALIGN = { horizontal: 'center', vertical: 'center', wrapText: true };
+
+function baseCellStyle({ bold = false } = {}) {
+  return {
+    font: { name: '맑은 고딕', sz: 11, bold },
+    alignment: ALIGN,
+    border: BLACK_BORDER,
+  };
+}
+
+function applyPayrollGridStyles(ws, headerRow0, nCols, nRows) {
+  if (!nCols || !nRows) return;
+  const lastR = headerRow0 + nRows - 1;
+  for (let r = headerRow0; r <= lastR; r++) {
+    for (let c = 0; c < nCols; c++) {
+      const addr = XLSX.utils.encode_cell({ r, c });
+      const cell = ws[addr] || { t: 's', v: '' };
+      ws[addr] = cell;
+      const isHeader = r === headerRow0;
+      if (typeof cell.v === 'number') {
+        cell.t = 'n';
+      }
+      cell.s = baseCellStyle({ bold: isHeader });
+    }
+  }
+  ws['!ref'] = XLSX.utils.encode_range({
+    s: { r: headerRow0, c: 0 },
+    e: { r: lastR, c: nCols - 1 },
+  });
+  const colW = [18, 16, 16, 14];
+  ws['!cols'] = Array.from({ length: nCols }, (_, i) => ({ wch: colW[i] ?? 14 }));
+  const rowArray = nRows;
+  ws['!rows'] = Array.from({ length: rowArray }, (_, i) => (i === 0 ? { hpt: 22 } : { hpt: 20 }));
+}
 
 /** Status values that count as a conducted (완료) class — normalized to lowercase with hyphens. */
 const CONDUCTED_STATUS_NORMALIZED = new Set(['attended', 'completed', 'checked-in']);
@@ -119,22 +166,11 @@ export default function AdminPayrollExport({ compact = false }) {
 
       const afterConductedCount = conductedList.length;
 
-      console.log('[AdminPayrollExport] bookings in month (raw, before conducted filter):', rawCount);
-      console.table(
-        rawList.map((b) => ({
-          id: b.id,
-          user_id: b.user_id,
-          date: b.date,
-          time: b.time,
-          status: b.status ?? '',
-        }))
-      );
       console.log(
-        '[AdminPayrollExport] after conducted criteria:',
+        '[AdminPayrollExport] month bookings raw / conducted:',
+        rawCount,
+        '/',
         afterConductedCount,
-        REQUIRE_MATCHING_TRAINING_LOG
-          ? '(status / past non-cancelled + training log on same day)'
-          : '(attended|completed|checked-in OR past slot & not cancelled)'
       );
       if (rawCount > 0 && afterConductedCount === 0) {
         const distinctStatuses = [...new Set(rawList.map((b) => b?.status).filter(Boolean))];
@@ -156,27 +192,72 @@ export default function AdminPayrollExport({ compact = false }) {
         namesById = new Map((profs || []).map((p) => [p.id, p.name?.trim() || '']));
       }
 
-      const sheetRows = ids
-        .map((id) => ({
-          회원명: namesById.get(id) || '—',
-          진행수업: counts.get(id) || 0,
-        }))
-        .sort((a, b) => String(a.회원명).localeCompare(String(b.회원명), 'ko'));
+      /** 이번 달 완료 출석(이번 달 진행횟수): attendance_logs, COMPLETED·레거시 완료만, 범위는 KST 달력 */
+      const monthCompleted = new Map();
+      for (const id of ids) {
+        monthCompleted.set(id, 0);
+      }
+      if (ids.length > 0) {
+        const startKst = `${start}T00:00:00+09:00`;
+        const endKst = `${end}T23:59:59.999+09:00`;
+        const { data: alogs, error: alogErr } = await supabase
+          .from('attendance_logs')
+          .select('user_id, status, check_in_at')
+          .in('user_id', ids)
+          .gte('check_in_at', startKst)
+          .lte('check_in_at', endKst)
+          .limit(50000);
+        if (alogErr) {
+          console.warn('[AdminPayrollExport] attendance_logs', alogErr.message);
+        } else {
+          for (const log of alogs || []) {
+            if (!isAttendanceLogCompletedForBalance(log)) continue;
+            const uid = log.user_id;
+            if (!uid) continue;
+            const dk = kstDateKey(new Date(log.check_in_at));
+            if (dk < start || dk > end) continue;
+            monthCompleted.set(uid, (monthCompleted.get(uid) || 0) + 1);
+          }
+        }
+      }
 
-      if (sheetRows.length === 0) {
+      const balanceByUser = await fetchMembersBalanceSummaries(supabase, ids);
+
+      const header = ['회원명', '이번 달 진행횟수', '남은 잔여횟수', '진행수업'];
+      const sortedIds = ids.slice().sort((a, b) => {
+        const na = String(namesById.get(a) || '—');
+        const nb = String(namesById.get(b) || '—');
+        return na.localeCompare(nb, 'ko');
+      });
+
+      const dataRows = sortedIds.map((id) => {
+        const rem = balanceByUser[id]?.remaining;
+        return [
+          namesById.get(id) || '—',
+          monthCompleted.get(id) || 0,
+          Number.isFinite(Number(rem)) ? Number(rem) : 0,
+          counts.get(id) || 0,
+        ];
+      });
+
+      if (dataRows.length === 0) {
         showAlert({ message: '선택한 달에 완료 처리된 수업이 없습니다.' });
         return;
       }
 
+      const aoa = [header, ...dataRows];
       const wb = XLSX.utils.book_new();
-      const ws = XLSX.utils.json_to_sheet(sheetRows);
+      const ws = XLSX.utils.aoa_to_sheet(aoa);
+      const nCols = header.length;
+      const nData = dataRows.length;
+      applyPayrollGridStyles(ws, 0, nCols, 1 + nData);
       XLSX.utils.book_append_sheet(wb, ws, 'Payroll');
 
       const tag = `${year}-${String(month).padStart(2, '0')}`;
       const filename = `${tag}_Payroll_Woogie.xlsx`;
       XLSX.writeFile(wb, filename);
 
-      showToast(`${sheetRows.length}명 · ${filename}`);
+      showToast(`${dataRows.length}명 · ${filename}`);
     } catch (e) {
       console.error('[AdminPayrollExport]', e);
       showAlert({ message: '내보내기 실패: ' + (e?.message || '') });

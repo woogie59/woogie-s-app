@@ -23,13 +23,33 @@ function formatEventSummary(userName: string): string {
 }
 
 /**
- * One reminder only: 10 minutes before, client popup. No 30m, no email overrides.
- * Used for both `events.insert` and `events.patch` so legacy defaults never stick.
+ * Single reminder, popup only — **must** set `useDefault: false` or Google applies
+ * calendar default notifications (e.g. 30m + email) alongside overrides.
+ * Each call returns a new object (no shared refs / mutation).
+ * NO `email` method — `overrides` is exactly one `{ method: 'popup', minutes: 10 }`.
  */
-const GOOGLE_EVENT_REMINDERS = {
-  useDefault: false,
-  overrides: [{ method: "popup" as const, minutes: 10 }],
-};
+function getEventReminders() {
+  return {
+    useDefault: false,
+    overrides: [{ method: "popup" as const, minutes: 10 }],
+  };
+}
+
+function stripReadOnlyGcalEventFields(rec: Record<string, unknown>) {
+  const out: Record<string, unknown> = { ...rec };
+  for (const k of [
+    "kind",
+    "htmlLink",
+    "created",
+    "updated",
+    "etag",
+    "hangoutLink",
+    "conferenceData",
+  ]) {
+    delete out[k];
+  }
+  return out;
+}
 
 type WebhookRow = {
   id?: string;
@@ -210,11 +230,19 @@ async function gcal(
   pathSuffix: string,
   token: string,
   body?: unknown,
+  options?: { ifMatch?: string },
 ) {
   const url = `${calendarBase(calId)}${pathSuffix}`;
+  const headers: Record<string, string> = {
+    Authorization: `Bearer ${token}`,
+    "Content-Type": "application/json",
+  };
+  if (options?.ifMatch) {
+    headers["If-Match"] = options.ifMatch;
+  }
   const r = await fetch(url, {
     method,
-    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+    headers,
     body: body === undefined ? undefined : JSON.stringify(body),
   });
   const text = await r.text();
@@ -230,7 +258,8 @@ async function gcal(
   } catch {
     parsed = { raw: text };
   }
-  return { ok: r.ok, status: r.status, body: parsed as Record<string, unknown> };
+  const etag = r.headers.get("etag") ?? r.headers.get("ETag") ?? undefined;
+  return { ok: r.ok, status: r.status, body: parsed as Record<string, unknown>, etag };
 }
 
 function buildGoogleCalendarEventResource(userName: string, start: string, end: string) {
@@ -238,7 +267,7 @@ function buildGoogleCalendarEventResource(userName: string, start: string, end: 
     summary: formatEventSummary(userName),
     start: { dateTime: start, timeZone: KST },
     end: { dateTime: end, timeZone: KST },
-    reminders: GOOGLE_EVENT_REMINDERS,
+    reminders: getEventReminders(),
   };
 }
 
@@ -361,17 +390,34 @@ Deno.serve(async (req: Request) => {
       String(old.time) !== String(rec.time);
     if (eid) {
       if (scheduleChanged || (old as WebhookRow).user_id !== (rec as WebhookRow).user_id) {
-        const p = await gcal(
+        // PATCH often *merges* `reminders`, leaving prior 30m/email overrides. GET + full PUT
+        // replaces the event and forces `reminders: { useDefault: false, overrides: [popup 10] }` only.
+        const got = await gcal(
           calId,
-          "PATCH",
+          "GET",
           `/events/${encodeURIComponent(eid)}`,
           token,
-          eventResource,
         );
-        if (!p.ok) {
-          return j({ error: "Calendar patch failed", details: p.body }, 502);
+        if (!got.ok) {
+          return j({ error: "Calendar get failed (before put)", details: got.body }, 502);
         }
-        return j({ ok: true, action: "patched", eventId: eid });
+        const merged = {
+          ...stripReadOnlyGcalEventFields(got.body as Record<string, unknown>),
+          ...eventResource,
+          reminders: getEventReminders(),
+        };
+        const put = await gcal(
+          calId,
+          "PUT",
+          `/events/${encodeURIComponent(eid)}`,
+          token,
+          merged,
+          got.etag ? { ifMatch: got.etag } : undefined,
+        );
+        if (!put.ok) {
+          return j({ error: "Calendar put failed", details: put.body }, 502);
+        }
+        return j({ ok: true, action: "put", eventId: eid });
       }
       return j({ skipped: true, reason: "no schedule change" });
     }
