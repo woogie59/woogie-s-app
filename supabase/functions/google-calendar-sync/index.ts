@@ -23,15 +23,20 @@ function formatEventSummary(userName: string): string {
 }
 
 /**
- * Single reminder, popup only — **must** set `useDefault: false` or Google applies
- * calendar default notifications (e.g. 30m + email) alongside overrides.
- * Each call returns a new object (no shared refs / mutation).
- * NO `email` method — `overrides` is exactly one `{ method: 'popup', minutes: 10 }`.
+ * Google Calendar `events` resource: exactly one override, popup only.
+ * `useDefault` must be the boolean `false` (not string). If omitted or `true`, Google
+ * applies the calendar’s default notifications (e.g. 30m + email) regardless of overrides.
+ * Each call returns a fresh object for insert/put/patch bodies.
  */
-function getEventReminders() {
+type StrictEventReminders = {
+  useDefault: false;
+  overrides: { method: "popup"; minutes: number }[];
+};
+
+function getStrictEventReminders(): StrictEventReminders {
   return {
     useDefault: false,
-    overrides: [{ method: "popup" as const, minutes: 10 }],
+    overrides: [{ method: "popup", minutes: 10 }],
   };
 }
 
@@ -48,6 +53,8 @@ function stripReadOnlyGcalEventFields(rec: Record<string, unknown>) {
   ]) {
     delete out[k];
   }
+  /** Never carry over GET `reminders` into PUT; we set strict overrides after merge. */
+  delete out["reminders"];
   return out;
 }
 
@@ -262,12 +269,22 @@ async function gcal(
   return { ok: r.ok, status: r.status, body: parsed as Record<string, unknown>, etag };
 }
 
-function buildGoogleCalendarEventResource(userName: string, start: string, end: string) {
+/** Core writable fields; `reminders` is always the strict object (not merged from any spread). */
+function buildGoogleCalendarEventBody(
+  userName: string,
+  start: string,
+  end: string,
+): {
+  summary: string;
+  start: { dateTime: string; timeZone: string };
+  end: { dateTime: string; timeZone: string };
+  reminders: StrictEventReminders;
+} {
   return {
     summary: formatEventSummary(userName),
     start: { dateTime: start, timeZone: KST },
     end: { dateTime: end, timeZone: KST },
-    reminders: getEventReminders(),
+    reminders: getStrictEventReminders(),
   };
 }
 
@@ -377,7 +394,7 @@ Deno.serve(async (req: Request) => {
   if (!range) {
     return j({ error: "Invalid date or time for calendar", date: dateS, time: timeS }, 400);
   }
-  const eventResource = buildGoogleCalendarEventResource(name, range.start, range.end);
+  const eventBody = buildGoogleCalendarEventBody(name, range.start, range.end);
 
   if (op === "INSERT" && row.google_event_id) {
     return j({ skipped: true, reason: "already has google_event_id" });
@@ -390,8 +407,8 @@ Deno.serve(async (req: Request) => {
       String(old.time) !== String(rec.time);
     if (eid) {
       if (scheduleChanged || (old as WebhookRow).user_id !== (rec as WebhookRow).user_id) {
-        // PATCH often *merges* `reminders`, leaving prior 30m/email overrides. GET + full PUT
-        // replaces the event and forces `reminders: { useDefault: false, overrides: [popup 10] }` only.
+        // GET + full PUT (not PATCH): PATCH can merge `reminders` and keep old overrides.
+        // Strip `reminders` from GET, then set strict `reminders` last.
         const got = await gcal(
           calId,
           "GET",
@@ -403,8 +420,8 @@ Deno.serve(async (req: Request) => {
         }
         const merged = {
           ...stripReadOnlyGcalEventFields(got.body as Record<string, unknown>),
-          ...eventResource,
-          reminders: getEventReminders(),
+          ...eventBody,
+          reminders: getStrictEventReminders(),
         };
         const put = await gcal(
           calId,
@@ -423,9 +440,16 @@ Deno.serve(async (req: Request) => {
     }
   }
 
-  const ins = await gcal(calId, "POST", "/events", token, {
-    ...eventResource,
-  });
+  const ins = await gcal(
+    calId,
+    "POST",
+    "/events",
+    token,
+    {
+      ...eventBody,
+      reminders: getStrictEventReminders(),
+    },
+  );
   if (!ins.ok) {
     return j({ error: "Calendar insert failed", details: ins.body }, 502);
   }
