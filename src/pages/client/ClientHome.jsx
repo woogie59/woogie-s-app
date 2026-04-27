@@ -11,6 +11,7 @@ import {
   Clock,
   BookOpen,
   Lock,
+  Check,
 } from 'lucide-react';
 import { supabase } from '../../lib/supabaseClient';
 import { invokeNotifyAdminEvents, fetchAdminOnesignalPlayerId } from '../../utils/notifications';
@@ -94,7 +95,7 @@ const formatUpcomingLine = (b) => {
 };
 
 const ClientHome = ({ user, logout, setView }) => {
-  const { showAlert, showToast } = useGlobalModal();
+  const { showAlert } = useGlobalModal();
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
   const [showQRModal, setShowQRModal] = useState(false);
@@ -114,6 +115,8 @@ const ClientHome = ({ user, logout, setView }) => {
   const [cancelling, setCancelling] = useState(null);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [bookingToDelete, setBookingToDelete] = useState(null);
+  /** `confirm` → `loading` → `success` (성공 시 토스트 없이 동일 모달에서 마무리) */
+  const [cancelDeleteModalView, setCancelDeleteModalView] = useState('confirm');
   /** 수업 2시간 이내 취소 시도 — ClassBooking「다음 주」잠금과 동일 톤의 안내 */
   const [showCancelPolicyLockModal, setShowCancelPolicyLockModal] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
@@ -462,6 +465,7 @@ const ClientHome = ({ user, logout, setView }) => {
       return;
     }
     setSelectedSessionDetail(null);
+    setCancelDeleteModalView('confirm');
     setBookingToDelete({ id: booking.id, date: booking.date, time: booking.time });
     setIsDeleteModalOpen(true);
   };
@@ -477,11 +481,13 @@ const ClientHome = ({ user, logout, setView }) => {
       return;
     }
     setCancelling(bookingId);
+    setCancelDeleteModalView('loading');
     const { error } = await supabase.from('bookings').delete().eq('id', bookingId);
 
     if (error) {
       showAlert({ message: '취소 실패: ' + error.message });
       setCancelling(null);
+      setCancelDeleteModalView('confirm');
       return;
     }
 
@@ -493,10 +499,9 @@ const ClientHome = ({ user, logout, setView }) => {
       qrCloseTimerRef.current = null;
     }
 
-    setIsDeleteModalOpen(false);
-    setBookingToDelete(null);
     setCancelling(null);
-    showToast('취소가 완료되었습니다');
+    setCancelDeleteModalView('success');
+    // 토스트 제거: 동일 모달에서 성공 화면 → 확인 시 닫힘 + 갱신
 
     try {
       const pid = await fetchAdminOnesignalPlayerId();
@@ -515,11 +520,16 @@ const ClientHome = ({ user, logout, setView }) => {
     } catch (e) {
       console.warn('[ClientHome] cancel push:', e);
     }
+  };
 
+  const closeCancelSuccessAndRefresh = useCallback(async () => {
+    setIsDeleteModalOpen(false);
+    setBookingToDelete(null);
+    setCancelDeleteModalView('confirm');
     await fetchMyBookings();
     await loadSessionMetrics();
     emitSessionBalanceRefresh();
-  };
+  }, [fetchMyBookings, loadSessionMetrics]);
 
   /** 내 일정 모달 열림: 2시간 락 경계·버튼 활성이 시간에 맞게 갱신되도록 */
   const [memberCancelUiTick, setMemberCancelUiTick] = useState(0);
@@ -859,7 +869,7 @@ const ClientHome = ({ user, logout, setView }) => {
                 </button>
               </div>
 
-              <p className="text-xs text-gray-500 font-light tracking-wide mt-0.5 mb-3">이번 주 예약이 있는 날이 하이라이트됩니다. 카드를 눌러 상세를 확인하세요.</p>
+              <p className="text-xs text-gray-500 font-light tracking-wide mt-0.5 mb-3">예약이 있는 날이 강조됩니다. 항목을 누르면 상세·취소로 이동합니다.</p>
 
               <div className="flex items-center justify-between gap-2 md:gap-4 mb-3">
                 <button
@@ -927,11 +937,11 @@ const ClientHome = ({ user, logout, setView }) => {
                 })}
               </div>
 
-              <div className="flex-1 overflow-y-auto min-h-0 scrollable -mx-0.5 px-0.5 space-y-3">
+              <div className="flex-1 overflow-y-auto min-h-0 scrollable -mx-0.5 px-0.5 space-y-4">
                 {loadingBookings && cancelling === null ? (
                   <>
-                    <div className="rounded-2xl p-5 bg-slate-50/80 border border-slate-100/80 h-24 animate-pulse" />
-                    <div className="rounded-2xl p-5 bg-slate-50/80 border border-slate-100/80 h-24 animate-pulse" />
+                    <div className="rounded-2xl p-5 bg-slate-50/80 border border-slate-100/80 h-[5.5rem] animate-pulse" />
+                    <div className="rounded-2xl p-5 bg-slate-50/80 border border-slate-100/80 h-[5.5rem] animate-pulse" />
                   </>
                 ) : sortedWeekBookings.length === 0 ? (
                   <div className="rounded-2xl border border-dashed border-gray-200 bg-gray-50/50 px-5 py-10 text-center">
@@ -948,20 +958,22 @@ const ClientHome = ({ user, logout, setView }) => {
                         type="button"
                         id={isFirstOfDay ? `schedule-day-${booking.date}` : undefined}
                         onClick={() => setSelectedSessionDetail(booking)}
-                        className="w-full text-left rounded-2xl border border-gray-100/90 bg-white px-5 py-5 shadow-[0_2px_16px_-4px_rgba(0,0,0,0.08)] hover:shadow-[0_8px_28px_-8px_rgba(0,0,0,0.12)] active:scale-[0.99] transition-all duration-200 group"
+                        className="w-full text-left rounded-2xl border border-gray-200/60 bg-white px-5 py-5 shadow-sm shadow-slate-900/[0.04] hover:shadow-md hover:border-gray-200 active:scale-[0.99] transition-all duration-200 group"
                       >
-                        <div className="flex items-start justify-between gap-3">
+                        <div className="flex items-center justify-between gap-4 min-w-0">
                           <div className="min-w-0 flex-1">
-                            <p className="text-[10px] uppercase tracking-[0.2em] text-gray-400 font-medium">Session</p>
-                            <p className="text-base font-semibold text-slate-900 mt-1 tracking-tight">
+                            <p className="text-[15px] sm:text-base font-semibold text-slate-900 tracking-tight text-left">
                               {bdt ? formatKoreanDayHeader(bdt) : '—'}
                             </p>
-                            <p className="text-2xl font-mono font-semibold text-[#064e3b] tabular-nums mt-2 tracking-tight">
+                            <p className="text-[1.6rem] sm:text-3xl font-bold text-[#064e3b] tabular-nums mt-2.5 leading-none tracking-tight text-left">
                               {formatTime24h(booking.time)}
                             </p>
                           </div>
-                          <div className="shrink-0 self-center" aria-hidden>
-                            <ChevronRight size={20} strokeWidth={ICON_STROKE} className="text-gray-300 group-hover:text-[#064e3b]/40 transition-colors" />
+                          <div className="shrink-0 flex items-center gap-0.5 pl-2 self-stretch">
+                            <span className="text-sm font-medium text-gray-500 group-hover:text-[#064e3b] transition-colors">
+                              상세
+                            </span>
+                            <ChevronRight size={20} strokeWidth={ICON_STROKE} className="text-gray-300 group-hover:text-[#064e3b]/60" aria-hidden />
                           </div>
                         </div>
                       </button>
@@ -1119,35 +1131,50 @@ const ClientHome = ({ user, logout, setView }) => {
         )}
       </AnimatePresence>
 
-      {/* Delete Confirmation Modal */}
+      {/* Delete: 확인 → 로딩 → 성공(글로벌 예약 완료 모달 톤) — 성공에서만 확인으로 닫힘+갱신 */}
       <AnimatePresence>
         {isDeleteModalOpen && bookingToDelete && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-gray-900/30 backdrop-blur-md"
+            className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-gray-900/20"
+            style={{ backdropFilter: 'blur(8px)' }}
             onClick={() => {
-              if (cancelling === bookingToDelete.id) return;
+              if (cancelDeleteModalView === 'loading' || cancelDeleteModalView === 'success') return;
               setIsDeleteModalOpen(false);
               setBookingToDelete(null);
+              setCancelDeleteModalView('confirm');
             }}
           >
             <motion.div
-              initial={{ opacity: 0, scale: 0.96 }}
+              initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.98 }}
               transition={{ duration: 0.2, ease: [0.25, 0.46, 0.45, 0.94] }}
-              className="bg-white border border-gray-100 rounded-2xl shadow-xl p-6 max-w-sm w-full"
+              className="w-full max-w-md bg-white/95 border border-emerald-600/20 rounded-2xl shadow-xl shadow-gray-900/10 p-6 backdrop-blur-xl"
               onClick={(e) => e.stopPropagation()}
             >
-              <h3 className="text-lg font-semibold text-[#064e3b] mb-2">예약 취소</h3>
-              <p className="text-gray-600 text-sm leading-relaxed">
-                {bookingToDelete.date} {bookingToDelete.time} 수업 예약을 취소할까요?
-              </p>
-              {cancelling === bookingToDelete.id ? (
+              {cancelDeleteModalView === 'success' ? (
+                <div className="flex min-h-[220px] flex-col items-center justify-center text-center">
+                  <div
+                    className="mb-5 flex h-16 w-16 items-center justify-center rounded-full bg-gradient-to-br from-emerald-50 to-emerald-100/80 ring-1 ring-emerald-500/25"
+                    aria-hidden
+                  >
+                    <Check className="h-8 w-8 text-emerald-600" strokeWidth={2.5} />
+                  </div>
+                  <p className="text-base sm:text-lg font-medium text-slate-800 leading-snug tracking-tight">예약이 취소되었습니다.</p>
+                  <button
+                    type="button"
+                    onClick={closeCancelSuccessAndRefresh}
+                    className="mt-8 w-full max-w-xs py-3.5 rounded-xl font-semibold text-white bg-gradient-to-r from-emerald-600 to-emerald-700 hover:from-emerald-500 hover:to-emerald-600 active:scale-[0.98] transition-all shadow-lg shadow-emerald-900/20 border border-emerald-600/30"
+                  >
+                    확인
+                  </button>
+                </div>
+              ) : cancelDeleteModalView === 'loading' ? (
                 <div
-                  className="flex min-h-[180px] flex-col items-center justify-center gap-3 py-2"
+                  className="flex min-h-[200px] flex-col items-center justify-center gap-3 py-2"
                   role="status"
                   aria-live="polite"
                 >
@@ -1158,27 +1185,32 @@ const ClientHome = ({ user, logout, setView }) => {
                   <p className="text-sm font-medium text-slate-600">처리 중…</p>
                 </div>
               ) : (
-                <div className="mt-6 flex gap-3 justify-end">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setIsDeleteModalOpen(false);
-                      setBookingToDelete(null);
-                    }}
-                    disabled={cancelling === bookingToDelete.id}
-                    className="px-5 py-3 rounded-xl text-gray-600 hover:text-slate-900 hover:bg-gray-50 transition-all font-medium min-w-[80px] disabled:pointer-events-none disabled:opacity-40"
-                  >
-                    취소
-                  </button>
-                  <button
-                    type="button"
-                    onClick={confirmDeleteAction}
-                    disabled={cancelling === bookingToDelete.id}
-                    className="px-5 py-3 rounded-xl bg-[#064e3b] text-white font-semibold hover:bg-[#053d2f] transition-all disabled:opacity-50 min-w-[80px] disabled:pointer-events-none"
-                  >
-                    예, 취소할게요
-                  </button>
-                </div>
+                <>
+                  <h3 className="text-lg font-serif text-[#064e3b] mb-2">예약 취소</h3>
+                  <p className="text-gray-600 text-sm leading-relaxed mb-6 whitespace-pre-line">
+                    {bookingToDelete.date} {bookingToDelete.time} 수업 예약을 취소할까요?
+                  </p>
+                  <div className="flex gap-3 justify-end">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsDeleteModalOpen(false);
+                        setBookingToDelete(null);
+                        setCancelDeleteModalView('confirm');
+                      }}
+                      className="px-5 py-3 rounded-xl text-gray-600 hover:text-emerald-700 hover:bg-gray-100 transition-all font-medium min-w-[80px]"
+                    >
+                      취소
+                    </button>
+                    <button
+                      type="button"
+                      onClick={confirmDeleteAction}
+                      className="px-5 py-3 rounded-xl font-medium text-white bg-gradient-to-r from-emerald-600 to-emerald-700 hover:from-emerald-500 hover:to-emerald-600 active:scale-[0.98] transition-all shadow-lg shadow-emerald-900/20 border border-emerald-600/30 min-w-[80px]"
+                    >
+                      예, 취소할게요
+                    </button>
+                  </div>
+                </>
               )}
             </motion.div>
           </motion.div>
