@@ -84,7 +84,7 @@ const NEXT_WEEK_UNLOCK = {
 const ACTIVE_NEXT_WEEK_UNLOCK = NEXT_WEEK_UNLOCK.SATURDAY_1PM;
 
 /** "다음 주" 잠금 시 탭/토스트 — 운영 문구 (요청 확정) */
-const NEXT_WEEK_OPEN_COPY = '다음 주 예약은 오후 1시에 오픈됩니다.';
+const NEXT_WEEK_OPEN_COPY = '다음 주 예약은 토요일 1시에 오픈됩니다.';
 
 /** 수업 예약 화면 잠금 토스트 (ClassBooking: 다음 주 클릭 시) */
 export const NEXT_WEEK_LOCKED_TOAST_MESSAGE =
