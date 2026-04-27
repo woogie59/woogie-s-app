@@ -6,7 +6,6 @@ import {
   X,
   ChevronLeft,
   ChevronRight,
-  Trash2,
   History,
   Calendar,
   Clock,
@@ -71,6 +70,9 @@ const formatTime24hStatic = (t) => {
 /** Schedule modal: "3월 30일" / "4월 3일 (금)" — matches date-fns `M월 d일`, `M월 d일 (EEE)` with ko locale */
 const KO_WEEKDAYS_SHORT = ['일', '월', '화', '수', '목', '금', '토'];
 
+/** `getWeekDates` week row: index 0 = Mon … 6 = Sun */
+const WEEK_STRIP_LABELS = ['월', '화', '수', '목', '금', '토', '일'];
+
 const formatKoreanMonthDay = (date) => {
   const m = date.getMonth() + 1;
   const d = date.getDate();
@@ -126,6 +128,11 @@ const ClientHome = ({ user, logout, setView }) => {
     monday.setHours(0, 0, 0, 0);
     return monday;
   });
+  /** Tap session card → bottom sheet (mobile) or modal (md+) — no cancel on the card */
+  const [selectedSessionDetail, setSelectedSessionDetail] = useState(null);
+  const [scheduleDetailMdUp, setScheduleDetailMdUp] = useState(() =>
+    typeof window !== 'undefined' ? window.matchMedia('(min-width: 768px)').matches : false
+  );
 
   useEffect(() => {
     return () => {
@@ -135,6 +142,18 @@ const ClientHome = ({ user, logout, setView }) => {
       }
     };
   }, []);
+
+  useEffect(() => {
+    const mq = window.matchMedia('(min-width: 768px)');
+    const onChange = () => setScheduleDetailMdUp(mq.matches);
+    onChange();
+    mq.addEventListener('change', onChange);
+    return () => mq.removeEventListener('change', onChange);
+  }, []);
+
+  useEffect(() => {
+    setSelectedSessionDetail(null);
+  }, [currentWeekStart]);
 
   useEffect(() => {
     const fetchProfile = async () => {
@@ -435,11 +454,14 @@ const ClientHome = ({ user, logout, setView }) => {
     return `잔여 ${remaining}회`;
   }, [sessionMetrics]);
 
-  const handleCancelBooking = (booking) => {
+  /** From session detail only — list/cards do not show cancel. */
+  const handleRequestSessionCancel = (booking) => {
     if (!isMemberAppCancellationAllowed(booking)) {
+      setSelectedSessionDetail(null);
       setShowCancelPolicyLockModal(true);
       return;
     }
+    setSelectedSessionDetail(null);
     setBookingToDelete({ id: booking.id, date: booking.date, time: booking.time });
     setIsDeleteModalOpen(true);
   };
@@ -512,6 +534,7 @@ const ClientHome = ({ user, logout, setView }) => {
   }, [showScheduleModal]);
 
   const handleOpenSchedule = () => {
+    setSelectedSessionDetail(null);
     setShowScheduleModal(true);
     const d = new Date();
     const day = d.getDay();
@@ -521,6 +544,11 @@ const ClientHome = ({ user, logout, setView }) => {
     setCurrentWeekStart(monday);
     fetchMyBookings();
   };
+
+  const closeScheduleModal = useCallback(() => {
+    setShowScheduleModal(false);
+    setSelectedSessionDetail(null);
+  }, []);
 
   const todayKey = toDateKey(new Date());
 
@@ -554,6 +582,14 @@ const ClientHome = ({ user, logout, setView }) => {
     const end = getWeekDates(currentWeekStart)[6].date;
     return `${formatKoreanMonthDay(start)} - ${formatKoreanMonthDay(end)}`;
   };
+
+  const sortedWeekBookings = useMemo(() => {
+    return [...(bookingsInWeek || [])].sort((a, b) => {
+      const c = (a.date || '').localeCompare(b.date || '');
+      if (c !== 0) return c;
+      return (a.time || '').localeCompare(b.time || '');
+    });
+  }, [bookingsInWeek]);
 
   if (!user) {
     return (
@@ -795,35 +831,37 @@ const ClientHome = ({ user, logout, setView }) => {
         )}
       </AnimatePresence>
 
-      {/* My Schedule Modal */}
+      {/* My Schedule — weekly strip + session cards; cancel only inside detail sheet/modal */}
       <AnimatePresence>
         {showScheduleModal && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 flex items-center justify-center p-6 bg-gray-900/30 backdrop-blur-sm"
-            onClick={() => setShowScheduleModal(false)}
+            className="fixed inset-0 z-50 flex items-end justify-center md:items-center p-0 md:p-6 bg-gray-900/30 backdrop-blur-sm"
+            onClick={closeScheduleModal}
           >
             <motion.div
               initial={{ scale: 0.96, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.96, opacity: 0 }}
-              className="bg-white border border-gray-100 rounded-2xl p-6 max-w-md w-full max-h-[85vh] flex flex-col shadow-2xl"
+              className="bg-white border border-gray-100 md:rounded-2xl rounded-t-3xl p-5 md:p-6 w-full max-w-lg max-h-[88dvh] md:max-h-[85vh] flex flex-col shadow-[0_8px_40px_-12px_rgba(0,0,0,0.12)]"
               onClick={(e) => e.stopPropagation()}
               data-lock-tick={memberCancelUiTick}
             >
-              <div className="flex justify-between items-center mb-4">
+              <div className="flex justify-between items-center mb-1">
                 <div>
                   <p className="text-[10px] tracking-[0.2em] uppercase text-gray-400">Schedule</p>
                   <h3 className="text-lg font-semibold text-[#064e3b] mt-0.5">내 일정</h3>
                 </div>
-                <button type="button" onClick={() => setShowScheduleModal(false)} className="text-gray-500 hover:text-slate-900 p-1" aria-label="닫기">
+                <button type="button" onClick={closeScheduleModal} className="text-gray-500 hover:text-slate-900 p-1 rounded-xl" aria-label="닫기">
                   <X size={22} strokeWidth={ICON_STROKE} />
                 </button>
               </div>
 
-              <div className="flex items-center justify-between gap-4 mb-4">
+              <p className="text-xs text-gray-500 font-light tracking-wide mt-0.5 mb-3">이번 주 예약이 있는 날이 하이라이트됩니다. 카드를 눌러 상세를 확인하세요.</p>
+
+              <div className="flex items-center justify-between gap-2 md:gap-4 mb-3">
                 <button
                   type="button"
                   onClick={() => {
@@ -831,11 +869,13 @@ const ClientHome = ({ user, logout, setView }) => {
                     prev.setDate(prev.getDate() - 7);
                     setCurrentWeekStart(prev);
                   }}
-                  className="p-2 rounded-xl hover:bg-gray-50 text-gray-500 hover:text-[#064e3b] transition"
+                  className="p-2.5 rounded-xl hover:bg-slate-50 text-gray-500 hover:text-[#064e3b] transition shrink-0"
                 >
                   <ChevronLeft size={22} strokeWidth={ICON_STROKE} />
                 </button>
-                <span className="text-sm font-semibold text-slate-900 min-w-[180px] text-center">{weekLabel()}</span>
+                <span className="text-sm font-semibold text-slate-900 min-w-0 text-center flex-1 tabular-nums tracking-tight">
+                  {weekLabel()}
+                </span>
                 <button
                   type="button"
                   onClick={() => {
@@ -843,91 +883,198 @@ const ClientHome = ({ user, logout, setView }) => {
                     next.setDate(next.getDate() + 7);
                     setCurrentWeekStart(next);
                   }}
-                  className="p-2 rounded-xl hover:bg-gray-50 text-gray-500 hover:text-[#064e3b] transition"
+                  className="p-2.5 rounded-xl hover:bg-slate-50 text-gray-500 hover:text-[#064e3b] transition shrink-0"
                 >
                   <ChevronRight size={22} strokeWidth={ICON_STROKE} />
                 </button>
               </div>
 
-              <div className="flex-1 overflow-y-auto space-y-2 min-h-0 scrollable">
-                {loadingBookings && cancelling === null ? (
-                  <p className="text-gray-500 text-center py-10 text-sm">불러오는 중…</p>
-                ) : (
-                  getWeekDates(currentWeekStart).map(({ date, key }) => {
-                    const dayBookings = bookingsByDay[key] || [];
-                    const isToday = key === todayKey;
-                    return (
-                      <div
-                        key={key}
-                        className={`rounded-xl border overflow-hidden ${
-                          isToday ? 'bg-emerald-50/80 border-emerald-200' : 'bg-gray-50/80 border-gray-100'
-                        }`}
+              {/* Mon–Sun mini week strip */}
+              <div className="grid grid-cols-7 gap-0.5 sm:gap-1 mb-4">
+                {getWeekDates(currentWeekStart).map(({ date, key }, idx) => {
+                  const hasBooking = (bookingsByDay[key] || []).length > 0;
+                  const isToday = key === todayKey;
+                  return (
+                    <button
+                      type="button"
+                      key={key}
+                      onClick={() => {
+                        const el = document.getElementById(`schedule-day-${key}`);
+                        el?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                      }}
+                      className={`flex flex-col items-center justify-center min-w-0 rounded-xl py-2 px-0.5 sm:px-1 transition-all ${
+                        isToday
+                          ? 'ring-2 ring-[#064e3b]/20 bg-emerald-50/90'
+                          : hasBooking
+                            ? 'bg-emerald-50/60 shadow-sm'
+                            : 'bg-slate-50/80'
+                      } ${hasBooking ? 'text-[#064e3b]' : 'text-slate-500'}`}
+                    >
+                      <span className="text-[9px] sm:text-[10px] font-medium text-gray-500 leading-none mb-1">{WEEK_STRIP_LABELS[idx]}</span>
+                      <span
+                        className={`text-sm sm:text-base font-semibold tabular-nums leading-none ${isToday ? 'text-[#064e3b]' : 'text-slate-800'}`}
                       >
-                        <div
-                          className={`px-4 py-2 flex items-center justify-between ${
-                            isToday ? 'bg-emerald-100/50' : 'bg-white/50'
-                          }`}
-                        >
-                          <span className="font-semibold text-slate-900 text-sm">
-                            {formatKoreanDayHeader(date)}
-                          </span>
-                          {isToday && (
-                            <span className="text-[10px] font-semibold text-white bg-[#064e3b] px-2 py-0.5 rounded-md tracking-wide">
-                              오늘
-                            </span>
-                          )}
-                        </div>
-                        {dayBookings.length === 0 ? (
-                          <div className="px-4 py-3 text-gray-500 text-sm">휴식</div>
-                        ) : (
-                          <div className="divide-y divide-gray-100">
-                            {dayBookings.map((booking) => (
-                              <div key={booking.id} className="flex items-center justify-between gap-3 px-4 py-3">
-                                <div className="flex-1">
-                                  <span className="text-xl font-mono font-semibold text-[#064e3b] tabular-nums">
-                                    {formatTime24h(booking.time)}
-                                  </span>
-                                </div>
-                                <button
-                                  type="button"
-                                  onClick={() => handleCancelBooking(booking)}
-                                  disabled={cancelling === booking.id}
-                                  className={`p-2 rounded-xl text-xs font-light tracking-wide transition-all duration-200 active:scale-[0.98] ${
-                                    cancelling === booking.id
-                                      ? 'opacity-50 border border-gray-100 bg-gray-50 text-gray-400'
-                                      : isMemberAppCancellationAllowed(booking)
-                                        ? 'bg-red-50 border border-red-100 text-red-600 hover:bg-red-100'
-                                        : 'bg-gray-100 border border-gray-100/90 text-gray-400 shadow-sm'
-                                  }`}
-                                  title={
-                                    isMemberAppCancellationAllowed(booking) ? '예약 취소' : MEMBER_CANCEL_LOCK_TOOLTIP
-                                  }
-                                >
-                                  <Trash2 size={18} strokeWidth={ICON_STROKE} className="mx-auto" />
-                                </button>
-                              </div>
-                            ))}
+                        {date.getDate()}
+                      </span>
+                      <span
+                        className={`mt-1.5 h-1.5 w-1.5 rounded-full shrink-0 ${
+                          hasBooking ? 'bg-[#064e3b] shadow-sm' : 'bg-transparent'
+                        }`}
+                        aria-hidden
+                      />
+                    </button>
+                  );
+                })}
+              </div>
+
+              <div className="flex-1 overflow-y-auto min-h-0 scrollable -mx-0.5 px-0.5 space-y-3">
+                {loadingBookings && cancelling === null ? (
+                  <>
+                    <div className="rounded-2xl p-5 bg-slate-50/80 border border-slate-100/80 h-24 animate-pulse" />
+                    <div className="rounded-2xl p-5 bg-slate-50/80 border border-slate-100/80 h-24 animate-pulse" />
+                  </>
+                ) : sortedWeekBookings.length === 0 ? (
+                  <div className="rounded-2xl border border-dashed border-gray-200 bg-gray-50/50 px-5 py-10 text-center">
+                    <p className="text-gray-500 text-sm font-light">이번 주 예약이 없어요.</p>
+                    <p className="text-gray-400 text-xs mt-2">수업 예약에서 일정을 잡아보세요.</p>
+                  </div>
+                ) : (
+                  sortedWeekBookings.map((booking, idx) => {
+                    const bdt = bookingDateTime(booking);
+                    const isFirstOfDay = idx === 0 || sortedWeekBookings[idx - 1].date !== booking.date;
+                    return (
+                      <button
+                        key={booking.id}
+                        type="button"
+                        id={isFirstOfDay ? `schedule-day-${booking.date}` : undefined}
+                        onClick={() => setSelectedSessionDetail(booking)}
+                        className="w-full text-left rounded-2xl border border-gray-100/90 bg-white px-5 py-5 shadow-[0_2px_16px_-4px_rgba(0,0,0,0.08)] hover:shadow-[0_8px_28px_-8px_rgba(0,0,0,0.12)] active:scale-[0.99] transition-all duration-200 group"
+                      >
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0 flex-1">
+                            <p className="text-[10px] uppercase tracking-[0.2em] text-gray-400 font-medium">Session</p>
+                            <p className="text-base font-semibold text-slate-900 mt-1 tracking-tight">
+                              {bdt ? formatKoreanDayHeader(bdt) : '—'}
+                            </p>
+                            <p className="text-2xl font-mono font-semibold text-[#064e3b] tabular-nums mt-2 tracking-tight">
+                              {formatTime24h(booking.time)}
+                            </p>
                           </div>
-                        )}
-                      </div>
+                          <div className="shrink-0 self-center" aria-hidden>
+                            <ChevronRight size={20} strokeWidth={ICON_STROKE} className="text-gray-300 group-hover:text-[#064e3b]/40 transition-colors" />
+                          </div>
+                        </div>
+                      </button>
                     );
                   })
                 )}
               </div>
 
-              {bookingsInWeek.length === 0 && !loadingBookings && (
-                <p className="text-gray-500 text-xs text-center mt-2">이번 주 예약이 없어요. 수업 예약에서 일정을 잡아보세요.</p>
-              )}
-
               <button
                 type="button"
-                onClick={() => setShowScheduleModal(false)}
-                className="w-full mt-4 bg-[#064e3b] text-white font-semibold py-3.5 rounded-xl hover:bg-[#053d2f] active:scale-[0.99] transition-all"
+                onClick={closeScheduleModal}
+                className="w-full mt-5 bg-[#064e3b] text-white font-semibold py-3.5 rounded-xl hover:bg-[#053d2f] active:scale-[0.99] transition-all shadow-sm"
               >
                 닫기
               </button>
             </motion.div>
           </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Session detail — bottom sheet (narrow) / modal (md+) — cancel only here */}
+      <AnimatePresence>
+        {showScheduleModal && selectedSessionDetail && (
+          <>
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 z-[70] cursor-default bg-gray-900/40 backdrop-blur-[2px]"
+              role="presentation"
+              onClick={() => setSelectedSessionDetail(null)}
+            />
+            <motion.div
+              role="dialog"
+              aria-modal
+              initial={
+                scheduleDetailMdUp
+                  ? { opacity: 0, scale: 0.94, y: 0 }
+                  : { opacity: 0, y: '100%' }
+              }
+              animate={scheduleDetailMdUp ? { opacity: 1, scale: 1, y: 0 } : { opacity: 1, y: 0, scale: 1 }}
+              exit={scheduleDetailMdUp ? { opacity: 0, scale: 0.98 } : { opacity: 0, y: '100%' }}
+              transition={{ type: 'spring', damping: 30, stiffness: 320 }}
+              className={`fixed z-[80] w-full max-w-md bg-white border border-gray-100 shadow-[0_-12px_48px_-12px_rgba(0,0,0,0.18)] flex flex-col max-h-[min(90dvh,640px)] overflow-hidden
+                left-0 right-0 bottom-0 rounded-t-3xl
+                md:left-1/2 md:top-1/2 md:right-auto md:bottom-auto md:max-h-[min(88dvh,560px)] md:-translate-x-1/2 md:-translate-y-1/2 md:rounded-2xl md:shadow-2xl`}
+              onClick={(e) => e.stopPropagation()}
+              data-lock-tick={memberCancelUiTick}
+            >
+              {(() => {
+                const detailDt = bookingDateTime(selectedSessionDetail);
+                const canCancel = isMemberAppCancellationAllowed(selectedSessionDetail);
+                return (
+                  <>
+                    <div className="shrink-0 flex md:hidden justify-center pt-2 pb-1" aria-hidden>
+                      <span className="h-1 w-10 rounded-full bg-gray-200/90" />
+                    </div>
+                    <div className="shrink-0 flex items-center justify-between px-5 md:px-6 pt-2 md:pt-5 pb-2 border-b border-gray-100/80">
+                      <div>
+                        <p className="text-[10px] tracking-[0.2em] uppercase text-gray-400">Detail</p>
+                        <h4 className="text-lg font-semibold text-slate-900">예약 상세</h4>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setSelectedSessionDetail(null)}
+                        className="p-2 rounded-xl text-gray-500 hover:bg-gray-50 hover:text-slate-900"
+                        aria-label="닫기"
+                      >
+                        <X size={20} strokeWidth={ICON_STROKE} />
+                      </button>
+                    </div>
+                    <div className="flex-1 overflow-y-auto scrollable px-5 md:px-6 py-5 space-y-5">
+                      <div className="rounded-2xl bg-slate-50/80 border border-slate-100/90 px-4 py-4 space-y-3">
+                        <div className="flex justify-between gap-4 text-sm">
+                          <span className="text-gray-500 font-light">날짜</span>
+                          <span className="text-slate-900 font-medium text-right">
+                            {detailDt ? formatKoreanDayHeader(detailDt) : '—'}
+                          </span>
+                        </div>
+                        <div className="flex justify-between gap-4 text-sm">
+                          <span className="text-gray-500 font-light">시간</span>
+                          <span className="text-[#064e3b] font-mono font-semibold text-lg tabular-nums">
+                            {formatTime24h(selectedSessionDetail.time)}
+                          </span>
+                        </div>
+                        <div className="flex justify-between gap-4 text-sm">
+                          <span className="text-gray-500 font-light">상태</span>
+                          <span className="text-slate-800 font-medium">예약 확정</span>
+                        </div>
+                      </div>
+                      <p className="text-xs text-gray-500 font-light leading-relaxed">
+                        수업 시작 2시간 전까지 앱에서 취소할 수 있어요. 그 이후에는 코치에게 문의해 주세요.
+                      </p>
+                    </div>
+                    <div className="shrink-0 px-5 md:px-6 pt-2 pb-[max(1.25rem,env(safe-area-inset-bottom))] border-t border-gray-100/80 bg-white/95 backdrop-blur-sm space-y-3">
+                      <button
+                        type="button"
+                        onClick={() => handleRequestSessionCancel(selectedSessionDetail)}
+                        className={`w-full py-3.5 rounded-xl text-sm font-semibold tracking-wide transition-all border-2 ${
+                          canCancel
+                            ? 'border-red-200/90 text-red-800 bg-red-50/50 hover:bg-red-50 active:scale-[0.99] shadow-sm'
+                            : 'border-slate-200/90 text-slate-600 bg-white hover:bg-slate-50 active:scale-[0.99]'
+                        }`}
+                        title={canCancel ? '예약 취소' : MEMBER_CANCEL_LOCK_TOOLTIP}
+                      >
+                        {canCancel ? '예약 취소' : '취소 불가 (안내)'}
+                      </button>
+                    </div>
+                  </>
+                );
+              })()}
+            </motion.div>
+          </>
         )}
       </AnimatePresence>
 
