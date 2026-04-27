@@ -1,6 +1,8 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import * as XLSX from 'xlsx-js-style';
 import { supabase } from '../../lib/supabaseClient';
 import BackButton from '../../components/ui/BackButton';
+import { isAttendanceLogCompletedForBalance } from '../../utils/sessionHelpers';
 
 function monthRangeISO() {
   const firstDay = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString();
@@ -55,21 +57,53 @@ function addMinutesToHhMm(hhmm, addMin = 60) {
   return `${String(h).padStart(2, '0')}:${String(min).padStart(2, '0')}`;
 }
 
-function toCsvCell(v) {
-  const s = String(v ?? '');
-  if (/[",\r\n]/.test(s)) return `"${s.replace(/"/g, '""')}"`;
-  return s;
+const BLACK_BORDER = {
+  top: { style: 'thin', color: { rgb: '000000' } },
+  left: { style: 'thin', color: { rgb: '000000' } },
+  bottom: { style: 'thin', color: { rgb: '000000' } },
+  right: { style: 'thin', color: { rgb: '000000' } },
+};
+
+const ALIGN = { horizontal: 'center', vertical: 'center', wrapText: true };
+
+function baseCellStyle({ bold = false } = {}) {
+  return {
+    font: { name: '맑은 고딕', sz: 11, bold },
+    alignment: ALIGN,
+    border: BLACK_BORDER,
+  };
 }
 
-function downloadCsv(filename, rows) {
-  const csv = rows.map((r) => r.map(toCsvCell).join(',')).join('\r\n');
-  const blob = new Blob(['\uFEFF', csv], { type: 'text/csv;charset=utf-8' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = filename;
-  a.click();
-  URL.revokeObjectURL(url);
+function applyAttendanceExportStyles(ws, headerRow0, nCols, nRows) {
+  if (!nCols || !nRows) return;
+  const lastR = headerRow0 + nRows - 1;
+  for (let r = headerRow0; r <= lastR; r++) {
+    for (let c = 0; c < nCols; c++) {
+      const addr = XLSX.utils.encode_cell({ r, c });
+      const cell = ws[addr] || { t: 's', v: '' };
+      ws[addr] = cell;
+      if (typeof cell.v === 'number') cell.t = 'n';
+      cell.s = baseCellStyle({ bold: r === headerRow0 });
+    }
+  }
+  ws['!ref'] = XLSX.utils.encode_range({
+    s: { r: headerRow0, c: 0 },
+    e: { r: lastR, c: nCols - 1 },
+  });
+  const colW = [16, 12, 10, 10, 16, 16];
+  ws['!cols'] = Array.from({ length: nCols }, (_, i) => ({ wch: colW[i] ?? 14 }));
+  ws['!rows'] = Array.from({ length: nRows }, (_, i) => (i === 0 ? { hpt: 22 } : { hpt: 20 }));
+}
+
+/** Per-user sum of `session_batches.remaining_count` (pack rows). */
+function sumRemainingCountByUser(rows) {
+  const m = {};
+  for (const row of rows || []) {
+    const uid = row?.user_id;
+    if (!uid) continue;
+    m[uid] = (m[uid] || 0) + (Number(row?.remaining_count) || 0);
+  }
+  return m;
 }
 
 const AdminPayrollDashboard = ({ goBack }) => {
@@ -81,6 +115,7 @@ const AdminPayrollDashboard = ({ goBack }) => {
 
   const [members, setMembers] = useState([]);
   const [logs, setLogs] = useState([]);
+  const [remainingByUser, setRemainingByUser] = useState({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [selectedId, setSelectedId] = useState(null);
@@ -97,14 +132,27 @@ const AdminPayrollDashboard = ({ goBack }) => {
 
       if (pErr) throw pErr;
 
-      const { data: logRows, error: lErr } = await supabase
-        .from('attendance_logs')
-        .select('*')
-        .gte('check_in_at', firstDay)
-        .lte('check_in_at', lastDay)
-        .order('check_in_at', { ascending: false });
+      const memberIds = (profileRows || []).map((p) => p.id).filter(Boolean);
+
+      const [{ data: logRows, error: lErr }, { data: batchRows, error: bErr }] = await Promise.all([
+        supabase
+          .from('attendance_logs')
+          .select('*')
+          .gte('check_in_at', firstDay)
+          .lte('check_in_at', lastDay)
+          .order('check_in_at', { ascending: false }),
+        memberIds.length
+          ? supabase.from('session_batches').select('user_id, remaining_count').in('user_id', memberIds)
+          : Promise.resolve({ data: [], error: null }),
+      ]);
 
       if (lErr) throw lErr;
+      if (bErr) {
+        console.warn('[AdminPayrollDashboard] session_batches', bErr.message);
+        setRemainingByUser({});
+      } else {
+        setRemainingByUser(sumRemainingCountByUser(batchRows));
+      }
 
       setMembers(profileRows || []);
       setLogs(logRows || []);
@@ -117,6 +165,7 @@ const AdminPayrollDashboard = ({ goBack }) => {
       setError(e?.message || 'Failed to load data.');
       setMembers([]);
       setLogs([]);
+      setRemainingByUser({});
     } finally {
       setLoading(false);
     }
@@ -137,6 +186,7 @@ const AdminPayrollDashboard = ({ goBack }) => {
   const completedCountByUser = useMemo(() => {
     const map = {};
     (logs || []).forEach((row) => {
+      if (!isAttendanceLogCompletedForBalance(row)) return;
       const uid = row?.user_id;
       if (!uid) return;
       map[uid] = (map[uid] || 0) + 1;
@@ -146,31 +196,50 @@ const AdminPayrollDashboard = ({ goBack }) => {
 
   const filteredLogs = useMemo(() => {
     if (!selectedId) return [];
-    return (logs || []).filter((l) => l.user_id === selectedId);
+    return (logs || []).filter(
+      (l) => l.user_id === selectedId && isAttendanceLogCompletedForBalance(l),
+    );
   }, [logs, selectedId]);
 
-  const handleExportCsv = () => {
-    const counts = { ...completedCountByUser };
-    const rows = [['Member Name', 'Date', 'Start Time', 'End Time', 'Total Count for Month']];
+  const handleExportExcel = () => {
+    const header = [
+      '회원 이름',
+      '날짜',
+      '시작 시간',
+      '종료 시간',
+      '이번 달 진행횟수',
+      '남은 잔여횟수',
+    ];
 
-    const sorted = [...(logs || [])].sort((a, b) => {
-      const na = nameByUserId[a.user_id] || '';
-      const nb = nameByUserId[b.user_id] || '';
-      if (na !== nb) return na.localeCompare(nb, 'ko');
-      return new Date(b.check_in_at || 0) - new Date(a.check_in_at || 0);
-    });
+    const sorted = [...(logs || [])]
+      .filter((log) => isAttendanceLogCompletedForBalance(log))
+      .sort((a, b) => {
+        const na = nameByUserId[a.user_id] || '';
+        const nb = nameByUserId[b.user_id] || '';
+        if (na !== nb) return na.localeCompare(nb, 'ko');
+        return new Date(b.check_in_at || 0) - new Date(a.check_in_at || 0);
+      });
 
-    sorted.forEach((log) => {
+    const dataRows = sorted.map((log) => {
       const name = nameByUserId[log.user_id] || '—';
       const dateStr = formatDateOnly(log.check_in_at);
       const start = normalizeSessionTime(log.session_time_fixed) || sessionTimeFromCheckIn(log.check_in_at);
       const end = start !== '—' ? addMinutesToHhMm(start, 60) : '—';
-      const total = counts[log.user_id] ?? 0;
-      rows.push([name, dateStr, start, end, String(total)]);
+      const monthCompleted = completedCountByUser[log.user_id] ?? 0;
+      const remaining = remainingByUser[log.user_id] ?? 0;
+      return [name, dateStr, start, end, monthCompleted, remaining];
     });
 
+    const aoa = [header, ...dataRows];
+    const wb = XLSX.utils.book_new();
+    const ws = XLSX.utils.aoa_to_sheet(aoa);
+    const nCols = header.length;
+    const nData = dataRows.length;
+    applyAttendanceExportStyles(ws, 0, nCols, 1 + nData);
+    XLSX.utils.book_append_sheet(wb, ws, 'Attendance');
+
     const safeMonth = `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`;
-    downloadCsv(`payroll-attendance-${safeMonth}.csv`, rows);
+    XLSX.writeFile(wb, `payroll-attendance-${safeMonth}.xlsx`);
   };
 
   return (
@@ -186,11 +255,11 @@ const AdminPayrollDashboard = ({ goBack }) => {
           </div>
           <button
             type="button"
-            onClick={handleExportCsv}
-            disabled={loading || !(logs || []).length}
+            onClick={handleExportExcel}
+            disabled={loading || !(logs || []).some((l) => isAttendanceLogCompletedForBalance(l))}
             className="shrink-0 border border-neutral-900 bg-neutral-900 text-white px-5 py-3 text-sm font-medium tracking-wide hover:bg-neutral-800 disabled:opacity-40 disabled:pointer-events-none transition-colors"
           >
-            Export CSV
+            Export Excel
           </button>
         </div>
       </header>
@@ -212,6 +281,7 @@ const AdminPayrollDashboard = ({ goBack }) => {
                 {(members || []).map((m) => {
                   const active = m.id === selectedId;
                   const n = completedCountByUser[m.id] ?? 0;
+                  const rem = remainingByUser[m.id] ?? 0;
                   return (
                     <li key={m.id}>
                       <button
@@ -225,7 +295,7 @@ const AdminPayrollDashboard = ({ goBack }) => {
                           {m.name || '—'}
                         </span>
                         <span className="block text-xs text-neutral-500 mt-1 font-normal tabular-nums">
-                          {monthLabel} · {n} completed
+                          {monthLabel} · {n} completed / {rem} remaining
                         </span>
                       </button>
                     </li>
