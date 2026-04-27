@@ -494,16 +494,23 @@ const ClientHome = ({ user, logout, setView }) => {
           <button
             type="button"
             onClick={() => setView('class_booking')}
-            className="w-full min-h-[6.5rem] bg-white rounded-2xl border border-gray-100 shadow-sm p-5 flex flex-row items-center justify-between text-left gap-4 transition-all duration-200 active:scale-[0.98] active:bg-gray-50 hover:bg-gray-50/80 hover:border-emerald-100/80 cursor-pointer"
+            className="w-full bg-white rounded-2xl border border-gray-100 shadow-sm p-5 md:p-6 flex flex-row items-center justify-between text-left gap-4 min-w-0 transition-all duration-200 active:scale-[0.98] active:bg-gray-50 hover:bg-gray-50/80 hover:border-emerald-100/80 cursor-pointer"
           >
-            <div className="flex items-center gap-4 min-w-0">
+            <div className="flex flex-row items-center gap-4 min-w-0 flex-1">
               <Calendar size={28} strokeWidth={BENTO_ICON_STROKE} className="text-[#064e3b] shrink-0" aria-hidden />
-              <div className="min-w-0">
-                <p className="text-[10px] tracking-[0.18em] uppercase text-gray-400 font-medium">Schedule</p>
-                <span className="text-[16px] font-light tracking-wide text-slate-900 leading-snug block mt-0.5">수업 예약 및 일정</span>
+              <div className="flex flex-col justify-center min-w-0 text-left">
+                <p className="text-[10px] tracking-[0.2em] uppercase text-gray-400 font-medium">SCHEDULE</p>
+                <span className="text-base md:text-[17px] font-semibold text-[#064e3b] tracking-tight leading-snug mt-0.5">
+                  수업 예약 및 일정
+                </span>
               </div>
             </div>
-            <ChevronRight size={22} strokeWidth={BENTO_ICON_STROKE} className="text-gray-300 shrink-0" aria-hidden />
+            <ChevronRight
+              size={22}
+              strokeWidth={BENTO_ICON_STROKE}
+              className="text-gray-300 shrink-0 self-center"
+              aria-hidden
+            />
           </button>
           {!MVP_HIDE_LIBRARY_AND_TRAINING_NAV && (
             <button

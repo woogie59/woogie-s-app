@@ -1,8 +1,10 @@
 /**
- * PWA 수업 예약: `sessionStorage` 1순 복원 + `?date=&week=` URL 동기(새로고침/공유).
- * React `view`만 쓰는 앱(별도 router 없음)이므로 search params + replaceState가 가장 안정적.
+ * PWA 수업 예약: **localStorage 우선** 복원(모바일 PWA 백그라운드에서 sessionStorage 유실) +
+ * `?date=&week=` URL 동기(새로고침/공유) + `selectedDate` 키 미러.
  */
 import { isNextWeekBookingUnlockedKST } from './bookingDateKeys';
+
+export const PWA_KEY_SELECTED_DATE = 'selectedDate';
 
 const URL_DATE = 'date';
 const URL_WEEK = 'week';
@@ -60,31 +62,44 @@ function parseStoredDateToYmd(value) {
 }
 
 /**
- * sessionStorage **먼저**, 없으면 URL, 없으면 null / current
- * (과제: mount 시 default 오늘 대신 저장값 우선)
+ * localStorage 먼저(모바일 PWA) → sessionStorage → `selectedDate` 미러 → URL;
+ * (mount 시 default 오늘 대신 저장값 우선)
  */
-function readFromSessionStorageFirst(userId) {
+function readBookingPwaFromStorages(userId) {
   if (typeof window === 'undefined' || !userId) {
     return { ymd: null, week: null };
   }
   let rawDate = null;
   let rawWeek = null;
   try {
-    rawDate = window.sessionStorage.getItem(keyBookingSelectedDate(userId));
-    rawWeek = window.sessionStorage.getItem(keyBookingWeekMode(userId));
+    rawDate = window.localStorage.getItem(keyBookingSelectedDate(userId));
+    rawWeek = window.localStorage.getItem(keyBookingWeekMode(userId));
   } catch {
     /* ignore */
   }
   if (!rawDate) {
     try {
-      rawDate = window.localStorage.getItem(keyBookingSelectedDate(userId));
+      rawDate = window.sessionStorage.getItem(keyBookingSelectedDate(userId));
     } catch {
       /* ignore */
     }
   }
   if (!rawWeek) {
     try {
-      rawWeek = window.localStorage.getItem(keyBookingWeekMode(userId));
+      rawWeek = window.sessionStorage.getItem(keyBookingWeekMode(userId));
+    } catch {
+      /* ignore */
+    }
+  }
+  if (!rawDate) {
+    try {
+      const s = window.localStorage.getItem(PWA_KEY_SELECTED_DATE);
+      if (s) {
+        const o = JSON.parse(s);
+        if (o && o.userId === String(userId) && typeof o.ymd === 'string' && o.ymd) {
+          rawDate = o.ymd;
+        }
+      }
     } catch {
       /* ignore */
     }
@@ -119,10 +134,10 @@ function validate({ ymd, weekMode }) {
 }
 
 /**
- * Task 2: sessionStorage **우선**, 그다음 URL.
+ * localStorage/밀러 키 **우선**, 그다음 URL.
  */
 export function getBookingInitialPwaState(userId) {
-  const a = readFromSessionStorageFirst(userId);
+  const a = readBookingPwaFromStorages(userId);
   const b = readFromUrl();
   const ymd = a.ymd ?? b.ymd;
   const week = a.week ?? b.week ?? 'current';
@@ -135,12 +150,20 @@ export function writeBookingPwaToSessionAndUrl(userId, { selectedDate, weekMode 
     if (selectedDate) {
       const iso = ymdToIsoStorage(selectedDate);
       if (iso) {
-        window.sessionStorage.setItem(keyBookingSelectedDate(userId), iso);
+        window.localStorage.setItem(keyBookingSelectedDate(userId), iso);
       }
     } else {
-      window.sessionStorage.removeItem(keyBookingSelectedDate(userId));
+      window.localStorage.removeItem(keyBookingSelectedDate(userId));
     }
-    window.sessionStorage.setItem(keyBookingWeekMode(userId), weekMode === 'next' ? 'next' : 'current');
+    window.localStorage.setItem(keyBookingWeekMode(userId), weekMode === 'next' ? 'next' : 'current');
+    try {
+      window.localStorage.setItem(
+        PWA_KEY_SELECTED_DATE,
+        JSON.stringify({ userId: String(userId), ymd: selectedDate || null }),
+      );
+    } catch {
+      /* ignore */
+    }
   } catch {
     /* ignore */
   }
@@ -148,12 +171,12 @@ export function writeBookingPwaToSessionAndUrl(userId, { selectedDate, weekMode 
     if (selectedDate) {
       const iso = ymdToIsoStorage(selectedDate);
       if (iso) {
-        window.localStorage.setItem(keyBookingSelectedDate(userId), iso);
+        window.sessionStorage.setItem(keyBookingSelectedDate(userId), iso);
       }
     } else {
-      window.localStorage.removeItem(keyBookingSelectedDate(userId));
+      window.sessionStorage.removeItem(keyBookingSelectedDate(userId));
     }
-    window.localStorage.setItem(keyBookingWeekMode(userId), weekMode === 'next' ? 'next' : 'current');
+    window.sessionStorage.setItem(keyBookingWeekMode(userId), weekMode === 'next' ? 'next' : 'current');
   } catch {
     /* ignore */
   }
@@ -196,6 +219,17 @@ export function clearBookingPwaState(userId) {
   try {
     window.localStorage.removeItem(keyBookingSelectedDate(userId));
     window.localStorage.removeItem(keyBookingWeekMode(userId));
+  } catch {
+    /* ignore */
+  }
+  try {
+    const raw = window.localStorage.getItem(PWA_KEY_SELECTED_DATE);
+    if (raw) {
+      const o = JSON.parse(raw);
+      if (o && o.userId === String(userId)) {
+        window.localStorage.removeItem(PWA_KEY_SELECTED_DATE);
+      }
+    }
   } catch {
     /* ignore */
   }

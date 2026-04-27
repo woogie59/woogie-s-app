@@ -7,7 +7,12 @@ import { supabase, REMEMBER_ME_KEY } from './lib/supabaseClient';
 import { deleteAttendanceLogsForBooking, toTime24h } from './utils/cascadeAttendance';
 import { emitSessionBalanceRefresh } from './utils/sessionBalanceEvents';
 import { clearBookingPwaState } from './utils/bookingPwaState';
-import { readPersistedView, writePersistedView, clearPersistedView } from './utils/appViewPersistence';
+import {
+  readPersistedView,
+  writePersistedView,
+  clearPersistedView,
+  writePwaLastVisitedPath,
+} from './utils/appViewPersistence';
 import { useGlobalModal } from './context/GlobalModalContext';
 import CinematicIntro from './components/ui/CinematicIntro';
 import LabDotBrand from './components/ui/LabDotBrand';
@@ -206,12 +211,13 @@ export default function App() {
   const viewRef = useRef(view);
   viewRef.current = view;
 
-  /** PWA 백그라운드/새로고침 후 `processAuth(INITIAL_SESSION)`에서 view 복원용 */
+  /** PWA: localStorage 우선 + `lastVisitedPath` — 백그라운드 복귀 시 홈 강제 이동 방지 */
   useEffect(() => {
     if (!session?.user?.id) return;
     if (view === 'login' || view === 'register' || showResetPassword) return;
     writePersistedView(session.user.id, view);
-  }, [view, session?.user?.id, showResetPassword]);
+    writePwaLastVisitedPath(session.user.id, view, userProfileRole === 'admin');
+  }, [view, session?.user?.id, showResetPassword, userProfileRole]);
 
   /** Prompt push permission once per auth session when user reaches Home (client or admin) */
   const pushPromptForSessionRef = useRef(null);
