@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useLayoutEffect, useMemo, useCallback } from 'react';
 import { Lock } from 'lucide-react';
 import { supabase } from '../../lib/supabaseClient';
 import { fetchAdminOnesignalProfile } from '../../utils/notifications';
@@ -15,13 +15,15 @@ import {
   NEXT_WEEK_LOCKED_BANNER_HTML,
   NEXT_WEEK_LOCKED_TOAST_MESSAGE,
 } from '../../utils/bookingDateKeys';
+import {
+  getBookingInitialPwaState,
+  writeBookingPwaToSessionAndUrl,
+  stripBookingPwaFromUrl,
+} from '../../utils/bookingPwaState';
 
 const ICON_STROKE = 1;
 /** 1:1 — one booking per slot; used for full/disabled state only (no UI count) */
 const MAX_PER_SLOT = 1;
-
-const bookingUiStorageKey = (userId) =>
-  userId ? `labdot:class_booking_ui:v1:${String(userId)}` : null;
 
 const toDateKey = (d) => {
   const x = new Date(d);
@@ -68,18 +70,15 @@ function slotHourFromTime(time) {
 
 const ClassBooking = ({ user, setView, goBack }) => {
   const { showAlert, showConfirm } = useGlobalModal();
-  const [selectedDate, setSelectedDate] = useState(null);
+  /** sessionStorage 1순 (과제) + 동기 초기화 — '오늘' 기본값으로 덮지 않음 */
+  const [selectedDate, setSelectedDate] = useState(() => getBookingInitialPwaState(user?.id).selectedDate);
+  const [weekMode, setWeekMode] = useState(() => getBookingInitialPwaState(user?.id).weekMode);
   const [bookings, setBookings] = useState([]);
   const [loading, setLoading] = useState(false);
   const [settings, setSettings] = useState([]);
   const [holidays, setHolidays] = useState([]);
-  /** 'current' | 'next' — next week visible only after drop */
-  const [weekMode, setWeekMode] = useState('current');
   /** Non-blocking toast when next week is still locked */
   const [weekToast, setWeekToast] = useState(null);
-  /** sessionStorage 하이드레이션 완료 후에만 저장(초기값으로 덮어쓰기 방지) */
-  const [bookingUiReady, setBookingUiReady] = useState(false);
-  const lastBookingUserIdRef = useRef(undefined);
 
   const now = useMemo(() => new Date(), []);
   const thisMonday = useMemo(() => getMonday(now), [now]);
@@ -106,68 +105,35 @@ const ClassBooking = ({ user, setView, goBack }) => {
   const weekDateKeys = useMemo(() => weekDates.map((d) => toDateKey(d)), [weekDates]);
   const todayKey = toDateKey(new Date());
 
-  /** 홈 등으로 돌아와도 주·날짜 복원 (같은 user remount). 다른 계정으로 바뀌면 초기화 후 해당 user 키로 복원 */
-  useEffect(() => {
-    setBookingUiReady(false);
-    const uid = user?.id;
-    if (!uid) {
-      lastBookingUserIdRef.current = undefined;
-      setBookingUiReady(true);
-      return;
-    }
-    const accountSwitched =
-      lastBookingUserIdRef.current !== undefined && lastBookingUserIdRef.current !== uid;
-    lastBookingUserIdRef.current = uid;
-    if (accountSwitched) {
-      setWeekMode('current');
-      setSelectedDate(null);
-    }
-    try {
-      const raw = sessionStorage.getItem(bookingUiStorageKey(uid));
-      if (!raw) {
-        setBookingUiReady(true);
-        return;
-      }
-      const p = JSON.parse(raw);
-      const wm = p?.weekMode === 'next' ? 'next' : p?.weekMode === 'current' ? 'current' : null;
-      if (wm === 'next' && !isNextWeekBookingUnlockedKST(new Date())) {
-        setWeekMode('current');
-      } else if (wm) {
-        setWeekMode(wm);
-      }
-      const sd = p?.selectedDate;
-      if (typeof sd === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(sd)) {
-        setSelectedDate(sd);
-      }
-    } catch {
-      /* ignore */
-    }
-    setBookingUiReady(true);
+  /**
+   * Task 2: mount 시 `sessionStorage`·URL(`getBookingInitialPwaState`)을 **먼저** 반영
+   * (user 변경 시에도 동일)
+   */
+  useLayoutEffect(() => {
+    if (!user?.id) return;
+    const s = getBookingInitialPwaState(user.id);
+    setWeekMode(s.weekMode);
+    setSelectedDate(s.selectedDate);
   }, [user?.id]);
 
   useEffect(() => {
-    if (!bookingUiReady || !user?.id) return;
-    try {
-      sessionStorage.setItem(
-        bookingUiStorageKey(user.id),
-        JSON.stringify({ weekMode, selectedDate }),
-      );
-    } catch {
-      /* ignore */
-    }
-  }, [bookingUiReady, user?.id, weekMode, selectedDate]);
+    if (!user?.id) return;
+    writeBookingPwaToSessionAndUrl(user.id, { weekMode, selectedDate });
+  }, [user?.id, weekMode, selectedDate]);
 
-  /** 복원된 날짜가 현재 보이는 주·과거 날짜 규칙과 맞지 않으면 초기화 */
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!selectedDate) return;
-    if (!weekDateKeys.includes(selectedDate)) {
-      setSelectedDate(null);
-      return;
-    }
-    if (selectedDate < todayKey) {
+    if (!weekDateKeys.includes(selectedDate) || selectedDate < todayKey) {
       setSelectedDate(null);
     }
   }, [selectedDate, weekDateKeys, todayKey]);
+
+  /** 예약 화면 이탈 시 URL `?date=&week=` 정리(홈 PWA는 쿼리 없이) */
+  useEffect(() => {
+    return () => {
+      stripBookingPwaFromUrl();
+    };
+  }, []);
 
   useEffect(() => {
     const fetchSettings = async () => {

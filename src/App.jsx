@@ -6,6 +6,7 @@ import OneSignal from 'react-onesignal';
 import { supabase, REMEMBER_ME_KEY } from './lib/supabaseClient';
 import { deleteAttendanceLogsForBooking, toTime24h } from './utils/cascadeAttendance';
 import { emitSessionBalanceRefresh } from './utils/sessionBalanceEvents';
+import { clearBookingPwaState } from './utils/bookingPwaState';
 import { useGlobalModal } from './context/GlobalModalContext';
 import CinematicIntro from './components/ui/CinematicIntro';
 import LabDotBrand from './components/ui/LabDotBrand';
@@ -358,6 +359,10 @@ export default function App() {
   }, [showResetPassword]);
 
   const handleLogout = async () => {
+    const uid = session?.user?.id;
+    if (uid) {
+      clearBookingPwaState(uid);
+    }
     try {
       await OneSignal.logout();
     } catch (e) {
