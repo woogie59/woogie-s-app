@@ -16,6 +16,21 @@ const TOKEN_URL = "https://oauth2.googleapis.com/token";
 const DURATION_MIN = 50;
 const KST = "Asia/Seoul";
 
+/** Event title: `{이름}님 수업` — no [labdot]/[latdot] or other prefix. */
+function formatEventSummary(userName: string): string {
+  const n = (userName || "").trim() || "회원";
+  return `${n}님 수업`;
+}
+
+/**
+ * One reminder only: 10 minutes before, client popup. No 30m, no email overrides.
+ * Used for both `events.insert` and `events.patch` so legacy defaults never stick.
+ */
+const GOOGLE_EVENT_REMINDERS = {
+  useDefault: false,
+  overrides: [{ method: "popup" as const, minutes: 10 }],
+};
+
 type WebhookRow = {
   id?: string;
   user_id?: string;
@@ -218,12 +233,12 @@ async function gcal(
   return { ok: r.ok, status: r.status, body: parsed as Record<string, unknown> };
 }
 
-function buildEventBody(userName: string, start: string, end: string) {
+function buildGoogleCalendarEventResource(userName: string, start: string, end: string) {
   return {
-    summary: `${userName}님 수업`,
+    summary: formatEventSummary(userName),
     start: { dateTime: start, timeZone: KST },
     end: { dateTime: end, timeZone: KST },
-    reminders: { useDefault: false, overrides: [{ method: "popup", minutes: 10 }] },
+    reminders: GOOGLE_EVENT_REMINDERS,
   };
 }
 
@@ -333,7 +348,7 @@ Deno.serve(async (req: Request) => {
   if (!range) {
     return j({ error: "Invalid date or time for calendar", date: dateS, time: timeS }, 400);
   }
-  const eventResource = buildEventBody(name, range.start, range.end);
+  const eventResource = buildGoogleCalendarEventResource(name, range.start, range.end);
 
   if (op === "INSERT" && row.google_event_id) {
     return j({ skipped: true, reason: "already has google_event_id" });

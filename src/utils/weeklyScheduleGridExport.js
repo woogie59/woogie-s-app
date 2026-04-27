@@ -1,9 +1,25 @@
-import * as XLSX from 'xlsx';
-import { isSaturdayYmd, SATURDAY_OPEN_HOUR } from './labdotWeekSchedulePolicy.js';
+import * as XLSX from 'xlsx-js-style';
 
 const HOUR_START = 10;
 const HOUR_END = 23;
-const DOW = ['월', '화', '수', '목', '금', '토', '일'];
+const DOW_LONG = ['월요일', '화요일', '수요일', '목요일', '금요일', '토요일', '일요일'];
+
+const BLACK_BORDER = {
+  top: { style: 'thin', color: { rgb: '000000' } },
+  left: { style: 'thin', color: { rgb: '000000' } },
+  bottom: { style: 'thin', color: { rgb: '000000' } },
+  right: { style: 'thin', color: { rgb: '000000' } },
+};
+
+const ALIGN = { horizontal: 'center', vertical: 'center', wrapText: true };
+
+function baseStyle({ bold = false } = {}) {
+  return {
+    font: { name: '맑은 고딕', sz: 11, bold },
+    alignment: ALIGN,
+    border: BLACK_BORDER,
+  };
+}
 
 function pad2(n) {
   return String(n).padStart(2, '0');
@@ -32,10 +48,23 @@ function parseTimeHour(timeRaw) {
   return h;
 }
 
+/** 1~5: Monday's calendar week of month. */
+function weekOfMonthKorean(monday) {
+  const d = monday.getDate();
+  return Math.max(1, Math.ceil(d / 7));
+}
+
 /**
- * @param {Date} weekStart - First visible day of the week (e.g. FullCalendar activeStart, typically Monday 00:00)
- * @param {Date} weekEndExcl - exclusive end (e.g. FullCalendar activeEnd)
+ * @param {Date} weekStart
+ * @param {Date} weekEndExcl
  * @param {Array<{ date?: string, time?: string, status?: string, profiles?: { name?: string } }>} bookings
+ * @returns {{
+ *   title: string,
+ *   headerRow: any[],
+ *   bodyRows: any[][],
+ *   summaryRow: any[],
+ *   fileLabel: string,
+ * }}
  */
 export function buildWeeklyTimetableMatrix(weekStart, weekEndExcl, bookings) {
   const dayKeys = [];
@@ -45,31 +74,46 @@ export function buildWeeklyTimetableMatrix(weekStart, weekEndExcl, bookings) {
     dayKeys.push(toYmd(c));
     c.setDate(c.getDate() + 1);
   }
-  const n = dayKeys.length; // 7 in week view
+  const n = dayKeys.length;
   if (n === 0) {
-    return { headerRow: [], bodyRows: [], fileLabel: '' };
+    return {
+      title: '',
+      headerRow: [],
+      bodyRows: [],
+      summaryRow: [],
+      fileLabel: '',
+    };
   }
 
   const fileLabel = `${toYmd(new Date(weekStart))}_~_${toYmd(new Date(weekEndExcl.getTime() - 86400000))}`;
 
-  const headerRow = [
-    '시간',
-    ...dayKeys.map((k, i) => {
-      const [y, mo, d] = k.split('-');
-      return `${DOW[i] || ''}\n${mo}/${d}`;
-    }),
-  ];
+  const m0 = new Date(weekStart);
+  m0.setHours(0, 0, 0, 0);
+  const monthNum = m0.getMonth() + 1;
+  const weekNo = weekOfMonthKorean(m0);
+  const title = `${monthNum}월 ${weekNo}째주 일정표`;
 
-  const cells = Array.from({ length: HOUR_END - HOUR_START + 1 }, () =>
-    Array.from({ length: n }, () => []),
-  );
+  const dayHeaderCells = dayKeys.map((_, i) => {
+    const d = new Date(weekStart);
+    d.setDate(d.getDate() + i);
+    d.setHours(0, 0, 0, 0);
+    const M = d.getMonth() + 1;
+    const D = d.getDate();
+    const di = d.getDay();
+    const dow = DOW_LONG[di === 0 ? 6 : di - 1];
+    return `${M}월 ${D}일 ${dow}`;
+  });
+
+  const numCols = 1 + n + 1; // time + days + week total
+  const headerRow = ['시간', ...dayHeaderCells, '주간'];
+
+  const slotRows = HOUR_END - HOUR_START + 1; // 14
+  const cells = Array.from({ length: slotRows }, () => Array.from({ length: n }, () => []));
 
   (bookings || []).forEach((b) => {
     if (!b) return;
     if ((b.status || '') === 'cancelled') return;
-    const dk = b.date
-      ? String(b.date).split('T')[0].slice(0, 10)
-      : '';
+    const dk = b.date ? String(b.date).split('T')[0].slice(0, 10) : '';
     if (!dk) return;
     const col = dayKeys.indexOf(dk);
     if (col < 0) return;
@@ -77,30 +121,40 @@ export function buildWeeklyTimetableMatrix(weekStart, weekEndExcl, bookings) {
     if (h == null) return;
     if (h < HOUR_START || h > HOUR_END) return;
     const name = b.profiles?.name?.trim() || b.userName || '회원';
-    const timeLabel = b.time && String(b.time).match(/^\d{1,2}:\d{2}/)
-      ? b.time
-      : `${pad2(h)}:00`;
-    const line = `${name} (${timeLabel})`;
+    const line = `${name}님 수업`;
     const row = h - HOUR_START;
     cells[row][col].push(line);
   });
 
   const bodyRows = [];
   for (let h = HOUR_START; h <= HOUR_END; h++) {
-    const row = [`${pad2(h)}:00`];
-    for (let c = 0; c < n; c++) {
-      const dk = dayKeys[c];
-      const arr = cells[h - HOUR_START][c];
-      let cell = arr.length ? arr.join('\n') : '';
-      if (!cell && isSaturdayYmd(dk) && h < SATURDAY_OPEN_HOUR) {
-        cell = '· 비가용(13:00~운영) ·';
-      }
-      row.push(cell);
-    }
-    bodyRows.push(row);
+    const r = h - HOUR_START;
+    const timeLabel = `${h}시`;
+    const dataCols = dayKeys.map((_, c) => {
+      const arr = cells[r][c];
+      return arr.length ? arr.join('\n') : '';
+    });
+    bodyRows.push([timeLabel, ...dataCols, '']);
   }
 
-  return { headerRow, bodyRows, fileLabel };
+  const perDayTotals = new Array(n).fill(0);
+  for (let c = 0; c < n; c++) {
+    let sum = 0;
+    for (let r = 0; r < slotRows; r++) {
+      sum += cells[r][c].length;
+    }
+    perDayTotals[c] = sum;
+  }
+  const weekGrand = perDayTotals.reduce((a, b) => a + b, 0);
+  const summaryRow = ['합계', ...perDayTotals, weekGrand];
+
+  return {
+    title,
+    headerRow,
+    bodyRows,
+    summaryRow,
+    fileLabel,
+  };
 }
 
 /**
@@ -109,16 +163,67 @@ export function buildWeeklyTimetableMatrix(weekStart, weekEndExcl, bookings) {
  * @param {Array} bookings
  */
 export function downloadWeeklyScheduleXlsx(weekStart, weekEndExcl, bookings) {
-  const { headerRow, bodyRows, fileLabel } = buildWeeklyTimetableMatrix(weekStart, weekEndExcl, bookings);
+  const { title, headerRow, bodyRows, summaryRow, fileLabel } = buildWeeklyTimetableMatrix(
+    weekStart,
+    weekEndExcl,
+    bookings,
+  );
   if (!headerRow.length) return;
 
-  const aoa = [headerRow, ...bodyRows];
+  const numCols = headerRow.length;
+  const titleRow = [title, ...Array(Math.max(0, numCols - 1)).fill('')];
+  const aoa = [titleRow, headerRow, ...bodyRows, summaryRow];
+
   const ws = XLSX.utils.aoa_to_sheet(aoa);
-  const colWidths = [{ wch: 8 }].concat(Array(Math.max(0, headerRow.length - 1)).fill({ wch: 20 }));
-  ws['!cols'] = colWidths;
+  const totalRows = aoa.length;
+  const lastRow0 = totalRows - 1;
+
+  ws['!merges'] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: numCols - 1 } }];
+
+  ws['!ref'] = XLSX.utils.encode_range({
+    s: { r: 0, c: 0 },
+    e: { r: lastRow0, c: numCols - 1 },
+  });
+
+  ws['!cols'] = [
+    { wch: 8 },
+    ...Array(Math.max(0, numCols - 2))
+      .fill(null)
+      .map(() => ({ wch: 20 })),
+    { wch: 10 },
+  ];
+  ws['!rows'] = aoa.map((_, r) => (r === 0 ? { hpt: 30 } : { hpt: 20 }));
+
+  const range = XLSX.utils.decode_range(ws['!ref']);
+  for (let r = range.s.r; r <= range.e.r; r++) {
+    for (let c = range.s.c; c <= range.e.c; c++) {
+      const addr = XLSX.utils.encode_cell({ r, c });
+      let cell = ws[addr];
+      if (!cell) {
+        cell = { t: 's', v: '' };
+        ws[addr] = cell;
+      }
+
+      const isTitle = r === 0;
+      const isHeader = r === 1;
+      const isSummary = r === lastRow0;
+      const bold = isTitle || isHeader || isSummary;
+
+      if (isSummary && c >= 1) {
+        const n = Number(cell.v);
+        if (!Number.isNaN(n) && cell.v !== '') {
+          cell.t = 'n';
+          cell.v = n;
+        }
+      }
+
+      cell.s = baseStyle({ bold });
+    }
+  }
+
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, '주간일정');
-  const out = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+  const out = XLSX.write(wb, { bookType: 'xlsx', type: 'array', bookSST: false });
   const blob = new Blob([out], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
   const name = `주간_일정_${fileLabel || toYmd(weekStart)}.xlsx`;
   const a = document.createElement('a');

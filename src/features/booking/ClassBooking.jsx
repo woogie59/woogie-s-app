@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { Lock } from 'lucide-react';
 import { supabase } from '../../lib/supabaseClient';
 import { fetchAdminOnesignalProfile } from '../../utils/notifications';
@@ -19,6 +19,9 @@ import {
 const ICON_STROKE = 1;
 /** 1:1 — one booking per slot; used for full/disabled state only (no UI count) */
 const MAX_PER_SLOT = 1;
+
+const bookingUiStorageKey = (userId) =>
+  userId ? `labdot:class_booking_ui:v1:${String(userId)}` : null;
 
 const toDateKey = (d) => {
   const x = new Date(d);
@@ -74,6 +77,9 @@ const ClassBooking = ({ user, setView, goBack }) => {
   const [weekMode, setWeekMode] = useState('current');
   /** Non-blocking toast when next week is still locked */
   const [weekToast, setWeekToast] = useState(null);
+  /** sessionStorage 하이드레이션 완료 후에만 저장(초기값으로 덮어쓰기 방지) */
+  const [bookingUiReady, setBookingUiReady] = useState(false);
+  const lastBookingUserIdRef = useRef(undefined);
 
   const now = useMemo(() => new Date(), []);
   const thisMonday = useMemo(() => getMonday(now), [now]);
@@ -96,6 +102,72 @@ const ClassBooking = ({ user, setView, goBack }) => {
     }
     return arr;
   }, [activeWeekStart]);
+
+  const weekDateKeys = useMemo(() => weekDates.map((d) => toDateKey(d)), [weekDates]);
+  const todayKey = toDateKey(new Date());
+
+  /** 홈 등으로 돌아와도 주·날짜 복원 (같은 user remount). 다른 계정으로 바뀌면 초기화 후 해당 user 키로 복원 */
+  useEffect(() => {
+    setBookingUiReady(false);
+    const uid = user?.id;
+    if (!uid) {
+      lastBookingUserIdRef.current = undefined;
+      setBookingUiReady(true);
+      return;
+    }
+    const accountSwitched =
+      lastBookingUserIdRef.current !== undefined && lastBookingUserIdRef.current !== uid;
+    lastBookingUserIdRef.current = uid;
+    if (accountSwitched) {
+      setWeekMode('current');
+      setSelectedDate(null);
+    }
+    try {
+      const raw = sessionStorage.getItem(bookingUiStorageKey(uid));
+      if (!raw) {
+        setBookingUiReady(true);
+        return;
+      }
+      const p = JSON.parse(raw);
+      const wm = p?.weekMode === 'next' ? 'next' : p?.weekMode === 'current' ? 'current' : null;
+      if (wm === 'next' && !isNextWeekBookingUnlockedKST(new Date())) {
+        setWeekMode('current');
+      } else if (wm) {
+        setWeekMode(wm);
+      }
+      const sd = p?.selectedDate;
+      if (typeof sd === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(sd)) {
+        setSelectedDate(sd);
+      }
+    } catch {
+      /* ignore */
+    }
+    setBookingUiReady(true);
+  }, [user?.id]);
+
+  useEffect(() => {
+    if (!bookingUiReady || !user?.id) return;
+    try {
+      sessionStorage.setItem(
+        bookingUiStorageKey(user.id),
+        JSON.stringify({ weekMode, selectedDate }),
+      );
+    } catch {
+      /* ignore */
+    }
+  }, [bookingUiReady, user?.id, weekMode, selectedDate]);
+
+  /** 복원된 날짜가 현재 보이는 주·과거 날짜 규칙과 맞지 않으면 초기화 */
+  useEffect(() => {
+    if (!selectedDate) return;
+    if (!weekDateKeys.includes(selectedDate)) {
+      setSelectedDate(null);
+      return;
+    }
+    if (selectedDate < todayKey) {
+      setSelectedDate(null);
+    }
+  }, [selectedDate, weekDateKeys, todayKey]);
 
   useEffect(() => {
     const fetchSettings = async () => {
@@ -272,8 +344,6 @@ const ClassBooking = ({ user, setView, goBack }) => {
     });
   };
 
-  const todayKey = toDateKey(new Date());
-
   const handleSelectWeekMode = (mode) => {
     if (mode === 'next' && !nextUnlocked) {
       setWeekToast(NEXT_WEEK_LOCKED_TOAST_MESSAGE);
@@ -404,25 +474,71 @@ const ClassBooking = ({ user, setView, goBack }) => {
                 ) : (
                   <div className="flex flex-wrap gap-2.5 pb-10">
                     {generateTimeSlots().map((time) => {
-                      const remaining = slotRemaining(time);
-                      const full = remaining <= 0;
                       const expired = isSlotExpired(selectedDate, time);
+                      const bookingAtSlot = bookings.find(
+                        (b) => b.date === selectedDate && b.time === time,
+                      );
+                      const isMine =
+                        Boolean(bookingAtSlot && user?.id) &&
+                        String(bookingAtSlot.user_id) === String(user.id);
+                      const isOther = Boolean(bookingAtSlot && !isMine);
                       const clickable = isSlotBookable(time);
+
+                      const basePad =
+                        'inline-flex min-w-[5.5rem] rounded-full border px-4 py-2.5 text-sm font-light tracking-wide text-center transition-all duration-200 flex-col items-center justify-center gap-0.5';
+                      let slotClass = basePad;
+                      if (isMine) {
+                        slotClass +=
+                          ' cursor-default border-[#064e3b] bg-[#064e3b] text-white shadow-md ring-1 ring-[#043d2d]/30';
+                      } else if (isOther) {
+                        slotClass +=
+                          ' cursor-not-allowed border-gray-200/90 bg-gray-100 text-gray-400 opacity-80';
+                      } else if (expired) {
+                        slotClass +=
+                          ' opacity-45 cursor-not-allowed border-gray-100/90 bg-gray-50/80 text-gray-400';
+                      } else if (clickable) {
+                        slotClass +=
+                          ' border-gray-200/90 bg-white text-slate-900 shadow-sm active:scale-[0.98] hover:border-[#064e3b]/30 hover:shadow-[0_1px_0_rgba(6,78,59,0.06)]';
+                      } else {
+                        slotClass +=
+                          ' opacity-45 cursor-not-allowed border-gray-100/90 bg-gray-50/80 text-gray-400';
+                      }
+
+                      const slotDisabled = !clickable || isMine;
+
                       return (
                         <button
                           key={time}
                           type="button"
-                          disabled={!clickable}
+                          disabled={slotDisabled}
                           onClick={() => handleBookSlot(time)}
-                          className={`inline-flex items-center justify-center min-w-[5.25rem] rounded-full border px-5 py-2.5 text-sm font-light tracking-wide text-center transition-all duration-200 ${
-                            full || expired
-                              ? 'opacity-45 cursor-not-allowed border-gray-100/90 bg-gray-50/80 text-gray-400'
-                              : clickable
-                                ? 'border-gray-200/90 bg-white text-slate-900 shadow-sm active:scale-[0.98] hover:border-[#064e3b]/30 hover:shadow-[0_1px_0_rgba(6,78,59,0.06)]'
-                                : 'opacity-45 cursor-not-allowed border-gray-100/90 bg-gray-50/80 text-gray-400'
-                          }`}
+                          className={slotClass}
+                          aria-label={
+                            isMine
+                              ? `${time} 내 예약`
+                              : isOther
+                                ? `${time} 다른 회원 예약`
+                                : `${time} ${clickable ? '예약 가능' : '예약 불가'}`
+                          }
                         >
-                          <span className={expired ? 'line-through tabular-nums' : 'tabular-nums'}>{time}</span>
+                          {isMine ? (
+                            <>
+                              <span
+                                className={`tabular-nums ${expired ? 'line-through opacity-90' : 'font-medium'}`}
+                              >
+                                {time}
+                              </span>
+                              <span className="text-[10px] font-semibold tracking-[0.12em] text-white/95">
+                                내 예약
+                              </span>
+                            </>
+                          ) : isOther ? (
+                            <span className="tabular-nums text-gray-400">{time}</span>
+                          ) : (
+                            <span className={expired ? 'line-through tabular-nums' : 'tabular-nums'}>
+                              {time}
+                            </span>
+                          )}
                         </button>
                       );
                     })}
