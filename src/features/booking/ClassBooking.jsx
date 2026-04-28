@@ -515,7 +515,7 @@ const ClassBooking = ({ user, setView, goBack }) => {
           >
             {selectedDate && (
               <>
-                <p className="text-[10px] tracking-widest uppercase text-gray-400 mb-4 font-medium">AVAILABLE SLOTS</p>
+                <p className="text-[10px] tracking-widest uppercase text-gray-400 mb-3 font-medium">AVAILABLE SLOTS</p>
                 {isHoliday(selectedDate) ? (
                   <p className="text-center text-sm font-light text-gray-500 py-12 tracking-wide">휴무일입니다.</p>
                 ) : getDaySetting(selectedDate).off ? (
@@ -525,7 +525,7 @@ const ClassBooking = ({ user, setView, goBack }) => {
                 ) : generateTimeSlots().length === 0 ? (
                   <p className="text-center text-sm font-light text-gray-500 py-12">이 날짜에 열린 슬롯이 없습니다.</p>
                 ) : (
-                  <div className="flex flex-wrap gap-2.5 pb-10">
+                  <div className="flex flex-wrap gap-2.5 pb-3">
                     {generateTimeSlots().map((time) => {
                       const expired = isSlotExpired(selectedDate, time);
                       const bookingAtSlot = bookings.find(
@@ -538,7 +538,7 @@ const ClassBooking = ({ user, setView, goBack }) => {
                       const clickable = isSlotBookable(time);
 
                       const basePad =
-                        'inline-flex min-w-[5.5rem] rounded-full border px-4 py-2.5 text-sm font-light tracking-wide text-center transition-all duration-200 flex-col items-center justify-center gap-0.5';
+                        'inline-flex min-w-[5.25rem] rounded-full border px-3.5 py-2 text-sm font-light tracking-wide text-center transition-all duration-200 flex-col items-center justify-center gap-0.5';
                       let slotClass = basePad;
                       if (isMine) {
                         slotClass +=
@@ -574,7 +574,7 @@ const ClassBooking = ({ user, setView, goBack }) => {
                           className={slotClass}
                           aria-label={
                             isMine
-                              ? `${time} 내 예약 — 탭하여 취소`
+                              ? `${time} 내 예약 — 탭하여 상세`
                               : isOther
                                 ? `${time} 다른 회원 예약`
                                 : `${time} ${clickable ? '예약 가능' : '예약 불가'}`
@@ -609,10 +609,12 @@ const ClassBooking = ({ user, setView, goBack }) => {
               <p className="text-center text-sm font-light text-gray-400 py-16 tracking-wide">날짜를 선택해 주세요.</p>
             )}
 
-            <section className="mt-10 mb-6 border-t border-gray-200/80 pt-8">
+            <section className="mt-4 mb-6 border-t border-gray-100/90 pt-4">
               <p className="text-[10px] tracking-[0.2em] uppercase text-gray-400 font-medium mb-1">Upcoming</p>
               <h2 className="text-base font-semibold text-slate-900 tracking-tight">나의 다가오는 일정</h2>
-              <p className="text-xs text-gray-500 font-light mt-1 mb-4">캘린더·목록에서 내 예약을 탭하면 취소 절차로 이동합니다.</p>
+              <p className="text-xs text-gray-400 font-light leading-relaxed mt-1.5 mb-3 max-w-[20rem]">
+                캘린더·목록에서 내 예약을 탭하면 상세 화면으로 이동합니다.
+              </p>
               {upcomingMyBookings.length === 0 ? (
                 <div className="rounded-2xl border border-dashed border-gray-200 bg-white/60 px-4 py-8 text-center">
                   <p className="text-sm text-gray-500 font-light">예정된 수업이 없어요.</p>
@@ -638,14 +640,9 @@ const ClassBooking = ({ user, setView, goBack }) => {
                               {formatTime24hDisplay(booking.time)}
                             </p>
                           </div>
-                          <div className="shrink-0 flex items-center gap-0.5 pl-2">
-                            <span className="text-sm font-medium text-gray-500 group-hover:text-[#064e3b] transition-colors">취소</span>
-                            <ChevronRight
-                              size={20}
-                              strokeWidth={ICON_STROKE}
-                              className="text-gray-300 group-hover:text-[#064e3b]/60"
-                              aria-hidden
-                            />
+                          <div className="shrink-0 flex items-center justify-center pl-2 text-gray-300 group-hover:text-[#064e3b]/70 transition-colors">
+                            <span className="sr-only">상세</span>
+                            <ChevronRight size={22} strokeWidth={ICON_STROKE} aria-hidden />
                           </div>
                         </div>
                       </button>
