@@ -25,14 +25,26 @@ const getWeekLabelKo = (weekIndex) => {
   return `${weekIndex}주 전`;
 };
 
-const formatSessionDate = (checkInAt) => {
-  const d = new Date(checkInAt);
+const extractScheduledHour = (log) => {
+  const candidates = [log?.session_time_fixed, log?.scheduled_time, log?.class_time];
+  for (const value of candidates) {
+    if (typeof value !== 'string') continue;
+    const match = value.match(/(\d{1,2}):(\d{2})/);
+    if (match) return String(Number(match[1])).padStart(2, '0');
+  }
+  const fallback = new Date(log?.check_in_at);
+  if (Number.isNaN(fallback.getTime())) return '00';
+  return String(fallback.getHours()).padStart(2, '0');
+};
+
+const formatSessionDate = (log) => {
+  const d = new Date(log?.check_in_at);
   const y = d.getFullYear();
   const m = String(d.getMonth() + 1).padStart(2, '0');
   const day = String(d.getDate()).padStart(2, '0');
   const dayName = DAY_NAMES_KO[d.getDay()];
-  const time = d.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', hour12: false });
-  return `${y}.${m}.${day} (${dayName}) ${time}`;
+  const hour = extractScheduledHour(log);
+  return `${y}.${m}.${day} (${dayName}) ${hour}:00`;
 };
 
 const SessionHistoryModal = ({ user, onClose }) => {
@@ -210,7 +222,7 @@ const SessionHistoryModal = ({ user, onClose }) => {
                       {logs.map((log) => (
                         <li key={log.id} className="flex items-center justify-between gap-6 py-3.5 first:pt-0">
                           <span className="text-[13px] text-neutral-900 leading-snug">
-                            {formatSessionDate(log.check_in_at)}
+                            {formatSessionDate(log)}
                           </span>
                           <span className="text-neutral-300/90 text-[11px] font-extralight shrink-0" aria-hidden>
                             ✓
