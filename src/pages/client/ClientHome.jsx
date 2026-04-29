@@ -355,6 +355,17 @@ const ClientHome = ({ user, logout, setView }) => {
     return future[0]?.b ?? null;
   }, [myBookings]);
 
+  const upcomingBookingsPreview = useMemo(() => {
+    if (!myBookings?.length) return [];
+    const now = new Date();
+    return myBookings
+      .map((b) => ({ b, dt: bookingDateTime(b) }))
+      .filter((x) => x.dt && x.dt >= now)
+      .sort((a, b) => a.dt - b.dt)
+      .slice(0, 3)
+      .map((x) => x.b);
+  }, [myBookings]);
+
   const sessionMetrics = useMemo(() => {
     const batches = Array.isArray(sessionBatches) ? sessionBatches : [];
     const logs = Array.isArray(attendanceLogs) ? attendanceLogs : [];
@@ -459,39 +470,56 @@ const ClientHome = ({ user, logout, setView }) => {
           </div>
         </div>
 
-        {/* 2. 출석하기 — icon + label only, centered */}
+        {/* 2. 출석하기 — dimensional smart key */}
         <button
           type="button"
           onClick={() => setShowQRModal(true)}
-          className="w-full shrink-0 flex flex-col items-center justify-center gap-3 cursor-pointer rounded-2xl bg-white border border-gray-100 shadow-sm px-6 py-8 transition-all duration-200 ease-in-out hover:bg-gray-50 active:scale-[0.98] active:bg-gray-50"
+          className="w-full my-10 shrink-0 flex flex-col items-center justify-center gap-3 cursor-pointer rounded-3xl bg-gradient-to-br from-[#272b31] via-[#1b1f24] to-[#121418] shadow-2xl px-6 py-10 text-white transition-all duration-200 ease-in-out hover:brightness-105 active:scale-[0.985]"
         >
-          <QrCode size={30} strokeWidth={ICON_STROKE} className="text-[#064e3b]" aria-hidden />
-          <span className="text-[15px] font-light tracking-wide text-slate-900">출석하기</span>
+          <div className="rounded-2xl bg-white/10 ring-1 ring-white/15 px-4 py-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.12)]">
+            <QrCode size={34} strokeWidth={1.25} className="text-white" aria-hidden />
+          </div>
+          <span className="text-2xl font-bold tracking-tight">출석하기</span>
+          <span className="text-sm text-white/65 font-medium tracking-wide">스캐너를 향해 QR을 보여주세요</span>
         </button>
 
-        {/* 3. Navigation — 수업 예약 및 일정(통합); 별도 내 일정 메뉴는 비표시 */}
-        <div className="flex flex-col gap-4">
+        {/* 3. Open schedule flow */}
+        <div className="flex flex-col gap-5 pb-2">
           <button
             type="button"
             onClick={() => setView('class_booking')}
-            className="w-full bg-white rounded-2xl border border-gray-100 shadow-sm p-5 md:p-6 flex flex-row items-center justify-between text-left gap-4 min-w-0 transition-all duration-200 active:scale-[0.98] active:bg-gray-50 hover:bg-gray-50/80 hover:border-emerald-100/80 cursor-pointer"
+            className="w-full flex flex-row items-center justify-between text-left gap-4 min-w-0 cursor-pointer transition-colors duration-200 hover:text-[#064e3b]"
           >
-            <div className="flex flex-row items-center gap-4 min-w-0 flex-1">
-              <Calendar size={28} strokeWidth={BENTO_ICON_STROKE} className="text-[#064e3b] shrink-0" aria-hidden />
+            <div className="flex flex-row items-center gap-3 min-w-0 flex-1">
+              <Calendar size={24} strokeWidth={BENTO_ICON_STROKE} className="text-[#064e3b] shrink-0" aria-hidden />
               <div className="flex flex-col justify-center min-w-0 text-left">
-                <p className="text-[10px] tracking-[0.2em] uppercase text-gray-400 font-medium">SCHEDULE</p>
-                <span className="text-base md:text-[17px] font-semibold text-[#064e3b] tracking-tight leading-snug mt-0.5">
-                  수업 예약 및 일정
-                </span>
+                <span className="text-xl font-semibold text-slate-900 tracking-tight leading-snug">수업 예약 및 일정</span>
               </div>
             </div>
-            <ChevronRight
-              size={22}
-              strokeWidth={BENTO_ICON_STROKE}
-              className="text-gray-300 shrink-0 self-center"
-              aria-hidden
-            />
+            <ChevronRight size={22} strokeWidth={BENTO_ICON_STROKE} className="text-gray-400 shrink-0 self-center" aria-hidden />
           </button>
+
+          <div className="space-y-3">
+            <p className="text-sm font-medium text-gray-500">나의 다가오는 일정</p>
+            {loadingBookings && !myBookings.length ? (
+              <div className="space-y-2">
+                <Skeleton className="h-4 w-40 rounded" />
+                <Skeleton className="h-4 w-48 rounded" />
+              </div>
+            ) : upcomingBookingsPreview.length === 0 ? (
+              <p className="text-sm text-gray-400">아직 예정된 수업이 없습니다.</p>
+            ) : (
+              <ul className="space-y-2.5">
+                {upcomingBookingsPreview.map((booking) => (
+                  <li key={booking.id} className="flex items-center justify-between gap-4 py-1">
+                    <span className="text-sm text-slate-800 font-medium">{formatUpcomingDateLabel(booking)}</span>
+                    <span className="text-sm tabular-nums text-[#064e3b] font-semibold">{formatTime24hStatic(booking.time)}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+
           {!MVP_HIDE_LIBRARY_AND_TRAINING_NAV && (
             <button
               type="button"
