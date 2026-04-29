@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { QrCode, LogOut, X, ChevronRight, History, Calendar, BookOpen } from 'lucide-react';
+import { QrCode, LogOut, X, ChevronRight, Calendar, BookOpen } from 'lucide-react';
 import { supabase } from '../../lib/supabaseClient';
 import { deriveSessionFocus, formatKoreanDateFromYmd } from '../../features/training/trainingLogUtils';
 import {
@@ -36,11 +36,10 @@ const formatTime24hStatic = (t) => {
 
 const KO_WEEKDAYS_SHORT = ['일', '월', '화', '수', '목', '금', '토'];
 
-const formatUpcomingLine = (b) => {
+const formatUpcomingDateLabel = (b) => {
   const dt = bookingDateTime(b);
   if (!dt) return '—';
-  const tm = formatTime24hStatic(b?.time);
-  return `${dt.getMonth() + 1}월 ${dt.getDate()}일 (${KO_WEEKDAYS_SHORT[dt.getDay()]}) ${tm}`;
+  return `${dt.getMonth() + 1}월 ${dt.getDate()}일 (${KO_WEEKDAYS_SHORT[dt.getDay()]})`;
 };
 
 const ClientHome = ({ user, logout, setView }) => {
@@ -437,45 +436,35 @@ const ClientHome = ({ user, logout, setView }) => {
 
       <main className="flex-1 flex flex-col px-5 gap-4 pb-6 overflow-y-auto scrollable min-h-0">
         {/* 1. Upcoming Class — read-only billboard; 전체 일정은「수업 예약 및 일정」화면 */}
-        <div className="w-full rounded-xl bg-[#064e3b] px-3 py-3 text-left text-white shadow-md ring-1 ring-white/10 shrink-0 sm:px-4 sm:py-3">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-3 sm:justify-between">
-            <div className="flex items-start gap-2 sm:max-w-[32%] min-w-0">
-              <div className="min-w-0 flex-1">
-                <p className="text-[9px] uppercase tracking-[0.2em] text-gray-400 font-medium">Upcoming Class</p>
-                <div className="flex items-center gap-1 mt-1.5">
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setShowHistory(true);
-                    }}
-                    className="p-1 rounded-md text-emerald-200/90 hover:bg-white/10 hover:text-white transition-all duration-200 ease-in-out shrink-0 cursor-pointer active:scale-95"
-                    aria-label="출석 이력"
-                  >
-                    <History size={15} strokeWidth={ICON_STROKE} />
-                  </button>
-                  <span className="text-[13px] font-light tracking-wide text-white/95 leading-tight">다음 수업</span>
-                </div>
-              </div>
+        <div className="w-full rounded-2xl bg-[#064e3b] px-4 py-4 text-left text-white shadow-md ring-1 ring-white/10 shrink-0 sm:px-5 sm:py-5">
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <p className="text-[11px] sm:text-xs font-light tracking-wide text-emerald-100/85">다음 수업</p>
             </div>
-
-            <div className="flex-1 min-w-0 sm:text-center px-1">
-              {loadingBookings && !myBookings.length ? (
-                <Skeleton className="h-5 w-full max-w-[220px] mx-auto sm:mx-auto bg-white/10 rounded" />
-              ) : upcomingBooking ? (
-                <p className="text-[13px] sm:text-sm font-light tracking-wide tabular-nums text-white leading-snug">
-                  {formatUpcomingLine(upcomingBooking)}
+            <button
+              type="button"
+              onClick={() => setShowHistory(true)}
+              className="bg-white/20 hover:bg-white/30 transition rounded-full px-4 py-1.5 text-sm font-medium cursor-pointer text-white/95 tabular-nums shrink-0"
+              aria-label="멤버십 현황 열기"
+            >
+              {sessionRemainLabel}
+            </button>
+          </div>
+          <div className="mt-4">
+            {loadingBookings && !myBookings.length ? (
+              <Skeleton className="h-12 w-36 bg-white/15 rounded-xl" />
+            ) : upcomingBooking ? (
+              <>
+                <p className="text-5xl font-bold tracking-tight tabular-nums text-white leading-none">
+                  {formatTime24hStatic(upcomingBooking?.time)}
                 </p>
-              ) : (
-                <p className="text-[12px] font-light tracking-wide text-emerald-100/85">예약 없음 · 수업 예약 및 일정에서 잡아보세요.</p>
-              )}
-            </div>
-
-            <div className="flex sm:justify-end sm:max-w-[32%] sm:min-w-[7rem] shrink-0 border-t border-white/10 pt-2 sm:border-t-0 sm:pt-0">
-              <p className="text-[12px] sm:text-[11px] font-light tabular-nums tracking-wide text-emerald-50/95 text-right w-full sm:text-right">
-                {sessionRemainLabel}
-              </p>
-            </div>
+                <p className="mt-2 text-sm font-light tracking-wide text-emerald-100/90">
+                  {formatUpcomingDateLabel(upcomingBooking)}
+                </p>
+              </>
+            ) : (
+              <p className="text-[12px] font-light tracking-wide text-emerald-100/85">예약 없음 · 수업 예약 및 일정에서 잡아보세요.</p>
+            )}
           </div>
         </div>
 
