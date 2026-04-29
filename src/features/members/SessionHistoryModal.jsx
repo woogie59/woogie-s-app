@@ -135,13 +135,13 @@ const SessionHistoryModal = ({ user, onClose }) => {
               </div>
             ) : (
               <>
-                <section className="space-y-5">
+                <section className="space-y-6">
                   <div>
                     <div className="mb-2 flex items-end justify-between">
-                      <p className="text-[11px] tracking-[0.15em] text-neutral-500 font-medium">진행률</p>
-                      <p className="text-sm font-medium text-neutral-600 tabular-nums">{Math.round(progressPercentage)}%</p>
+                      <p className="text-sm tracking-[0.08em] text-gray-500 font-medium">진행률</p>
+                      <p className="text-4xl font-bold text-gray-900 tabular-nums leading-none">{Math.round(progressPercentage)}%</p>
                     </div>
-                    <div className="h-2.5 bg-neutral-100 rounded-full overflow-hidden">
+                    <div className="h-4 bg-gray-100 rounded-full overflow-hidden">
                       <motion.div
                         initial={{ width: 0 }}
                         animate={{ width: `${progressPercentage}%` }}
@@ -151,25 +151,25 @@ const SessionHistoryModal = ({ user, onClose }) => {
                     </div>
                   </div>
                   <div className="grid grid-cols-3 gap-3 text-center">
-                    <div className="rounded-2xl border border-neutral-100 bg-neutral-50/70 px-3 py-4">
-                      <p className="text-[10px] font-medium tracking-[0.14em] text-neutral-500 mb-2">총 횟수</p>
-                      <p className="text-3xl font-semibold tabular-nums text-neutral-950 leading-none">{totalCount.toLocaleString()}</p>
+                    <div className="px-2 py-2">
+                      <p className="text-sm text-gray-500 font-medium mb-2">총 횟수</p>
+                      <p className="text-4xl font-bold tabular-nums text-gray-900 leading-none">{totalCount.toLocaleString()}</p>
                     </div>
-                    <div className="rounded-2xl border border-neutral-100 bg-neutral-50/70 px-3 py-4">
-                      <p className="text-[10px] font-medium tracking-[0.14em] text-neutral-500 mb-2">진행</p>
-                      <p className="text-3xl font-semibold tabular-nums text-neutral-950 leading-none">{usedCount.toLocaleString()}</p>
+                    <div className="px-2 py-2">
+                      <p className="text-sm text-gray-500 font-medium mb-2">진행</p>
+                      <p className="text-4xl font-bold tabular-nums text-gray-900 leading-none">{usedCount.toLocaleString()}</p>
                     </div>
-                    <div className="rounded-2xl border border-[#064e3b]/20 bg-[#064e3b]/5 px-3 py-4">
-                      <p className="text-[10px] font-medium tracking-[0.14em] text-[#064e3b]/80 mb-2">잔여</p>
-                      <p className="text-3xl font-semibold tabular-nums text-[#064e3b] leading-none">{remainingCount.toLocaleString()}</p>
+                    <div className="px-2 py-2">
+                      <p className="text-sm text-gray-500 font-medium mb-2">잔여</p>
+                      <p className="text-4xl font-bold tabular-nums text-[#064e3b] leading-none">{remainingCount.toLocaleString()}</p>
                     </div>
                   </div>
                 </section>
 
-                <section className="rounded-2xl border border-neutral-100 bg-neutral-50/60 p-4">
+                <section className="pt-1">
                   <div className="mb-4 flex items-center justify-between">
-                    <p className="text-[11px] font-medium tracking-[0.16em] text-neutral-500">주간 출석</p>
-                    <p className="text-xs text-neutral-400">최근 5주</p>
+                    <p className="text-sm font-medium text-gray-500">주간 출석</p>
+                    <p className="text-xs text-gray-400">최근 5주</p>
                   </div>
                   <div className="flex items-end justify-between gap-2">
                     {weeklyData.map((week, i) => {
@@ -182,15 +182,15 @@ const SessionHistoryModal = ({ user, onClose }) => {
                               animate={{ height: barHeight }}
                               transition={{ delay: i * 0.04, duration: 0.35, ease: 'easeOut' }}
                               className={`w-full max-w-[34px] rounded-sm ${
-                                week.isThisWeek ? 'bg-[#064e3b]' : 'bg-neutral-300'
+                                week.isThisWeek ? 'bg-[#064e3b]' : 'bg-gray-200'
                               }`}
                               style={{ minHeight: week.count > 0 ? 4 : 0 }}
                             />
                           </div>
-                          <span className="text-[11px] tabular-nums text-neutral-700 font-medium">{week.count}</span>
+                          <span className="text-[11px] tabular-nums text-gray-600 font-medium">{week.count}</span>
                           <span
                             className={`text-[10px] text-center leading-tight w-full truncate ${
-                              week.isThisWeek ? 'text-[#064e3b] font-medium' : 'text-neutral-500'
+                              week.isThisWeek ? 'text-[#064e3b] font-medium' : 'text-gray-500'
                             }`}
                           >
                             {week.label}

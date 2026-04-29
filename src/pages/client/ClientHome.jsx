@@ -364,13 +364,7 @@ const ClientHome = ({ user, logout, setView }) => {
     return { totalPurchased, usedSessionCount, remaining };
   }, [sessionBatches, attendanceLogs]);
 
-  const sessionRemainLabel = useMemo(() => {
-    const { totalPurchased, remaining } = sessionMetrics;
-    if (totalPurchased > 0) {
-      return `잔여 ${remaining} / ${totalPurchased}회`;
-    }
-    return `잔여 ${remaining}회`;
-  }, [sessionMetrics]);
+  const sessionRemainBadgeLabel = useMemo(() => `잔여 ${sessionMetrics.remaining}회`, [sessionMetrics.remaining]);
 
   if (!user) {
     return (
@@ -438,33 +432,30 @@ const ClientHome = ({ user, logout, setView }) => {
         {/* 1. Upcoming Class — read-only billboard; 전체 일정은「수업 예약 및 일정」화면 */}
         <div className="w-full rounded-2xl bg-[#064e3b] px-4 py-4 text-left text-white shadow-md ring-1 ring-white/10 shrink-0 sm:px-5 sm:py-5">
           <div className="flex items-start justify-between gap-3">
-            <div className="min-w-0">
-              <p className="text-[11px] sm:text-xs font-light tracking-wide text-emerald-100/85">다음 수업</p>
+            <div className="min-w-0 flex-1">
+              <p className="text-sm text-white/70 font-medium mb-1">다음 수업</p>
+              {loadingBookings && !myBookings.length ? (
+                <Skeleton className="h-14 w-40 bg-white/15 rounded-xl" />
+              ) : upcomingBooking ? (
+                <>
+                  <p className="text-6xl font-extrabold tracking-tighter tabular-nums text-white leading-none">
+                    {formatTime24hStatic(upcomingBooking?.time)}
+                  </p>
+                  <p className="text-base text-white/90 mt-2">{formatUpcomingDateLabel(upcomingBooking)}</p>
+                </>
+              ) : (
+                <p className="text-[13px] font-medium text-white/90 mt-2">예약 없음 · 수업 예약 및 일정에서 잡아보세요.</p>
+              )}
             </div>
             <button
               type="button"
               onClick={() => setShowHistory(true)}
-              className="bg-white/20 hover:bg-white/30 transition rounded-full px-4 py-1.5 text-sm font-medium cursor-pointer text-white/95 tabular-nums shrink-0"
+              className="bg-white/20 backdrop-blur-sm rounded-full px-4 py-2 text-sm font-semibold text-white flex items-center gap-1 cursor-pointer transition hover:bg-white/30 shrink-0"
               aria-label="멤버십 현황 열기"
             >
-              {sessionRemainLabel}
+              <span className="tabular-nums">{sessionRemainBadgeLabel}</span>
+              <span aria-hidden>›</span>
             </button>
-          </div>
-          <div className="mt-4">
-            {loadingBookings && !myBookings.length ? (
-              <Skeleton className="h-12 w-36 bg-white/15 rounded-xl" />
-            ) : upcomingBooking ? (
-              <>
-                <p className="text-5xl font-bold tracking-tight tabular-nums text-white leading-none">
-                  {formatTime24hStatic(upcomingBooking?.time)}
-                </p>
-                <p className="mt-2 text-sm font-light tracking-wide text-emerald-100/90">
-                  {formatUpcomingDateLabel(upcomingBooking)}
-                </p>
-              </>
-            ) : (
-              <p className="text-[12px] font-light tracking-wide text-emerald-100/85">예약 없음 · 수업 예약 및 일정에서 잡아보세요.</p>
-            )}
           </div>
         </div>
 
