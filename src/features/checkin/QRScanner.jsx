@@ -15,7 +15,9 @@ import {
 const QRScanner = ({ setView, goBack }) => {
   const [result, setResult] = useState(null);
   const [cameraError, setCameraError] = useState(null);
+  const [isScannerOpen, setIsScannerOpen] = useState(false);
   const scannerRef = useRef(null);
+  const mediaStreamRef = useRef(null);
 
   const processCheckIn = async (decodedText) => {
     if (!decodedText || typeof decodedText !== 'string') return;
@@ -129,7 +131,7 @@ const QRScanner = ({ setView, goBack }) => {
   };
 
   const startScanner = async () => {
-    if (scannerRef.current) return;
+    if (scannerRef.current || isScannerOpen) return;
     setCameraError(null);
 
     try {
@@ -148,11 +150,33 @@ const QRScanner = ({ setView, goBack }) => {
         },
         () => {}
       );
+      setIsScannerOpen(true);
+      // Keep an explicit reference so tracks can be force-stopped on unmount.
+      window.setTimeout(() => {
+        const videoEl = document.querySelector('#reader video');
+        const stream = videoEl?.srcObject;
+        if (stream && typeof stream.getTracks === 'function') {
+          mediaStreamRef.current = stream;
+        }
+      }, 0);
     } catch (err) {
       console.error('QRScanner camera error:', err);
       scannerRef.current = null;
-      setCameraError('카메라 권한을 허용해주세요.');
+      setIsScannerOpen(false);
+      setCameraError('카메라를 불러올 수 없습니다. 화면을 새로고침 해주세요.');
     }
+  };
+
+  const forceStopMediaTracks = () => {
+    const stopTracks = (stream) => {
+      if (stream && typeof stream.getTracks === 'function') {
+        stream.getTracks().forEach((track) => track.stop());
+      }
+    };
+    stopTracks(mediaStreamRef.current);
+    const videoEl = document.querySelector('#reader video');
+    stopTracks(videoEl?.srcObject);
+    mediaStreamRef.current = null;
   };
 
   const stopScanner = async () => {
@@ -165,6 +189,8 @@ const QRScanner = ({ setView, goBack }) => {
       } catch (e) {}
       scannerRef.current = null;
     }
+    forceStopMediaTracks();
+    setIsScannerOpen(false);
   };
 
   const resumeScanner = async () => {
@@ -179,13 +205,23 @@ const QRScanner = ({ setView, goBack }) => {
   };
 
   useEffect(() => {
-    startScanner();
+    try {
+      startScanner();
+    } catch (err) {
+      console.error('QRScanner init error:', err);
+      setCameraError('카메라를 불러올 수 없습니다. 화면을 새로고침 해주세요.');
+      setIsScannerOpen(false);
+    }
     return () => {
-      if (scannerRef.current) {
-        scannerRef.current.stop().catch(() => {});
-        scannerRef.current.clear();
-        scannerRef.current = null;
-      }
+      try {
+        if (scannerRef.current) {
+          scannerRef.current.stop().catch(() => {});
+          scannerRef.current.clear();
+          scannerRef.current = null;
+        }
+      } catch (e) {}
+      forceStopMediaTracks();
+      setIsScannerOpen(false);
     };
   }, []);
 
