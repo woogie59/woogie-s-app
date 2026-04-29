@@ -5,11 +5,8 @@
  * - ?slot=early  → 08:30 KST: 오늘 예약 중 시작 시각이 11:00 **미만**
  * - ?slot=late   → 10:00 KST: 오늘 예약 중 시작 시각이 11:00 **이상**
  *
- * 데이터: `bookings.date`는 **장소 시각표기용 캘린더 날짜(앱 기준 KST)** — 쿼리는 `eq("date", todayKST)` 문자열 매칭
- * 이 코드베이스에는 Kakao AlimTalk/SMS 연동이 없음; 푸시는 OneSignal REST.
- *
- * 테스트: `?test_mode=true` 또는 JSON `{"test_mode":true}` + Secret `ONESIGNAL_TEST_PLAYER_ID`
- * (본인 기기 player id — OneSignal 대시보드). 실제 회원에게는 발송하지 않음.
+ * 데이터: `bookings` (테이블명 `schedules` 아님 — 앱 스키마와 동일)
+ * 푸시: `profiles.onesignal_id` + OneSignal REST (Basic) — Service Role로 조회
  */
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
@@ -29,16 +26,6 @@ function getTodayKST(): string {
   return new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Seoul" });
 }
 
-/** KST 자정~익일 자정에 해당하는 UTC 구간 (로그·진단용; DB는 `date` 문자열만 비교) */
-function kstCalendarDayUtcRange(ymd: string): { startUtcIso: string; endUtcExclusiveIso: string } {
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(ymd)) {
-    return { startUtcIso: "invalid-ymd", endUtcExclusiveIso: "invalid-ymd" };
-  }
-  const start = new Date(`${ymd}T00:00:00+09:00`);
-  const end = new Date(start.getTime() + 24 * 60 * 60 * 1000);
-  return { startUtcIso: start.toISOString(), endUtcExclusiveIso: end.toISOString() };
-}
-
 function parseTimeToMinutes(raw: string): number | null {
   const m = String(raw).trim().match(/^(\d{1,2}):(\d{2})/);
   if (!m) return null;
@@ -48,6 +35,7 @@ function parseTimeToMinutes(raw: string): number | null {
   return h * 60 + min;
 }
 
+/** HH:mm (24h) — 메시지용 */
 function formatClassTimeHHmm(time: string): string {
   const mins = parseTimeToMinutes(time);
   if (mins === null) return String(time).trim() || "—";
@@ -66,64 +54,6 @@ function matchesSlot(time: string, slot: Slot): boolean {
 
 function buildMessage(classTimeHHmm: string): string {
   return `오늘은 ${classTimeHHmm}에 PT수업이 있는 날입니다. 잠시 후에 뵙겠습니다. 오늘도 좋은 하루 되시길 바랍니다.`;
-}
-
-function truthyTestMode(v: unknown): boolean {
-  if (v === true) return true;
-  const s = String(v ?? "").toLowerCase();
-  return s === "1" || s === "true" || s === "yes";
-}
-
-async function resolveTestMode(req: Request, url: URL): Promise<{ test_mode: boolean; json_note: Record<string, unknown> }> {
-  let test_mode = truthyTestMode(url.searchParams.get("test_mode"));
-  const json_note: Record<string, unknown> = {};
-  const method = req.method?.toUpperCase();
-  if (method === "POST" || method === "PUT" || method === "PATCH") {
-    const ct = req.headers.get("content-type") ?? "";
-    if (ct.includes("application/json")) {
-      try {
-        const b = (await req.json()) as Record<string, unknown>;
-        Object.assign(json_note, b);
-        if (truthyTestMode(b?.test_mode)) test_mode = true;
-      } catch {
-        /* empty body */
-      }
-    }
-  }
-  return { test_mode, json_note };
-}
-
-async function postOneSignal(
-  restKey: string,
-  payload: Record<string, unknown>,
-  label: string,
-): Promise<{ ok: boolean; status: number; body: Record<string, unknown>; raw_text: string }> {
-  const res = await fetch(ONESIGNAL_API, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Basic ${restKey}`,
-    },
-    body: JSON.stringify(payload),
-  });
-  const raw_text = await res.text();
-  let body: Record<string, unknown> = {};
-  try {
-    body = raw_text ? (JSON.parse(raw_text) as Record<string, unknown>) : {};
-  } catch {
-    body = { _parse_error: raw_text.slice(0, 500) };
-  }
-  console.log(
-    `[daily-class-reminder][onesignal][${label}] http_status=${res.status} response=${JSON.stringify(body)}`,
-  );
-  const errObj = body.errors ?? body.invalid_aliases ?? body.invalid_player_ids;
-  const ok = res.ok && !errObj;
-  if (!res.ok || errObj) {
-    console.error(
-      `[daily-class-reminder][onesignal][${label}] provider_error http=${res.status} raw=${raw_text.slice(0, 3000)}`,
-    );
-  }
-  return { ok, status: res.status, body, raw_text };
 }
 
 Deno.serve(async (req: Request) => {
@@ -149,11 +79,8 @@ Deno.serve(async (req: Request) => {
   }
   const slot = slotParam as Slot;
 
-  const { test_mode, json_note } = await resolveTestMode(req, url);
-
   const appId = (Deno.env.get("ONESIGNAL_APP_ID") || "").replace(/["']/g, "").trim();
   const restKey = (Deno.env.get("ONESIGNAL_REST_API_KEY") || "").replace(/["']/g, "").trim();
-  const testPlayerId = (Deno.env.get("ONESIGNAL_TEST_PLAYER_ID") || "").trim();
   const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
   const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
 
@@ -166,29 +93,8 @@ Deno.serve(async (req: Request) => {
     );
   }
 
-  if (test_mode && !testPlayerId) {
-    console.error(
-      "[daily-class-reminder] test_mode=true but ONESIGNAL_TEST_PLAYER_ID missing — refusing to fallback to real users",
-    );
-    return new Response(
-      JSON.stringify({
-        error: "test_mode requested but secret ONESIGNAL_TEST_PLAYER_ID is not set (your device OneSignal player id)",
-        hint: "Set ONESIGNAL_TEST_PLAYER_ID via `supabase secrets set` — this project uses OneSignal push, not SMS.",
-      }),
-      { status: 503, headers: { "Content-Type": "application/json" } },
-    );
-  }
-
   const supabase = createClient(supabaseUrl, serviceKey);
   const todayKST = getTodayKST();
-  const { startUtcIso, endUtcExclusiveIso } = kstCalendarDayUtcRange(todayKST);
-
-  console.log(
-    `[daily-class-reminder][query-audit] timezone=Asia/Seoul calendar_date_used="${todayKST}" ` +
-      `postgres_filter.bookings.date.eq="${todayKST}" status.neq cancelled | ` +
-      `logical_KST_day_utc_semantics=[start=${startUtcIso}, end_exclusive=${endUtcExclusiveIso}) | ` +
-      `runner_now_utc="${new Date().toISOString()}"`,
-  );
 
   const { data: bookingRows, error: bookingsErr } = await supabase
     .from("bookings")
@@ -220,64 +126,14 @@ Deno.serve(async (req: Request) => {
   }
 
   const title = "LAB DOT · 오늘의 PT";
-  type ResultRow = {
+  const results: Array<{
     booking_id: string;
     user_id: string;
     sent: boolean;
     skipped?: string;
     error?: string;
-  };
-  const results: ResultRow[] = [];
+  }> = [];
 
-  /** Test mode — one summary push to ONESIGNAL_TEST_PLAYER_ID only */
-  if (test_mode) {
-    const sampleTimes = [...earliestByUser.values()]
-      .map((r) => formatClassTimeHHmm(String(r.time ?? "")))
-      .slice(0, 12);
-    const summary =
-      `[테스트][${slot}] KST 날짜 ${todayKST} · 해당 슬롯 예약 건수 ${filtered.length} · 회원별 최초 ${earliestByUser.size}건 · 샘플 시각 ${sampleTimes.join(", ") || "(없음)"}`;
-    console.log("[daily-class-reminder][test_mode] sending only to ONESIGNAL_TEST_PLAYER_ID:", testPlayerId);
-
-    const { ok, status, body } = await postOneSignal(restKey, {
-      app_id: appId,
-      include_player_ids: [testPlayerId],
-      headings: { en: title + " (테스트)" },
-      contents: { en: summary },
-      data: {
-        labdot_audience: "member",
-        labdot_event: "daily_class_reminder_test",
-        slot,
-        test_mode: true,
-      },
-    }, `test_${slot}`);
-    results.push({
-      booking_id: "test_mode",
-      user_id: "test_mode",
-      sent: ok,
-      error: ok ? undefined : JSON.stringify(body),
-    });
-
-    return new Response(
-      JSON.stringify({
-        ok: true,
-        function: "daily-class-reminder",
-        test_mode: true,
-        test_player_id_hint: "***",
-        one_signal_http: status,
-        slot,
-        date_kst: todayKST,
-        kst_day_utc_start: startUtcIso,
-        kst_day_utc_end_exclusive: endUtcExclusiveIso,
-        bookings_in_slot: filtered.length,
-        members_would_receive: earliestByUser.size,
-        results,
-        body_echo: json_note,
-      }),
-      { status: 200, headers: { "Content-Type": "application/json" } },
-    );
-  }
-
-  /** Production — per member */
   for (const row of earliestByUser.values()) {
     const { data: profile, error: pErr } = await supabase
       .from("profiles")
@@ -309,9 +165,13 @@ Deno.serve(async (req: Request) => {
     const classTimeHHmm = formatClassTimeHHmm(String(row.time ?? ""));
     const message = buildMessage(classTimeHHmm);
 
-    const { ok, body } = await postOneSignal(
-      restKey,
-      {
+    const res = await fetch(ONESIGNAL_API, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Basic ${restKey}`,
+      },
+      body: JSON.stringify({
         app_id: appId,
         include_player_ids: [pid],
         headings: { en: title },
@@ -322,16 +182,16 @@ Deno.serve(async (req: Request) => {
           slot,
           booking_id: row.id,
         },
-      },
-      `member_${row.id}`,
-    );
+      }),
+    });
 
-    if (!ok) {
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok || (data as { errors?: unknown }).errors) {
       results.push({
         booking_id: row.id,
         user_id: row.user_id,
         sent: false,
-        error: JSON.stringify(body),
+        error: JSON.stringify(data),
       });
       continue;
     }
@@ -345,8 +205,6 @@ Deno.serve(async (req: Request) => {
       function: "daily-class-reminder",
       slot,
       date_kst: todayKST,
-      kst_day_utc_start: startUtcIso,
-      kst_day_utc_end_exclusive: endUtcExclusiveIso,
       bookings_in_slot: filtered.length,
       members_targeted: earliestByUser.size,
       results,
