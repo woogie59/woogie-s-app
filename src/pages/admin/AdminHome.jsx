@@ -4,6 +4,7 @@ import { LogOut, Users, Calendar, Archive, NotebookPen, ChevronDown, Table2 } fr
 import { supabase } from '../../lib/supabaseClient';
 import { fetchMembersBalanceSummaries, fetchSessionBalanceMetrics } from '../../utils/sessionHelpers';
 import LabDotBrand from '../../components/ui/LabDotBrand';
+import toast from 'react-hot-toast';
 
 const ICON_STROKE = 1.5;
 
@@ -48,7 +49,7 @@ const AdminHome = ({ setView, logout, onOpenTrainingLog }) => {
   const [radarLoading, setRadarLoading] = useState(true);
   const [unconfirmedExpanded, setUnconfirmedExpanded] = useState(false);
   const [lowCreditAlert, setLowCreditAlert] = useState(null);
-  const [realtimeToast, setRealtimeToast] = useState(null);
+  const [overview, setOverview] = useState({ total: 0, active: 0, unbooked: 0 });
   const realtimeToastTimerRef = useRef(null);
 
   const loadUnscheduledVipRadar = useCallback(async () => {
@@ -106,6 +107,11 @@ const AdminHome = ({ setView, logout, onOpenTrainingLog }) => {
         lastCheckInAt: lastByUser[p.id] ?? null,
       }));
       setUnscheduledVips(enriched);
+      setOverview({
+        total: memberRows.length,
+        active: members.length,
+        unbooked: enriched.length,
+      });
     } catch (e) {
       console.error('[Unscheduled VIP Radar]', e);
       setUnscheduledVips([]);
@@ -166,7 +172,7 @@ const AdminHome = ({ setView, logout, onOpenTrainingLog }) => {
   useEffect(() => {
     const ch = supabase
       .channel('admin_attendance_low_credit_toast_rt')
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'attendance_logs' }, async (payload) => {
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'attendance_logs' }, async (payload) => {
         const uid = payload?.new?.user_id;
         if (!uid) return;
         try {
@@ -177,9 +183,21 @@ const AdminHome = ({ setView, logout, onOpenTrainingLog }) => {
           const remaining = metrics?.remaining ?? null;
           if (remaining == null || remaining > 5) return;
           if (realtimeToastTimerRef.current != null) clearTimeout(realtimeToastTimerRef.current);
-          setRealtimeToast(`🚨 ${profile?.name || '회원'}님 수강권 만료 임박! (잔여 ${remaining}회)`);
+          toast.error(`🚨 ${profile?.name || '회원'}님 수강권 만료 임박! (잔여 ${remaining}회)`);
+          if (typeof window !== 'undefined' && window.AudioContext) {
+            const ctx = new window.AudioContext();
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+            osc.type = 'square';
+            osc.frequency.value = 880;
+            gain.gain.value = 0.02;
+            osc.connect(gain);
+            gain.connect(ctx.destination);
+            osc.start();
+            osc.stop(ctx.currentTime + 0.09);
+            osc.onended = () => ctx.close();
+          }
           realtimeToastTimerRef.current = window.setTimeout(() => {
-            setRealtimeToast(null);
             realtimeToastTimerRef.current = null;
           }, 3500);
         } catch (e) {
@@ -242,6 +260,19 @@ const AdminHome = ({ setView, logout, onOpenTrainingLog }) => {
         </div>
       </header>
 
+      <section className="w-full max-w-lg mx-auto px-6 pb-4">
+        <div className="rounded-2xl bg-white border border-gray-100 shadow-sm px-4 py-3">
+          <p className="text-sm text-gray-500">오늘도 통제권은 당신에게 있습니다.</p>
+          <div className="mt-2 flex items-center gap-2 text-xs text-gray-600">
+            <span>전체 회원 <span className="font-semibold text-slate-900">{overview.total}</span></span>
+            <span>|</span>
+            <span>활성 회원 <span className="font-semibold text-slate-900">{overview.active}</span></span>
+            <span>|</span>
+            <span>미예약 <span className="font-semibold text-slate-900">{overview.unbooked}</span></span>
+          </div>
+        </div>
+      </section>
+
       {lowCreditAlert && (
         <section className="w-full max-w-lg mx-auto px-6 pb-3">
           <div className="w-full rounded-2xl border border-red-200 bg-red-50 p-4 shadow-sm">
@@ -263,12 +294,6 @@ const AdminHome = ({ setView, logout, onOpenTrainingLog }) => {
             </div>
           </div>
         </section>
-      )}
-
-      {realtimeToast && (
-        <div className="fixed top-4 left-1/2 -translate-x-1/2 z-[120] px-4 py-3 rounded-xl bg-red-600 text-white text-sm font-semibold shadow-xl">
-          {realtimeToast}
-        </div>
       )}
 
       {/* 일정 미확정 회원 — full-width data card (no in-app scheduling action) */}

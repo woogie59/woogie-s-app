@@ -57,6 +57,7 @@ const ClientHome = ({ user, logout, setView }) => {
   /** attendance_logs rows for eligible count (with bookings, excludes zombies). */
   const [attendanceLogs, setAttendanceLogs] = useState([]);
   const [showHistory, setShowHistory] = useState(false);
+  const [showCheckInDoneModal, setShowCheckInDoneModal] = useState(false);
   /** Most recent training log row (`client_session_reports`) for gateway teaser */
   const [latestReport, setLatestReport] = useState(null);
   const [latestReportLoading, setLatestReportLoading] = useState(true);
@@ -407,6 +408,7 @@ const ClientHome = ({ user, logout, setView }) => {
       }
       await Promise.all([fetchMyBookings(), loadSessionMetrics()]);
       showAlert({ message: '출석이 완료되었습니다.' });
+      setShowCheckInDoneModal(true);
     } catch (e) {
       console.error('[ClientHome] self check-in:', e);
       showAlert({ message: e?.message || '출석 처리에 실패했습니다.' });
@@ -535,17 +537,17 @@ const ClientHome = ({ user, logout, setView }) => {
           type="button"
           onClick={handleSelfCheckIn}
           disabled={checkInButtonState !== 'active' || isCheckInSubmitting}
-          className={`w-full my-10 shrink-0 flex flex-col items-center justify-center gap-3 rounded-3xl px-6 py-10 transition-all duration-200 ease-in-out ${
+          className={`my-10 shrink-0 flex flex-col items-center justify-center gap-3 rounded-3xl px-6 py-8 transition-all duration-200 ease-in-out ${
             checkInButtonState === 'completed'
-              ? 'bg-gray-900 text-white shadow-lg cursor-not-allowed'
+              ? 'w-5/6 max-w-sm mx-auto bg-[#064e3b]/10 text-[#064e3b] shadow-sm cursor-not-allowed'
               : checkInButtonState === 'active'
-                ? 'bg-[#064e3b] text-white shadow-2xl hover:bg-[#053d2f] active:scale-[0.985] animate-pulse cursor-pointer'
-                : 'bg-gray-300 text-white/95 shadow-none opacity-50 cursor-not-allowed'
+                ? 'w-full bg-[#064e3b] text-white shadow-2xl hover:bg-[#053d2f] active:scale-[0.985] animate-pulse cursor-pointer'
+                : 'w-full bg-gray-300 text-white/95 shadow-none opacity-50 cursor-not-allowed'
           }`}
         >
-          <div className="rounded-2xl bg-white/10 ring-1 ring-white/15 px-4 py-3">
+          <div className={`rounded-2xl px-4 py-3 ${checkInButtonState === 'completed' ? 'bg-[#064e3b]/10' : 'bg-white/10 ring-1 ring-white/15'}`}>
             {checkInButtonState === 'completed' ? (
-              <Check size={34} strokeWidth={2.2} className="text-white" aria-hidden />
+              <Check size={30} strokeWidth={2.2} className="text-[#064e3b]" aria-hidden />
             ) : (
               <QrCode size={34} strokeWidth={1.25} className="text-white" aria-hidden />
             )}
@@ -557,7 +559,7 @@ const ClientHome = ({ user, logout, setView }) => {
             {isCheckInSubmitting
               ? '처리 중...'
               : checkInButtonState === 'completed'
-                ? `오늘도 고생하셨습니다! (남은 수강권: ${sessionMetrics.remaining}회)`
+                ? '오늘도 고생하셨습니다!'
                 : checkInButtonState === 'active'
                 ? '수업 시작 30분 전부터 시작 후 15분까지 가능합니다'
                 : '출석 가능 시간: 수업 시작 30분 전 ~ 시작 후 15분'}
@@ -636,6 +638,40 @@ const ClientHome = ({ user, logout, setView }) => {
       <AnimatePresence>
         {showHistory && (
           <SessionHistoryModal user={user} onClose={() => setShowHistory(false)} />
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {showCheckInDoneModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/25 p-6"
+            onClick={() => setShowCheckInDoneModal(false)}
+          >
+            <motion.div
+              initial={{ scale: 0.94, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.96, opacity: 0 }}
+              className="w-full max-w-sm rounded-2xl bg-white p-6 text-center shadow-xl border border-gray-100"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="mx-auto mb-3 inline-flex rounded-full bg-emerald-50 p-3">
+                <Check className="text-emerald-600" size={24} />
+              </div>
+              <p className="text-lg font-semibold text-slate-900">출석 완료</p>
+              <p className="mt-1 text-sm text-slate-600">오늘도 고생하셨습니다!</p>
+              <p className="mt-2 text-sm font-medium text-[#064e3b]">남은 수강권: {sessionMetrics.remaining}회</p>
+              <button
+                type="button"
+                onClick={() => setShowCheckInDoneModal(false)}
+                className="mt-5 w-full rounded-xl bg-[#064e3b] py-2.5 text-sm font-semibold text-white hover:bg-[#053d2f]"
+              >
+                확인
+              </button>
+            </motion.div>
+          </motion.div>
         )}
       </AnimatePresence>
 
