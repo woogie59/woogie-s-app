@@ -15,6 +15,7 @@ import LabDotBrand from '../../components/ui/LabDotBrand';
 import Skeleton from '../../components/ui/Skeleton';
 import SessionHistoryModal from '../../features/members/SessionHistoryModal';
 import { parseBookingToLocalDate } from '../../utils/bookingDateKeys';
+import MemberCancelBookingModals from '../../components/member/MemberCancelBookingModals';
 
 /** MVP: 라이브러리·트레이닝 일지 진입 UI 비표시 — 라우트/화면은 유지 */
 const MVP_HIDE_LIBRARY_AND_TRAINING_NAV = true;
@@ -58,6 +59,7 @@ const ClientHome = ({ user, logout, setView }) => {
   const [attendanceLogs, setAttendanceLogs] = useState([]);
   const [showHistory, setShowHistory] = useState(false);
   const [showCheckInDoneModal, setShowCheckInDoneModal] = useState(false);
+  const [cancelIntent, setCancelIntent] = useState(null);
   /** Most recent training log row (`client_session_reports`) for gateway teaser */
   const [latestReport, setLatestReport] = useState(null);
   const [latestReportLoading, setLatestReportLoading] = useState(true);
@@ -446,6 +448,11 @@ const ClientHome = ({ user, logout, setView }) => {
     [getBookingCheckInState, handleSelfCheckIn, showAlert]
   );
 
+  const syncAfterBookingCancel = useCallback(async () => {
+    await Promise.all([fetchMyBookings(), loadSessionMetrics()]);
+    emitSessionBalanceRefresh();
+  }, [fetchMyBookings, loadSessionMetrics]);
+
   const upcomingClasses = useMemo(() => {
     if (!myBookings?.length) return [];
     const now = new Date();
@@ -592,7 +599,7 @@ const ClientHome = ({ user, logout, setView }) => {
               <p className="text-sm text-gray-400">아직 예정된 수업이 없습니다.</p>
             ) : (
               <div>
-                <ul className="list-none space-y-2.5 m-0 p-0">
+                <ul className="list-none m-0 p-0">
                   {upcomingClasses.map((booking, index) => {
                     const state = getBookingCheckInState(booking);
                     const isActive = state === 'active';
@@ -600,11 +607,16 @@ const ClientHome = ({ user, logout, setView }) => {
 
                     if (index > 0) {
                       return (
-                        <li key={booking.id} className="list-none rounded-2xl bg-white border border-gray-100 px-5 py-4 shadow-sm">
-                          <div className="flex items-center justify-between gap-4">
+                        <li
+                          key={booking.id}
+                          className="list-none flex justify-between items-center py-4 border-b border-gray-100 cursor-pointer"
+                          onClick={() => setCancelIntent(booking)}
+                        >
+                          <div className="flex items-center justify-between gap-4 w-full">
                             <div className="min-w-0">
-                              <p className="text-sm text-slate-800 font-medium">{formatUpcomingDateLabel(booking)}</p>
-                              <p className="mt-1 text-base tabular-nums text-slate-900 font-semibold">{formatTime24hStatic(booking.time)}</p>
+                              <p className="text-sm text-slate-800 font-medium">
+                                {formatUpcomingDateLabel(booking)} {formatTime24hStatic(booking.time)}
+                              </p>
                             </div>
                             <span className="text-gray-300 text-lg" aria-hidden>
                               &gt;
@@ -746,6 +758,14 @@ const ClientHome = ({ user, logout, setView }) => {
           </motion.div>
         )}
       </AnimatePresence>
+
+      <MemberCancelBookingModals
+        user={user}
+        memberDisplayName={profile?.name || user?.user_metadata?.full_name || user?.email?.split('@')[0]}
+        openBooking={cancelIntent}
+        onOpenBookingChange={setCancelIntent}
+        onAfterSuccessConfirm={syncAfterBookingCancel}
+      />
 
     </div>
   );

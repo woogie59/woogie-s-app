@@ -193,8 +193,11 @@ const MemberCancelBookingModals = ({
               ) : (
                 <>
                   <h3 className="text-lg font-serif text-[#064e3b] mb-2">예약 취소</h3>
+                  <p className="text-gray-600 text-sm leading-relaxed mb-2 whitespace-pre-line">
+                    {bookingToDelete.date} {bookingToDelete.time}
+                  </p>
                   <p className="text-gray-600 text-sm leading-relaxed mb-6 whitespace-pre-line">
-                    {bookingToDelete.date} {bookingToDelete.time} 수업 예약을 취소할까요?
+                    해당 수업 예약을 취소하시겠습니까?
                   </p>
                   <div className="flex gap-3 justify-end">
                     <button

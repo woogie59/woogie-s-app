@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useLayoutEffect, useMemo, useCallback } from 'react';
-import { Lock, ChevronRight } from 'lucide-react';
+import { Lock } from 'lucide-react';
 import { supabase } from '../../lib/supabaseClient';
 import { fetchAdminOnesignalProfile } from '../../utils/notifications';
 import {
@@ -16,7 +16,6 @@ import {
   isNextWeekBookingUnlockedKST,
   NEXT_WEEK_LOCKED_BANNER_HTML,
   NEXT_WEEK_LOCKED_TOAST_MESSAGE,
-  parseBookingToLocalDate,
 } from '../../utils/bookingDateKeys';
 import {
   getBookingInitialPwaState,
@@ -50,22 +49,6 @@ const addDays = (d, n) => {
 };
 
 const weekDayLabelsKo = ['월', '화', '수', '목', '금', '토', '일'];
-const KO_WEEKDAYS_SHORT = ['일', '월', '화', '수', '목', '금', '토'];
-const bookingDateTime = parseBookingToLocalDate;
-
-const formatKoreanDayHeader = (date) => {
-  const m = date.getMonth() + 1;
-  const d = date.getDate();
-  const w = KO_WEEKDAYS_SHORT[date.getDay()];
-  return `${m}월 ${d}일 (${w})`;
-};
-
-const formatTime24hDisplay = (t) => {
-  if (!t || typeof t !== 'string') return t || '—';
-  const m = String(t).match(/(\d{1,2}):(\d{2})/);
-  return m ? `${m[1].padStart(2, '0')}:${m[2]}` : t;
-};
-
 function normalizeAvailableHours(raw) {
   if (raw == null) return [];
   let arr = raw;
@@ -146,15 +129,6 @@ const ClassBooking = ({ user, setView, goBack }) => {
     });
     return s;
   }, [myAllBookings]);
-
-  const upcomingMyBookings = useMemo(() => {
-    const now = new Date();
-    return (myAllBookings || [])
-      .map((b) => ({ b, dt: bookingDateTime(b) }))
-      .filter((x) => x.dt && x.dt >= now)
-      .sort((a, b) => a.dt - b.dt)
-      .map((x) => x.b);
-  }, [myAllBookings, memberCancelUiTick]);
 
   const weekDates = useMemo(() => {
     const arr = [];
@@ -609,48 +583,6 @@ const ClassBooking = ({ user, setView, goBack }) => {
               <p className="text-center text-sm font-light text-gray-400 py-16 tracking-wide">날짜를 선택해 주세요.</p>
             )}
 
-            <section className="mt-4 mb-6 border-t border-gray-100/90 pt-4">
-              <p className="text-[10px] tracking-[0.2em] uppercase text-gray-400 font-medium mb-1">Upcoming</p>
-              <h2 className="text-base font-semibold text-slate-900 tracking-tight">나의 다가오는 일정</h2>
-              <p className="text-xs text-gray-400 font-light leading-relaxed mt-1.5 mb-3 max-w-[20rem]">
-                캘린더·목록에서 내 예약을 탭하면 상세 화면으로 이동합니다.
-              </p>
-              {upcomingMyBookings.length === 0 ? (
-                <div className="rounded-2xl border border-dashed border-gray-200 bg-white/60 px-4 py-8 text-center">
-                  <p className="text-sm text-gray-500 font-light">예정된 수업이 없어요.</p>
-                  <p className="text-xs text-gray-400 mt-1">위 캘린더에서 날짜를 고른 뒤 슬롯을 예약해 보세요.</p>
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  {upcomingMyBookings.map((booking) => {
-                    const bdt = bookingDateTime(booking);
-                    return (
-                      <button
-                        key={booking.id}
-                        type="button"
-                        onClick={() => setCancelIntent(booking)}
-                        className="w-full text-left rounded-2xl border border-gray-200/60 bg-white px-5 py-5 shadow-sm shadow-slate-900/[0.04] hover:shadow-md hover:border-gray-200 active:scale-[0.99] transition-all duration-200 group"
-                      >
-                        <div className="flex items-center justify-between gap-4 min-w-0">
-                          <div className="min-w-0 flex-1">
-                            <p className="text-[15px] sm:text-base font-semibold text-slate-900 tracking-tight">
-                              {bdt ? formatKoreanDayHeader(bdt) : '—'}
-                            </p>
-                            <p className="text-[1.6rem] sm:text-3xl font-bold text-[#064e3b] tabular-nums mt-2.5 leading-none tracking-tight">
-                              {formatTime24hDisplay(booking.time)}
-                            </p>
-                          </div>
-                          <div className="shrink-0 flex items-center justify-center pl-2 text-gray-300 group-hover:text-[#064e3b]/70 transition-colors">
-                            <span className="sr-only">상세</span>
-                            <ChevronRight size={22} strokeWidth={ICON_STROKE} aria-hidden />
-                          </div>
-                        </div>
-                      </button>
-                    );
-                  })}
-                </div>
-              )}
-            </section>
           </div>
         </div>
       )}
