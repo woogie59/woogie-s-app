@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { QrCode, LogOut, ChevronRight, Calendar, BookOpen, Check } from 'lucide-react';
+import { LogOut, ChevronRight, Calendar, BookOpen, Check, Fingerprint } from 'lucide-react';
 import { supabase } from '../../lib/supabaseClient';
 import { deriveSessionFocus, formatKoreanDateFromYmd } from '../../features/training/trainingLogUtils';
 import {
@@ -549,41 +549,7 @@ const ClientHome = ({ user, logout, setView }) => {
           </div>
         </div>
 
-        {/* 2. 출석하기 — self check-in smart button */}
-        <button
-          type="button"
-          onClick={handleSelfCheckIn}
-          disabled={checkInButtonState !== 'active' || isCheckInSubmitting}
-          className={`my-10 shrink-0 flex flex-col items-center justify-center gap-3 rounded-3xl px-6 py-8 transition-all duration-200 ease-in-out ${
-            checkInButtonState === 'completed'
-              ? 'w-5/6 max-w-sm mx-auto bg-[#064e3b]/10 text-[#064e3b] shadow-sm cursor-not-allowed'
-              : checkInButtonState === 'active'
-                ? 'w-full bg-[#064e3b] text-white shadow-2xl hover:bg-[#053d2f] active:scale-[0.985] animate-pulse cursor-pointer'
-                : 'w-full bg-gray-300 text-white/95 shadow-none opacity-50 cursor-not-allowed'
-          }`}
-        >
-          <div className={`rounded-2xl px-4 py-3 ${checkInButtonState === 'completed' ? 'bg-[#064e3b]/10' : 'bg-white/10 ring-1 ring-white/15'}`}>
-            {checkInButtonState === 'completed' ? (
-              <Check size={30} strokeWidth={2.2} className="text-[#064e3b]" aria-hidden />
-            ) : (
-              <QrCode size={34} strokeWidth={1.25} className="text-white" aria-hidden />
-            )}
-          </div>
-          <span className="text-2xl font-bold tracking-tight">
-            {checkInButtonState === 'completed' ? '출석 완료' : checkInButtonState === 'active' ? '출석하기 (터치)' : '출석 가능 시간이 아닙니다'}
-          </span>
-          <span className="text-sm text-white/75 font-medium tracking-wide">
-            {isCheckInSubmitting
-              ? '처리 중...'
-              : checkInButtonState === 'completed'
-                ? '오늘도 고생하셨습니다!'
-                : checkInButtonState === 'active'
-                ? '수업 시작 30분 전부터 시작 후 15분까지 가능합니다'
-                : '출석 가능 시간: 수업 시작 30분 전 ~ 시작 후 15분'}
-          </span>
-        </button>
-
-        {/* 3. Open schedule flow */}
+        {/* 2. Open schedule flow */}
         <div className="flex flex-col gap-5 pb-2">
           <button
             type="button"
@@ -601,6 +567,7 @@ const ClientHome = ({ user, logout, setView }) => {
 
           <div className="space-y-3">
             <p className="text-sm font-medium text-gray-500">나의 다가오는 일정</p>
+            <p className="text-[11px] text-gray-400">출석 가능 시간: 수업 시작 30분 전 ~ 시작 후 15분</p>
             {loadingBookings && !myBookings.length ? (
               <div className="space-y-2">
                 <Skeleton className="h-4 w-40 rounded" />
@@ -610,7 +577,66 @@ const ClientHome = ({ user, logout, setView }) => {
               <p className="text-sm text-gray-400">아직 예정된 수업이 없습니다.</p>
             ) : (
               <ul className="space-y-2.5">
-                {upcomingBookingsPreview.map((booking) => (
+                {todayNearestBooking && (
+                  <motion.li
+                    initial={{ opacity: 0.85 }}
+                    animate={
+                      checkInButtonState === 'active'
+                        ? {
+                            opacity: [0.85, 1, 0.85],
+                            boxShadow: [
+                              '0 0 0 rgba(6,78,59,0)',
+                              '0 0 0 6px rgba(6,78,59,0.10)',
+                              '0 0 0 rgba(6,78,59,0)',
+                            ],
+                          }
+                        : { opacity: 1 }
+                    }
+                    transition={
+                      checkInButtonState === 'active'
+                        ? { duration: 2.6, repeat: Infinity, ease: 'easeInOut' }
+                        : { duration: 0.2 }
+                    }
+                    className={`rounded-xl px-3 py-2 ${
+                      checkInButtonState === 'active'
+                        ? 'bg-emerald-50/60 cursor-pointer'
+                        : checkInButtonState === 'completed'
+                          ? 'bg-gray-100'
+                          : 'bg-gray-50'
+                    }`}
+                    onClick={() => {
+                      if (checkInButtonState === 'active') handleSelfCheckIn();
+                    }}
+                  >
+                    <div className="flex items-center justify-between gap-4">
+                      <div className="flex items-center gap-2">
+                        {checkInButtonState === 'completed' ? (
+                          <Check size={16} strokeWidth={2.2} className="text-[#064e3b]" />
+                        ) : (
+                          <Fingerprint size={16} strokeWidth={1.8} className={checkInButtonState === 'active' ? 'text-[#064e3b]' : 'text-gray-400'} />
+                        )}
+                        <span className={`text-sm font-bold tabular-nums ${checkInButtonState === 'active' ? 'text-[#064e3b]' : 'text-gray-700'}`}>
+                          {formatTime24hStatic(todayNearestBooking.time)}
+                        </span>
+                      </div>
+                      <span className={`text-xs font-semibold ${checkInButtonState === 'active' ? 'text-[#064e3b]' : 'text-gray-500'}`}>
+                        {checkInButtonState === 'completed'
+                          ? '출석 완료'
+                          : checkInButtonState === 'active'
+                            ? isCheckInSubmitting
+                              ? '처리 중...'
+                              : '출석하기'
+                            : '대기 중'}
+                      </span>
+                    </div>
+                    <p className={`mt-1 text-xs ${checkInButtonState === 'active' ? 'text-[#064e3b]/80' : 'text-gray-500'}`}>
+                      남은 수강권: {sessionMetrics.remaining}회
+                    </p>
+                  </motion.li>
+                )}
+                {upcomingBookingsPreview
+                  .filter((booking) => booking?.id !== todayNearestBooking?.id)
+                  .map((booking) => (
                   <li key={booking.id} className="flex items-center justify-between gap-4 py-1">
                     <span className="text-sm text-slate-800 font-medium">{formatUpcomingDateLabel(booking)}</span>
                     <span className="text-sm tabular-nums text-[#064e3b] font-semibold">{formatTime24hStatic(booking.time)}</span>
