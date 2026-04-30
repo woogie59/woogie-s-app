@@ -172,7 +172,7 @@ const AdminHome = ({ setView, logout, onOpenTrainingLog }) => {
   useEffect(() => {
     const ch = supabase
       .channel('admin_attendance_low_credit_toast_rt')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'attendance_logs' }, async (payload) => {
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'attendance_logs' }, async (payload) => {
         const uid = payload?.new?.user_id;
         if (!uid) return;
         try {
@@ -181,9 +181,15 @@ const AdminHome = ({ setView, logout, onOpenTrainingLog }) => {
             fetchSessionBalanceMetrics(supabase, uid),
           ]);
           const remaining = metrics?.remaining ?? null;
-          if (remaining == null || remaining > 5) return;
+          if (remaining == null) return;
           if (realtimeToastTimerRef.current != null) clearTimeout(realtimeToastTimerRef.current);
-          toast.error(`🚨 ${profile?.name || '회원'}님 수강권 만료 임박! (잔여 ${remaining}회)`);
+          toast(
+            `✅ 출석 알림: ${profile?.name || '회원'}님이 출석했습니다. (잔여: ${remaining}회)`,
+            { icon: '🔔' }
+          );
+          if (remaining <= 5) {
+            toast.error(`🚨 ${profile?.name || '회원'}님 수강권 만료 임박! (잔여 ${remaining}회)`);
+          }
           if (typeof window !== 'undefined' && window.AudioContext) {
             const ctx = new window.AudioContext();
             const osc = ctx.createOscillator();

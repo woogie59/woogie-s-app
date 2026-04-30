@@ -406,7 +406,24 @@ const ClientHome = ({ user, logout, setView }) => {
         const { error: updateErr } = await supabase.from('bookings').update({ status: 'completed' }).eq('id', todayNearestBooking.id);
         if (updateErr) console.warn('[ClientHome] booking complete update:', updateErr);
       }
-      await Promise.all([fetchMyBookings(), loadSessionMetrics()]);
+      const [latestMetrics] = await Promise.all([
+        fetchSessionBalanceMetrics(supabase, user.id),
+        fetchMyBookings(),
+        loadSessionMetrics(),
+      ]);
+      const remainingAfterCheckIn = latestMetrics?.remaining ?? 0;
+      const memberName = profile?.name || '회원';
+
+      // Admin push: self check-in success event
+      await supabase.functions.invoke('send-admin-alert', {
+        body: {
+          title: '✅ 출석 알림',
+          body: `${memberName}님이 출석했습니다. (잔여: ${remainingAfterCheckIn}회)`,
+          heading: '✅ 출석 알림',
+          message: `${memberName}님이 출석했습니다. (잔여: ${remainingAfterCheckIn}회)`,
+        },
+      });
+
       showAlert({ message: '출석이 완료되었습니다.' });
       setShowCheckInDoneModal(true);
     } catch (e) {
@@ -415,7 +432,7 @@ const ClientHome = ({ user, logout, setView }) => {
     } finally {
       setIsCheckInSubmitting(false);
     }
-  }, [checkInButtonState, isCheckInSubmitting, user?.id, todayNearestBooking, fetchMyBookings, loadSessionMetrics, showAlert]);
+  }, [checkInButtonState, isCheckInSubmitting, user?.id, todayNearestBooking, fetchMyBookings, loadSessionMetrics, showAlert, profile?.name]);
 
   const upcomingBookingsPreview = useMemo(() => {
     if (!myBookings?.length) return [];
