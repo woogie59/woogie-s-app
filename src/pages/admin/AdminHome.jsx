@@ -2,7 +2,7 @@ import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { motion } from 'framer-motion';
 import { LogOut, QrCode, Users, Calendar, Archive, NotebookPen, ChevronDown, Table2 } from 'lucide-react';
 import { supabase } from '../../lib/supabaseClient';
-import { fetchMembersBalanceSummaries } from '../../utils/sessionHelpers';
+import { fetchMembersBalanceSummaries, fetchSessionBalanceMetrics } from '../../utils/sessionHelpers';
 import LabDotBrand from '../../components/ui/LabDotBrand';
 
 const ICON_STROKE = 1.5;
@@ -48,6 +48,8 @@ const AdminHome = ({ setView, logout, onOpenTrainingLog }) => {
   const [radarLoading, setRadarLoading] = useState(true);
   const [unconfirmedExpanded, setUnconfirmedExpanded] = useState(false);
   const [lowCreditAlert, setLowCreditAlert] = useState(null);
+  const [realtimeToast, setRealtimeToast] = useState(null);
+  const realtimeToastTimerRef = useRef(null);
 
   const loadUnscheduledVipRadar = useCallback(async () => {
     setRadarLoading(true);
@@ -161,6 +163,36 @@ const AdminHome = ({ setView, logout, onOpenTrainingLog }) => {
     setLowCreditAlert(null);
   }, [lowCreditAlert]);
 
+  useEffect(() => {
+    const ch = supabase
+      .channel('admin_attendance_low_credit_toast_rt')
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'attendance_logs' }, async (payload) => {
+        const uid = payload?.new?.user_id;
+        if (!uid) return;
+        try {
+          const [{ data: profile }, metrics] = await Promise.all([
+            supabase.from('profiles').select('name').eq('id', uid).maybeSingle(),
+            fetchSessionBalanceMetrics(supabase, uid),
+          ]);
+          const remaining = metrics?.remaining ?? null;
+          if (remaining == null || remaining > 5) return;
+          if (realtimeToastTimerRef.current != null) clearTimeout(realtimeToastTimerRef.current);
+          setRealtimeToast(`🚨 ${profile?.name || '회원'}님 수강권 만료 임박! (잔여 ${remaining}회)`);
+          realtimeToastTimerRef.current = window.setTimeout(() => {
+            setRealtimeToast(null);
+            realtimeToastTimerRef.current = null;
+          }, 3500);
+        } catch (e) {
+          console.warn('[AdminHome] realtime low-credit toast:', e);
+        }
+      })
+      .subscribe();
+    return () => {
+      if (realtimeToastTimerRef.current != null) clearTimeout(realtimeToastTimerRef.current);
+      supabase.removeChannel(ch);
+    };
+  }, []);
+
   const radarDebounceRef = useRef(null);
   useEffect(() => {
     const schedule = () => {
@@ -231,6 +263,12 @@ const AdminHome = ({ setView, logout, onOpenTrainingLog }) => {
             </div>
           </div>
         </section>
+      )}
+
+      {realtimeToast && (
+        <div className="fixed top-4 left-1/2 -translate-x-1/2 z-[120] px-4 py-3 rounded-xl bg-red-600 text-white text-sm font-semibold shadow-xl">
+          {realtimeToast}
+        </div>
       )}
 
       {/* 일정 미확정 회원 — full-width data card (no in-app scheduling action) */}

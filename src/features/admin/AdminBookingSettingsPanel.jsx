@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabaseClient';
 import { useGlobalModal } from '../../context/GlobalModalContext';
+import { ChevronDown } from 'lucide-react';
 
 const DAY_NAMES = ['일', '월', '화', '수', '목', '금', '토'];
 const DAY_RENDER_ORDER = [1, 2, 3, 4, 5, 6, 0];
@@ -42,6 +43,7 @@ const AdminBookingSettingsPanel = ({ variant = 'page', className = '' }) => {
   const [saving, setSaving] = useState(false);
   const [saveToast, setSaveToast] = useState(false);
   const [newHolidayDate, setNewHolidayDate] = useState('');
+  const [settingsOpen, setSettingsOpen] = useState(variant === 'page' ? true : false);
 
   const fetchData = async () => {
     setLoading(true);
@@ -231,7 +233,15 @@ const AdminBookingSettingsPanel = ({ variant = 'page', className = '' }) => {
   if (variant === 'embed') {
     return (
       <div className={`rounded-2xl border border-[#064e3b]/20 bg-white shadow-sm overflow-hidden ${className}`}>
-        <div className="px-3 pb-4 pt-4 sm:px-4 max-h-[min(70vh,520px)] overflow-y-auto">{body}</div>
+        <button
+          type="button"
+          onClick={() => setSettingsOpen((o) => !o)}
+          className="w-full flex items-center justify-between px-4 py-3 text-left bg-gradient-to-r from-white to-emerald-50/30"
+        >
+          <span className="text-sm font-semibold text-[#064e3b]">예약 설정</span>
+          <ChevronDown className={`h-4 w-4 text-slate-400 transition-transform ${settingsOpen ? 'rotate-180' : ''}`} />
+        </button>
+        {settingsOpen && <div className="px-3 pb-4 pt-1 sm:px-4 max-h-[min(70vh,520px)] overflow-y-auto">{body}</div>}
       </div>
     );
   }

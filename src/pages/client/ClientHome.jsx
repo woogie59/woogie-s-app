@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { QrCode, LogOut, ChevronRight, Calendar, BookOpen } from 'lucide-react';
+import { QrCode, LogOut, ChevronRight, Calendar, BookOpen, Check } from 'lucide-react';
 import { supabase } from '../../lib/supabaseClient';
 import { deriveSessionFocus, formatKoreanDateFromYmd } from '../../features/training/trainingLogUtils';
 import {
@@ -537,14 +537,18 @@ const ClientHome = ({ user, logout, setView }) => {
           disabled={checkInButtonState !== 'active' || isCheckInSubmitting}
           className={`w-full my-10 shrink-0 flex flex-col items-center justify-center gap-3 rounded-3xl px-6 py-10 transition-all duration-200 ease-in-out ${
             checkInButtonState === 'completed'
-              ? 'bg-slate-700 text-white shadow-lg cursor-not-allowed'
+              ? 'bg-gray-900 text-white shadow-lg cursor-not-allowed'
               : checkInButtonState === 'active'
                 ? 'bg-[#064e3b] text-white shadow-2xl hover:bg-[#053d2f] active:scale-[0.985] animate-pulse cursor-pointer'
                 : 'bg-gray-300 text-white/95 shadow-none opacity-50 cursor-not-allowed'
           }`}
         >
           <div className="rounded-2xl bg-white/10 ring-1 ring-white/15 px-4 py-3">
-            <QrCode size={34} strokeWidth={1.25} className="text-white" aria-hidden />
+            {checkInButtonState === 'completed' ? (
+              <Check size={34} strokeWidth={2.2} className="text-white" aria-hidden />
+            ) : (
+              <QrCode size={34} strokeWidth={1.25} className="text-white" aria-hidden />
+            )}
           </div>
           <span className="text-2xl font-bold tracking-tight">
             {checkInButtonState === 'completed' ? '출석 완료' : checkInButtonState === 'active' ? '출석하기 (터치)' : '출석 가능 시간이 아닙니다'}
@@ -552,7 +556,9 @@ const ClientHome = ({ user, logout, setView }) => {
           <span className="text-sm text-white/75 font-medium tracking-wide">
             {isCheckInSubmitting
               ? '처리 중...'
-              : checkInButtonState === 'active'
+              : checkInButtonState === 'completed'
+                ? `오늘 하루 마무리 잘하시길 바랍니다. (남은 수강권: ${sessionMetrics.remaining}회)`
+                : checkInButtonState === 'active'
                 ? '수업 시작 30분 전부터 시작 후 15분까지 가능합니다'
                 : '출석 가능 시간: 수업 시작 30분 전 ~ 시작 후 15분'}
           </span>
