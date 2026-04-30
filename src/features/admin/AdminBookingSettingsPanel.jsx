@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabaseClient';
 import { useGlobalModal } from '../../context/GlobalModalContext';
-import { ChevronDown, Settings2 } from 'lucide-react';
 
 const DAY_NAMES = ['일', '월', '화', '수', '목', '금', '토'];
+const DAY_RENDER_ORDER = [1, 2, 3, 4, 5, 6, 0];
 const HOURS_0_23 = Array.from({ length: 24 }, (_, i) => i);
 
 const emptyWeek = () =>
@@ -42,7 +42,6 @@ const AdminBookingSettingsPanel = ({ variant = 'page', className = '' }) => {
   const [saving, setSaving] = useState(false);
   const [saveToast, setSaveToast] = useState(false);
   const [newHolidayDate, setNewHolidayDate] = useState('');
-  const [settingsOpen, setSettingsOpen] = useState(variant === 'page');
 
   const fetchData = async () => {
     setLoading(true);
@@ -153,7 +152,7 @@ const AdminBookingSettingsPanel = ({ variant = 'page', className = '' }) => {
         <h3 className="text-[#064e3b] font-bold mb-2 text-sm tracking-wide">주간 휴무 · 예약 가능 시간</h3>
         <p className="text-xs text-slate-500 mb-3">시간 칸을 켜면 해당 시간에 예약이 열립니다.</p>
         <div className="space-y-3">
-          {settings.map((s) => (
+          {DAY_RENDER_ORDER.map((dow) => settings.find((x) => x.day_of_week === dow)).filter(Boolean).map((s) => (
             <div
               key={s.day_of_week}
               className="p-3 rounded-xl border border-slate-200/90 bg-slate-50/60 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.6)]"
@@ -232,19 +231,7 @@ const AdminBookingSettingsPanel = ({ variant = 'page', className = '' }) => {
   if (variant === 'embed') {
     return (
       <div className={`rounded-2xl border border-[#064e3b]/20 bg-white shadow-sm overflow-hidden ${className}`}>
-        <button
-          type="button"
-          onClick={() => setSettingsOpen((o) => !o)}
-          className="w-full flex items-center justify-between gap-2 px-4 py-3 text-left bg-gradient-to-r from-white to-emerald-50/40 hover:from-emerald-50/30 transition-colors"
-        >
-          <div className="flex items-center gap-2 min-w-0">
-            <Settings2 className="w-4 h-4 text-[#064e3b] shrink-0" />
-            <span className="font-semibold text-[#064e3b] text-sm truncate">예약 설정</span>
-            <span className="text-[10px] text-slate-500 hidden sm:inline">휴무 · 가용 슬롯</span>
-          </div>
-          <ChevronDown className={`w-5 h-5 text-slate-400 transition-transform shrink-0 ${settingsOpen ? 'rotate-180' : ''}`} />
-        </button>
-        {settingsOpen && <div className="px-3 pb-4 sm:px-4 max-h-[min(70vh,520px)] overflow-y-auto border-t border-[#064e3b]/10">{body}</div>}
+        <div className="px-3 pb-4 pt-4 sm:px-4 max-h-[min(70vh,520px)] overflow-y-auto">{body}</div>
       </div>
     );
   }

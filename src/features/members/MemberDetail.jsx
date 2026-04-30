@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { Plus, Settings2 } from 'lucide-react';
 import { supabase } from '../../lib/supabaseClient';
 import { fetchSessionBalanceMetrics } from '../../utils/sessionHelpers';
 import { SESSION_BALANCE_REFRESH_EVENT } from '../../utils/sessionBalanceEvents';
@@ -77,6 +78,9 @@ const MemberDetail = ({ selectedMemberId, goBack }) => {
   }, [selectedMemberId, reloadBalanceOnly]);
 
   const totalRemaining = sessionBalance?.remaining ?? 0;
+  const totalPurchased = sessionBalance?.totalPurchased ?? 0;
+  const usedSessionCount = sessionBalance?.usedSessionCount ?? 0;
+  const progressPct = totalPurchased > 0 ? Math.min(100, (usedSessionCount / totalPurchased) * 100) : 0;
 
   const saveMemoIfChanged = useCallback(async () => {
     if (!u?.id) return;
@@ -119,21 +123,44 @@ const MemberDetail = ({ selectedMemberId, goBack }) => {
       </section>
 
       <section className="mb-16">
-        <div className="flex items-baseline justify-between gap-4 mb-8">
+        <div className="flex items-center justify-between gap-4 mb-6">
           <h2 className="text-base font-semibold text-neutral-950">수강권 내역</h2>
           <button
             type="button"
             onClick={() => setSessionModal('add')}
-            className="text-sm font-medium text-neutral-950 underline underline-offset-4 decoration-neutral-300 hover:decoration-neutral-950"
+            className="inline-flex items-center gap-1.5 rounded-lg bg-[#064e3b] px-3 py-2 text-xs font-semibold text-white hover:bg-[#053d2f] transition-colors"
           >
-            + 수강권 추가
+            <Plus size={14} />
+            수강권 추가
           </button>
         </div>
 
-        {!loadingBatches && sessionBalance && sessionBalance.totalPurchased > 0 && (
-          <p className="text-sm text-neutral-600 mb-8 leading-relaxed">
-            잔여 {sessionBalance.remaining} / 총 {sessionBalance.totalPurchased}회 · 출석 {sessionBalance.usedSessionCount}회
-          </p>
+        {!loadingBatches && (
+          <div className="mb-8 rounded-2xl bg-gradient-to-br from-[#0b5a45] to-[#064e3b] p-5 text-white shadow-lg">
+            <div className="grid grid-cols-3 gap-3">
+              <div>
+                <p className="text-[11px] text-emerald-100/80">총 횟수</p>
+                <p className="mt-1 text-2xl font-semibold tabular-nums">{totalPurchased}</p>
+              </div>
+              <div>
+                <p className="text-[11px] text-emerald-100/80">진행</p>
+                <p className="mt-1 text-2xl font-semibold tabular-nums">{usedSessionCount}</p>
+              </div>
+              <div>
+                <p className="text-[11px] text-emerald-100/80">잔여</p>
+                <p className="mt-1 text-2xl font-semibold tabular-nums">{totalRemaining}</p>
+              </div>
+            </div>
+            <div className="mt-4">
+              <div className="mb-1.5 flex items-center justify-between">
+                <span className="text-[11px] text-emerald-100/80">진행률</span>
+                <span className="text-xs font-semibold tabular-nums">{Math.round(progressPct)}%</span>
+              </div>
+              <div className="h-2.5 rounded-full bg-white/20 overflow-hidden">
+                <div className="h-full rounded-full bg-white" style={{ width: `${progressPct}%` }} />
+              </div>
+            </div>
+          </div>
         )}
 
         {loadingBatches ? (
@@ -157,8 +184,9 @@ const MemberDetail = ({ selectedMemberId, goBack }) => {
                   <button
                     type="button"
                     onClick={() => setSessionModal(batch)}
-                    className="mt-4 text-sm font-medium text-neutral-950 border-b border-neutral-950 pb-0.5"
+                    className="mt-4 inline-flex items-center gap-1.5 rounded-lg border border-neutral-300 px-3 py-2 text-xs font-semibold text-neutral-700 hover:border-[#064e3b]/40 hover:text-[#064e3b] transition-colors"
                   >
+                    <Settings2 size={14} />
                     수정
                   </button>
                 </li>

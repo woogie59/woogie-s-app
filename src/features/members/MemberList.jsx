@@ -66,13 +66,7 @@ const MemberList = ({ setView, goBack, setSelectedMemberId }) => {
   return (
     <div className="min-h-[100dvh] bg-white text-slate-900 p-6">
       <BackButton onClick={goBack} />
-
-      <header className="flex items-center justify-between mb-8">
-        <div></div>
-        <h2 className="text-lg font-serif text-emerald-600">MEMBERS</h2>
-        <div className="w-6"></div>
-      </header>
-      <div className="space-y-4">
+      <div className="space-y-4 mt-8">
         {loading ? (
           <div className="space-y-4">
             {[1, 2, 3, 4, 5].map((i) => (
@@ -103,13 +97,11 @@ const MemberList = ({ setView, goBack, setSelectedMemberId }) => {
             >
               <div>
                 <h3 className="font-bold text-lg text-slate-900">{u.name}</h3>
-                <p className="text-gray-500 text-xs mt-1">{u.email}</p>
               </div>
               <div className="flex items-center gap-4">
-                <div className="text-right">
-                  <span className="block text-[10px] text-gray-500 uppercase tracking-wider">Remaining</span>
-                  <span className="text-lg font-serif text-emerald-600">{u.computedRemaining ?? 0}</span>
-                </div>
+                <span className="rounded-full bg-emerald-50 text-emerald-700 text-xs font-semibold px-3 py-1.5 tabular-nums">
+                  잔여 {u.computedRemaining ?? 0}회
+                </span>
                 <ChevronRight size={20} className="text-gray-400" />
               </div>
             </div>
