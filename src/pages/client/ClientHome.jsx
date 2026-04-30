@@ -557,7 +557,7 @@ const ClientHome = ({ user, logout, setView }) => {
             {isCheckInSubmitting
               ? '처리 중...'
               : checkInButtonState === 'completed'
-                ? `오늘 하루 마무리 잘하시길 바랍니다. (남은 수강권: ${sessionMetrics.remaining}회)`
+                ? `오늘도 고생하셨습니다! (남은 수강권: ${sessionMetrics.remaining}회)`
                 : checkInButtonState === 'active'
                 ? '수업 시작 30분 전부터 시작 후 15분까지 가능합니다'
                 : '출석 가능 시간: 수업 시작 30분 전 ~ 시작 후 15분'}

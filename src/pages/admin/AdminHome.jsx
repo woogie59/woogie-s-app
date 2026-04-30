@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { motion } from 'framer-motion';
-import { LogOut, QrCode, Users, Calendar, Archive, NotebookPen, ChevronDown, Table2 } from 'lucide-react';
+import { LogOut, Users, Calendar, Archive, NotebookPen, ChevronDown, Table2 } from 'lucide-react';
 import { supabase } from '../../lib/supabaseClient';
 import { fetchMembersBalanceSummaries, fetchSessionBalanceMetrics } from '../../utils/sessionHelpers';
 import LabDotBrand from '../../components/ui/LabDotBrand';
@@ -324,21 +324,9 @@ const AdminHome = ({ setView, logout, onOpenTrainingLog }) => {
         </div>
       </section>
 
-      {/* QR Scanner — full-width tactile card */}
-      <div className="w-full max-w-lg mx-auto px-6 pb-5">
-        <button
-          type="button"
-          onClick={() => setView('scanner')}
-          className="w-full bg-[#064e3b] text-white rounded-2xl shadow-md p-5 flex items-center justify-center gap-3 transition-all duration-200 active:scale-[0.98] cursor-pointer hover:shadow-lg hover:bg-[#053d2f]"
-        >
-          <QrCode size={28} strokeWidth={ICON_STROKE} className="shrink-0" aria-hidden />
-          <span className="text-[15px] font-medium tracking-wide">QR 체크인 스캐너</span>
-        </button>
-      </div>
-
       {/* 2×2 Bento menu */}
       <nav
-        className="mx-auto grid w-full max-w-lg flex-1 grid-cols-2 gap-3 px-6 pb-8"
+        className="mx-auto grid w-full max-w-lg flex-1 grid-cols-2 gap-3 px-6 pb-10 pt-1"
         aria-label="관리 메뉴"
       >
         {menuItems.map(({ icon: Icon, label, view, action }) => (
