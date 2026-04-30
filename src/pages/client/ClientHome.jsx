@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { QrCode, LogOut, X, ChevronRight, Calendar, BookOpen } from 'lucide-react';
+import { QrCode, LogOut, ChevronRight, Calendar, BookOpen } from 'lucide-react';
 import { supabase } from '../../lib/supabaseClient';
 import { deriveSessionFocus, formatKoreanDateFromYmd } from '../../features/training/trainingLogUtils';
 import {
@@ -46,10 +46,7 @@ const ClientHome = ({ user, logout, setView }) => {
   const { showAlert } = useGlobalModal();
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [showQRModal, setShowQRModal] = useState(false);
-  /** Fade-out QR modal over 0.5s after 출석 감지 (attendance_logs INSERT 또는 bookings UPDATE) */
-  const [qrCheckInClosing, setQrCheckInClosing] = useState(false);
-  const qrCloseTimerRef = useRef(null);
+  const [isCheckInSubmitting, setIsCheckInSubmitting] = useState(false);
   /** attendance_logs INSERT + bookings UPDATE 둘 다 올 때 토스트/팝업 중복 방지 */
   const lastCheckInRealtimeRef = useRef(0);
 
@@ -63,15 +60,6 @@ const ClientHome = ({ user, logout, setView }) => {
   /** Most recent training log row (`client_session_reports`) for gateway teaser */
   const [latestReport, setLatestReport] = useState(null);
   const [latestReportLoading, setLatestReportLoading] = useState(true);
-
-  useEffect(() => {
-    return () => {
-      if (qrCloseTimerRef.current != null) {
-        clearTimeout(qrCloseTimerRef.current);
-        qrCloseTimerRef.current = null;
-      }
-    };
-  }, []);
 
   useEffect(() => {
     const fetchProfile = async () => {
@@ -180,19 +168,10 @@ const ClientHome = ({ user, logout, setView }) => {
           }
 
           if (payload.eventType === 'INSERT') {
-            if (qrCloseTimerRef.current != null) {
-              clearTimeout(qrCloseTimerRef.current);
-              qrCloseTimerRef.current = null;
-            }
-            setQrCheckInClosing(false);
-            setShowQRModal(false);
-
             const now = Date.now();
             if (now - lastCheckInRealtimeRef.current < 2000) return;
             lastCheckInRealtimeRef.current = now;
-
-            alert('출석이 완료되었습니다!');
-            window.location.reload();
+            void refreshAfterAttendanceChangeRef.current?.();
             return;
           }
 
@@ -355,6 +334,87 @@ const ClientHome = ({ user, logout, setView }) => {
     return future[0]?.b ?? null;
   }, [myBookings]);
 
+  const todayNearestBooking = useMemo(() => {
+    const now = new Date();
+    const todayKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+    const todayBookings = (myBookings || [])
+      .filter((b) => {
+        if (!b) return false;
+        if (b.status === 'cancelled') return false;
+        const d = bookingDateTime(b);
+        if (!d) return false;
+        const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+        return key === todayKey;
+      })
+      .map((b) => ({ booking: b, start: bookingDateTime(b) }))
+      .filter((x) => x.start instanceof Date && !Number.isNaN(x.start.getTime()));
+
+    if (!todayBookings.length) return null;
+
+    const candidates = todayBookings
+      .filter((x) => (now.getTime() - x.start.getTime()) / 60000 <= 15)
+      .sort((a, b) => a.start.getTime() - b.start.getTime());
+
+    return candidates[0]?.booking ?? null;
+  }, [myBookings]);
+
+  const hasCheckedInForNearest = useMemo(() => {
+    if (!todayNearestBooking) return false;
+    if (todayNearestBooking.status === 'completed' || todayNearestBooking.status === 'attended') return true;
+    const targetTime = formatTime24hStatic(todayNearestBooking.time);
+    const targetDate = bookingDateTime(todayNearestBooking);
+    if (!targetDate) return false;
+    return (attendanceLogs || []).some((log) => {
+      const d = new Date(log.check_in_at);
+      if (Number.isNaN(d.getTime())) return false;
+      const sameDate =
+        d.getFullYear() === targetDate.getFullYear() &&
+        d.getMonth() === targetDate.getMonth() &&
+        d.getDate() === targetDate.getDate();
+      if (!sameDate) return false;
+      const fixed = typeof log.session_time_fixed === 'string' ? formatTime24hStatic(log.session_time_fixed) : null;
+      const logTime = fixed || d.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', hour12: false });
+      return formatTime24hStatic(logTime) === targetTime;
+    });
+  }, [todayNearestBooking, attendanceLogs]);
+
+  const isCheckInWindowOpen = useMemo(() => {
+    if (!todayNearestBooking) return false;
+    const start = bookingDateTime(todayNearestBooking);
+    if (!start) return false;
+    const now = new Date();
+    const diffMin = (now.getTime() - start.getTime()) / 60000;
+    return diffMin >= -30 && diffMin <= 15;
+  }, [todayNearestBooking]);
+
+  const checkInButtonState = useMemo(() => {
+    if (hasCheckedInForNearest) return 'completed';
+    if (isCheckInWindowOpen) return 'active';
+    return 'disabled';
+  }, [hasCheckedInForNearest, isCheckInWindowOpen]);
+
+  const handleSelfCheckIn = useCallback(async () => {
+    if (checkInButtonState !== 'active' || isCheckInSubmitting) return;
+    if (!user?.id) return;
+    setIsCheckInSubmitting(true);
+    try {
+      const { error: rpcError } = await supabase.rpc('check_in_user', { user_uuid: user.id });
+      if (rpcError) throw rpcError;
+
+      if (todayNearestBooking?.id) {
+        const { error: updateErr } = await supabase.from('bookings').update({ status: 'completed' }).eq('id', todayNearestBooking.id);
+        if (updateErr) console.warn('[ClientHome] booking complete update:', updateErr);
+      }
+      await Promise.all([fetchMyBookings(), loadSessionMetrics()]);
+      showAlert({ message: '출석이 완료되었습니다.' });
+    } catch (e) {
+      console.error('[ClientHome] self check-in:', e);
+      showAlert({ message: e?.message || '출석 처리에 실패했습니다.' });
+    } finally {
+      setIsCheckInSubmitting(false);
+    }
+  }, [checkInButtonState, isCheckInSubmitting, user?.id, todayNearestBooking, fetchMyBookings, loadSessionMetrics, showAlert]);
+
   const upcomingBookingsPreview = useMemo(() => {
     if (!myBookings?.length) return [];
     const now = new Date();
@@ -470,17 +530,32 @@ const ClientHome = ({ user, logout, setView }) => {
           </div>
         </div>
 
-        {/* 2. 출석하기 — dimensional smart key */}
+        {/* 2. 출석하기 — self check-in smart button */}
         <button
           type="button"
-          onClick={() => setShowQRModal(true)}
-          className="w-full my-10 shrink-0 flex flex-col items-center justify-center gap-3 cursor-pointer rounded-3xl bg-gradient-to-br from-[#272b31] via-[#1b1f24] to-[#121418] shadow-2xl px-6 py-10 text-white transition-all duration-200 ease-in-out hover:brightness-105 active:scale-[0.985]"
+          onClick={handleSelfCheckIn}
+          disabled={checkInButtonState !== 'active' || isCheckInSubmitting}
+          className={`w-full my-10 shrink-0 flex flex-col items-center justify-center gap-3 rounded-3xl px-6 py-10 transition-all duration-200 ease-in-out ${
+            checkInButtonState === 'completed'
+              ? 'bg-slate-700 text-white shadow-lg cursor-not-allowed'
+              : checkInButtonState === 'active'
+                ? 'bg-[#064e3b] text-white shadow-2xl hover:bg-[#053d2f] active:scale-[0.985] animate-pulse cursor-pointer'
+                : 'bg-gray-300 text-white/95 shadow-none opacity-50 cursor-not-allowed'
+          }`}
         >
-          <div className="rounded-2xl bg-white/10 ring-1 ring-white/15 px-4 py-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.12)]">
+          <div className="rounded-2xl bg-white/10 ring-1 ring-white/15 px-4 py-3">
             <QrCode size={34} strokeWidth={1.25} className="text-white" aria-hidden />
           </div>
-          <span className="text-2xl font-bold tracking-tight">출석하기</span>
-          <span className="text-sm text-white/65 font-medium tracking-wide">스캐너를 향해 QR을 보여주세요</span>
+          <span className="text-2xl font-bold tracking-tight">
+            {checkInButtonState === 'completed' ? '출석 완료' : checkInButtonState === 'active' ? '출석하기 (터치)' : '출석 가능 시간이 아닙니다'}
+          </span>
+          <span className="text-sm text-white/75 font-medium tracking-wide">
+            {isCheckInSubmitting
+              ? '처리 중...'
+              : checkInButtonState === 'active'
+                ? '수업 시작 30분 전부터 시작 후 15분까지 가능합니다'
+                : '출석 가능 시간: 수업 시작 30분 전 ~ 시작 후 15분'}
+          </span>
         </button>
 
         {/* 3. Open schedule flow */}
@@ -550,79 +625,6 @@ const ClientHome = ({ user, logout, setView }) => {
           )}
         </div>
       </main>
-
-      {/* QR Code Modal — realtime 출석 감지 시 0.5s fade-out → 출석 완료 알림 */}
-      <AnimatePresence>
-        {showQRModal && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: qrCheckInClosing ? 0 : 1 }}
-            transition={{ duration: 0.5, ease: 'easeInOut' }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 flex items-center justify-center p-6 bg-gray-900/30 backdrop-blur-sm"
-            onClick={() => !qrCheckInClosing && setShowQRModal(false)}
-          >
-            <motion.div
-              initial={{ scale: 0.96, opacity: 0 }}
-              animate={{ scale: qrCheckInClosing ? 0.98 : 1, opacity: qrCheckInClosing ? 0 : 1 }}
-              transition={{ duration: 0.5, ease: 'easeInOut' }}
-              exit={{ scale: 0.96, opacity: 0 }}
-              className="bg-white border border-gray-100 rounded-2xl p-8 max-w-sm w-full shadow-2xl"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <div className="flex justify-between items-center mb-6">
-                <h3 className="text-lg font-semibold text-[#064e3b] tracking-tight">체크인 QR</h3>
-                <button
-                  type="button"
-                  onClick={() => !qrCheckInClosing && setShowQRModal(false)}
-                  disabled={qrCheckInClosing}
-                  className="text-gray-500 hover:text-slate-900 transition-colors p-1 disabled:opacity-40"
-                  aria-label="닫기"
-                >
-                  <X size={22} strokeWidth={ICON_STROKE} />
-                </button>
-              </div>
-
-              <div className="flex flex-col items-center mb-6">
-                <p className="text-[10px] text-gray-400 tracking-[0.25em] uppercase font-medium mb-3">Membership Pass</p>
-                <div className="bg-[#fafafa] border border-gray-100 rounded-2xl p-8 flex items-center justify-center w-full max-w-[280px]">
-                  {user?.id ? (
-                    <img
-                      src={`https://api.qrserver.com/v1/create-qr-code/?data=${encodeURIComponent(user.id)}&size=200x200&format=png&color=18181b&bgcolor=fafafa`}
-                      alt="Check-in QR Code"
-                      className="rounded-lg"
-                    />
-                  ) : (
-                    <div className="w-[200px] h-[200px] bg-gray-100 rounded-lg flex items-center justify-center border border-gray-200">
-                      <span className="text-gray-500 text-sm">로딩 중…</span>
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              <div className="bg-gray-50 rounded-xl p-5 border border-gray-100">
-                <div className="flex justify-between items-center mb-2">
-                  <span className="text-gray-500 text-sm">이름</span>
-                  <span className="text-slate-900 font-semibold">{profile?.name || '—'}</span>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-gray-500 text-sm">잔여 세션</span>
-                  <span className="text-2xl font-semibold text-[#064e3b] tabular-nums">{sessionMetrics.remaining}</span>
-                </div>
-              </div>
-
-              <button
-                type="button"
-                onClick={() => !qrCheckInClosing && setShowQRModal(false)}
-                disabled={qrCheckInClosing}
-                className="w-full mt-6 bg-[#064e3b] text-white font-semibold py-3.5 rounded-xl hover:bg-[#053d2f] active:scale-[0.99] transition-all disabled:opacity-50"
-              >
-                닫기
-              </button>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
 
       {/* Session History Modal */}
       <AnimatePresence>
