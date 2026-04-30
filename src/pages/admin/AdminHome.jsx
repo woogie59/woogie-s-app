@@ -47,6 +47,7 @@ const AdminHome = ({ setView, logout, onOpenTrainingLog }) => {
   const [unscheduledVips, setUnscheduledVips] = useState([]);
   const [radarLoading, setRadarLoading] = useState(true);
   const [unconfirmedExpanded, setUnconfirmedExpanded] = useState(false);
+  const [lowCreditAlert, setLowCreditAlert] = useState(null);
 
   const loadUnscheduledVipRadar = useCallback(async () => {
     setRadarLoading(true);
@@ -115,6 +116,51 @@ const AdminHome = ({ setView, logout, onOpenTrainingLog }) => {
     loadUnscheduledVipRadar();
   }, [loadUnscheduledVipRadar]);
 
+  const loadLatestLowCreditAlert = useCallback(async () => {
+    const { data, error } = await supabase
+      .from('admin_low_credit_alerts')
+      .select('id, user_id, user_name, remaining_sessions, created_at, dismissed_at')
+      .is('dismissed_at', null)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (error) {
+      console.warn('[AdminHome] low-credit alert load:', error);
+      setLowCreditAlert(null);
+      return;
+    }
+    setLowCreditAlert(data || null);
+  }, []);
+
+  useEffect(() => {
+    loadLatestLowCreditAlert();
+  }, [loadLatestLowCreditAlert]);
+
+  useEffect(() => {
+    const ch = supabase
+      .channel('admin_low_credit_alerts_rt')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'admin_low_credit_alerts' }, () => {
+        void loadLatestLowCreditAlert();
+      })
+      .subscribe();
+    return () => {
+      supabase.removeChannel(ch);
+    };
+  }, [loadLatestLowCreditAlert]);
+
+  const dismissLowCreditAlert = useCallback(async () => {
+    if (!lowCreditAlert?.id) return;
+    const { error } = await supabase
+      .from('admin_low_credit_alerts')
+      .update({ dismissed_at: new Date().toISOString() })
+      .eq('id', lowCreditAlert.id);
+    if (error) {
+      console.warn('[AdminHome] low-credit alert dismiss:', error);
+      return;
+    }
+    setLowCreditAlert(null);
+  }, [lowCreditAlert]);
+
   const radarDebounceRef = useRef(null);
   useEffect(() => {
     const schedule = () => {
@@ -163,6 +209,29 @@ const AdminHome = ({ setView, logout, onOpenTrainingLog }) => {
           </button>
         </div>
       </header>
+
+      {lowCreditAlert && (
+        <section className="w-full max-w-lg mx-auto px-6 pb-3">
+          <div className="w-full rounded-2xl border border-red-200 bg-red-50 p-4 shadow-sm">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="text-[11px] font-semibold tracking-[0.12em] text-red-700 uppercase">High Priority</p>
+                <p className="mt-1 text-sm font-semibold text-red-900">
+                  {lowCreditAlert.user_name}님 잔여 {lowCreditAlert.remaining_sessions}회
+                </p>
+                <p className="mt-0.5 text-xs text-red-700">세션 만료 임박 회원입니다. 재등록 안내를 권장합니다.</p>
+              </div>
+              <button
+                type="button"
+                onClick={dismissLowCreditAlert}
+                className="shrink-0 rounded-lg border border-red-200 bg-white px-2.5 py-1 text-xs font-medium text-red-700 hover:bg-red-100 transition-colors"
+              >
+                닫기
+              </button>
+            </div>
+          </div>
+        </section>
+      )}
 
       {/* 일정 미확정 회원 — full-width data card (no in-app scheduling action) */}
       <section className="w-full max-w-lg mx-auto px-6 pb-5">

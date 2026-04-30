@@ -69,11 +69,20 @@ const QRScanner = ({ setView, goBack }) => {
         console.warn('[QRScanner] member attendance push:', e);
       }
 
-      if (remaining === 3) {
+      if (remaining <= 5) {
+        const { error: alertInsertErr } = await supabase.from('admin_low_credit_alerts').insert({
+          user_id: scannedUserId,
+          user_name: userName,
+          remaining_sessions: remaining,
+        });
+        if (alertInsertErr) {
+          console.warn('[QRScanner] low-credit alert insert:', alertInsertErr);
+        }
+
         await supabase.functions.invoke('send-admin-alert', {
           body: {
-            heading: '세션 잔여 알림',
-            message: `${userName}님, ${remaining}회 남았습니다.`,
+            heading: '세션 잔여 임박',
+            message: `${userName}님 잔여 ${remaining}회 (5회 이하)`,
           },
         });
       }
@@ -282,9 +291,9 @@ const QRScanner = ({ setView, goBack }) => {
                   {result.remainingSessions != null && (
                     <p className="text-emerald-600 text-sm mt-2">남은 횟수: {result.remainingSessions}회</p>
                   )}
-                  {result.remainingSessions === 3 && (
+                  {result.remainingSessions <= 5 && (
                     <p className="text-emerald-800 text-sm mt-3 font-medium bg-emerald-500/10 border border-emerald-500/30 rounded-lg px-4 py-2">
-                      관리자에게 세션 잔여 알림이 전송되었습니다.
+                      관리자 대시보드로 잔여 세션 경고가 전송되었습니다.
                     </p>
                   )}
                 </>
