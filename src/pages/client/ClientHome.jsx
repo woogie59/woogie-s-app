@@ -415,16 +415,6 @@ const ClientHome = ({ user, logout, setView }) => {
     return 'disabled';
   }, [hasCheckedInForNearest, isCheckInWindowOpen]);
 
-  const checkInOpenLabel = useMemo(() => {
-    if (!todayNearestBooking) return null;
-    const start = bookingDateTime(todayNearestBooking);
-    if (!start) return null;
-    const openAt = new Date(start.getTime() - 60 * 60000);
-    const hh = String(openAt.getHours()).padStart(2, '0');
-    const mm = String(openAt.getMinutes()).padStart(2, '0');
-    return `${hh}:${mm}`;
-  }, [todayNearestBooking]);
-
   const handleSelfCheckIn = useCallback(async () => {
     if (checkInButtonState !== 'active' || isCheckInSubmitting) return;
     if (!user?.id) return;
@@ -464,14 +454,18 @@ const ClientHome = ({ user, logout, setView }) => {
     }
   }, [checkInButtonState, isCheckInSubmitting, user?.id, todayNearestBooking, fetchMyBookings, loadSessionMetrics, showAlert, profile?.name]);
 
-  const upcomingBookingsPreview = useMemo(() => {
+  const upcomingTodayBookings = useMemo(() => {
     if (!myBookings?.length) return [];
     const now = new Date();
+    const todayKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
     return myBookings
       .map((b) => ({ b, dt: bookingDateTime(b) }))
-      .filter((x) => x.dt && x.dt >= now)
+      .filter((x) => {
+        if (!x.dt || x.dt < now) return false;
+        const key = `${x.dt.getFullYear()}-${String(x.dt.getMonth() + 1).padStart(2, '0')}-${String(x.dt.getDate()).padStart(2, '0')}`;
+        return key === todayKey;
+      })
       .sort((a, b) => a.dt - b.dt)
-      .slice(0, 3)
       .map((x) => x.b);
   }, [myBookings]);
 
@@ -602,7 +596,7 @@ const ClientHome = ({ user, logout, setView }) => {
                 <Skeleton className="h-4 w-40 rounded" />
                 <Skeleton className="h-4 w-48 rounded" />
               </div>
-            ) : upcomingBookingsPreview.length === 0 ? (
+            ) : upcomingTodayBookings.length === 0 ? (
               <p className="text-sm text-gray-400">아직 예정된 수업이 없습니다.</p>
             ) : (
               <div>
@@ -653,24 +647,20 @@ const ClientHome = ({ user, logout, setView }) => {
                             ? 'bg-gray-900 text-white'
                             : checkInButtonState === 'completed'
                               ? 'bg-[#064e3b]/10 text-[#064e3b]'
-                              : 'bg-gray-100 text-gray-500'
+                              : 'bg-gray-200 text-gray-400 cursor-not-allowed'
                         }`}
                       >
                         {checkInButtonState === 'completed'
                           ? '출석 완료'
-                          : checkInButtonState === 'active'
-                            ? isCheckInSubmitting
-                              ? '처리 중...'
-                              : '출석하기'
-                            : checkInOpenLabel
-                              ? `${checkInOpenLabel} 오픈`
-                              : '오픈 예정'}
+                          : isCheckInSubmitting
+                            ? '처리 중...'
+                            : '출석하기'}
                       </span>
                     </div>
                   </motion.li>
                 )}
                 <ul className="space-y-2.5">
-                  {upcomingBookingsPreview
+                  {upcomingTodayBookings
                     .filter((booking) => booking?.id !== todayNearestBooking?.id)
                     .map((booking) => (
                       <li key={booking.id} className="flex items-center justify-between gap-4 py-1">
