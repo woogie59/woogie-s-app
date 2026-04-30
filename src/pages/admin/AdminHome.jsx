@@ -238,18 +238,16 @@ const AdminHome = ({ setView, logout, onOpenTrainingLog }) => {
     };
   }, [loadUnscheduledVipRadar]);
 
-  const menuItems = [
-    { icon: Users, label: '회원 관리', view: 'member_list' },
-    { icon: Table2, label: 'Payroll · Attendance', view: 'admin_payroll' },
-    { icon: Calendar, label: '일정 관리', view: 'admin_schedule' },
-    { icon: Archive, label: '라이브러리', view: 'library' },
-    { icon: NotebookPen, label: '트레이닝 일지', action: 'training_log' },
-  ].filter((item) => {
-    if (!MVP_HIDE_LIBRARY_AND_TRAINING_NAV) return true;
-    if (item.view === 'library') return false;
-    if (item.action === 'training_log') return false;
-    return true;
-  });
+  const goMenu = useCallback(
+    ({ view, action }) => {
+      if (action === 'training_log') {
+        onOpenTrainingLog?.();
+      } else if (view) {
+        setView(view);
+      }
+    },
+    [onOpenTrainingLog, setView]
+  );
 
   return (
     <div className="min-h-[100dvh] bg-gray-50 text-slate-900 flex flex-col font-sans relative pb-safe">
@@ -352,29 +350,42 @@ const AdminHome = ({ setView, logout, onOpenTrainingLog }) => {
         </div>
       </section>
 
-      {/* 2×2 Bento menu */}
-      <nav
-        className="mx-auto grid w-full max-w-lg flex-1 grid-cols-2 gap-3 px-6 pb-10 pt-1"
-        aria-label="관리 메뉴"
-      >
-        {menuItems.map(({ icon: Icon, label, view, action }) => (
+      {/* Primary + Secondary actions */}
+      <section className="mx-auto w-full max-w-lg px-6 pb-10 pt-1">
+        <nav className="grid grid-cols-2 gap-4" aria-label="주요 관리 메뉴">
           <button
-            key={view ?? action}
             type="button"
-            onClick={() => {
-              if (action === 'training_log') {
-                onOpenTrainingLog?.();
-              } else {
-                setView(view);
-              }
-            }}
-            className="aspect-square w-full min-h-0 bg-white rounded-2xl border border-gray-100 shadow-sm p-5 flex flex-col items-start justify-between transition-all duration-200 hover:bg-gray-50 active:bg-gray-100 active:scale-[0.98] cursor-pointer text-left"
+            onClick={() => goMenu({ view: 'member_list' })}
+            className="aspect-square w-full bg-white rounded-2xl border border-gray-100 shadow-sm p-5 flex flex-col items-start justify-between transition-all duration-200 hover:bg-gray-50 active:bg-gray-100 active:scale-[0.98] cursor-pointer text-left"
           >
-            <Icon size={26} strokeWidth={ICON_STROKE} className="text-[#064e3b] shrink-0" aria-hidden />
-            <span className="text-sm font-medium text-slate-900 tracking-tight leading-snug pr-1">{label}</span>
+            <Users size={26} strokeWidth={ICON_STROKE} className="text-[#064e3b] shrink-0" aria-hidden />
+            <span className="text-sm font-medium text-slate-900 tracking-tight leading-snug pr-1">회원 관리</span>
           </button>
-        ))}
-      </nav>
+
+          <button
+            type="button"
+            onClick={() => goMenu({ view: 'admin_schedule' })}
+            className="aspect-square w-full bg-white rounded-2xl border border-gray-100 shadow-sm p-5 flex flex-col items-start justify-between transition-all duration-200 hover:bg-gray-50 active:bg-gray-100 active:scale-[0.98] cursor-pointer text-left"
+          >
+            <Calendar size={26} strokeWidth={ICON_STROKE} className="text-[#064e3b] shrink-0" aria-hidden />
+            <span className="text-sm font-medium text-slate-900 tracking-tight leading-snug pr-1">일정 관리</span>
+          </button>
+        </nav>
+
+        <div className="mt-5">
+          <button
+            type="button"
+            onClick={() => goMenu({ view: 'admin_payroll' })}
+            className="w-full bg-white rounded-2xl border border-gray-100 shadow-sm p-5 flex items-center justify-between transition-all duration-200 hover:bg-gray-50 active:bg-gray-100 active:scale-[0.99] cursor-pointer text-left"
+          >
+            <div className="flex items-center gap-3">
+              <Table2 size={24} strokeWidth={ICON_STROKE} className="text-[#064e3b] shrink-0" aria-hidden />
+              <span className="text-sm font-medium text-slate-900 tracking-tight">페이롤 · 출석</span>
+            </div>
+            <span className="text-xs text-gray-400">보조 메뉴</span>
+          </button>
+        </div>
+      </section>
     </div>
   );
 };
