@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { LogOut, ChevronRight, Calendar, BookOpen, Check, Fingerprint } from 'lucide-react';
+import { LogOut, ChevronRight, Calendar, BookOpen, Check } from 'lucide-react';
 import { supabase } from '../../lib/supabaseClient';
 import { deriveSessionFocus, formatKoreanDateFromYmd } from '../../features/training/trainingLogUtils';
 import {
@@ -587,7 +587,7 @@ const ClientHome = ({ user, logout, setView }) => {
 
           <div className="space-y-3">
             <p className="text-sm font-medium text-gray-500">나의 다가오는 일정</p>
-            <p className="text-[11px] text-gray-400">출석 가능 시간: 수업 시작 60분 전 ~ 시작 후 60분</p>
+            <p className="text-[11px] text-gray-400 mb-4">출석 가능 시간: 수업 시작 60분 전 ~ 시작 후 60분</p>
             {loadingBookings && !myBookings.length ? (
               <div className="space-y-2">
                 <Skeleton className="h-4 w-40 rounded" />
@@ -596,7 +596,7 @@ const ClientHome = ({ user, logout, setView }) => {
             ) : upcomingBookingsPreview.length === 0 ? (
               <p className="text-sm text-gray-400">아직 예정된 수업이 없습니다.</p>
             ) : (
-              <ul className="space-y-2.5">
+              <div>
                 {todayNearestBooking && (
                   <motion.li
                     initial={{ opacity: 0.85 }}
@@ -617,29 +617,36 @@ const ClientHome = ({ user, logout, setView }) => {
                         ? { duration: 2.6, repeat: Infinity, ease: 'easeInOut' }
                         : { duration: 0.2 }
                     }
-                    className={`rounded-xl px-5 py-4 border shadow-sm ${
-                      checkInButtonState === 'active'
-                        ? 'bg-green-50 border-green-100 cursor-pointer'
-                        : checkInButtonState === 'completed'
-                          ? 'bg-gray-100 border-gray-200'
-                          : 'bg-gray-50 border-gray-200'
-                    }`}
+                    className={`rounded-2xl bg-white border border-gray-100 px-5 py-4 shadow-[0_8px_30px_rgb(0,0,0,0.04)] ${
+                      checkInButtonState === 'active' ? 'cursor-pointer' : ''
+                    } mb-6`}
                     onClick={() => {
                       if (checkInButtonState === 'active') handleSelfCheckIn();
                     }}
                   >
                     <div className="flex items-center justify-between gap-4">
-                      <div className="flex items-center gap-2">
-                        {checkInButtonState === 'completed' ? (
-                          <Check size={16} strokeWidth={2.2} className="text-[#064e3b]" />
-                        ) : (
-                          <Fingerprint size={16} strokeWidth={1.8} className={checkInButtonState === 'active' ? 'text-[#064e3b]' : 'text-gray-400'} />
-                        )}
-                        <span className={`text-sm font-bold tabular-nums ${checkInButtonState === 'active' ? 'text-[#064e3b]' : 'text-gray-700'}`}>
-                          {formatTime24hStatic(todayNearestBooking.time)}
-                        </span>
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2">
+                          {checkInButtonState === 'completed' ? (
+                            <Check size={14} strokeWidth={2.2} className="text-[#064e3b]" />
+                          ) : (
+                            <div className="w-2.5 h-2.5 rounded-full bg-[#064e3b] animate-pulse" aria-hidden />
+                          )}
+                          <span className="text-base font-bold text-slate-900 tabular-nums">
+                            오늘 {formatTime24hStatic(todayNearestBooking.time)}
+                          </span>
+                        </div>
+                        <p className="mt-1 text-sm text-gray-500">잔여 {sessionMetrics.remaining}회</p>
                       </div>
-                      <span className={`text-xs font-semibold ${checkInButtonState === 'active' ? 'text-[#064e3b]' : 'text-gray-500'}`}>
+                      <span
+                        className={`rounded-full px-5 py-2.5 text-sm font-semibold tracking-wide ${
+                          checkInButtonState === 'active'
+                            ? 'bg-gray-900 text-white'
+                            : checkInButtonState === 'completed'
+                              ? 'bg-[#064e3b]/10 text-[#064e3b]'
+                              : 'bg-gray-100 text-gray-500'
+                        }`}
+                      >
                         {checkInButtonState === 'completed'
                           ? '출석 완료'
                           : checkInButtonState === 'active'
@@ -649,20 +656,19 @@ const ClientHome = ({ user, logout, setView }) => {
                             : '대기 중'}
                       </span>
                     </div>
-                    <p className={`mt-1 text-xs ${checkInButtonState === 'active' ? 'text-[#064e3b]/80' : 'text-gray-500'}`}>
-                      남은 수강권: {sessionMetrics.remaining}회
-                    </p>
                   </motion.li>
                 )}
-                {upcomingBookingsPreview
-                  .filter((booking) => booking?.id !== todayNearestBooking?.id)
-                  .map((booking) => (
-                  <li key={booking.id} className="flex items-center justify-between gap-4 py-1">
-                    <span className="text-sm text-slate-800 font-medium">{formatUpcomingDateLabel(booking)}</span>
-                    <span className="text-sm tabular-nums text-[#064e3b] font-semibold">{formatTime24hStatic(booking.time)}</span>
-                  </li>
-                ))}
-              </ul>
+                <ul className="space-y-2.5">
+                  {upcomingBookingsPreview
+                    .filter((booking) => booking?.id !== todayNearestBooking?.id)
+                    .map((booking) => (
+                      <li key={booking.id} className="flex items-center justify-between gap-4 py-1">
+                        <span className="text-sm text-slate-800 font-medium">{formatUpcomingDateLabel(booking)}</span>
+                        <span className="text-sm tabular-nums text-[#064e3b] font-semibold">{formatTime24hStatic(booking.time)}</span>
+                      </li>
+                    ))}
+                </ul>
+              </div>
             )}
           </div>
 
