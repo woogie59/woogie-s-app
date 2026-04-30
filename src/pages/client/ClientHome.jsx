@@ -385,7 +385,7 @@ const ClientHome = ({ user, logout, setView }) => {
     if (!start) return false;
     const now = new Date();
     const diffMin = (now.getTime() - start.getTime()) / 60000;
-    return diffMin >= -30 && diffMin <= 15;
+    return diffMin >= -60 && diffMin <= 60;
   }, [todayNearestBooking]);
 
   const checkInButtonState = useMemo(() => {
@@ -567,7 +567,7 @@ const ClientHome = ({ user, logout, setView }) => {
 
           <div className="space-y-3">
             <p className="text-sm font-medium text-gray-500">나의 다가오는 일정</p>
-            <p className="text-[11px] text-gray-400">출석 가능 시간: 수업 시작 30분 전 ~ 시작 후 15분</p>
+            <p className="text-[11px] text-gray-400">출석 가능 시간: 수업 시작 60분 전 ~ 시작 후 60분</p>
             {loadingBookings && !myBookings.length ? (
               <div className="space-y-2">
                 <Skeleton className="h-4 w-40 rounded" />
