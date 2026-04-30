@@ -587,7 +587,6 @@ const ClientHome = ({ user, logout, setView }) => {
 
           <div className="space-y-3">
             <p className="text-sm font-medium text-gray-500">나의 다가오는 일정</p>
-            <p className="text-[11px] text-gray-400 mb-4">출석 가능 시간: 수업 시작 60분 전 ~ 시작 후 60분</p>
             {loadingBookings && !myBookings.length ? (
               <div className="space-y-2">
                 <Skeleton className="h-4 w-40 rounded" />
