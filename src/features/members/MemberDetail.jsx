@@ -11,10 +11,15 @@ const MemberDetail = ({ selectedMemberId, goBack }) => {
   const [loadingBatches, setLoadingBatches] = useState(true);
   const [sessionBalance, setSessionBalance] = useState(null);
   const [sessionModal, setSessionModal] = useState(null);
+  const [memoDraft, setMemoDraft] = useState('');
+  const [isMemoEditing, setIsMemoEditing] = useState(false);
+  const [isMemoSaving, setIsMemoSaving] = useState(false);
+  const [memoSavedFlash, setMemoSavedFlash] = useState(false);
 
   const fetchMemberDetails = async () => {
     const { data: userData } = await supabase.from('profiles').select('*').eq('id', selectedMemberId).single();
     setU(userData);
+    setMemoDraft(userData?.memo || '');
 
     setLoadingBatches(true);
     const [batchRes, balanceRes] = await Promise.all([
@@ -72,6 +77,27 @@ const MemberDetail = ({ selectedMemberId, goBack }) => {
   }, [selectedMemberId, reloadBalanceOnly]);
 
   const totalRemaining = sessionBalance?.remaining ?? 0;
+
+  const saveMemoIfChanged = useCallback(async () => {
+    if (!u?.id) return;
+    const prev = u.memo || '';
+    const next = memoDraft.trim();
+    if (prev === next) {
+      setIsMemoEditing(false);
+      return;
+    }
+    setIsMemoSaving(true);
+    const { error } = await supabase.from('profiles').update({ memo: next }).eq('id', u.id);
+    setIsMemoSaving(false);
+    setIsMemoEditing(false);
+    if (error) {
+      console.error('Error saving trainer memo:', error);
+      return;
+    }
+    setU((prevU) => (prevU ? { ...prevU, memo: next } : prevU));
+    setMemoSavedFlash(true);
+    window.setTimeout(() => setMemoSavedFlash(false), 1200);
+  }, [u, memoDraft]);
 
   if (!u)
     return (
@@ -142,6 +168,42 @@ const MemberDetail = ({ selectedMemberId, goBack }) => {
         ) : (
           <p className="text-sm text-neutral-500">등록된 수강권이 없습니다.</p>
         )}
+      </section>
+
+      <section className="mb-14">
+        <div className="mb-3 flex items-center justify-between">
+          <h2 className="text-sm font-medium text-gray-500">트레이너 메모</h2>
+          <span
+            className={`text-xs text-emerald-700 transition-opacity duration-300 ${
+              memoSavedFlash ? 'opacity-100' : 'opacity-0'
+            }`}
+          >
+            저장됨
+          </span>
+        </div>
+        {isMemoEditing ? (
+          <textarea
+            value={memoDraft}
+            onChange={(e) => setMemoDraft(e.target.value)}
+            onBlur={saveMemoIfChanged}
+            placeholder="직업, 부상 이력, 특이사항을 기록하세요. (터치하여 편집)"
+            className="w-full min-h-[132px] rounded-lg bg-gray-50 p-4 text-sm text-gray-800 placeholder:text-gray-400 outline-none"
+            autoFocus
+          />
+        ) : (
+          <button
+            type="button"
+            onClick={() => setIsMemoEditing(true)}
+            className="w-full min-h-[132px] rounded-lg bg-gray-50 p-4 text-left text-sm text-gray-800 transition-colors hover:bg-gray-100"
+          >
+            {u?.memo?.trim() ? (
+              <p className="whitespace-pre-wrap leading-relaxed">{u.memo}</p>
+            ) : (
+              <p className="text-gray-400">직업, 부상 이력, 특이사항을 기록하세요. (터치하여 편집)</p>
+            )}
+          </button>
+        )}
+        {isMemoSaving && <p className="mt-2 text-xs text-gray-400">저장 중...</p>}
       </section>
 
       <section className="border-t border-neutral-200 pt-12">
