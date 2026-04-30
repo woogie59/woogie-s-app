@@ -38,7 +38,7 @@ const daysSinceCheckIn = (iso) => {
   return Math.max(0, Math.floor((n.getTime() - d.getTime()) / 86400000));
 };
 
-const VISIBLE_UNCONFIRMED = 3;
+const VISIBLE_UNCONFIRMED = 1;
 
 /** MVP: 지식창고(라이브러리)·트레이닝 일지 메뉴 비표시 — 라우트/컴포넌트는 유지 */
 const MVP_HIDE_LIBRARY_AND_TRAINING_NAV = true;
@@ -168,7 +168,7 @@ const AdminHome = ({ setView, logout, onOpenTrainingLog }) => {
       <section className="w-full max-w-lg mx-auto px-6 pb-5">
         <div className="w-full bg-white rounded-2xl border border-gray-100 shadow-sm p-5 flex flex-col items-start gap-4">
           <div className="w-full">
-            <h2 className="text-base font-semibold text-slate-900 tracking-tight">일정 미확정 회원</h2>
+            <h2 className="text-base font-semibold text-slate-900 tracking-tight">수업 미예약 회원</h2>
           </div>
 
           {radarLoading ? (
@@ -177,7 +177,7 @@ const AdminHome = ({ setView, logout, onOpenTrainingLog }) => {
             <p className="text-sm text-gray-500 font-light tracking-wide w-full">모든 활성 회원의 일정이 채워져 있습니다.</p>
           ) : (
             <>
-              <ul className="w-full space-y-5">
+              <motion.ul layout className="w-full space-y-5">
                 {(unconfirmedExpanded ? unscheduledVips : unscheduledVips.slice(0, VISIBLE_UNCONFIRMED)).map((u) => {
                   const days = u.lastCheckInAt != null ? daysSinceCheckIn(u.lastCheckInAt) : null;
                   const secondary =
@@ -196,8 +196,8 @@ const AdminHome = ({ setView, logout, onOpenTrainingLog }) => {
                     </motion.li>
                   );
                 })}
-              </ul>
-              {unscheduledVips.length > VISIBLE_UNCONFIRMED && (
+              </motion.ul>
+              {unscheduledVips.length > 1 && (
                 <button
                   type="button"
                   onClick={() => setUnconfirmedExpanded((e) => !e)}
