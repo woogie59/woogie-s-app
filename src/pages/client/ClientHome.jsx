@@ -356,75 +356,53 @@ const ClientHome = ({ user, logout, setView }) => {
     return future[0]?.b ?? null;
   }, [myBookings]);
 
-  const todayNearestBooking = useMemo(() => {
-    const now = new Date();
-    const todayKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
-    const todayBookings = (myBookings || [])
-      .filter((b) => {
-        if (!b) return false;
-        if (b.status === 'cancelled') return false;
-        const d = bookingDateTime(b);
-        if (!d) return false;
-        const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-        return key === todayKey;
-      })
-      .map((b) => ({ booking: b, start: bookingDateTime(b) }))
-      .filter((x) => x.start instanceof Date && !Number.isNaN(x.start.getTime()));
+  const isBookingCheckedIn = useCallback(
+    (booking) => {
+      if (!booking) return false;
+      if (booking.status === 'completed' || booking.status === 'attended') return true;
+      const targetTime = formatTime24hStatic(booking.time);
+      const targetDate = bookingDateTime(booking);
+      if (!targetDate) return false;
+      return (attendanceLogs || []).some((log) => {
+        const d = new Date(log.check_in_at);
+        if (Number.isNaN(d.getTime())) return false;
+        const sameDate =
+          d.getFullYear() === targetDate.getFullYear() &&
+          d.getMonth() === targetDate.getMonth() &&
+          d.getDate() === targetDate.getDate();
+        if (!sameDate) return false;
+        const fixed = typeof log.session_time_fixed === 'string' ? formatTime24hStatic(log.session_time_fixed) : null;
+        const logTime = fixed || d.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', hour12: false });
+        return formatTime24hStatic(logTime) === targetTime;
+      });
+    },
+    [attendanceLogs]
+  );
 
-    if (!todayBookings.length) return null;
+  const getBookingCheckInState = useCallback(
+    (booking) => {
+      if (!booking) return 'disabled';
+      if (isBookingCheckedIn(booking)) return 'completed';
+      const start = bookingDateTime(booking);
+      if (!start) return 'disabled';
+      const now = new Date();
+      const diffMin = (now.getTime() - start.getTime()) / 60000;
+      return diffMin >= -60 && diffMin <= 60 ? 'active' : 'disabled';
+    },
+    [isBookingCheckedIn]
+  );
 
-    const candidates = todayBookings
-      .filter((x) => (now.getTime() - x.start.getTime()) / 60000 <= 15)
-      .sort((a, b) => a.start.getTime() - b.start.getTime());
-
-    return candidates[0]?.booking ?? null;
-  }, [myBookings]);
-
-  const hasCheckedInForNearest = useMemo(() => {
-    if (!todayNearestBooking) return false;
-    if (todayNearestBooking.status === 'completed' || todayNearestBooking.status === 'attended') return true;
-    const targetTime = formatTime24hStatic(todayNearestBooking.time);
-    const targetDate = bookingDateTime(todayNearestBooking);
-    if (!targetDate) return false;
-    return (attendanceLogs || []).some((log) => {
-      const d = new Date(log.check_in_at);
-      if (Number.isNaN(d.getTime())) return false;
-      const sameDate =
-        d.getFullYear() === targetDate.getFullYear() &&
-        d.getMonth() === targetDate.getMonth() &&
-        d.getDate() === targetDate.getDate();
-      if (!sameDate) return false;
-      const fixed = typeof log.session_time_fixed === 'string' ? formatTime24hStatic(log.session_time_fixed) : null;
-      const logTime = fixed || d.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', hour12: false });
-      return formatTime24hStatic(logTime) === targetTime;
-    });
-  }, [todayNearestBooking, attendanceLogs]);
-
-  const isCheckInWindowOpen = useMemo(() => {
-    if (!todayNearestBooking) return false;
-    const start = bookingDateTime(todayNearestBooking);
-    if (!start) return false;
-    const now = new Date();
-    const diffMin = (now.getTime() - start.getTime()) / 60000;
-    return diffMin >= -60 && diffMin <= 60;
-  }, [todayNearestBooking]);
-
-  const checkInButtonState = useMemo(() => {
-    if (hasCheckedInForNearest) return 'completed';
-    if (isCheckInWindowOpen) return 'active';
-    return 'disabled';
-  }, [hasCheckedInForNearest, isCheckInWindowOpen]);
-
-  const handleSelfCheckIn = useCallback(async () => {
-    if (checkInButtonState !== 'active' || isCheckInSubmitting) return;
+  const handleSelfCheckIn = useCallback(async (booking) => {
+    const state = getBookingCheckInState(booking);
+    if (state !== 'active' || isCheckInSubmitting) return;
     if (!user?.id) return;
     setIsCheckInSubmitting(true);
     try {
       const { error: rpcError } = await supabase.rpc('check_in_user', { user_uuid: user.id });
       if (rpcError) throw rpcError;
 
-      if (todayNearestBooking?.id) {
-        const { error: updateErr } = await supabase.from('bookings').update({ status: 'completed' }).eq('id', todayNearestBooking.id);
+      if (booking?.id) {
+        const { error: updateErr } = await supabase.from('bookings').update({ status: 'completed' }).eq('id', booking.id);
         if (updateErr) console.warn('[ClientHome] booking complete update:', updateErr);
       }
       const [latestMetrics] = await Promise.all([
@@ -452,18 +430,16 @@ const ClientHome = ({ user, logout, setView }) => {
     } finally {
       setIsCheckInSubmitting(false);
     }
-  }, [checkInButtonState, isCheckInSubmitting, user?.id, todayNearestBooking, fetchMyBookings, loadSessionMetrics, showAlert, profile?.name]);
+  }, [getBookingCheckInState, isCheckInSubmitting, user?.id, fetchMyBookings, loadSessionMetrics, showAlert, profile?.name]);
 
-  const upcomingTodayBookings = useMemo(() => {
+  const upcomingClasses = useMemo(() => {
     if (!myBookings?.length) return [];
     const now = new Date();
-    const todayKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
     return myBookings
       .map((b) => ({ b, dt: bookingDateTime(b) }))
       .filter((x) => {
         if (!x.dt || x.dt < now) return false;
-        const key = `${x.dt.getFullYear()}-${String(x.dt.getMonth() + 1).padStart(2, '0')}-${String(x.dt.getDate()).padStart(2, '0')}`;
-        return key === todayKey;
+        return x.b?.status !== 'cancelled';
       })
       .sort((a, b) => a.dt - b.dt)
       .map((x) => x.b);
@@ -596,78 +572,68 @@ const ClientHome = ({ user, logout, setView }) => {
                 <Skeleton className="h-4 w-40 rounded" />
                 <Skeleton className="h-4 w-48 rounded" />
               </div>
-            ) : upcomingTodayBookings.length === 0 ? (
+            ) : upcomingClasses.length === 0 ? (
               <p className="text-sm text-gray-400">아직 예정된 수업이 없습니다.</p>
             ) : (
               <div>
-                {todayNearestBooking && (
-                  <motion.li
-                    initial={{ opacity: 0.85 }}
-                    animate={
-                      checkInButtonState === 'active'
-                        ? {
-                            opacity: [0.85, 1, 0.85],
-                            boxShadow: [
-                              '0 0 0 rgba(6,78,59,0)',
-                              '0 0 0 6px rgba(6,78,59,0.10)',
-                              '0 0 0 rgba(6,78,59,0)',
-                            ],
-                          }
-                        : { opacity: 1 }
-                    }
-                    transition={
-                      checkInButtonState === 'active'
-                        ? { duration: 2.6, repeat: Infinity, ease: 'easeInOut' }
-                        : { duration: 0.2 }
-                    }
-                    className={`rounded-2xl bg-white border border-gray-100 px-5 py-4 shadow-[0_4px_20px_rgb(0,0,0,0.05)] ${
-                      checkInButtonState === 'active' ? 'cursor-pointer' : ''
-                    } mb-8`}
-                    onClick={() => {
-                      if (checkInButtonState === 'active') handleSelfCheckIn();
-                    }}
-                  >
-                    <div className="flex items-center justify-between gap-4">
-                      <div className="min-w-0">
-                        <div className="flex items-center gap-2">
-                          {checkInButtonState === 'completed' ? (
-                            <Check size={14} strokeWidth={2.2} className="text-[#064e3b]" />
-                          ) : (
-                            <div className="w-2 h-2 rounded-full bg-[#064e3b] animate-pulse" aria-hidden />
-                          )}
-                          <span className="text-base font-bold text-slate-900 tabular-nums">
-                            오늘 {formatTime24hStatic(todayNearestBooking.time)}
+                <ul className="list-none space-y-2.5 m-0 p-0">
+                  {upcomingClasses.map((booking) => {
+                    const state = getBookingCheckInState(booking);
+                    const isActive = state === 'active';
+                    const isCompleted = state === 'completed';
+                    return (
+                      <motion.li
+                        key={booking.id}
+                        initial={{ opacity: 0.9 }}
+                        animate={
+                          isActive
+                            ? {
+                                opacity: [0.9, 1, 0.9],
+                                boxShadow: [
+                                  '0 0 0 rgba(6,78,59,0)',
+                                  '0 0 0 6px rgba(6,78,59,0.10)',
+                                  '0 0 0 rgba(6,78,59,0)',
+                                ],
+                              }
+                            : { opacity: 1 }
+                        }
+                        transition={isActive ? { duration: 2.6, repeat: Infinity, ease: 'easeInOut' } : { duration: 0.2 }}
+                        className={`list-none rounded-2xl bg-white border border-gray-100 px-5 py-4 shadow-[0_4px_20px_rgb(0,0,0,0.05)] ${
+                          isActive ? 'cursor-pointer' : ''
+                        }`}
+                        onClick={() => {
+                          if (isActive) handleSelfCheckIn(booking);
+                        }}
+                      >
+                        <div className="flex items-center justify-between gap-4">
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-2">
+                              {isCompleted ? (
+                                <Check size={14} strokeWidth={2.2} className="text-[#064e3b]" />
+                              ) : (
+                                <div className="w-2 h-2 rounded-full bg-[#064e3b] animate-pulse" aria-hidden />
+                              )}
+                              <span className="text-base font-bold text-slate-900 tabular-nums">
+                                {formatUpcomingDateLabel(booking)} {formatTime24hStatic(booking.time)}
+                              </span>
+                            </div>
+                            <p className="mt-1 pl-4 text-sm text-gray-500">잔여 {sessionMetrics.remaining}회</p>
+                          </div>
+                          <span
+                            className={`rounded-full px-5 py-2.5 text-sm font-semibold tracking-wide ${
+                              isActive
+                                ? 'bg-gray-900 text-white cursor-pointer'
+                                : isCompleted
+                                  ? 'bg-[#064e3b]/10 text-[#064e3b]'
+                                  : 'bg-gray-200 text-gray-400 cursor-not-allowed'
+                            }`}
+                          >
+                            {isCompleted ? '출석 완료' : isCheckInSubmitting && isActive ? '처리 중...' : '출석하기'}
                           </span>
                         </div>
-                        <p className="mt-1 pl-4 text-sm text-gray-500">잔여 {sessionMetrics.remaining}회</p>
-                      </div>
-                      <span
-                        className={`rounded-full px-5 py-2.5 text-sm font-semibold tracking-wide ${
-                          checkInButtonState === 'active'
-                            ? 'bg-gray-900 text-white'
-                            : checkInButtonState === 'completed'
-                              ? 'bg-[#064e3b]/10 text-[#064e3b]'
-                              : 'bg-gray-200 text-gray-400 cursor-not-allowed'
-                        }`}
-                      >
-                        {checkInButtonState === 'completed'
-                          ? '출석 완료'
-                          : isCheckInSubmitting
-                            ? '처리 중...'
-                            : '출석하기'}
-                      </span>
-                    </div>
-                  </motion.li>
-                )}
-                <ul className="space-y-2.5">
-                  {upcomingTodayBookings
-                    .filter((booking) => booking?.id !== todayNearestBooking?.id)
-                    .map((booking) => (
-                      <li key={booking.id} className="flex items-center justify-between gap-4 py-1">
-                        <span className="text-sm text-slate-800 font-medium">{formatUpcomingDateLabel(booking)}</span>
-                        <span className="text-sm tabular-nums text-[#064e3b] font-semibold">{formatTime24hStatic(booking.time)}</span>
-                      </li>
-                    ))}
+                      </motion.li>
+                    );
+                  })}
                 </ul>
               </div>
             )}
