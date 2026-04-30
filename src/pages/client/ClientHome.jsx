@@ -124,16 +124,22 @@ const ClientHome = ({ user, logout, setView }) => {
 
   useEffect(() => {
     if (!user?.id) return;
-    const onVisibleOrFocus = () => {
-      if (document.visibilityState === 'visible') {
-        void fetchMyBookings();
-      }
+    const onFocus = () => {
+      void fetchMyBookings();
     };
-    window.addEventListener('focus', onVisibleOrFocus);
-    document.addEventListener('visibilitychange', onVisibleOrFocus);
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') void fetchMyBookings();
+    };
+    const onPageShow = () => {
+      void fetchMyBookings();
+    };
+    window.addEventListener('focus', onFocus);
+    document.addEventListener('visibilitychange', onVisible);
+    window.addEventListener('pageshow', onPageShow);
     return () => {
-      window.removeEventListener('focus', onVisibleOrFocus);
-      document.removeEventListener('visibilitychange', onVisibleOrFocus);
+      window.removeEventListener('focus', onFocus);
+      document.removeEventListener('visibilitychange', onVisible);
+      window.removeEventListener('pageshow', onPageShow);
     };
   }, [user?.id, fetchMyBookings]);
 
@@ -534,7 +540,7 @@ const ClientHome = ({ user, logout, setView }) => {
 
       <main className="flex-1 flex flex-col px-5 gap-4 pb-6 overflow-y-auto scrollable min-h-0">
         {/* 1. Upcoming Class — read-only billboard; 전체 일정은「수업 예약 및 일정」화면 */}
-        <div className="w-full rounded-2xl bg-gradient-to-br from-[#064e3b] via-[#075842] to-[#053d2f] px-4 py-4 text-left text-white shadow-md ring-1 ring-white/10 shrink-0 sm:px-5 sm:py-5">
+        <div className="w-full rounded-2xl bg-gradient-to-r from-[#0f2818] to-[#1a4026] px-4 py-4 text-left text-white shadow-lg border border-white/10 shrink-0 sm:px-5 sm:py-5">
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0 flex-1">
               <p className="text-sm text-white/70 font-medium mb-1">다음 수업</p>
@@ -611,12 +617,12 @@ const ClientHome = ({ user, logout, setView }) => {
                         ? { duration: 2.6, repeat: Infinity, ease: 'easeInOut' }
                         : { duration: 0.2 }
                     }
-                    className={`rounded-xl px-5 py-4 ${
+                    className={`rounded-xl px-5 py-4 border shadow-sm ${
                       checkInButtonState === 'active'
-                        ? 'bg-[#0B3B24]/5 cursor-pointer'
+                        ? 'bg-green-50 border-green-100 cursor-pointer'
                         : checkInButtonState === 'completed'
-                          ? 'bg-gray-100'
-                          : 'bg-gray-50'
+                          ? 'bg-gray-100 border-gray-200'
+                          : 'bg-gray-50 border-gray-200'
                     }`}
                     onClick={() => {
                       if (checkInButtonState === 'active') handleSelfCheckIn();
