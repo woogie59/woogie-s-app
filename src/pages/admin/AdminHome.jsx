@@ -267,15 +267,10 @@ const AdminHome = ({ setView, logout, onOpenTrainingLog }) => {
       </header>
 
       <section className="w-full max-w-lg mx-auto px-6 pb-4">
-        <div className="rounded-2xl bg-white border border-gray-100 shadow-sm px-4 py-3">
-          <p className="text-sm text-gray-500">오늘도 통제권은 당신에게 있습니다.</p>
-          <div className="mt-2 flex items-center gap-2 text-xs text-gray-600">
-            <span>전체 회원 <span className="font-semibold text-slate-900">{overview.total}</span></span>
-            <span>|</span>
-            <span>활성 회원 <span className="font-semibold text-slate-900">{overview.active}</span></span>
-            <span>|</span>
-            <span>미예약 <span className="font-semibold text-slate-900">{overview.unbooked}</span></span>
-          </div>
+        <div className="text-sm text-gray-500 font-medium tracking-wide flex justify-center gap-3 my-4">
+          <span>전체 회원 <span className="font-semibold text-slate-900">{overview.total}</span></span>
+          <span>|</span>
+          <span>활성 회원 <span className="font-semibold text-slate-900">{overview.active}</span></span>
         </div>
       </section>
 
@@ -306,7 +301,9 @@ const AdminHome = ({ setView, logout, onOpenTrainingLog }) => {
       <section className="w-full max-w-lg mx-auto px-6 pb-5">
         <div className="w-full bg-white rounded-2xl border border-gray-100 shadow-sm p-5 flex flex-col items-start gap-4">
           <div className="w-full">
-            <h2 className="text-base font-semibold text-slate-900 tracking-tight">수업 미예약 회원</h2>
+            <h2 className="text-base font-semibold text-slate-900 tracking-tight">
+              수업 미예약 회원 <span className="text-[#064e3b] font-bold">({overview.unbooked}명)</span>
+            </h2>
           </div>
 
           {radarLoading ? (
