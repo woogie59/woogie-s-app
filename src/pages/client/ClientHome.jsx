@@ -432,13 +432,29 @@ const ClientHome = ({ user, logout, setView }) => {
     }
   }, [getBookingCheckInState, isCheckInSubmitting, user?.id, fetchMyBookings, loadSessionMetrics, showAlert, profile?.name]);
 
+  const handleTokenPress = useCallback(
+    (booking) => {
+      const state = getBookingCheckInState(booking);
+      if (state === 'active') {
+        void handleSelfCheckIn(booking);
+        return;
+      }
+      if (state === 'disabled') {
+        showAlert({ message: '아직 수업시간이 아닙니다.' });
+      }
+    },
+    [getBookingCheckInState, handleSelfCheckIn, showAlert]
+  );
+
   const upcomingClasses = useMemo(() => {
     if (!myBookings?.length) return [];
     const now = new Date();
+    const lowerBound = new Date(now.getTime() - 60 * 60000);
     return myBookings
       .map((b) => ({ b, dt: bookingDateTime(b) }))
       .filter((x) => {
-        if (!x.dt || x.dt < now) return false;
+        // Keep classes that started within last 60m (check-in grace window) + future classes.
+        if (!x.dt || x.dt < lowerBound) return false;
         return x.b?.status !== 'cancelled';
       })
       .sort((a, b) => a.dt - b.dt)
@@ -577,10 +593,27 @@ const ClientHome = ({ user, logout, setView }) => {
             ) : (
               <div>
                 <ul className="list-none space-y-2.5 m-0 p-0">
-                  {upcomingClasses.map((booking) => {
+                  {upcomingClasses.map((booking, index) => {
                     const state = getBookingCheckInState(booking);
                     const isActive = state === 'active';
                     const isCompleted = state === 'completed';
+
+                    if (index > 0) {
+                      return (
+                        <li key={booking.id} className="list-none rounded-2xl bg-white border border-gray-100 px-5 py-4 shadow-sm">
+                          <div className="flex items-center justify-between gap-4">
+                            <div className="min-w-0">
+                              <p className="text-sm text-slate-800 font-medium">{formatUpcomingDateLabel(booking)}</p>
+                              <p className="mt-1 text-base tabular-nums text-slate-900 font-semibold">{formatTime24hStatic(booking.time)}</p>
+                            </div>
+                            <span className="text-gray-300 text-lg" aria-hidden>
+                              &gt;
+                            </span>
+                          </div>
+                        </li>
+                      );
+                    }
+
                     return (
                       <motion.li
                         key={booking.id}
@@ -601,9 +634,7 @@ const ClientHome = ({ user, logout, setView }) => {
                         className={`list-none rounded-2xl bg-white border border-gray-100 px-5 py-4 shadow-[0_4px_20px_rgb(0,0,0,0.05)] ${
                           isActive ? 'cursor-pointer' : ''
                         }`}
-                        onClick={() => {
-                          if (isActive) handleSelfCheckIn(booking);
-                        }}
+                        onClick={() => handleTokenPress(booking)}
                       >
                         <div className="flex items-center justify-between gap-4">
                           <div className="min-w-0">
@@ -619,7 +650,12 @@ const ClientHome = ({ user, logout, setView }) => {
                             </div>
                             <p className="mt-1 pl-4 text-sm text-gray-500">잔여 {sessionMetrics.remaining}회</p>
                           </div>
-                          <span
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleTokenPress(booking);
+                            }}
                             className={`rounded-full px-5 py-2.5 text-sm font-semibold tracking-wide ${
                               isActive
                                 ? 'bg-gray-900 text-white cursor-pointer'
@@ -629,7 +665,7 @@ const ClientHome = ({ user, logout, setView }) => {
                             }`}
                           >
                             {isCompleted ? '출석 완료' : isCheckInSubmitting && isActive ? '처리 중...' : '출석하기'}
-                          </span>
+                          </button>
                         </div>
                       </motion.li>
                     );
