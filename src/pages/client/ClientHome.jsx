@@ -619,7 +619,7 @@ const ClientHome = ({ user, logout, setView }) => {
                     }
                     className={`rounded-2xl bg-white border border-gray-100 px-5 py-4 shadow-[0_8px_30px_rgb(0,0,0,0.04)] ${
                       checkInButtonState === 'active' ? 'cursor-pointer' : ''
-                    } mb-6`}
+                    } mb-8`}
                     onClick={() => {
                       if (checkInButtonState === 'active') handleSelfCheckIn();
                     }}
