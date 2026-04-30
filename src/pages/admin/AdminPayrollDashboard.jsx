@@ -250,7 +250,7 @@ const AdminPayrollDashboard = ({ goBack }) => {
             <BackButton onClick={goBack} />
             <h1 className="mt-6 text-2xl font-semibold tracking-tight text-neutral-950">Payroll · Attendance</h1>
             <p className="mt-2 text-sm text-neutral-500 font-normal tracking-wide">
-              Digital evidence — {monthLabel} · check_in_at range
+              월간 출석 및 정산 리포트 — {monthLabel}
             </p>
           </div>
           <button
@@ -259,7 +259,7 @@ const AdminPayrollDashboard = ({ goBack }) => {
             disabled={loading || !(logs || []).some((l) => isAttendanceLogCompletedForBalance(l))}
             className="shrink-0 border border-neutral-900 bg-neutral-900 text-white px-5 py-3 text-sm font-medium tracking-wide hover:bg-neutral-800 disabled:opacity-40 disabled:pointer-events-none transition-colors"
           >
-            Export Excel
+            엑셀 다운로드
           </button>
         </div>
       </header>
@@ -295,7 +295,7 @@ const AdminPayrollDashboard = ({ goBack }) => {
                           {m.name || '—'}
                         </span>
                         <span className="block text-xs text-neutral-500 mt-1 font-normal tabular-nums">
-                          {monthLabel} · {n} completed / {rem} remaining
+                          출석 {n}회 · 잔여 {rem}회
                         </span>
                       </button>
                     </li>
