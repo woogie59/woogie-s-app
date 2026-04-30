@@ -122,6 +122,21 @@ const ClientHome = ({ user, logout, setView }) => {
     fetchMyBookings();
   }, [fetchMyBookings]);
 
+  useEffect(() => {
+    if (!user?.id) return;
+    const onVisibleOrFocus = () => {
+      if (document.visibilityState === 'visible') {
+        void fetchMyBookings();
+      }
+    };
+    window.addEventListener('focus', onVisibleOrFocus);
+    document.addEventListener('visibilitychange', onVisibleOrFocus);
+    return () => {
+      window.removeEventListener('focus', onVisibleOrFocus);
+      document.removeEventListener('visibilitychange', onVisibleOrFocus);
+    };
+  }, [user?.id, fetchMyBookings]);
+
   const refreshAfterAttendanceChange = useCallback(async () => {
     if (!user?.id) return null;
     await Promise.all([fetchMyBookings(), loadSessionMetrics()]);
@@ -424,7 +439,6 @@ const ClientHome = ({ user, logout, setView }) => {
         },
       });
 
-      showAlert({ message: '출석이 완료되었습니다.' });
       setShowCheckInDoneModal(true);
     } catch (e) {
       console.error('[ClientHome] self check-in:', e);
@@ -520,7 +534,7 @@ const ClientHome = ({ user, logout, setView }) => {
 
       <main className="flex-1 flex flex-col px-5 gap-4 pb-6 overflow-y-auto scrollable min-h-0">
         {/* 1. Upcoming Class — read-only billboard; 전체 일정은「수업 예약 및 일정」화면 */}
-        <div className="w-full rounded-2xl bg-[#064e3b] px-4 py-4 text-left text-white shadow-md ring-1 ring-white/10 shrink-0 sm:px-5 sm:py-5">
+        <div className="w-full rounded-2xl bg-gradient-to-br from-[#064e3b] via-[#075842] to-[#053d2f] px-4 py-4 text-left text-white shadow-md ring-1 ring-white/10 shrink-0 sm:px-5 sm:py-5">
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0 flex-1">
               <p className="text-sm text-white/70 font-medium mb-1">다음 수업</p>
@@ -597,9 +611,9 @@ const ClientHome = ({ user, logout, setView }) => {
                         ? { duration: 2.6, repeat: Infinity, ease: 'easeInOut' }
                         : { duration: 0.2 }
                     }
-                    className={`rounded-xl px-3 py-2 ${
+                    className={`rounded-xl px-5 py-4 ${
                       checkInButtonState === 'active'
-                        ? 'bg-emerald-50/60 cursor-pointer'
+                        ? 'bg-[#0B3B24]/5 cursor-pointer'
                         : checkInButtonState === 'completed'
                           ? 'bg-gray-100'
                           : 'bg-gray-50'

@@ -382,7 +382,6 @@ const AdminHome = ({ setView, logout, onOpenTrainingLog }) => {
               <Table2 size={24} strokeWidth={ICON_STROKE} className="text-[#064e3b] shrink-0" aria-hidden />
               <span className="text-sm font-medium text-slate-900 tracking-tight">페이롤 · 출석</span>
             </div>
-            <span className="text-xs text-gray-400">보조 메뉴</span>
           </button>
         </div>
       </section>
