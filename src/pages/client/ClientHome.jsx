@@ -415,6 +415,16 @@ const ClientHome = ({ user, logout, setView }) => {
     return 'disabled';
   }, [hasCheckedInForNearest, isCheckInWindowOpen]);
 
+  const checkInOpenLabel = useMemo(() => {
+    if (!todayNearestBooking) return null;
+    const start = bookingDateTime(todayNearestBooking);
+    if (!start) return null;
+    const openAt = new Date(start.getTime() - 60 * 60000);
+    const hh = String(openAt.getHours()).padStart(2, '0');
+    const mm = String(openAt.getMinutes()).padStart(2, '0');
+    return `${hh}:${mm}`;
+  }, [todayNearestBooking]);
+
   const handleSelfCheckIn = useCallback(async () => {
     if (checkInButtonState !== 'active' || isCheckInSubmitting) return;
     if (!user?.id) return;
@@ -616,7 +626,7 @@ const ClientHome = ({ user, logout, setView }) => {
                         ? { duration: 2.6, repeat: Infinity, ease: 'easeInOut' }
                         : { duration: 0.2 }
                     }
-                    className={`rounded-2xl bg-white border border-gray-100 px-5 py-4 shadow-[0_8px_30px_rgb(0,0,0,0.04)] ${
+                    className={`rounded-2xl bg-white border border-gray-100 px-5 py-4 shadow-[0_4px_20px_rgb(0,0,0,0.05)] ${
                       checkInButtonState === 'active' ? 'cursor-pointer' : ''
                     } mb-8`}
                     onClick={() => {
@@ -629,13 +639,13 @@ const ClientHome = ({ user, logout, setView }) => {
                           {checkInButtonState === 'completed' ? (
                             <Check size={14} strokeWidth={2.2} className="text-[#064e3b]" />
                           ) : (
-                            <div className="w-2.5 h-2.5 rounded-full bg-[#064e3b] animate-pulse" aria-hidden />
+                            <div className="w-2 h-2 rounded-full bg-[#064e3b] animate-pulse" aria-hidden />
                           )}
                           <span className="text-base font-bold text-slate-900 tabular-nums">
                             오늘 {formatTime24hStatic(todayNearestBooking.time)}
                           </span>
                         </div>
-                        <p className="mt-1 text-sm text-gray-500">잔여 {sessionMetrics.remaining}회</p>
+                        <p className="mt-1 pl-4 text-sm text-gray-500">잔여 {sessionMetrics.remaining}회</p>
                       </div>
                       <span
                         className={`rounded-full px-5 py-2.5 text-sm font-semibold tracking-wide ${
@@ -652,7 +662,9 @@ const ClientHome = ({ user, logout, setView }) => {
                             ? isCheckInSubmitting
                               ? '처리 중...'
                               : '출석하기'
-                            : '대기 중'}
+                            : checkInOpenLabel
+                              ? `${checkInOpenLabel} 오픈`
+                              : '오픈 예정'}
                       </span>
                     </div>
                   </motion.li>
