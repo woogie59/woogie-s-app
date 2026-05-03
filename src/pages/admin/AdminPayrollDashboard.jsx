@@ -4,10 +4,18 @@ import { supabase } from '../../lib/supabaseClient';
 import BackButton from '../../components/ui/BackButton';
 import { isAttendanceLogCompletedForBalance } from '../../utils/sessionHelpers';
 
-function monthRangeISO() {
-  const firstDay = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString();
-  const lastDay = new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0, 23, 59, 59).toISOString();
+/** Local calendar month bounds for `check_in_at` (timestamptz): 1st 00:00:00.000 — last day 23:59:59.999. */
+function monthRangeISO(dateInMonth) {
+  const y = dateInMonth.getFullYear();
+  const m = dateInMonth.getMonth();
+  const firstDay = new Date(y, m, 1, 0, 0, 0, 0).toISOString();
+  const lastDay = new Date(y, m + 1, 0, 23, 59, 59, 999).toISOString();
   return { firstDay, lastDay };
+}
+
+function startOfCurrentMonth() {
+  const d = new Date();
+  return new Date(d.getFullYear(), d.getMonth(), 1);
 }
 
 function formatDateOnly(iso) {
@@ -107,10 +115,30 @@ function sumRemainingCountByUser(rows) {
 }
 
 const AdminPayrollDashboard = ({ goBack }) => {
-  const { firstDay, lastDay } = useMemo(() => monthRangeISO(), []);
+  const [selectedDate, setSelectedDate] = useState(() => startOfCurrentMonth());
+
+  const { firstDay, lastDay } = useMemo(() => monthRangeISO(selectedDate), [selectedDate]);
+
   const monthLabel = useMemo(() => {
-    const d = new Date();
-    return `${d.getFullYear()}년 ${d.getMonth() + 1}월`;
+    const y = selectedDate.getFullYear();
+    const mo = selectedDate.getMonth() + 1;
+    return `${y}년 ${String(mo).padStart(2, '0')}월`;
+  }, [selectedDate]);
+
+  const monthInputValue = useMemo(() => {
+    const y = selectedDate.getFullYear();
+    const mo = selectedDate.getMonth() + 1;
+    return `${y}-${String(mo).padStart(2, '0')}`;
+  }, [selectedDate]);
+
+  const handleMonthInputChange = useCallback((e) => {
+    const v = e.target.value;
+    if (!v || typeof v !== 'string') return;
+    const [ys, ms] = v.split('-');
+    const y = parseInt(ys, 10);
+    const mo = parseInt(ms, 10);
+    if (!Number.isFinite(y) || !Number.isFinite(mo) || mo < 1 || mo > 12) return;
+    setSelectedDate(new Date(y, mo - 1, 1));
   }, []);
 
   const [members, setMembers] = useState([]);
@@ -238,14 +266,14 @@ const AdminPayrollDashboard = ({ goBack }) => {
     applyAttendanceExportStyles(ws, 0, nCols, 1 + nData);
     XLSX.utils.book_append_sheet(wb, ws, 'Attendance');
 
-    const safeMonth = `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`;
+    const safeMonth = `${selectedDate.getFullYear()}-${String(selectedDate.getMonth() + 1).padStart(2, '0')}`;
     XLSX.writeFile(wb, `payroll-attendance-${safeMonth}.xlsx`);
   };
 
   return (
     <div className="min-h-[100dvh] bg-white text-neutral-950 font-sans">
       <header className="border-b border-neutral-200 px-6 py-8 max-w-6xl mx-auto">
-        <div className="flex flex-col gap-6 sm:flex-row sm:items-end sm:justify-between">
+        <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
           <div>
             <BackButton onClick={goBack} />
             <h1 className="mt-6 text-2xl font-semibold tracking-tight text-neutral-950">Payroll · Attendance</h1>
@@ -253,14 +281,28 @@ const AdminPayrollDashboard = ({ goBack }) => {
               월간 출석 및 정산 리포트 — {monthLabel}
             </p>
           </div>
-          <button
-            type="button"
-            onClick={handleExportExcel}
-            disabled={loading || !(logs || []).some((l) => isAttendanceLogCompletedForBalance(l))}
-            className="shrink-0 border border-neutral-900 bg-neutral-900 text-white px-5 py-3 text-sm font-medium tracking-wide hover:bg-neutral-800 disabled:opacity-40 disabled:pointer-events-none transition-colors"
-          >
-            엑셀 다운로드
-          </button>
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-stretch sm:justify-end lg:shrink-0 lg:items-center">
+            <label className="inline-flex items-center gap-2.5 rounded-2xl border border-neutral-200 bg-white px-4 py-3 text-sm text-neutral-800 shadow-sm">
+              <span className="text-[10px] font-semibold uppercase tracking-[0.18em] text-neutral-400 whitespace-nowrap">
+                조회 연월
+              </span>
+              <input
+                type="month"
+                value={monthInputValue}
+                onChange={handleMonthInputChange}
+                className="min-w-0 flex-1 rounded-lg border border-neutral-100 bg-neutral-50/80 px-2 py-1.5 text-sm font-medium tabular-nums text-neutral-950 outline-none ring-0 focus:border-neutral-300 focus:bg-white"
+                aria-label="조회할 연도와 월 선택"
+              />
+            </label>
+            <button
+              type="button"
+              onClick={handleExportExcel}
+              disabled={loading || !(logs || []).some((l) => isAttendanceLogCompletedForBalance(l))}
+              className="shrink-0 border border-neutral-900 bg-neutral-900 text-white px-5 py-3 text-sm font-medium tracking-wide hover:bg-neutral-800 disabled:opacity-40 disabled:pointer-events-none transition-colors sm:self-center"
+            >
+              엑셀 다운로드
+            </button>
+          </div>
         </div>
       </header>
 
