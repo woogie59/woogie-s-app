@@ -53,7 +53,11 @@ const MILESTONES: MilestoneItem[] = [
   },
 ];
 
-const VaultArchivePreview: React.FC = () => {
+export type VaultArchivePreviewProps = {
+  onClose: () => void;
+};
+
+const VaultArchivePreview: React.FC<VaultArchivePreviewProps> = ({ onClose }) => {
   const heatmapCells = useMemo(() => {
     return Array.from({ length: TOTAL_DAYS }, (_, i) => ({
       id: i,
@@ -62,8 +66,22 @@ const VaultArchivePreview: React.FC = () => {
   }, []);
 
   return (
-    <div className="min-h-[100dvh] bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-gray-900 via-[#0a0a0a] to-black text-white antialiased animate-[fadeInScale_0.85s_cubic-bezier(0.16,1,0.3,1)_both]">
-      <div className="mx-auto max-w-md px-5 py-8 pb-safe flex flex-col gap-10">
+    <div
+      className="fixed inset-0 z-[100] w-full h-full min-h-[100dvh] bg-[#0a0a0a] overflow-y-auto text-white antialiased animate-in fade-in zoom-in-95 duration-500 ease-out"
+      role="dialog"
+      aria-modal="true"
+      aria-label="프라이빗 아카이브"
+    >
+      <button
+        type="button"
+        onClick={onClose}
+        className="fixed right-4 top-[max(0.75rem,env(safe-area-inset-top))] z-[101] rounded-full border border-white/15 bg-white/10 px-3 py-1.5 text-xs font-medium text-white backdrop-blur-sm transition hover:bg-white/15"
+        aria-label="프라이빗 아카이브 닫기"
+      >
+        닫기
+      </button>
+      <div className="min-h-[100dvh] bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-gray-900 via-[#0a0a0a] to-black pt-[max(3.25rem,calc(env(safe-area-inset-top)+2.75rem))] pb-safe">
+        <div className="mx-auto max-w-md px-5 py-8 flex flex-col gap-10">
         <section>
           <h2 className="text-xs uppercase tracking-[0.2em] text-gray-500 mb-6">12주 출석 히트맵</h2>
           <div
@@ -162,6 +180,7 @@ const VaultArchivePreview: React.FC = () => {
             </div>
           </div>
         </section>
+        </div>
       </div>
     </div>
   );

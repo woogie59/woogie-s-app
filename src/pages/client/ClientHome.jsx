@@ -783,17 +783,7 @@ const ClientHome = ({ user, logout, setView }) => {
       />
 
       {vaultArchiveOpen && (
-        <div className="fixed inset-0 z-[100]">
-          <button
-            type="button"
-            onClick={() => setVaultArchiveOpen(false)}
-            className="absolute right-4 top-[max(1rem,env(safe-area-inset-top))] z-[110] rounded-full border border-white/15 bg-white/10 px-3 py-1.5 text-xs font-medium text-white backdrop-blur-sm transition hover:bg-white/15"
-            aria-label="프라이빗 아카이브 닫기"
-          >
-            닫기
-          </button>
-          <VaultArchivePreview />
-        </div>
+        <VaultArchivePreview onClose={() => setVaultArchiveOpen(false)} />
       )}
 
     </div>
