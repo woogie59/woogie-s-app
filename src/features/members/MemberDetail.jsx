@@ -5,6 +5,7 @@ import { fetchSessionBalanceMetrics } from '../../utils/sessionHelpers';
 import { SESSION_BALANCE_REFRESH_EVENT } from '../../utils/sessionBalanceEvents';
 import BackButton from '../../components/ui/BackButton';
 import AddSessionModal from './AddSessionModal';
+import MemberStatusTab from './MemberStatusTab';
 
 const MemberDetail = ({ selectedMemberId, goBack }) => {
   const [u, setU] = useState(null);
@@ -16,6 +17,23 @@ const MemberDetail = ({ selectedMemberId, goBack }) => {
   const [isMemoEditing, setIsMemoEditing] = useState(false);
   const [isMemoSaving, setIsMemoSaving] = useState(false);
   const [memoSavedFlash, setMemoSavedFlash] = useState(false);
+  const [detailTab, setDetailTab] = useState('overview');
+  const [memberStats, setMemberStats] = useState([]);
+
+  const fetchMemberStats = useCallback(async () => {
+    if (!selectedMemberId) return;
+    const { data, error } = await supabase
+      .from('member_stats')
+      .select('*')
+      .eq('user_id', selectedMemberId)
+      .order('created_at', { ascending: true });
+    if (error) {
+      console.error('Error fetching member_stats:', error);
+      setMemberStats([]);
+    } else {
+      setMemberStats(data || []);
+    }
+  }, [selectedMemberId]);
 
   const fetchMemberDetails = async () => {
     const { data: userData } = await supabase.from('profiles').select('*').eq('id', selectedMemberId).single();
@@ -23,13 +41,14 @@ const MemberDetail = ({ selectedMemberId, goBack }) => {
     setMemoDraft(userData?.memo || '');
 
     setLoadingBatches(true);
-    const [batchRes, balanceRes] = await Promise.all([
+    const [batchRes, balanceRes, statsRes] = await Promise.all([
       supabase
         .from('session_batches')
         .select('*')
         .eq('user_id', selectedMemberId)
         .order('created_at', { ascending: true }),
       fetchSessionBalanceMetrics(supabase, selectedMemberId),
+      supabase.from('member_stats').select('*').eq('user_id', selectedMemberId).order('created_at', { ascending: true }),
     ]);
 
     if (batchRes.error) {
@@ -39,6 +58,13 @@ const MemberDetail = ({ selectedMemberId, goBack }) => {
       setBatches(batchRes.data || []);
     }
     setSessionBalance(balanceRes);
+
+    if (statsRes.error) {
+      console.error('Error fetching member_stats:', statsRes.error);
+      setMemberStats([]);
+    } else {
+      setMemberStats(statsRes.data || []);
+    }
 
     setLoadingBatches(false);
   };
@@ -112,11 +138,48 @@ const MemberDetail = ({ selectedMemberId, goBack }) => {
     <div className="min-h-[100dvh] bg-white text-neutral-950 px-6 py-10 pb-24 max-w-lg mx-auto">
       <BackButton onClick={goBack} />
 
-      <header className="mt-8 mb-12">
+      <header className="mt-8 mb-8">
         <h1 className="text-2xl font-semibold tracking-tight text-neutral-950">{u?.name || '—'}</h1>
         <p className="mt-2 text-sm text-neutral-500">{u.email}</p>
       </header>
 
+      <div className="mb-10 flex rounded-xl bg-neutral-100 p-1 text-sm font-medium">
+        <button
+          type="button"
+          onClick={() => setDetailTab('overview')}
+          className={`flex-1 rounded-lg py-2.5 transition-colors ${
+            detailTab === 'overview' ? 'bg-white text-neutral-950 shadow-sm' : 'text-neutral-500 hover:text-neutral-800'
+          }`}
+        >
+          개요
+        </button>
+        <button
+          type="button"
+          onClick={() => setDetailTab('status')}
+          className={`flex-1 rounded-lg py-2.5 transition-colors ${
+            detailTab === 'status' ? 'bg-white text-neutral-950 shadow-sm' : 'text-neutral-500 hover:text-neutral-800'
+          }`}
+        >
+          스테이터스 관리
+        </button>
+      </div>
+
+      {detailTab === 'status' ? (
+        <MemberStatusTab
+          userId={selectedMemberId}
+          profile={u}
+          stats={memberStats}
+          memberLevel={u?.member_level ?? 1}
+          onRefresh={async () => {
+            await fetchMemberStats();
+            const { data: userData } = await supabase.from('profiles').select('*').eq('id', selectedMemberId).single();
+            if (userData) setU(userData);
+          }}
+        />
+      ) : null}
+
+      {detailTab === 'overview' && (
+        <>
       <section className="mb-16">
         <p className="text-xs font-medium uppercase tracking-[0.2em] text-neutral-400 mb-3">잔여 세션</p>
         <p className="text-5xl font-semibold tabular-nums text-neutral-950 tracking-tight">{totalRemaining}</p>
@@ -247,6 +310,8 @@ const MemberDetail = ({ selectedMemberId, goBack }) => {
           </div>
         </dl>
       </section>
+        </>
+      )}
 
       {sessionModal && (
         <AddSessionModal
