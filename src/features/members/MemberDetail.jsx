@@ -174,6 +174,9 @@ const MemberDetail = ({ selectedMemberId, goBack }) => {
           profile={u}
           stats={memberStats}
           memberLevel={u?.member_level ?? 1}
+          onMemberLevelSynced={(nextLevel) => {
+            setU((prev) => (prev ? { ...prev, member_level: nextLevel } : prev));
+          }}
           onRefresh={async () => {
             await fetchMemberStats();
             const { data: userData } = await supabase.from('profiles').select('*').eq('id', selectedMemberId).single();

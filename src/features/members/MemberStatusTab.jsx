@@ -31,7 +31,7 @@ function supabaseErrorMessage(error) {
   return String(error);
 }
 
-export default function MemberStatusTab({ userId, profile, stats, memberLevel, onRefresh }) {
+export default function MemberStatusTab({ userId, profile, stats, memberLevel, onRefresh, onMemberLevelSynced }) {
   const [categoryInput, setCategoryInput] = useState('');
   const [adding, setAdding] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -171,16 +171,46 @@ export default function MemberStatusTab({ userId, profile, stats, memberLevel, o
       toast.error('1 이상의 정수 레벨을 입력하세요.');
       return;
     }
-    setSaving(true);
-    const { error } = await supabase.from('profiles').update({ member_level: manualParsed }).eq('id', userId);
-    setSaving(false);
-    if (error) {
-      console.error('[MemberStatusTab] profile level', error);
-      toast.error('프로필 레벨 저장 실패');
+    if (!userId) {
+      toast.error('회원 정보가 없습니다.');
       return;
     }
-    toast.success('프로필 레벨이 반영되었습니다.');
-    await onRefresh?.();
+
+    const prevLevel = Number(memberLevel) || 1;
+    const targetLevel = manualParsed;
+
+    setSaving(true);
+    try {
+      const { data: sessionData, error: sessionErr } = await supabase.auth.getSession();
+      if (sessionErr) throw sessionErr;
+      const adminId = sessionData?.session?.user?.id;
+      if (!adminId) {
+        throw new Error('no_admin_session');
+      }
+
+      const { error } = await supabase.rpc('admin_force_update_level', {
+        p_target_user: userId,
+        p_new_level: targetLevel,
+        p_admin_id: adminId,
+      });
+
+      if (error) throw error;
+
+      onMemberLevelSynced?.(targetLevel);
+      setManualLevelDraft('');
+
+      if (targetLevel > prevLevel) {
+        setEpicKey((k) => k + 1);
+      }
+
+      toast.success('프로필 레벨이 반영되었습니다.');
+      await onRefresh?.();
+    } catch (e) {
+      console.error('[MemberStatusTab] admin_force_update_level', e);
+      toast.error('레벨 동기화 실패: 시스템 관리자에게 문의하십시오.');
+    } finally {
+      setSaving(false);
+    }
   };
 
   const addCategory = async () => {
