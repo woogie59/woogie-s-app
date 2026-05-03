@@ -376,8 +376,7 @@ const ClassBooking = ({ user, setView, goBack }) => {
       <div className="shrink-0 px-5 pt-6 pb-3 border-b border-gray-100/90 bg-gray-50">
         <BackButton onClick={goBack} />
         <header className="mt-4 mb-5">
-          <p className="text-[10px] tracking-widest uppercase text-gray-400 font-medium">SCHEDULE & BOOKING</p>
-          <h1 className="text-xl font-light text-slate-900 tracking-wide mt-1">수업 예약 및 일정</h1>
+          <h1 className="text-xl font-light text-slate-900 tracking-wide">수업 예약 및 일정</h1>
         </header>
 
         {/* Week toggle — silent luxury */}
@@ -428,9 +427,7 @@ const ClassBooking = ({ user, setView, goBack }) => {
       ) : (
         <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
           <div className="shrink-0 px-5 pt-4 pb-2 overflow-hidden">
-            <p className="text-[10px] tracking-widest uppercase text-gray-400 mb-3 font-medium">
-              {weekMode === 'current' ? 'THIS_WEEK' : 'NEXT_WEEK'}
-            </p>
+            <p className="text-xs font-bold text-gray-400 tracking-wider mb-3">날짜 선택</p>
             <div
               className="flex gap-2 overflow-x-auto overflow-y-hidden pb-2 -mx-1 px-1 scrollbar-hide"
               style={{ WebkitOverflowScrolling: 'touch', touchAction: 'pan-x' }}
@@ -451,7 +448,7 @@ const ClassBooking = ({ user, setView, goBack }) => {
                     type="button"
                     onClick={() => !isPast && setSelectedDate(dateStr)}
                     disabled={isPast}
-                    className={`shrink-0 min-w-[52px] py-3 px-2 rounded-2xl border flex flex-col items-center justify-center transition-all duration-200 active:scale-[0.98] ${
+                    className={`shrink-0 min-w-[52px] py-3 px-2 rounded-xl border flex flex-col items-center justify-center transition-all duration-200 active:scale-[0.98] ${
                       isSelected
                         ? 'bg-[#064e3b] border-[#064e3b] text-white shadow-md'
                         : isPast
@@ -489,7 +486,7 @@ const ClassBooking = ({ user, setView, goBack }) => {
           >
             {selectedDate && (
               <>
-                <p className="text-[10px] tracking-widest uppercase text-gray-400 mb-3 font-medium">AVAILABLE SLOTS</p>
+                <p className="text-xs font-bold text-gray-400 tracking-wider mb-3">시간 선택</p>
                 {isHoliday(selectedDate) ? (
                   <p className="text-center text-sm font-light text-gray-500 py-12 tracking-wide">휴무일입니다.</p>
                 ) : getDaySetting(selectedDate).off ? (
@@ -499,7 +496,7 @@ const ClassBooking = ({ user, setView, goBack }) => {
                 ) : generateTimeSlots().length === 0 ? (
                   <p className="text-center text-sm font-light text-gray-500 py-12">이 날짜에 열린 슬롯이 없습니다.</p>
                 ) : (
-                  <div className="flex flex-wrap gap-2.5 pb-3">
+                  <div className="grid grid-cols-3 gap-3 pb-3">
                     {generateTimeSlots().map((time) => {
                       const expired = isSlotExpired(selectedDate, time);
                       const bookingAtSlot = bookings.find(
@@ -511,24 +508,21 @@ const ClassBooking = ({ user, setView, goBack }) => {
                       const isOther = Boolean(bookingAtSlot && !isMine);
                       const clickable = isSlotBookable(time);
 
-                      const basePad =
-                        'inline-flex min-w-[5.25rem] rounded-full border px-3.5 py-2 text-sm font-light tracking-wide text-center transition-all duration-200 flex-col items-center justify-center gap-0.5';
-                      let slotClass = basePad;
+                      const baseCard =
+                        'w-full rounded-xl border px-2 py-3 text-sm text-center transition-all duration-200 flex flex-col items-center justify-center gap-0.5 font-medium';
+                      let slotClass = baseCard;
                       if (isMine) {
                         slotClass +=
-                          ' cursor-pointer border-[#064e3b] bg-[#064e3b] text-white shadow-md ring-1 ring-[#043d2d]/30 hover:brightness-110 active:scale-[0.98]';
+                          ' cursor-pointer bg-[#0B3B24] text-white border-[#0B3B24] shadow-md scale-[0.98] hover:brightness-110';
                       } else if (isOther) {
-                        slotClass +=
-                          ' cursor-not-allowed border-gray-200/90 bg-gray-100 text-gray-400 opacity-80';
+                        slotClass += ' cursor-not-allowed border-gray-200 bg-gray-100 text-gray-400 opacity-80';
                       } else if (expired) {
-                        slotClass +=
-                          ' opacity-45 cursor-not-allowed border-gray-100/90 bg-gray-50/80 text-gray-400';
+                        slotClass += ' opacity-45 cursor-not-allowed border-gray-200 bg-gray-50 text-gray-400';
                       } else if (clickable) {
                         slotClass +=
-                          ' border-gray-200/90 bg-white text-slate-900 shadow-sm active:scale-[0.98] hover:border-[#064e3b]/30 hover:shadow-[0_1px_0_rgba(6,78,59,0.06)]';
+                          ' cursor-pointer bg-white border-gray-200 text-gray-900 hover:border-[#0B3B24]/40 hover:shadow-sm active:scale-[0.98]';
                       } else {
-                        slotClass +=
-                          ' opacity-45 cursor-not-allowed border-gray-100/90 bg-gray-50/80 text-gray-400';
+                        slotClass += ' opacity-45 cursor-not-allowed border-gray-200 bg-gray-50 text-gray-400';
                       }
 
                       const slotButtonDisabled = isOther || (!isMine && !clickable);
