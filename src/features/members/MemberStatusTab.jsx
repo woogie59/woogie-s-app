@@ -4,7 +4,6 @@ import { motion as Motion } from 'framer-motion';
 import { Plus } from 'lucide-react';
 import { supabase } from '../../lib/supabaseClient';
 import { invokeNotifyMemberEvents } from '../../utils/notifications';
-import VaultArchivePreview from '../../components/vault/VaultArchivePreview';
 import AthleteStatus from './AthleteStatus';
 import GrowthLedgerTimeline from './GrowthLedgerTimeline';
 import MemberPhoneMirror from './MemberPhoneMirror';
@@ -27,6 +26,43 @@ function supabaseErrorMessage(error) {
   return String(error);
 }
 
+const LEDGER_PAGE_SIZE = 60;
+
+function MemberSimulatorLedger({ memberId, refreshKey }) {
+  const [entries, setEntries] = useState([]);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (!memberId) {
+      setEntries([]);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      setLoading(true);
+      const { data, error } = await supabase
+        .from('exp_logs')
+        .select('*')
+        .eq('user_id', memberId)
+        .order('created_at', { ascending: false })
+        .limit(LEDGER_PAGE_SIZE);
+      if (cancelled) return;
+      setLoading(false);
+      if (error) {
+        console.error('[MemberSimulatorLedger] exp_logs', error);
+        setEntries([]);
+        return;
+      }
+      setEntries(data || []);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [memberId, refreshKey]);
+
+  return <GrowthLedgerTimeline entries={entries} loading={loading} />;
+}
+
 export default function MemberStatusTab({ userId, profile, stats, memberLevel, onRefresh, onMemberLevelSynced }) {
   const [categoryInput, setCategoryInput] = useState('');
   const [adding, setAdding] = useState(false);
@@ -37,8 +73,7 @@ export default function MemberStatusTab({ userId, profile, stats, memberLevel, o
   );
   const [epicKey, setEpicKey] = useState(0);
   const [achievementReasonByStatId, setAchievementReasonByStatId] = useState({});
-  const [ledgerEntries, setLedgerEntries] = useState([]);
-  const [ledgerLoading, setLedgerLoading] = useState(false);
+  const [ledgerRefreshKey, setLedgerRefreshKey] = useState(0);
 
   const prevBonusRef = useRef(null);
 
@@ -57,28 +92,6 @@ export default function MemberStatusTab({ userId, profile, stats, memberLevel, o
       return next;
     });
   }, [stats]);
-
-  const loadLedger = useCallback(async () => {
-    if (!userId) return;
-    setLedgerLoading(true);
-    const { data, error } = await supabase
-      .from('member_growth_ledger')
-      .select('*')
-      .eq('user_id', userId)
-      .order('created_at', { ascending: false })
-      .limit(60);
-    setLedgerLoading(false);
-    if (error) {
-      console.error('[MemberStatusTab] growth ledger', error);
-      setLedgerEntries([]);
-      return;
-    }
-    setLedgerEntries(data || []);
-  }, [userId]);
-
-  useEffect(() => {
-    void loadLedger();
-  }, [loadLedger]);
 
   const displayName = profile?.name || '회원';
 
@@ -134,7 +147,8 @@ export default function MemberStatusTab({ userId, profile, stats, memberLevel, o
       const expDirty = Math.abs(p - srv) > 0.04;
       const srvNote = (s.achievement_note ?? '').trim();
       const localNote = (achievementReasonByStatId[s.id] ?? '').trim();
-      const noteDirty = localNote !== srvNote;
+      // 근거 입력은 "다음 저장용 초안": 비운 뒤에는 서버 achievement_note와 달라도 미저장으로 보지 않음.
+      const noteDirty = localNote !== '' && localNote !== srvNote;
       return expDirty || noteDirty;
     },
     [pendingExp, achievementReasonByStatId]
@@ -157,14 +171,16 @@ export default function MemberStatusTab({ userId, profile, stats, memberLevel, o
         const note = (achievementReasonByStatId[s.id] ?? '').trim();
 
         const { data, error: rpcErr } = await supabase.rpc('admin_apply_member_stat_exp', {
-          p_target_user: userId,
-          p_stat_id: s.id,
           p_new_exp: p,
           p_reason: note || null,
+          p_stat_id: s.id,
+          p_target_user: userId,
         });
         if (rpcErr) throw rpcErr;
         if (Number(data?.levels_gained) > 0) anyLevelGain = true;
       }
+
+      setLedgerRefreshKey((k) => k + 1);
 
       setAchievementReasonByStatId((prev) => {
         const next = { ...prev };
@@ -175,7 +191,6 @@ export default function MemberStatusTab({ userId, profile, stats, memberLevel, o
       });
 
       await onRefresh?.();
-      await loadLedger();
       let finalLevel = null;
       if (anyLevelGain) {
         const { data: prof } = await supabase.from('profiles').select('member_level').eq('id', userId).maybeSingle();
@@ -246,7 +261,6 @@ export default function MemberStatusTab({ userId, profile, stats, memberLevel, o
 
       toast.success('프로필 레벨이 반영되었습니다.');
       await onRefresh?.();
-      await loadLedger();
     } catch (e) {
       console.error('[MemberStatusTab] admin_force_update_level', e);
       toast.error('레벨 동기화 실패: 시스템 관리자에게 문의하십시오.');
@@ -478,13 +492,7 @@ export default function MemberStatusTab({ userId, profile, stats, memberLevel, o
               <p className="mb-3 text-center text-[10px] font-bold uppercase tracking-[0.35em] text-emerald-500/55">
                 Growth Ledger
               </p>
-              <GrowthLedgerTimeline entries={ledgerEntries} loading={ledgerLoading} />
-            </div>
-            <div>
-              <p className="mb-2 text-center text-[10px] font-bold uppercase tracking-[0.35em] text-emerald-500/45">
-                Vault Archive
-              </p>
-              <VaultArchivePreview embedded className="shadow-[0_0_40px_rgba(0,0,0,0.6)]" />
+              <MemberSimulatorLedger memberId={userId} refreshKey={ledgerRefreshKey} />
             </div>
           </div>
         </MemberPhoneMirror>

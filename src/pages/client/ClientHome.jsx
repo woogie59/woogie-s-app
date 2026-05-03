@@ -16,7 +16,6 @@ import Skeleton from '../../components/ui/Skeleton';
 import SessionHistoryModal from '../../features/members/SessionHistoryModal';
 import { parseBookingToLocalDate } from '../../utils/bookingDateKeys';
 import MemberCancelBookingModals from '../../components/member/MemberCancelBookingModals';
-import VaultArchivePreview from '../../components/vault/VaultArchivePreview';
 
 /** MVP: 라이브러리·트레이닝 일지 진입 UI 비표시 — 라우트/화면은 유지 */
 const MVP_HIDE_LIBRARY_AND_TRAINING_NAV = true;
@@ -60,7 +59,6 @@ const ClientHome = ({ user, logout, setView }) => {
   const [attendanceLogs, setAttendanceLogs] = useState([]);
   const [showHistory, setShowHistory] = useState(false);
   const [showCheckInDoneModal, setShowCheckInDoneModal] = useState(false);
-  const [vaultArchiveOpen, setVaultArchiveOpen] = useState(false);
   const [cancelIntent, setCancelIntent] = useState(null);
   /** Most recent training log row (`client_session_reports`) for gateway teaser */
   const [latestReport, setLatestReport] = useState(null);
@@ -511,23 +509,10 @@ const ClientHome = ({ user, logout, setView }) => {
         <div aria-hidden className="min-w-0" />
         <div className="flex min-w-0 flex-col items-center text-center">
           <LabDotBrand variant="header" />
-          <p className="mt-2.5 text-xs font-light tracking-[0.12em] text-gray-500">
+          <p className="mt-2.5 mb-6 text-xs font-light tracking-[0.12em] text-gray-500">
             <span className="text-slate-800">{profile?.name || '회원'}</span>
             <span className="text-gray-400"> 님</span>
           </p>
-          <div className="mb-8 flex w-full justify-center">
-            <button
-              type="button"
-              onClick={() => setVaultArchiveOpen(true)}
-              className="bg-[#111111] text-white text-xs font-medium px-3 py-1.5 rounded-full inline-flex items-center gap-1.5 shadow-sm mt-2 cursor-pointer transition-transform active:scale-95"
-              aria-label="프라이빗 아카이브 열기"
-            >
-              <span className="text-[10px] leading-none opacity-90" aria-hidden>
-                ✦
-              </span>
-              프라이빗 아카이브
-            </button>
-          </div>
         </div>
         <div className="flex shrink-0 items-center justify-end gap-0.5 pt-0.5">
           {!MVP_HIDE_LIBRARY_AND_TRAINING_NAV && (
@@ -781,10 +766,6 @@ const ClientHome = ({ user, logout, setView }) => {
         onOpenBookingChange={setCancelIntent}
         onAfterSuccessConfirm={syncAfterBookingCancel}
       />
-
-      {vaultArchiveOpen && (
-        <VaultArchivePreview onClose={() => setVaultArchiveOpen(false)} />
-      )}
 
     </div>
   );

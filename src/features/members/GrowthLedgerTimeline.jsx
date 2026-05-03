@@ -1,7 +1,25 @@
 import React from 'react';
 
+function formatLedgerDate(iso) {
+  if (!iso) return '';
+  return new Date(iso).toLocaleString('ko-KR', {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+}
+
+function formatExpAfter(row) {
+  const v = row.exp_after != null ? Number(row.exp_after) : null;
+  if (v == null || !Number.isFinite(v)) return '—';
+  const rounded = Math.round(v * 10) / 10;
+  return `${rounded}%`;
+}
+
 /**
- * Vertical growth ledger for the member simulator (admin + future client).
+ * Vertical growth ledger for the member simulator (exp_logs).
  */
 export default function GrowthLedgerTimeline({ entries, loading = false }) {
   if (loading) {
@@ -21,56 +39,23 @@ export default function GrowthLedgerTimeline({ entries, loading = false }) {
   return (
     <div className="max-h-[min(40vh,360px)] overflow-y-auto pr-1 [scrollbar-width:thin]">
       {entries.map((row) => {
-        const dt = row.created_at
-          ? new Date(row.created_at).toLocaleString('ko-KR', {
-              month: 'short',
-              day: 'numeric',
-              hour: '2-digit',
-              minute: '2-digit',
-            })
-          : '';
-        const isLevel = row.entry_kind === 'level_up';
-        const delta = row.exp_delta != null ? Number(row.exp_delta) : null;
-        const deltaLabel =
-          delta != null && Number.isFinite(delta)
-            ? `${delta > 0 ? '+' : ''}${delta}% 바 조정`
-            : null;
-        const profileJump =
-          isLevel && row.profile_level_after != null && row.profile_level_before != null
-            ? `프로필 LV ${row.profile_level_before} → ${row.profile_level_after}`
-            : null;
+        const dt = formatLedgerDate(row.created_at);
+        const category = row.category_name || '—';
+        const pctLabel = formatExpAfter(row);
+        const headline = `[${dt}] ${category}: ${pctLabel} 도달`;
+        const basis = (row.reason ?? row.achievement_note ?? '').trim();
 
         return (
-          <div
-            key={row.id}
-            className="mb-3 border-l-2 border-emerald-500 bg-white/5 p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]"
-          >
-            <div className="flex items-start justify-between gap-2">
-              <span
-                className={`text-[11px] font-black uppercase tracking-[0.2em] ${
-                  isLevel ? 'text-amber-300/95' : 'text-emerald-400/90'
-                }`}
-              >
-                {isLevel ? 'Level Up' : 'EXP Gain'}
-              </span>
-              <span className="shrink-0 text-[10px] tabular-nums text-white/35">{dt}</span>
+          <div key={row.id} className="relative mb-4 pl-3 before:absolute before:left-0 before:top-2 before:h-[calc(100%-0.5rem)] before:w-px before:bg-emerald-500/25 last:mb-0 last:before:hidden">
+            <p className="text-[12px] font-semibold leading-snug tracking-tight text-white/88">{headline}</p>
+            <div className="mt-2.5 rounded-r-xl bg-[#111111] border-l-2 border-emerald-500 px-3.5 py-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
+              <p className="text-[9px] font-bold uppercase tracking-[0.2em] text-emerald-500/75">성취 근거</p>
+              {basis ? (
+                <p className="mt-1.5 text-sm leading-relaxed text-white/82">{basis}</p>
+              ) : (
+                <p className="mt-1.5 text-[11px] text-white/30">기록된 근거 없음</p>
+              )}
             </div>
-            <p className="mt-2 text-sm font-semibold text-white/90">{row.category_name || '—'}</p>
-            <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-emerald-200/55">
-              {deltaLabel ? <span>{deltaLabel}</span> : null}
-              {profileJump ? <span>{profileJump}</span> : null}
-              {row.category_levels_gained > 0 ? (
-                <span>카테고리 +{row.category_levels_gained} 구간</span>
-              ) : null}
-            </div>
-            {row.achievement_note ? (
-              <p className="mt-3 border-t border-white/10 pt-3 text-sm leading-relaxed text-white/70">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-500/60">근거 · </span>
-                {row.achievement_note}
-              </p>
-            ) : (
-              <p className="mt-2 text-[10px] text-white/25">성취 근거 없음</p>
-            )}
           </div>
         );
       })}
