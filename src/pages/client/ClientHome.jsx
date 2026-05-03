@@ -16,6 +16,7 @@ import Skeleton from '../../components/ui/Skeleton';
 import SessionHistoryModal from '../../features/members/SessionHistoryModal';
 import { parseBookingToLocalDate } from '../../utils/bookingDateKeys';
 import MemberCancelBookingModals from '../../components/member/MemberCancelBookingModals';
+import VaultArchivePreview from '../../components/vault/VaultArchivePreview';
 
 /** MVP: 라이브러리·트레이닝 일지 진입 UI 비표시 — 라우트/화면은 유지 */
 const MVP_HIDE_LIBRARY_AND_TRAINING_NAV = true;
@@ -59,6 +60,7 @@ const ClientHome = ({ user, logout, setView }) => {
   const [attendanceLogs, setAttendanceLogs] = useState([]);
   const [showHistory, setShowHistory] = useState(false);
   const [showCheckInDoneModal, setShowCheckInDoneModal] = useState(false);
+  const [vaultArchiveOpen, setVaultArchiveOpen] = useState(false);
   const [cancelIntent, setCancelIntent] = useState(null);
   /** Most recent training log row (`client_session_reports`) for gateway teaser */
   const [latestReport, setLatestReport] = useState(null);
@@ -513,6 +515,19 @@ const ClientHome = ({ user, logout, setView }) => {
             <span className="text-slate-800">{profile?.name || '회원'}</span>
             <span className="text-gray-400"> 님</span>
           </p>
+          <div className="mb-8 flex w-full justify-center">
+            <button
+              type="button"
+              onClick={() => setVaultArchiveOpen(true)}
+              className="bg-[#111111] text-white text-xs font-medium px-3 py-1.5 rounded-full inline-flex items-center gap-1.5 shadow-sm mt-2 cursor-pointer transition-transform active:scale-95"
+              aria-label="프라이빗 아카이브 열기"
+            >
+              <span className="text-[10px] leading-none opacity-90" aria-hidden>
+                ✦
+              </span>
+              프라이빗 아카이브
+            </button>
+          </div>
         </div>
         <div className="flex shrink-0 items-center justify-end gap-0.5 pt-0.5">
           {!MVP_HIDE_LIBRARY_AND_TRAINING_NAV && (
@@ -766,6 +781,20 @@ const ClientHome = ({ user, logout, setView }) => {
         onOpenBookingChange={setCancelIntent}
         onAfterSuccessConfirm={syncAfterBookingCancel}
       />
+
+      {vaultArchiveOpen && (
+        <div className="fixed inset-0 z-[100]">
+          <button
+            type="button"
+            onClick={() => setVaultArchiveOpen(false)}
+            className="absolute right-4 top-[max(1rem,env(safe-area-inset-top))] z-[110] rounded-full border border-white/15 bg-white/10 px-3 py-1.5 text-xs font-medium text-white backdrop-blur-sm transition hover:bg-white/15"
+            aria-label="프라이빗 아카이브 닫기"
+          >
+            닫기
+          </button>
+          <VaultArchivePreview />
+        </div>
+      )}
 
     </div>
   );
