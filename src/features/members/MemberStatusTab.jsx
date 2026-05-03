@@ -15,6 +15,22 @@ function totalExpFloorBonus(stats, pendingExp) {
   }, 0);
 }
 
+/** Align with DB numeric(6,2) and CHECK (exp_percent < 100). */
+function clampStoredExpPercent(p) {
+  const floor100 = Math.floor(p / 100) * 100;
+  const r = p - floor100;
+  return Math.round(Math.min(99.99, Math.max(0, r)) * 100) / 100;
+}
+
+function supabaseErrorMessage(error) {
+  if (!error) return '';
+  if (typeof error === 'object' && error !== null) {
+    const bits = [error.message, error.details, error.hint].filter(Boolean);
+    if (bits.length) return bits.join(' — ');
+  }
+  return String(error);
+}
+
 export default function MemberStatusTab({ userId, profile, stats, memberLevel, onRefresh }) {
   const [categoryInput, setCategoryInput] = useState('');
   const [adding, setAdding] = useState(false);
@@ -96,14 +112,30 @@ export default function MemberStatusTab({ userId, profile, stats, memberLevel, o
     try {
       for (const s of sortedStats) {
         if (!isStatDirty(s)) continue;
-        const p = Math.min(999999, Math.max(0, pendingExp[s.id] ?? (Number(s.exp_percent) || 0)));
-        const { data, error } = await supabase.rpc('admin_apply_member_stat_exp', {
-          p_target_user: userId,
-          p_stat_id: s.id,
-          p_new_exp: p,
-        });
-        if (error) throw error;
-        if (Number(data?.levels_gained) > 0) anyLevelGain = true;
+        const srv = Number(s.exp_percent) || 0;
+        const p = Math.min(999999, Math.max(0, pendingExp[s.id] ?? srv));
+        const levelsDelta = Math.floor(p / 100) - Math.floor(srv / 100);
+
+        if (levelsDelta === 0) {
+          const nextExp = clampStoredExpPercent(p);
+          const { error: upErr } = await supabase
+            .from('member_stats')
+            .update({
+              exp_percent: nextExp,
+              updated_at: new Date().toISOString(),
+            })
+            .eq('id', s.id)
+            .eq('user_id', userId);
+          if (upErr) throw upErr;
+        } else {
+          const { data, error: rpcErr } = await supabase.rpc('admin_apply_member_stat_exp', {
+            p_target_user: userId,
+            p_stat_id: s.id,
+            p_new_exp: p,
+          });
+          if (rpcErr) throw rpcErr;
+          if (Number(data?.levels_gained) > 0) anyLevelGain = true;
+        }
       }
       await onRefresh?.();
       let finalLevel = null;
@@ -128,7 +160,7 @@ export default function MemberStatusTab({ userId, profile, stats, memberLevel, o
       }
     } catch (e) {
       console.error('[MemberStatusTab] save', e);
-      toast.error('저장에 실패했습니다.');
+      toast.error(`저장 실패: ${supabaseErrorMessage(e)}`);
     } finally {
       setSaving(false);
     }
@@ -152,26 +184,42 @@ export default function MemberStatusTab({ userId, profile, stats, memberLevel, o
   };
 
   const addCategory = async () => {
-    const name = categoryInput.trim();
+    const raw = categoryInput.trim().replace(/\s+/g, ' ');
+    const name = raw.slice(0, 200);
     if (!name) {
       toast.error('항목 이름을 입력하세요.');
       return;
     }
+    if (!userId) {
+      toast.error('회원 정보가 없습니다. 페이지를 새로고침 해 보세요.');
+      return;
+    }
     setAdding(true);
-    const { error } = await supabase.from('member_stats').insert({
+    const row = {
       user_id: userId,
       category_name: name,
       exp_percent: 0,
       level: 1,
-    });
+    };
+    const { data: inserted, error } = await supabase.from('member_stats').insert(row).select('id').maybeSingle();
     setAdding(false);
     if (error) {
       if (error.code === '23505') {
         toast.error('이미 같은 이름의 항목이 있습니다.');
+      } else if (error.code === 'PGRST204' || /column/i.test(error.message || '')) {
+        console.error('[MemberStatusTab] insert member_stats (schema?)', error);
+        toast.error(`항목 추가 실패: 컬럼 불일치 — ${supabaseErrorMessage(error)}`);
       } else {
         console.error('[MemberStatusTab] insert member_stats', error);
-        toast.error('항목 추가에 실패했습니다.');
+        toast.error(`항목 추가 실패: ${supabaseErrorMessage(error)}`);
       }
+      return;
+    }
+    if (!inserted?.id) {
+      console.warn('[MemberStatusTab] insert returned no row (RLS SELECT on insert?)', { row });
+      toast.error('항목은 생성됐을 수 있으나 응답이 막혔습니다. 목록을 새로고침 해 보세요.');
+      await onRefresh?.();
+      setCategoryInput('');
       return;
     }
     setCategoryInput('');
