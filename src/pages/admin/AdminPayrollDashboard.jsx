@@ -107,7 +107,8 @@ function applyAttendanceExportStyles(ws, headerRow0, nCols, nRows) {
       const addr = XLSX.utils.encode_cell({ r, c });
       const cell = ws[addr] || { t: 's', v: '' };
       ws[addr] = cell;
-      if (typeof cell.v === 'number') cell.t = 'n';
+      if (typeof cell.v === 'number' && Number.isFinite(cell.v)) cell.t = 'n';
+      else cell.t = 's';
       cell.s = baseCellStyle({ bold: r === headerRow0 });
     }
   }
@@ -115,8 +116,8 @@ function applyAttendanceExportStyles(ws, headerRow0, nCols, nRows) {
     s: { r: headerRow0, c: 0 },
     e: { r: lastR, c: nCols - 1 },
   });
-  const colW = [16, 12, 10, 10, 14, 12, 14, 16];
-  ws['!cols'] = Array.from({ length: nCols }, (_, i) => ({ wch: colW[i] ?? 14 }));
+  const colW = [6, 14, 12, 10, 12, 10, 10, 10, 12];
+  ws['!cols'] = Array.from({ length: nCols }, (_, i) => ({ wch: colW[i] ?? 12 }));
   ws['!rows'] = Array.from({ length: nRows }, (_, i) => (i === 0 ? { hpt: 22 } : { hpt: 20 }));
 }
 
@@ -127,6 +128,17 @@ function sumRemainingCountByUser(rows) {
     const uid = row?.user_id;
     if (!uid) continue;
     m[uid] = (m[uid] || 0) + (Number(row?.remaining_count) || 0);
+  }
+  return m;
+}
+
+/** Per-user sum of `session_batches.total_count` (등록 세션수). */
+function sumTotalCountByUser(rows) {
+  const m = {};
+  for (const row of rows || []) {
+    const uid = row?.user_id;
+    if (!uid) continue;
+    m[uid] = (m[uid] || 0) + (Number(row?.total_count) || 0);
   }
   return m;
 }
@@ -305,16 +317,7 @@ const AdminPayrollDashboard = ({ goBack }) => {
     return m;
   }, [members, batchesByUserId]);
 
-  const monthlyPayoutByUser = useMemo(() => {
-    const out = {};
-    for (const uid of Object.keys(completedCountByUser)) {
-      const n = completedCountByUser[uid] ?? 0;
-      const unit = unitPriceByUser[uid];
-      const u = unit == null ? 0 : unit;
-      out[uid] = n * u;
-    }
-    return out;
-  }, [completedCountByUser, unitPriceByUser]);
+  const totalRegisteredByUser = useMemo(() => sumTotalCountByUser(sessionBatches), [sessionBatches]);
 
   const filteredLogs = useMemo(() => {
     if (!selectedId) return [];
@@ -325,37 +328,51 @@ const AdminPayrollDashboard = ({ goBack }) => {
 
   const handleExportExcel = () => {
     const header = [
-      '회원 이름',
-      '날짜',
-      '시작 시간',
-      '종료 시간',
-      '이번 달 진행횟수',
-      '남은 잔여횟수',
-      '1회 단가(원)',
-      '총 정산액(원)',
+      'no',
+      '회원명',
+      '등록 세션수',
+      '잔여세션',
+      '판매공재 단가',
+      '수업료',
+      '진행 수업',
+      '잔여 수업',
+      '합계',
     ];
 
-    const sorted = [...(logs || [])]
-      .filter((log) => isAttendanceLogCompletedForBalance(log))
-      .sort((a, b) => {
-        const na = nameByUserId[a.user_id] || '';
-        const nb = nameByUserId[b.user_id] || '';
-        if (na !== nb) return na.localeCompare(nb, 'ko');
-        return new Date(b.check_in_at || 0) - new Date(a.check_in_at || 0);
-      });
+    const sortedMembers = [...(members || [])].sort((a, b) => {
+      const na = (a?.name || a?.email || '').localeCompare(b?.name || b?.email || '', 'ko');
+      return na;
+    });
 
-    const dataRows = sorted.map((log) => {
-      const name = nameByUserId[log.user_id] || '—';
-      const dateStr = formatDateOnly(log.check_in_at);
-      const start = normalizeSessionTime(log.session_time_fixed) || sessionTimeFromCheckIn(log.check_in_at);
-      const end = start !== '—' ? addMinutesToHhMm(start, 60) : '—';
-      const monthCompleted = completedCountByUser[log.user_id] ?? 0;
-      const remaining = remainingByUser[log.user_id] ?? 0;
-      const unit = unitPriceByUser[log.user_id];
-      const unitCell = unit == null ? '단가 미정' : formatWonKo(unit);
-      const monthTotal = monthlyPayoutByUser[log.user_id] ?? 0;
-      const totalCell = unit == null ? '0' : formatWonKo(monthTotal);
-      return [name, dateStr, start, end, monthCompleted, remaining, unitCell, totalCell];
+    const dataRows = sortedMembers.map((m, idx) => {
+      const uid = m.id;
+      const baseName = String(m?.name || m?.email || '—').trim();
+      const memberNameCol = `${baseName}님`;
+
+      const hasPackRows = (batchesByUserId[uid] || []).length > 0;
+      const totalRegSum = totalRegisteredByUser[uid] ?? 0;
+      const registeredSessionsCol = hasPackRows ? totalRegSum : '';
+
+      const remainingSessions = Number(remainingByUser[uid] ?? 0);
+      const unitRaw = unitPriceByUser[uid];
+      const unitPriceWon =
+        unitRaw != null && Number.isFinite(unitRaw) ? Math.round(Number(unitRaw)) : 0;
+      const completedInMonth = Number(completedCountByUser[uid] ?? 0);
+      const trainerPayout = Math.round(unitPriceWon * 0.3);
+      const remainingLessProgress = remainingSessions - completedInMonth;
+      const lineTotal = trainerPayout * completedInMonth;
+
+      return [
+        idx + 1,
+        memberNameCol,
+        registeredSessionsCol,
+        remainingSessions,
+        unitPriceWon,
+        trainerPayout,
+        completedInMonth,
+        remainingLessProgress,
+        lineTotal,
+      ];
     });
 
     const aoa = [header, ...dataRows];
@@ -364,10 +381,10 @@ const AdminPayrollDashboard = ({ goBack }) => {
     const nCols = header.length;
     const nData = dataRows.length;
     applyAttendanceExportStyles(ws, 0, nCols, 1 + nData);
-    XLSX.utils.book_append_sheet(wb, ws, 'Attendance');
+    XLSX.utils.book_append_sheet(wb, ws, 'Ledger');
 
     const safeMonth = `${selectedDate.getFullYear()}-${String(selectedDate.getMonth() + 1).padStart(2, '0')}`;
-    XLSX.writeFile(wb, `payroll-attendance-${safeMonth}.xlsx`);
+    XLSX.writeFile(wb, `payroll-ledger-${safeMonth}.xlsx`);
   };
 
   return (
@@ -409,7 +426,7 @@ const AdminPayrollDashboard = ({ goBack }) => {
             <button
               type="button"
               onClick={handleExportExcel}
-              disabled={loading || !(logs || []).some((l) => isAttendanceLogCompletedForBalance(l))}
+              disabled={loading || !(members || []).length}
               className="shrink-0 border border-neutral-900 bg-neutral-900 text-white px-5 py-3 text-sm font-medium tracking-wide hover:bg-neutral-800 disabled:opacity-40 disabled:pointer-events-none transition-colors"
             >
               엑셀 다운로드
