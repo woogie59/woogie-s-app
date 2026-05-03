@@ -135,7 +135,11 @@ const MemberDetail = ({ selectedMemberId, goBack }) => {
     );
 
   return (
-    <div className="min-h-[100dvh] bg-white text-neutral-950 px-6 py-10 pb-24 max-w-lg mx-auto">
+    <div
+      className={`min-h-[100dvh] bg-white text-neutral-950 px-6 py-10 pb-24 mx-auto w-full ${
+        detailTab === 'status' ? 'max-w-6xl' : 'max-w-lg'
+      }`}
+    >
       <BackButton onClick={goBack} />
 
       <header className="mt-8 mb-8">
