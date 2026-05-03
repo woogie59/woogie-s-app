@@ -11,6 +11,48 @@ function isFilledCell(index: number): boolean {
   return x < 320;
 }
 
+type MilestoneItem = {
+  id: string;
+  display: string;
+  caption: string;
+  unlocked: boolean;
+  metal: 'gold' | 'platinum';
+  blurb?: string;
+};
+
+const MILESTONES: MilestoneItem[] = [
+  {
+    id: '100',
+    display: '100',
+    caption: 'CLUB',
+    unlocked: true,
+    metal: 'gold',
+    blurb: '누적 출석 100회 달성',
+  },
+  {
+    id: '50',
+    display: '50',
+    caption: 'STRONG',
+    unlocked: true,
+    metal: 'platinum',
+    blurb: '연속 50 세션',
+  },
+  {
+    id: '200',
+    display: '200',
+    caption: 'LEGACY',
+    unlocked: false,
+    metal: 'gold',
+  },
+  {
+    id: '365',
+    display: '365',
+    caption: 'VAULT',
+    unlocked: false,
+    metal: 'gold',
+  },
+];
+
 const VaultArchivePreview: React.FC = () => {
   const heatmapCells = useMemo(() => {
     return Array.from({ length: TOTAL_DAYS }, (_, i) => ({
@@ -20,18 +62,22 @@ const VaultArchivePreview: React.FC = () => {
   }, []);
 
   return (
-    <div className="min-h-[100dvh] bg-[#0a0a0a] text-white antialiased">
+    <div className="min-h-[100dvh] bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-gray-900 via-[#0a0a0a] to-black text-white antialiased animate-[fadeInScale_0.85s_cubic-bezier(0.16,1,0.3,1)_both]">
       <div className="mx-auto max-w-md px-5 py-8 pb-safe flex flex-col gap-10">
-        {/* Task 2: Consistency Heatmap */}
         <section>
-          <p className="text-[10px] uppercase tracking-[0.2em] text-gray-500 font-medium mb-1">Consistency</p>
-          <h2 className="text-lg font-semibold tracking-tight text-white/95 mb-4">12주 출석 히트맵</h2>
-          <div className="grid grid-cols-7 gap-1">
+          <h2 className="text-xs uppercase tracking-[0.2em] text-gray-500 mb-6">12주 출석 히트맵</h2>
+          <div
+            className="grid grid-cols-7 gap-1.5 [--brand-color:#059669]"
+            role="img"
+            aria-label="최근 12주 출석 히트맵 미리보기"
+          >
             {heatmapCells.map(({ id, filled }) => (
               <div
                 key={id}
-                className={`aspect-square w-full max-w-[14px] mx-auto rounded-sm ${
-                  filled ? 'bg-[#0B3B24] shadow-[0_0_8px_rgba(11,59,36,0.45)]' : 'bg-gray-800'
+                className={`w-3 h-3 shrink-0 rounded-full mx-auto ${
+                  filled
+                    ? 'bg-[color:var(--brand-color)] shadow-[0_0_8px_var(--brand-color)]'
+                    : 'bg-gray-800/50'
                 }`}
                 aria-hidden
               />
@@ -40,60 +86,63 @@ const VaultArchivePreview: React.FC = () => {
           <p className="mt-3 text-xs text-gray-500 font-light">최근 12주 · 한 칸 = 하루 (미리보기 데이터)</p>
         </section>
 
-        {/* Task 3: Milestone Showcase */}
         <section>
-          <p className="text-[10px] uppercase tracking-[0.2em] text-gray-500 font-medium mb-1">Milestones</p>
-          <h2 className="text-lg font-semibold tracking-tight text-white/95 mb-4">마일스톤</h2>
-          <div className="flex overflow-x-auto gap-4 pb-2 -mx-1 px-1 scrollbar-hide snap-x snap-mandatory">
-            <div
-              className="snap-start shrink-0 w-[11.5rem] rounded-2xl bg-gray-900 border border-white/10 px-4 py-5 shadow-[0_0_24px_rgba(6,78,59,0.25),0_8px_32px_rgba(0,0,0,0.5)]"
-              aria-label="Unlocked milestone"
-            >
-              <p className="text-[10px] uppercase tracking-widest text-emerald-500/90 font-medium mb-2">Unlocked</p>
-              <p className="text-xl font-black tracking-tight text-white">100 CLUB</p>
-              <p className="mt-2 text-xs text-gray-400 leading-relaxed">누적 출석 100회 달성</p>
-            </div>
-            <div
-              className="snap-start shrink-0 w-[11.5rem] rounded-2xl bg-gray-900 border border-white/10 px-4 py-5 shadow-[0_0_20px_rgba(255,255,255,0.06),0_8px_28px_rgba(0,0,0,0.45)]"
-              aria-label="Unlocked milestone"
-            >
-              <p className="text-[10px] uppercase tracking-widest text-emerald-500/90 font-medium mb-2">Unlocked</p>
-              <p className="text-xl font-black tracking-tight text-white">50 STRONG</p>
-              <p className="mt-2 text-xs text-gray-400 leading-relaxed">연속 50 세션</p>
-            </div>
-            <div
-              className="snap-start shrink-0 w-[11.5rem] rounded-2xl bg-black/50 border border-gray-800 px-4 py-5 opacity-40 flex flex-col justify-between min-h-[7.5rem]"
-              aria-label="Locked milestone"
-            >
-              <div className="flex items-center justify-between gap-2">
-                <p className="text-[10px] uppercase tracking-widest text-gray-500 font-medium">Locked</p>
-                <Lock className="text-gray-500 shrink-0" size={16} strokeWidth={1.5} aria-hidden />
-              </div>
-              <div>
-                <p className="text-lg font-bold tracking-tight text-gray-500">200 LEGACY</p>
-                <p className="mt-1 text-[11px] text-gray-600 leading-relaxed">조건 미충족</p>
-              </div>
-            </div>
-            <div
-              className="snap-start shrink-0 w-[11.5rem] rounded-2xl bg-black/50 border border-gray-800 px-4 py-5 opacity-40 flex flex-col justify-between min-h-[7.5rem]"
-              aria-label="Locked milestone"
-            >
-              <div className="flex items-center justify-between gap-2">
-                <p className="text-[10px] uppercase tracking-widest text-gray-500 font-medium">Locked</p>
-                <Lock className="text-gray-500 shrink-0" size={16} strokeWidth={1.5} aria-hidden />
-              </div>
-              <div>
-                <p className="text-lg font-bold tracking-tight text-gray-500">365 VAULT</p>
-                <p className="mt-1 text-[11px] text-gray-600 leading-relaxed">조건 미충족</p>
-              </div>
-            </div>
+          <h2 className="text-xs uppercase tracking-[0.2em] text-gray-500 mb-6">마일스톤</h2>
+          <div className="flex overflow-x-auto gap-6 pb-3 -mx-1 px-1 scrollbar-hide snap-x snap-mandatory">
+            {MILESTONES.map((m) => {
+              if (m.unlocked) {
+                const isGold = m.metal === 'gold';
+                const shell = isGold
+                  ? 'bg-gradient-to-br from-[#bf953f] via-[#fcf6ba] to-[#b38728] shadow-[0_0_40px_rgba(191,149,63,0.3)] border border-[#fbf5b7]/50'
+                  : 'bg-gradient-to-br from-[#94a3b8] via-[#f1f5f9] to-[#64748b] shadow-[0_0_36px_rgba(148,163,184,0.35)] border border-white/40';
+                return (
+                  <div
+                    key={m.id}
+                    className="snap-center shrink-0 flex flex-col items-center gap-2 w-[8.5rem]"
+                    aria-label={`달성: ${m.display} ${m.caption}`}
+                  >
+                    <div
+                      className={`w-32 h-32 rounded-full p-[3px] flex items-center justify-center ${shell}`}
+                    >
+                      <div className="w-full h-full rounded-full border-[4px] border-black/20 flex flex-col items-center justify-center bg-black/10 shadow-[inset_0_2px_12px_rgba(0,0,0,0.35)]">
+                        <span className="text-2xl font-black tabular-nums text-[#0a0a0a] drop-shadow-[0_1px_0_rgba(255,255,255,0.35)] leading-none">
+                          {m.display}
+                        </span>
+                        <span className="text-[9px] font-extrabold uppercase tracking-[0.18em] text-[#0a0a0a]/85 mt-1">
+                          {m.caption}
+                        </span>
+                      </div>
+                    </div>
+                    {m.blurb ? (
+                      <p className="text-[11px] text-center text-gray-400 leading-snug px-1">{m.blurb}</p>
+                    ) : null}
+                  </div>
+                );
+              }
+              return (
+                <div
+                  key={m.id}
+                  className="snap-center shrink-0 flex flex-col items-center gap-2 w-[8.5rem] opacity-[0.42]"
+                  aria-label={`잠금: ${m.display} ${m.caption}`}
+                >
+                  <div className="w-32 h-32 rounded-full p-[3px] bg-gradient-to-br from-gray-800 via-gray-900 to-black border border-gray-700/80 shadow-[inset_0_0_24px_rgba(0,0,0,0.85)] flex items-center justify-center">
+                    <div className="w-full h-full rounded-full border-[4px] border-black/40 flex flex-col items-center justify-center relative">
+                      <Lock className="text-gray-600 mb-0.5" size={22} strokeWidth={1.5} aria-hidden />
+                      <span className="text-lg font-black tabular-nums text-gray-600 leading-none">{m.display}</span>
+                      <span className="text-[8px] font-bold uppercase tracking-[0.15em] text-gray-600 mt-0.5">
+                        {m.caption}
+                      </span>
+                    </div>
+                  </div>
+                  <p className="text-[11px] text-center text-gray-600 leading-snug">조건 미충족</p>
+                </div>
+              );
+            })}
           </div>
         </section>
 
-        {/* Task 4: Definition Stats */}
         <section>
-          <p className="text-[10px] uppercase tracking-[0.2em] text-gray-500 font-medium mb-1">The Vault</p>
-          <h2 className="text-lg font-semibold tracking-tight text-white/95 mb-5">정의 수치</h2>
+          <h2 className="text-xs uppercase tracking-[0.2em] text-gray-500 mb-6">정의 수치</h2>
           <div className="grid grid-cols-2 gap-x-6 gap-y-8">
             <div>
               <p className="text-sm text-gray-500">누적 출석</p>
