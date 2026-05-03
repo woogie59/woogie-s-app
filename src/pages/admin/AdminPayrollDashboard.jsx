@@ -115,7 +115,7 @@ function applyAttendanceExportStyles(ws, headerRow0, nCols, nRows) {
     s: { r: headerRow0, c: 0 },
     e: { r: lastR, c: nCols - 1 },
   });
-  const colW = [16, 12, 10, 10, 16, 16];
+  const colW = [16, 12, 10, 10, 14, 12, 14, 16];
   ws['!cols'] = Array.from({ length: nCols }, (_, i) => ({ wch: colW[i] ?? 14 }));
   ws['!rows'] = Array.from({ length: nRows }, (_, i) => (i === 0 ? { hpt: 22 } : { hpt: 20 }));
 }
@@ -129,6 +129,43 @@ function sumRemainingCountByUser(rows) {
     m[uid] = (m[uid] || 0) + (Number(row?.remaining_count) || 0);
   }
   return m;
+}
+
+/** Weighted average `price_per_session` using `total_count` per pack. */
+function weightedUnitPriceFromBatches(batchRows) {
+  if (!batchRows?.length) return null;
+  let num = 0;
+  let den = 0;
+  for (const b of batchRows) {
+    const tc = Number(b?.total_count);
+    const pps = Number(b?.price_per_session);
+    if (!Number.isFinite(tc) || tc <= 0) continue;
+    if (!Number.isFinite(pps) || pps < 0) continue;
+    num += pps * tc;
+    den += tc;
+  }
+  if (den <= 0) return null;
+  return Math.round(num / den);
+}
+
+/**
+ * Resolved unit price (KRW, integer): packs first (weighted), then `profiles.price_per_session`.
+ * Returns `null` when no usable price (export shows "단가 미정").
+ */
+function resolveUnitPriceWon(profileRow, batchesForUser) {
+  const rows = batchesForUser || [];
+  if (rows.length > 0) {
+    const w = weightedUnitPriceFromBatches(rows);
+    if (w != null) return w;
+  }
+  const p = Number(profileRow?.price_per_session);
+  if (Number.isFinite(p) && p >= 0) return Math.round(p);
+  return null;
+}
+
+function formatWonKo(value) {
+  if (value == null || !Number.isFinite(value)) return '0';
+  return Math.round(value).toLocaleString('ko-KR');
 }
 
 const AdminPayrollDashboard = ({ goBack }) => {
@@ -162,6 +199,7 @@ const AdminPayrollDashboard = ({ goBack }) => {
 
   const [members, setMembers] = useState([]);
   const [logs, setLogs] = useState([]);
+  const [sessionBatches, setSessionBatches] = useState([]);
   const [remainingByUser, setRemainingByUser] = useState({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -173,7 +211,7 @@ const AdminPayrollDashboard = ({ goBack }) => {
     try {
       const { data: profileRows, error: pErr } = await supabase
         .from('profiles')
-        .select('id, name, email')
+        .select('id, name, email, price_per_session')
         .neq('role', 'admin')
         .order('name', { ascending: true });
 
@@ -189,7 +227,10 @@ const AdminPayrollDashboard = ({ goBack }) => {
           .lte('check_in_at', lastDay)
           .order('check_in_at', { ascending: false }),
         memberIds.length
-          ? supabase.from('session_batches').select('user_id, remaining_count').in('user_id', memberIds)
+          ? supabase
+              .from('session_batches')
+              .select('user_id, remaining_count, price_per_session, total_count')
+              .in('user_id', memberIds)
           : Promise.resolve({ data: [], error: null }),
       ]);
 
@@ -197,8 +238,10 @@ const AdminPayrollDashboard = ({ goBack }) => {
       if (bErr) {
         console.warn('[AdminPayrollDashboard] session_batches', bErr.message);
         setRemainingByUser({});
+        setSessionBatches([]);
       } else {
         setRemainingByUser(sumRemainingCountByUser(batchRows));
+        setSessionBatches(batchRows || []);
       }
 
       setMembers(profileRows || []);
@@ -212,6 +255,7 @@ const AdminPayrollDashboard = ({ goBack }) => {
       setError(e?.message || 'Failed to load data.');
       setMembers([]);
       setLogs([]);
+      setSessionBatches([]);
       setRemainingByUser({});
     } finally {
       setLoading(false);
@@ -241,6 +285,37 @@ const AdminPayrollDashboard = ({ goBack }) => {
     return map;
   }, [logs]);
 
+  const batchesByUserId = useMemo(() => {
+    const m = {};
+    for (const row of sessionBatches || []) {
+      const uid = row?.user_id;
+      if (!uid) continue;
+      if (!m[uid]) m[uid] = [];
+      m[uid].push(row);
+    }
+    return m;
+  }, [sessionBatches]);
+
+  const unitPriceByUser = useMemo(() => {
+    const m = {};
+    for (const p of members || []) {
+      if (!p?.id) continue;
+      m[p.id] = resolveUnitPriceWon(p, batchesByUserId[p.id] || []);
+    }
+    return m;
+  }, [members, batchesByUserId]);
+
+  const monthlyPayoutByUser = useMemo(() => {
+    const out = {};
+    for (const uid of Object.keys(completedCountByUser)) {
+      const n = completedCountByUser[uid] ?? 0;
+      const unit = unitPriceByUser[uid];
+      const u = unit == null ? 0 : unit;
+      out[uid] = n * u;
+    }
+    return out;
+  }, [completedCountByUser, unitPriceByUser]);
+
   const filteredLogs = useMemo(() => {
     if (!selectedId) return [];
     return (logs || []).filter(
@@ -256,6 +331,8 @@ const AdminPayrollDashboard = ({ goBack }) => {
       '종료 시간',
       '이번 달 진행횟수',
       '남은 잔여횟수',
+      '1회 단가(원)',
+      '총 정산액(원)',
     ];
 
     const sorted = [...(logs || [])]
@@ -274,7 +351,11 @@ const AdminPayrollDashboard = ({ goBack }) => {
       const end = start !== '—' ? addMinutesToHhMm(start, 60) : '—';
       const monthCompleted = completedCountByUser[log.user_id] ?? 0;
       const remaining = remainingByUser[log.user_id] ?? 0;
-      return [name, dateStr, start, end, monthCompleted, remaining];
+      const unit = unitPriceByUser[log.user_id];
+      const unitCell = unit == null ? '단가 미정' : formatWonKo(unit);
+      const monthTotal = monthlyPayoutByUser[log.user_id] ?? 0;
+      const totalCell = unit == null ? '0' : formatWonKo(monthTotal);
+      return [name, dateStr, start, end, monthCompleted, remaining, unitCell, totalCell];
     });
 
     const aoa = [header, ...dataRows];
@@ -355,6 +436,8 @@ const AdminPayrollDashboard = ({ goBack }) => {
                   const active = m.id === selectedId;
                   const n = completedCountByUser[m.id] ?? 0;
                   const rem = remainingByUser[m.id] ?? 0;
+                  const unit = unitPriceByUser[m.id];
+                  const monthPayout = unit == null ? null : n * unit;
                   return (
                     <li key={m.id}>
                       <button
@@ -369,6 +452,15 @@ const AdminPayrollDashboard = ({ goBack }) => {
                         </span>
                         <span className="block text-xs text-neutral-500 mt-1 font-normal tabular-nums">
                           출석 {n}회 · 잔여 {rem}회
+                        </span>
+                        <span className="block text-[11px] text-neutral-500 mt-1 font-normal tabular-nums leading-snug">
+                          {unit == null ? (
+                            <>단가 미정 · 월 정산 —</>
+                          ) : (
+                            <>
+                              단가 {formatWonKo(unit)}원 · 월 정산 {formatWonKo(monthPayout ?? 0)}원
+                            </>
+                          )}
                         </span>
                       </button>
                     </li>
@@ -390,27 +482,40 @@ const AdminPayrollDashboard = ({ goBack }) => {
                   <table className="w-full text-left text-sm border-collapse">
                     <thead>
                       <tr className="border-b border-neutral-200 bg-neutral-50/80">
-                        <th className="py-3 px-4 font-semibold text-neutral-900 whitespace-nowrap">Date</th>
-                        <th className="py-3 px-4 font-semibold text-neutral-900 whitespace-nowrap">Session time</th>
-                        <th className="py-3 px-4 font-semibold text-neutral-900 whitespace-nowrap">Status</th>
-                        <th className="py-3 px-4 font-semibold text-neutral-900 whitespace-nowrap">Check-in</th>
+                        <th className="py-3 px-3 font-semibold text-neutral-900 whitespace-nowrap">Date</th>
+                        <th className="py-3 px-3 font-semibold text-neutral-900 whitespace-nowrap">Session time</th>
+                        <th className="py-3 px-3 font-semibold text-neutral-900 whitespace-nowrap">Status</th>
+                        <th className="py-3 px-3 font-semibold text-neutral-900 whitespace-nowrap">Check-in</th>
+                        <th className="py-3 px-3 font-semibold text-neutral-900 whitespace-nowrap text-right">단가(원)</th>
+                        <th className="py-3 px-3 font-semibold text-neutral-900 whitespace-nowrap text-right">월 총정산(원)</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {filteredLogs.map((log) => (
-                        <tr key={log.id} className="border-b border-neutral-100 last:border-0">
-                          <td className="py-3 px-4 text-neutral-800 tabular-nums whitespace-nowrap">
-                            {formatDateOnly(log.check_in_at)}
-                          </td>
-                          <td className="py-3 px-4 text-neutral-800 tabular-nums whitespace-nowrap">
-                            {normalizeSessionTime(log.session_time_fixed) || sessionTimeFromCheckIn(log.check_in_at)}
-                          </td>
-                          <td className="py-3 px-4 text-neutral-800 whitespace-nowrap">Completed</td>
-                          <td className="py-3 px-4 text-neutral-600 tabular-nums whitespace-nowrap text-xs">
-                            {formatDateTime(log.check_in_at)}
-                          </td>
-                        </tr>
-                      ))}
+                      {filteredLogs.map((log) => {
+                        const unit = unitPriceByUser[selectedId];
+                        const n = completedCountByUser[selectedId] ?? 0;
+                        const monthTotal = unit == null ? null : n * unit;
+                        return (
+                          <tr key={log.id} className="border-b border-neutral-100 last:border-0">
+                            <td className="py-3 px-3 text-neutral-800 tabular-nums whitespace-nowrap">
+                              {formatDateOnly(log.check_in_at)}
+                            </td>
+                            <td className="py-3 px-3 text-neutral-800 tabular-nums whitespace-nowrap">
+                              {normalizeSessionTime(log.session_time_fixed) || sessionTimeFromCheckIn(log.check_in_at)}
+                            </td>
+                            <td className="py-3 px-3 text-neutral-800 whitespace-nowrap">Completed</td>
+                            <td className="py-3 px-3 text-neutral-600 tabular-nums whitespace-nowrap text-xs">
+                              {formatDateTime(log.check_in_at)}
+                            </td>
+                            <td className="py-3 px-3 text-neutral-700 tabular-nums whitespace-nowrap text-right text-xs">
+                              {unit == null ? '단가 미정' : `${formatWonKo(unit)}`}
+                            </td>
+                            <td className="py-3 px-3 text-neutral-700 tabular-nums whitespace-nowrap text-right text-xs">
+                              {monthTotal == null ? '—' : `${formatWonKo(monthTotal)}`}
+                            </td>
+                          </tr>
+                        );
+                      })}
                     </tbody>
                   </table>
                 </div>
