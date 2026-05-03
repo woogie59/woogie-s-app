@@ -6,20 +6,16 @@ import { supabase } from '../../lib/supabaseClient';
 import { invokeNotifyMemberEvents } from '../../utils/notifications';
 import VaultArchivePreview from '../../components/vault/VaultArchivePreview';
 import AthleteStatus from './AthleteStatus';
+import GrowthLedgerTimeline from './GrowthLedgerTimeline';
 import MemberPhoneMirror from './MemberPhoneMirror';
+
+const PHYSICAL_AUTONOMY_MAX = 10;
 
 function totalExpFloorBonus(stats, pendingExp) {
   return stats.reduce((acc, s) => {
     const v = pendingExp[s.id] ?? (Number(s.exp_percent) || 0);
     return acc + Math.floor(v / 100);
   }, 0);
-}
-
-/** Align with DB numeric(6,2) and CHECK (exp_percent < 100). */
-function clampStoredExpPercent(p) {
-  const floor100 = Math.floor(p / 100) * 100;
-  const r = p - floor100;
-  return Math.round(Math.min(99.99, Math.max(0, r)) * 100) / 100;
 }
 
 function supabaseErrorMessage(error) {
@@ -40,12 +36,49 @@ export default function MemberStatusTab({ userId, profile, stats, memberLevel, o
     Object.fromEntries((stats || []).map((s) => [s.id, Math.round(Number(s.exp_percent) * 10) / 10]))
   );
   const [epicKey, setEpicKey] = useState(0);
+  const [achievementReasonByStatId, setAchievementReasonByStatId] = useState({});
+  const [ledgerEntries, setLedgerEntries] = useState([]);
+  const [ledgerLoading, setLedgerLoading] = useState(false);
 
   const prevBonusRef = useRef(null);
 
   useEffect(() => {
     setPendingExp(Object.fromEntries((stats || []).map((s) => [s.id, Math.round(Number(s.exp_percent) * 10) / 10])));
   }, [stats]);
+
+  useEffect(() => {
+    setAchievementReasonByStatId((prev) => {
+      const next = { ...prev };
+      for (const s of stats || []) {
+        if (next[s.id] === undefined) {
+          next[s.id] = s.achievement_note != null ? String(s.achievement_note) : '';
+        }
+      }
+      return next;
+    });
+  }, [stats]);
+
+  const loadLedger = useCallback(async () => {
+    if (!userId) return;
+    setLedgerLoading(true);
+    const { data, error } = await supabase
+      .from('member_growth_ledger')
+      .select('*')
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false })
+      .limit(60);
+    setLedgerLoading(false);
+    if (error) {
+      console.error('[MemberStatusTab] growth ledger', error);
+      setLedgerEntries([]);
+      return;
+    }
+    setLedgerEntries(data || []);
+  }, [userId]);
+
+  useEffect(() => {
+    void loadLedger();
+  }, [loadLedger]);
 
   const displayName = profile?.name || '회원';
 
@@ -70,11 +103,14 @@ export default function MemberStatusTab({ userId, profile, stats, memberLevel, o
     if (t === '') return null;
     const n = Number.parseInt(t, 10);
     if (!Number.isFinite(n) || n < 1) return null;
-    return n;
+    return Math.min(PHYSICAL_AUTONOMY_MAX, n);
   }, [manualLevelDraft]);
 
   const effectiveBaseLevel = manualParsed ?? memberLevel;
-  const simulatedLevel = Math.max(1, effectiveBaseLevel + expBonusLevels);
+  const simulatedLevel = Math.min(
+    PHYSICAL_AUTONOMY_MAX,
+    Math.max(1, effectiveBaseLevel + expBonusLevels)
+  );
 
   useEffect(() => {
     if (prevBonusRef.current === null) {
@@ -95,9 +131,13 @@ export default function MemberStatusTab({ userId, profile, stats, memberLevel, o
     (s) => {
       const p = pendingExp[s.id] ?? (Number(s.exp_percent) || 0);
       const srv = Number(s.exp_percent) || 0;
-      return Math.abs(p - srv) > 0.04;
+      const expDirty = Math.abs(p - srv) > 0.04;
+      const srvNote = (s.achievement_note ?? '').trim();
+      const localNote = (achievementReasonByStatId[s.id] ?? '').trim();
+      const noteDirty = localNote !== srvNote;
+      return expDirty || noteDirty;
     },
-    [pendingExp]
+    [pendingExp, achievementReasonByStatId]
   );
 
   const hasDirtyStats = sortedStats.some(isStatDirty);
@@ -109,35 +149,33 @@ export default function MemberStatusTab({ userId, profile, stats, memberLevel, o
     }
     setSaving(true);
     let anyLevelGain = false;
+    const dirtyList = sortedStats.filter((s) => isStatDirty(s));
     try {
-      for (const s of sortedStats) {
-        if (!isStatDirty(s)) continue;
+      for (const s of dirtyList) {
         const srv = Number(s.exp_percent) || 0;
         const p = Math.min(999999, Math.max(0, pendingExp[s.id] ?? srv));
-        const levelsDelta = Math.floor(p / 100) - Math.floor(srv / 100);
+        const note = (achievementReasonByStatId[s.id] ?? '').trim();
 
-        if (levelsDelta === 0) {
-          const nextExp = clampStoredExpPercent(p);
-          const { error: upErr } = await supabase
-            .from('member_stats')
-            .update({
-              exp_percent: nextExp,
-              updated_at: new Date().toISOString(),
-            })
-            .eq('id', s.id)
-            .eq('user_id', userId);
-          if (upErr) throw upErr;
-        } else {
-          const { data, error: rpcErr } = await supabase.rpc('admin_apply_member_stat_exp', {
-            p_new_exp: p,
-            p_stat_id: s.id,
-            p_target_user: userId,
-          });
-          if (rpcErr) throw rpcErr;
-          if (Number(data?.levels_gained) > 0) anyLevelGain = true;
-        }
+        const { data, error: rpcErr } = await supabase.rpc('admin_apply_member_stat_exp', {
+          p_target_user: userId,
+          p_stat_id: s.id,
+          p_new_exp: p,
+          p_reason: note || null,
+        });
+        if (rpcErr) throw rpcErr;
+        if (Number(data?.levels_gained) > 0) anyLevelGain = true;
       }
+
+      setAchievementReasonByStatId((prev) => {
+        const next = { ...prev };
+        for (const s of dirtyList) {
+          next[s.id] = '';
+        }
+        return next;
+      });
+
       await onRefresh?.();
+      await loadLedger();
       let finalLevel = null;
       if (anyLevelGain) {
         const { data: prof } = await supabase.from('profiles').select('member_level').eq('id', userId).maybeSingle();
@@ -177,7 +215,7 @@ export default function MemberStatusTab({ userId, profile, stats, memberLevel, o
     }
 
     const prevLevel = Number(memberLevel) || 1;
-    const targetLevel = manualParsed;
+    const targetLevel = Math.min(PHYSICAL_AUTONOMY_MAX, Math.max(1, manualParsed));
 
     setSaving(true);
     try {
@@ -188,7 +226,7 @@ export default function MemberStatusTab({ userId, profile, stats, memberLevel, o
         throw new Error('no_admin_session');
       }
 
-      const { error } = await supabase.rpc('admin_force_update_level', {
+      const { data: rpcData, error } = await supabase.rpc('admin_force_update_level', {
         p_target_user: userId,
         p_new_level: targetLevel,
         p_admin_id: adminId,
@@ -196,15 +234,19 @@ export default function MemberStatusTab({ userId, profile, stats, memberLevel, o
 
       if (error) throw error;
 
-      onMemberLevelSynced?.(targetLevel);
+      const appliedLevel =
+        rpcData?.member_level != null ? Number(rpcData.member_level) : targetLevel;
+
+      onMemberLevelSynced?.(appliedLevel);
       setManualLevelDraft('');
 
-      if (targetLevel > prevLevel) {
+      if (appliedLevel > prevLevel) {
         setEpicKey((k) => k + 1);
       }
 
       toast.success('프로필 레벨이 반영되었습니다.');
       await onRefresh?.();
+      await loadLedger();
     } catch (e) {
       console.error('[MemberStatusTab] admin_force_update_level', e);
       toast.error('레벨 동기화 실패: 시스템 관리자에게 문의하십시오.');
@@ -274,7 +316,8 @@ export default function MemberStatusTab({ userId, profile, stats, memberLevel, o
             <div>
               <h3 className="text-xs font-bold uppercase tracking-[0.2em] text-emerald-500/70">Baseline Level</h3>
               <p className="mt-1 text-[11px] text-white/40">
-                비우면 프로필 LV.{memberLevel} 사용. 입력 시 미리보기만 변경 — 「SYNC PROFILE」으로 DB 반영.
+                Physical Autonomy 1–{PHYSICAL_AUTONOMY_MAX}. 비우면 프로필 LV.{Math.min(PHYSICAL_AUTONOMY_MAX, memberLevel)}{' '}
+                사용. 「SYNC PROFILE」으로 RPC 반영.
               </p>
               <div className="mt-3 flex flex-wrap items-end gap-2">
                 <div className="min-w-[120px] flex-1">
@@ -282,9 +325,10 @@ export default function MemberStatusTab({ userId, profile, stats, memberLevel, o
                   <input
                     type="number"
                     min={1}
+                    max={PHYSICAL_AUTONOMY_MAX}
                     value={manualLevelDraft}
                     onChange={(e) => setManualLevelDraft(e.target.value)}
-                    placeholder={`${memberLevel}`}
+                    placeholder={`${Math.min(PHYSICAL_AUTONOMY_MAX, memberLevel)}`}
                     className="mt-1 w-full rounded-xl border border-white/10 bg-black/40 px-3 py-2.5 text-sm tabular-nums text-white outline-none ring-emerald-500/30 placeholder:text-white/25 focus:ring-2"
                   />
                 </div>
@@ -374,6 +418,23 @@ export default function MemberStatusTab({ userId, profile, stats, memberLevel, o
                             }}
                           />
                         </div>
+                        <div className="mt-3">
+                          <label className="text-[10px] font-medium uppercase tracking-wider text-emerald-500/50">
+                            성취 근거 (Reason for Achievement)
+                          </label>
+                          <textarea
+                            value={achievementReasonByStatId[s.id] ?? ''}
+                            onChange={(e) =>
+                              setAchievementReasonByStatId((prev) => ({
+                                ...prev,
+                                [s.id]: e.target.value,
+                              }))
+                            }
+                            rows={2}
+                            placeholder="예: 스쿼트 1RM 목표 달성, 주 3회 루틴 준수 등"
+                            className="mt-1 w-full resize-none rounded-xl border border-white/10 bg-black/35 px-3 py-2 text-sm text-white/90 outline-none ring-emerald-500/25 placeholder:text-white/25 focus:ring-2"
+                          />
+                        </div>
                       </li>
                     );
                   })}
@@ -409,10 +470,16 @@ export default function MemberStatusTab({ userId, profile, stats, memberLevel, o
               memberName={displayName}
               memberLevel={simulatedLevel}
               stats={mirrorStats}
-              subtitle="Athlete Matrix"
+              subtitle="Physical Autonomy"
               compact
               epicLevelUpKey={epicKey}
             />
+            <div>
+              <p className="mb-3 text-center text-[10px] font-bold uppercase tracking-[0.35em] text-emerald-500/55">
+                Growth Ledger
+              </p>
+              <GrowthLedgerTimeline entries={ledgerEntries} loading={ledgerLoading} />
+            </div>
             <div>
               <p className="mb-2 text-center text-[10px] font-bold uppercase tracking-[0.35em] text-emerald-500/45">
                 Vault Archive
