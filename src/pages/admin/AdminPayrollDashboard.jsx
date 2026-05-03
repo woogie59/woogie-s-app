@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { ChevronDown } from 'lucide-react';
 import * as XLSX from 'xlsx-js-style';
 import { supabase } from '../../lib/supabaseClient';
 import BackButton from '../../components/ui/BackButton';
@@ -16,6 +17,22 @@ function monthRangeISO(dateInMonth) {
 function startOfCurrentMonth() {
   const d = new Date();
   return new Date(d.getFullYear(), d.getMonth(), 1);
+}
+
+/** Last 12 calendar months ending at the current month (newest first). */
+function buildLastTwelveMonthOptions() {
+  const rows = [];
+  const base = new Date();
+  for (let i = 0; i < 12; i += 1) {
+    const d = new Date(base.getFullYear(), base.getMonth() - i, 1);
+    const y = d.getFullYear();
+    const mo = d.getMonth() + 1;
+    rows.push({
+      value: `${y}-${String(mo).padStart(2, '0')}`,
+      label: `${y}년 ${String(mo).padStart(2, '0')}월`,
+    });
+  }
+  return rows;
 }
 
 function formatDateOnly(iso) {
@@ -117,6 +134,8 @@ function sumRemainingCountByUser(rows) {
 const AdminPayrollDashboard = ({ goBack }) => {
   const [selectedDate, setSelectedDate] = useState(() => startOfCurrentMonth());
 
+  const monthOptions = useMemo(() => buildLastTwelveMonthOptions(), []);
+
   const { firstDay, lastDay } = useMemo(() => monthRangeISO(selectedDate), [selectedDate]);
 
   const monthLabel = useMemo(() => {
@@ -125,13 +144,13 @@ const AdminPayrollDashboard = ({ goBack }) => {
     return `${y}년 ${String(mo).padStart(2, '0')}월`;
   }, [selectedDate]);
 
-  const monthInputValue = useMemo(() => {
+  const monthSelectValue = useMemo(() => {
     const y = selectedDate.getFullYear();
     const mo = selectedDate.getMonth() + 1;
     return `${y}-${String(mo).padStart(2, '0')}`;
   }, [selectedDate]);
 
-  const handleMonthInputChange = useCallback((e) => {
+  const handleMonthSelectChange = useCallback((e) => {
     const v = e.target.value;
     if (!v || typeof v !== 'string') return;
     const [ys, ms] = v.split('-');
@@ -281,24 +300,36 @@ const AdminPayrollDashboard = ({ goBack }) => {
               월간 출석 및 정산 리포트 — {monthLabel}
             </p>
           </div>
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-stretch sm:justify-end lg:shrink-0 lg:items-center">
-            <label className="inline-flex items-center gap-2.5 rounded-2xl border border-neutral-200 bg-white px-4 py-3 text-sm text-neutral-800 shadow-sm">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-end lg:shrink-0">
+            <label className="inline-flex flex-wrap items-center gap-2.5 rounded-2xl border border-neutral-200 bg-white px-3 py-2.5 text-sm text-neutral-800 shadow-sm sm:min-h-0">
               <span className="text-[10px] font-semibold uppercase tracking-[0.18em] text-neutral-400 whitespace-nowrap">
                 조회 연월
               </span>
-              <input
-                type="month"
-                value={monthInputValue}
-                onChange={handleMonthInputChange}
-                className="min-w-0 flex-1 rounded-lg border border-neutral-100 bg-neutral-50/80 px-2 py-1.5 text-sm font-medium tabular-nums text-neutral-950 outline-none ring-0 focus:border-neutral-300 focus:bg-white"
-                aria-label="조회할 연도와 월 선택"
-              />
+              <div className="relative min-w-[10.5rem]">
+                <select
+                  value={monthSelectValue}
+                  onChange={handleMonthSelectChange}
+                  className="bg-transparent border border-gray-200 text-gray-900 text-sm rounded-lg focus:ring-2 focus:ring-emerald-600/25 focus:border-emerald-600 block w-full pl-3 pr-9 py-2.5 cursor-pointer appearance-none outline-none"
+                  aria-label="조회할 연도와 월 선택"
+                >
+                  {monthOptions.map((opt) => (
+                    <option key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </option>
+                  ))}
+                </select>
+                <ChevronDown
+                  className="pointer-events-none absolute right-2.5 top-1/2 size-4 -translate-y-1/2 text-gray-500"
+                  strokeWidth={2}
+                  aria-hidden
+                />
+              </div>
             </label>
             <button
               type="button"
               onClick={handleExportExcel}
               disabled={loading || !(logs || []).some((l) => isAttendanceLogCompletedForBalance(l))}
-              className="shrink-0 border border-neutral-900 bg-neutral-900 text-white px-5 py-3 text-sm font-medium tracking-wide hover:bg-neutral-800 disabled:opacity-40 disabled:pointer-events-none transition-colors sm:self-center"
+              className="shrink-0 border border-neutral-900 bg-neutral-900 text-white px-5 py-3 text-sm font-medium tracking-wide hover:bg-neutral-800 disabled:opacity-40 disabled:pointer-events-none transition-colors"
             >
               엑셀 다운로드
             </button>
