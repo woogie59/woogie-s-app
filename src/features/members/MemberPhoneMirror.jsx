@@ -6,7 +6,7 @@ import React from 'react';
 export default function MemberPhoneMirror({ children, label = 'Live Member Mirror' }) {
   return (
     <div className="flex flex-col items-center">
-      <p className="mb-3 text-center text-[11px] font-semibold uppercase tracking-[0.2em] text-neutral-400">{label}</p>
+      <p className="mb-3 text-center text-[11px] font-semibold uppercase tracking-[0.28em] text-emerald-500/55">{label}</p>
       <div
         className="relative mx-auto w-full max-w-[340px] rounded-[2.65rem] p-[3px] shadow-[0_32px_80px_-12px_rgba(15,23,42,0.45),inset_0_1px_0_rgba(255,255,255,0.35)]"
         style={{
@@ -28,7 +28,7 @@ export default function MemberPhoneMirror({ children, label = 'Live Member Mirro
           </div>
         </div>
       </div>
-      <p className="mt-3 max-w-[280px] text-center text-[10px] leading-relaxed text-neutral-400">
+      <p className="mt-3 max-w-[280px] text-center text-[10px] leading-relaxed text-emerald-500/35">
         미리보기는 저장 전 가상 상태입니다. DB 반영은 왼쪽 패널에서 저장하세요.
       </p>
     </div>

@@ -8,9 +8,34 @@ import {
   RadarChart,
   ResponsiveContainer,
 } from 'recharts';
+import LevelUpEpicFX from './LevelUpEpicFX';
+
+const HEX_VERTICES = 6;
+const EMPTY_HEX_LABELS = ['STR', 'END', 'AGI', 'VIT', 'TEC', 'MND'];
+
+function buildRadarRows(stats) {
+  let rows = [];
+  if (stats?.length) {
+    rows = stats.map((s) => ({
+      subject:
+        s.category_name?.length > 12 ? `${s.category_name.slice(0, 11)}…` : s.category_name || '—',
+      value: Math.min(100, Math.max(0, Number(s.exp_percent) || 0)),
+      key: s.id,
+    }));
+  } else {
+    rows = EMPTY_HEX_LABELS.map((l, i) => ({ subject: l, value: 0, key: `placeholder-${i}` }));
+  }
+  if (rows.length < HEX_VERTICES) {
+    let pad = 0;
+    while (rows.length < HEX_VERTICES) {
+      rows.push({ subject: 'OPEN', value: 0, key: `open-slot-${pad++}` });
+    }
+  }
+  return rows;
+}
 
 /**
- * Member-facing athlete status (radar + level). Used in admin mirror and can be reused on client home.
+ * High-end gamified athlete status — Recharts polygon radar, matte black, neon fill.
  */
 export default function AthleteStatus({
   memberName,
@@ -20,83 +45,100 @@ export default function AthleteStatus({
   compact = false,
   epicLevelUpKey = 0,
 }) {
-  const radarData = useMemo(() => {
-    const rows = stats?.length
-      ? stats
-      : [{ category_name: '데이터 없음', exp_percent: 0, id: 'empty' }];
-    return rows.map((s) => ({
-      subject: s.category_name?.length > 10 ? `${s.category_name.slice(0, 9)}…` : s.category_name || '—',
-      value: Math.min(100, Math.max(0, Number(s.exp_percent) || 0)),
-      key: s.id,
-    }));
-  }, [stats]);
+  const radarData = useMemo(() => buildRadarRows(stats), [stats]);
 
-  const chartH = compact ? 180 : 220;
+  const chartH = compact ? 260 : 300;
+  const lv = Math.max(1, Number(memberLevel) || 1);
 
   return (
-    <div
-      className="relative overflow-hidden rounded-3xl border border-white/10 px-5 py-6 text-white shadow-[0_0_60px_rgba(34,197,94,0.12)]"
-      style={{
-        background: 'linear-gradient(145deg, rgba(15,23,42,0.92) 0%, rgba(2,6,23,0.88) 100%)',
-        backdropFilter: 'blur(18px)',
-        WebkitBackdropFilter: 'blur(18px)',
-      }}
-    >
-      <div className="pointer-events-none absolute -right-16 -top-20 h-56 w-56 rounded-full bg-emerald-500/15 blur-3xl" />
-      <div className="pointer-events-none absolute -bottom-24 -left-10 h-48 w-48 rounded-full bg-teal-400/10 blur-3xl" />
+    <div className="relative overflow-hidden rounded-2xl border border-emerald-500/20 bg-[#0a0a0a] text-white shadow-[0_0_80px_rgba(16,185,129,0.12)]">
+      {/* Radial glow behind chart */}
+      <div
+        className="pointer-events-none absolute left-1/2 top-[42%] h-[min(120%,520px)] w-[min(140%,520px)] -translate-x-1/2 -translate-y-1/2 rounded-full opacity-90"
+        style={{
+          background:
+            'radial-gradient(ellipse at center, rgba(16,185,129,0.22) 0%, rgba(5,46,22,0.35) 38%, transparent 68%)',
+        }}
+      />
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_50%_0%,rgba(255,255,255,0.06)_0%,transparent_55%)]" />
 
-      <div className="relative flex items-start justify-between gap-4">
-        <div>
-          <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-emerald-300/70">{subtitle}</p>
-          <h3 className="mt-2 text-xl font-semibold tracking-tight text-white/95">{memberName || '회원'}</h3>
-        </div>
-        <div className="shrink-0 text-right">
-          <Motion.p
-            key={epicLevelUpKey}
-            className="text-4xl font-black tabular-nums tracking-tighter text-emerald-400"
+      <LevelUpEpicFX triggerKey={epicLevelUpKey} />
+
+      {/* Massive metallic level */}
+      <div className="relative z-10 px-4 pt-6 text-center">
+        <p className="text-[10px] font-bold uppercase tracking-[0.4em] text-emerald-400/70">{subtitle}</p>
+        <Motion.div
+          key={epicLevelUpKey}
+          className="mt-2"
+          initial={epicLevelUpKey > 0 ? { scale: 0.92, opacity: 0.75 } : false}
+          animate={{ scale: 1, opacity: 1 }}
+          transition={{ duration: 0.55, ease: [0.22, 1, 0.36, 1] }}
+        >
+          <span
+            className="relative inline-block text-[clamp(2.75rem,10vw,3.75rem)] font-black leading-none tracking-tight tabular-nums"
             style={{
-              textShadow:
-                '0 0 18px rgba(52,211,153,0.85), 0 0 42px rgba(16,185,129,0.45), 0 0 2px rgba(6,78,59,0.9)',
-            }}
-            initial={epicLevelUpKey > 0 ? { scale: 0.85, opacity: 0.6, filter: 'blur(4px)' } : false}
-            animate={{
-              scale: epicLevelUpKey > 0 ? [1, 1.18, 1.05, 1] : 1,
-              opacity: 1,
-              filter: epicLevelUpKey > 0 ? ['blur(0px)', 'blur(0px)', 'blur(0px)', 'blur(0px)'] : 'blur(0px)',
-            }}
-            transition={{
-              duration: 0.85,
-              ease: [0.22, 1, 0.36, 1],
-              times: [0, 0.35, 0.65, 1],
+              background: 'linear-gradient(185deg, #ecfdf5 0%, #6ee7b7 38%, #059669 72%, #064e3b 100%)',
+              WebkitBackgroundClip: 'text',
+              backgroundClip: 'text',
+              color: 'transparent',
+              filter: 'drop-shadow(0 0 15px rgba(16,185,129,0.5)) drop-shadow(0 2px 0 rgba(0,0,0,0.85))',
             }}
           >
-            LV. {Math.max(1, Number(memberLevel) || 1)}
-          </Motion.p>
-        </div>
+            LV. {lv}
+          </span>
+        </Motion.div>
+        <p className="mt-2 text-sm font-medium tracking-wide text-white/55">{memberName || '회원'}</p>
       </div>
 
-      <div className="relative mt-6 w-full" style={{ height: chartH }}>
+      <div className="relative z-10 px-1 pb-6 pt-2" style={{ height: chartH }}>
         <ResponsiveContainer width="100%" height="100%">
-          <RadarChart cx="50%" cy="52%" outerRadius="68%" data={radarData}>
-            <PolarGrid stroke="rgba(148,163,184,0.25)" />
-            <PolarAngleAxis dataKey="subject" tick={{ fill: 'rgba(226,232,240,0.75)', fontSize: 11 }} />
-            <PolarRadiusAxis angle={30} domain={[0, 100]} tick={{ fill: 'rgba(148,163,184,0.45)', fontSize: 10 }} />
+          <RadarChart cx="50%" cy="54%" outerRadius="74%" data={radarData}>
+            <defs>
+              <filter id="athlete-radar-glow" x="-40%" y="-40%" width="180%" height="180%">
+                <feGaussianBlur stdDeviation="3" result="blur" />
+                <feMerge>
+                  <feMergeNode in="blur" />
+                  <feMergeNode in="SourceGraphic" />
+                </feMerge>
+              </filter>
+            </defs>
+            <PolarGrid
+              gridType="polygon"
+              stroke="rgba(16,185,129,0.28)"
+              strokeWidth={1}
+              radialLines
+            />
+            <PolarAngleAxis
+              dataKey="subject"
+              tick={{ fill: 'rgba(209,250,229,0.88)', fontSize: 10, fontWeight: 700 }}
+              tickLine={false}
+            />
+            <PolarRadiusAxis
+              angle={90}
+              domain={[0, 100]}
+              tick={false}
+              axisLine={false}
+            />
             <Radar
-              isAnimationActive
-              animationDuration={320}
               name="EXP"
               dataKey="value"
-              stroke="#34d399"
-              strokeWidth={2}
-              fill="#22c55e"
-              fillOpacity={0.35}
-              dot={{ r: 3, fill: '#6ee7b7', strokeWidth: 0 }}
+              stroke="#10b981"
+              strokeWidth={2.5}
+              fill="#0B3B24"
+              fillOpacity={0.6}
+              filter="url(#athlete-radar-glow)"
+              dot={{ r: 4, fill: '#34d399', stroke: '#022c22', strokeWidth: 1 }}
+              isAnimationActive
+              animationDuration={480}
+              animationEasing="ease-out"
             />
           </RadarChart>
         </ResponsiveContainer>
       </div>
 
-      <p className="relative mt-2 text-center text-[11px] text-slate-400">각 축: 카테고리 경험치 % (0–100)</p>
+      <p className="relative z-10 pb-4 text-center text-[10px] font-medium uppercase tracking-[0.25em] text-emerald-500/35">
+        Performance Matrix
+      </p>
     </div>
   );
 }
