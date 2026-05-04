@@ -1,7 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import toast from 'react-hot-toast';
 import { motion as Motion } from 'framer-motion';
-import { Plus } from 'lucide-react';
 import { supabase } from '../../lib/supabaseClient';
 import { invokeNotifyMemberEvents } from '../../utils/notifications';
 import AthleteStatus from './AthleteStatus';
@@ -9,6 +8,15 @@ import GrowthLedgerTimeline from './GrowthLedgerTimeline';
 import MemberPhoneMirror from './MemberPhoneMirror';
 
 const PHYSICAL_AUTONOMY_MAX = 10;
+const CORE_STATS = [
+  'Movement IQ (운동 지능)',
+  'Mobility (가동성)',
+  'Strength (절대 근력)',
+  'Metabolic (대사 능력)',
+  'Resilience (수행 심리)',
+];
+const CORE_STAT_SET = new Set(CORE_STATS);
+const CORE_STAT_INDEX = new Map(CORE_STATS.map((name, idx) => [name, idx]));
 
 function totalExpFloorBonus(stats, pendingExp) {
   return stats.reduce((acc, s) => {
@@ -64,7 +72,6 @@ function MemberSimulatorLedger({ memberId, refreshKey }) {
 }
 
 export default function MemberStatusTab({ userId, profile, stats, memberLevel, onRefresh, onMemberLevelSynced }) {
-  const [categoryInput, setCategoryInput] = useState('');
   const [adding, setAdding] = useState(false);
   const [saving, setSaving] = useState(false);
   const [manualLevelDraft, setManualLevelDraft] = useState('');
@@ -112,9 +119,21 @@ export default function MemberStatusTab({ userId, profile, stats, memberLevel, o
   const displayName = profile?.name || '회원';
 
   const sortedStats = useMemo(
-    () => [...(stats || [])].sort((a, b) => (a.category_name || '').localeCompare(b.category_name || '', 'ko')),
+    () =>
+      [...(stats || [])]
+        .filter((s) => CORE_STAT_SET.has(String(s.category_name || '').trim()))
+        .sort((a, b) => {
+          const ai = CORE_STAT_INDEX.get(String(a.category_name || '').trim()) ?? Number.MAX_SAFE_INTEGER;
+          const bi = CORE_STAT_INDEX.get(String(b.category_name || '').trim()) ?? Number.MAX_SAFE_INTEGER;
+          return ai - bi;
+        }),
     [stats]
   );
+
+  const missingCoreStats = useMemo(() => {
+    const existing = new Set(sortedStats.map((s) => String(s.category_name || '').trim()));
+    return CORE_STATS.filter((name) => !existing.has(name));
+  }, [sortedStats]);
 
   const mirrorStats = useMemo(
     () =>
@@ -304,11 +323,10 @@ export default function MemberStatusTab({ userId, profile, stats, memberLevel, o
     }
   };
 
-  const addCategory = async () => {
-    const raw = categoryInput.trim().replace(/\s+/g, ' ');
-    const name = raw.slice(0, 200);
-    if (!name) {
-      toast.error('항목 이름을 입력하세요.');
+  const addCategory = async (name) => {
+    const trimmed = String(name || '').trim();
+    if (!CORE_STAT_SET.has(trimmed)) {
+      toast.error('코어 스탯 5종만 추가할 수 있습니다.');
       return;
     }
     if (!userId) {
@@ -318,7 +336,7 @@ export default function MemberStatusTab({ userId, profile, stats, memberLevel, o
     setAdding(true);
     const row = {
       user_id: userId,
-      category_name: name,
+      category_name: trimmed,
       exp_percent: 0,
       level: 1,
     };
@@ -340,11 +358,9 @@ export default function MemberStatusTab({ userId, profile, stats, memberLevel, o
       console.warn('[MemberStatusTab] insert returned no row (RLS SELECT on insert?)', { row });
       toast.error('항목은 생성됐을 수 있으나 응답이 막혔습니다. 목록을 새로고침 해 보세요.');
       await onRefresh?.();
-      setCategoryInput('');
       return;
     }
-    setCategoryInput('');
-    toast.success('항목이 추가되었습니다.');
+    toast.success(`${trimmed} 항목이 추가되었습니다.`);
     await onRefresh?.();
   };
 
@@ -400,25 +416,29 @@ export default function MemberStatusTab({ userId, profile, stats, memberLevel, o
             </div>
 
             <div className="border-t border-white/10 pt-6">
-              <h3 className="text-xs font-bold uppercase tracking-[0.2em] text-emerald-500/70">New Axis</h3>
-              <p className="mt-1 text-[11px] text-white/40">Strength, Endurance, 유산소 등 — 레이더 꼭짓점이 됩니다.</p>
-              <div className="mt-3 flex gap-2">
-                <input
-                  type="text"
-                  value={categoryInput}
-                  onChange={(e) => setCategoryInput(e.target.value)}
-                  placeholder="Category name"
-                  className="min-w-0 flex-1 rounded-xl border border-white/10 bg-black/40 px-3 py-2.5 text-sm text-white outline-none ring-emerald-500/30 placeholder:text-white/25 focus:ring-2"
-                />
-                <button
-                  type="button"
-                  disabled={adding}
-                  onClick={addCategory}
-                  className="inline-flex shrink-0 items-center gap-1.5 rounded-xl border border-emerald-500/40 bg-gradient-to-b from-emerald-600 to-emerald-900 px-4 py-2.5 text-xs font-bold uppercase tracking-wide text-white shadow-[0_0_20px_rgba(16,185,129,0.25)] disabled:opacity-50"
-                >
-                  <Plus size={14} strokeWidth={2.5} />
-                  Add
-                </button>
+              <h3 className="text-xs font-bold uppercase tracking-[0.2em] text-emerald-500/70">Core Stats</h3>
+              <p className="mt-1 text-[11px] text-white/40">
+                Athlete Status는 5개 코어 바이오메트릭만 사용합니다. 빠른 추가로 오타를 방지하세요.
+              </p>
+              <div className="mt-3 flex flex-wrap gap-2">
+                {CORE_STATS.map((name) => {
+                  const exists = !missingCoreStats.includes(name);
+                  return (
+                    <button
+                      key={name}
+                      type="button"
+                      disabled={adding || exists}
+                      onClick={() => addCategory(name)}
+                      className={`rounded-xl border px-3 py-2 text-[11px] font-semibold tracking-wide transition ${
+                        exists
+                          ? 'border-white/10 bg-white/5 text-white/30'
+                          : 'border-emerald-500/40 bg-emerald-950/40 text-emerald-100/90 hover:border-emerald-400/60 hover:bg-emerald-900/45'
+                      } disabled:cursor-not-allowed`}
+                    >
+                      {exists ? `${name} · Added` : name}
+                    </button>
+                  );
+                })}
               </div>
             </div>
 
@@ -429,7 +449,7 @@ export default function MemberStatusTab({ userId, profile, stats, memberLevel, o
               </p>
 
               {sortedStats.length === 0 ? (
-                <p className="mt-6 text-sm text-white/30">카테고리를 추가하면 페이더가 나타납니다.</p>
+                <p className="mt-6 text-sm text-white/30">코어 스탯을 추가하면 페이더가 나타납니다.</p>
               ) : (
                 <ul className="mt-6 space-y-7">
                   {sortedStats.map((s) => {

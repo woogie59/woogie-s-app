@@ -17,6 +17,13 @@ const DEFAULT_LEVEL_PHASES = [
 const ACTIVE_SEGMENT =
   'rounded-[1px] bg-[#10b981] shadow-[0_0_10px_rgba(16,185,129,0.85),0_0_4px_rgba(16,185,129,0.5)]';
 const INACTIVE_SEGMENT = 'rounded-[1px] bg-[rgba(255,255,255,0.05)]';
+const CORE_STAT_LABELS = new Map([
+  ['Movement IQ (운동 지능)', { en: 'MOVEMENT IQ', ko: '운동 지능' }],
+  ['Mobility (가동성)', { en: 'MOBILITY', ko: '가동성' }],
+  ['Strength (절대 근력)', { en: 'STRENGTH', ko: '절대 근력' }],
+  ['Metabolic (대사 능력)', { en: 'METABOLIC', ko: '대사 능력' }],
+  ['Resilience (수행 심리)', { en: 'RESILIENCE', ko: '수행 심리' }],
+]);
 
 function toGuideDraft(row) {
   return {
@@ -61,7 +68,10 @@ function StatBiometricRow({ label, pct }) {
 
   return (
     <div className="mb-8 last:mb-0">
-      <p className="mb-2 text-[10px] uppercase tracking-[0.2em] text-gray-500">{label}</p>
+      <p className="mb-2 flex items-baseline gap-1.5 text-[10px] tracking-[0.18em]">
+        <span className="font-semibold uppercase text-gray-300">{label.en}</span>
+        <span className="text-white/35">({label.ko})</span>
+      </p>
       <div className="flex items-center gap-3">
         <div className="flex min-w-0 flex-1 gap-[3px]">
           {Array.from({ length: SEGMENT_COUNT }, (_, i) => {
@@ -112,12 +122,16 @@ export default function AthleteStatus({
   const rows = useMemo(() => {
     const list = (stats || []).map((s) => ({
       id: s.id,
-      label: (s.category_name || '—').toUpperCase(),
+      label:
+        CORE_STAT_LABELS.get(String(s.category_name || '').trim()) ?? {
+          en: String(s.category_name || 'NO METRICS').toUpperCase(),
+          ko: '미분류',
+        },
       pct: Math.min(100, Math.max(0, Number(s.exp_percent) || 0)),
     }));
     return list.length
       ? list
-      : [{ id: 'placeholder', label: 'NO METRICS', pct: 0 }];
+      : [{ id: 'placeholder', label: { en: 'NO METRICS', ko: '데이터 없음' }, pct: 0 }];
   }, [stats]);
 
   const rawLv = Number(memberLevel) || 1;

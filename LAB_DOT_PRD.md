@@ -44,3 +44,4 @@
 - **Google Calendar Sync (God's Eye Algorithm):**
   - 구글 시트와 구글 캘린더 연동 시, 시트의 상태를 캘린더에 강제로 100% 거울화(Mirroring)하는 절대 동기화 방식 사용.
   - 생성된 일정에는 `LAB_DOT` 태그를 부착하여 파트너의 개인 일정과 완벽히 격리 및 추적.
+스태
