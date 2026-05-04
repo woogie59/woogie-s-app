@@ -71,17 +71,31 @@ export default function MemberStatusTab({ userId, profile, stats, memberLevel, o
   const [pendingExp, setPendingExp] = useState(() =>
     Object.fromEntries((stats || []).map((s) => [s.id, Math.round(Number(s.exp_percent) * 10) / 10]))
   );
+  const [committedExpByStatId, setCommittedExpByStatId] = useState(() =>
+    Object.fromEntries((stats || []).map((s) => [s.id, Number(s.exp_percent) || 0]))
+  );
+  const [committedMemberLevel, setCommittedMemberLevel] = useState(() => {
+    const n = Number(memberLevel);
+    return Number.isFinite(n) ? Math.min(PHYSICAL_AUTONOMY_MAX, Math.max(1, n)) : 1;
+  });
   const [epicKey, setEpicKey] = useState(0);
   const [achievementReasonByStatId, setAchievementReasonByStatId] = useState({});
   const [ledgerRefreshKey, setLedgerRefreshKey] = useState(0);
-  /** Right-column LV: instant feedback before RPC completes */
-  const [optimisticMemberLevel, setOptimisticMemberLevel] = useState(null);
 
   const prevBonusRef = useRef(null);
 
   useEffect(() => {
     setPendingExp(Object.fromEntries((stats || []).map((s) => [s.id, Math.round(Number(s.exp_percent) * 10) / 10])));
   }, [stats]);
+
+  useEffect(() => {
+    setCommittedExpByStatId(Object.fromEntries((stats || []).map((s) => [s.id, Number(s.exp_percent) || 0])));
+  }, [stats]);
+
+  useEffect(() => {
+    const n = Number(memberLevel);
+    setCommittedMemberLevel(Number.isFinite(n) ? Math.min(PHYSICAL_AUTONOMY_MAX, Math.max(1, n)) : 1);
+  }, [memberLevel, userId]);
 
   useEffect(() => {
     setAchievementReasonByStatId((prev) => {
@@ -106,9 +120,9 @@ export default function MemberStatusTab({ userId, profile, stats, memberLevel, o
     () =>
       sortedStats.map((s) => ({
         ...s,
-        exp_percent: pendingExp[s.id] ?? (Number(s.exp_percent) || 0),
+        exp_percent: committedExpByStatId[s.id] ?? (Number(s.exp_percent) || 0),
       })),
-    [sortedStats, pendingExp]
+    [sortedStats, committedExpByStatId]
   );
 
   const expBonusLevels = useMemo(() => totalExpFloorBonus(sortedStats, pendingExp), [sortedStats, pendingExp]);
@@ -126,13 +140,6 @@ export default function MemberStatusTab({ userId, profile, stats, memberLevel, o
     PHYSICAL_AUTONOMY_MAX,
     Math.max(1, effectiveBaseLevel + expBonusLevels)
   );
-
-  const displaySimulatedLevel =
-    optimisticMemberLevel != null ? optimisticMemberLevel : simulatedLevel;
-
-  useEffect(() => {
-    setOptimisticMemberLevel(null);
-  }, [userId]);
 
   useEffect(() => {
     if (prevBonusRef.current === null) {
@@ -170,8 +177,6 @@ export default function MemberStatusTab({ userId, profile, stats, memberLevel, o
       toast('변경된 경험치가 없습니다.', { icon: 'ℹ️' });
       return;
     }
-    const levelSnapshot = simulatedLevel;
-    setOptimisticMemberLevel(levelSnapshot);
     setSaving(true);
     let anyLevelGain = false;
     const dirtyList = sortedStats.filter((s) => isStatDirty(s));
@@ -179,10 +184,11 @@ export default function MemberStatusTab({ userId, profile, stats, memberLevel, o
       for (const s of dirtyList) {
         const srv = Number(s.exp_percent) || 0;
         const p = Math.min(999999, Math.max(0, pendingExp[s.id] ?? srv));
+        const pRounded = Math.round(p);
         const note = (achievementReasonByStatId[s.id] ?? '').trim();
 
         const { data, error: rpcErr } = await supabase.rpc('admin_apply_member_stat_exp', {
-          p_new_exp: p,
+          p_new_exp: pRounded,
           p_reason: note || null,
           p_stat_id: s.id,
           p_target_user: userId,
@@ -198,10 +204,10 @@ export default function MemberStatusTab({ userId, profile, stats, memberLevel, o
         .eq('id', userId)
         .maybeSingle();
       if (profErr) throw profErr;
-      const dbLevel = profRow?.member_level != null ? Number(profRow.member_level) : levelSnapshot;
+      const dbLevel = profRow?.member_level != null ? Number(profRow.member_level) : committedMemberLevel;
       const normalizedLevel = Math.min(
         PHYSICAL_AUTONOMY_MAX,
-        Math.max(1, Number.isFinite(dbLevel) ? dbLevel : levelSnapshot)
+        Math.max(1, Number.isFinite(dbLevel) ? dbLevel : committedMemberLevel)
       );
       const { data: syncRpc, error: syncErr } = await supabase.rpc('admin_force_sync_level', {
         p_target_user: userId,
@@ -210,6 +216,20 @@ export default function MemberStatusTab({ userId, profile, stats, memberLevel, o
       if (syncErr) throw syncErr;
       const syncedLevel =
         syncRpc?.member_level != null ? Number(syncRpc.member_level) : normalizedLevel;
+
+      // Right simulator updates only after DB save success (pessimistic UI).
+      setCommittedExpByStatId((prev) => {
+        const next = { ...prev };
+        for (const s of dirtyList) {
+          const srv = Number(s.exp_percent) || 0;
+          const p = Math.min(999999, Math.max(0, pendingExp[s.id] ?? srv));
+          next[s.id] = Math.round(p);
+        }
+        return next;
+      });
+      if (Number.isFinite(syncedLevel)) {
+        setCommittedMemberLevel(Math.min(PHYSICAL_AUTONOMY_MAX, Math.max(1, syncedLevel)));
+      }
 
       setLedgerRefreshKey((k) => k + 1);
 
@@ -222,7 +242,6 @@ export default function MemberStatusTab({ userId, profile, stats, memberLevel, o
       });
 
       await onRefresh?.();
-      setOptimisticMemberLevel(null);
       if (Number.isFinite(syncedLevel)) {
         onMemberLevelSynced?.(syncedLevel);
       }
@@ -242,13 +261,11 @@ export default function MemberStatusTab({ userId, profile, stats, memberLevel, o
         } catch (e) {
           console.warn('[MemberStatusTab] level push', e);
         }
-        toast.success(`저장 완료 · 레벨 ${finalLevel} (알림 발송)`);
-      } else {
-        toast.success('저장되었습니다.');
+        toast.success(`레벨 ${finalLevel} 업 알림이 발송되었습니다.`);
       }
+      toast.success('데이터 동기화 완료: 아틀리트 상태가 갱신되었습니다.');
     } catch (e) {
       console.error('[MemberStatusTab] save', e);
-      setOptimisticMemberLevel(null);
       toast.error(`저장 실패: ${supabaseErrorMessage(e)}`);
     } finally {
       setSaving(false);
@@ -267,12 +284,6 @@ export default function MemberStatusTab({ userId, profile, stats, memberLevel, o
 
     const prevLevel = Number(memberLevel) || 1;
     const targetLevel = Math.min(PHYSICAL_AUTONOMY_MAX, Math.max(1, manualParsed));
-    const optimisticDisplay = Math.min(
-      PHYSICAL_AUTONOMY_MAX,
-      Math.max(1, targetLevel + expBonusLevels)
-    );
-
-    setOptimisticMemberLevel(optimisticDisplay);
     setSaving(true);
     try {
       const { data: rpcData, error } = await supabase.rpc('admin_force_sync_level', {
@@ -285,6 +296,7 @@ export default function MemberStatusTab({ userId, profile, stats, memberLevel, o
       const appliedLevel =
         rpcData?.member_level != null ? Number(rpcData.member_level) : targetLevel;
 
+      setCommittedMemberLevel(Math.min(PHYSICAL_AUTONOMY_MAX, Math.max(1, appliedLevel)));
       onMemberLevelSynced?.(appliedLevel);
       setManualLevelDraft('');
 
@@ -294,10 +306,8 @@ export default function MemberStatusTab({ userId, profile, stats, memberLevel, o
 
       toast.success('프로필 레벨이 반영되었습니다.');
       await onRefresh?.();
-      setOptimisticMemberLevel(null);
     } catch (e) {
       console.error('[MemberStatusTab] admin_force_sync_level', e);
-      setOptimisticMemberLevel(null);
       toast.error('레벨 동기화 실패: 시스템 관리자에게 문의하십시오.');
     } finally {
       setSaving(false);
@@ -356,7 +366,7 @@ export default function MemberStatusTab({ userId, profile, stats, memberLevel, o
           <div className="border-b border-white/10 pb-5">
             <h2 className="text-[10px] font-bold uppercase tracking-[0.35em] text-emerald-400/80">Control Deck</h2>
             <p className="mt-2 text-sm leading-relaxed text-white/55">
-              슬라이더는 즉시 오른쪽 매트릭스에 반영됩니다. 확정은 하단 <span className="text-emerald-300/90">APPLY</span>로만
+              슬라이더 변경은 좌측 초안에만 반영됩니다. 확정은 하단 <span className="text-emerald-300/90">APPLY</span>로만
               서버에 기록됩니다.
             </p>
           </div>
@@ -392,7 +402,7 @@ export default function MemberStatusTab({ userId, profile, stats, memberLevel, o
               </div>
               <p className="mt-3 text-xs text-emerald-400/80">
                 Sim LV{' '}
-                <span className="font-mono font-bold tabular-nums text-emerald-200">{displaySimulatedLevel}</span>
+                <span className="font-mono font-bold tabular-nums text-emerald-200">{simulatedLevel}</span>
                 {expBonusLevels > 0 ? (
                   <span className="text-white/35"> · +{expBonusLevels} from 100% segments</span>
                 ) : null}
@@ -456,7 +466,7 @@ export default function MemberStatusTab({ userId, profile, stats, memberLevel, o
                             type="range"
                             min={0}
                             max={100}
-                            step={0.5}
+                            step={1}
                             value={pct}
                             onChange={(e) => {
                               const n = Number(e.target.value);
@@ -518,7 +528,7 @@ export default function MemberStatusTab({ userId, profile, stats, memberLevel, o
           <div className="space-y-6 px-1">
             <AthleteStatus
               memberName={displayName}
-              memberLevel={displaySimulatedLevel}
+              memberLevel={committedMemberLevel}
               stats={mirrorStats}
               subtitle="Physical Autonomy"
               compact
