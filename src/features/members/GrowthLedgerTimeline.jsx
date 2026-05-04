@@ -19,18 +19,18 @@ function formatExpAfter(row) {
 }
 
 /**
- * Vertical growth ledger for the member simulator (exp_logs).
+ * Unboxed vertical growth ledger (exp_logs) — rail, nodes, typographic hierarchy.
  */
 export default function GrowthLedgerTimeline({ entries, loading = false }) {
   if (loading) {
     return (
-      <div className="py-8 text-center text-[11px] uppercase tracking-wider text-emerald-500/40">Loading ledger…</div>
+      <div className="py-8 text-center text-[11px] uppercase tracking-wider text-white/25">Loading ledger…</div>
     );
   }
 
   if (!entries?.length) {
     return (
-      <div className="rounded-xl border border-white/5 bg-white/[0.03] py-8 text-center text-sm text-white/35">
+      <div className="py-8 text-center text-sm font-light text-gray-500">
         아직 기록된 성취가 없습니다. EXP를 저장하면 타임라인에 쌓입니다.
       </div>
     );
@@ -38,27 +38,38 @@ export default function GrowthLedgerTimeline({ entries, loading = false }) {
 
   return (
     <div className="max-h-[min(40vh,360px)] overflow-y-auto pr-1 [scrollbar-width:thin]">
-      {entries.map((row) => {
-        const dt = formatLedgerDate(row.created_at);
-        const category = row.category_name || '—';
-        const pctLabel = formatExpAfter(row);
-        const headline = `[${dt}] ${category}: ${pctLabel} 도달`;
-        const basis = (row.reason ?? row.achievement_note ?? '').trim();
+      <div className="relative">
+        <div
+          className="pointer-events-none absolute bottom-2 left-[5px] top-2 w-px bg-white/10"
+          aria-hidden
+        />
+        <ul className="relative space-y-10 pb-2 pt-1">
+          {entries.map((row) => {
+            const dt = formatLedgerDate(row.created_at);
+            const category = row.category_name || '—';
+            const pctLabel = formatExpAfter(row);
+            const header = `${dt} · ${category}: ${pctLabel} 도달`;
+            const basis = (row.reason ?? row.achievement_note ?? '').trim();
 
-        return (
-          <div key={row.id} className="relative mb-4 pl-3 before:absolute before:left-0 before:top-2 before:h-[calc(100%-0.5rem)] before:w-px before:bg-emerald-500/25 last:mb-0 last:before:hidden">
-            <p className="text-[12px] font-semibold leading-snug tracking-tight text-white/88">{headline}</p>
-            <div className="mt-2.5 rounded-r-xl bg-[#111111] border-l-2 border-emerald-500 px-3.5 py-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
-              <p className="text-[9px] font-bold uppercase tracking-[0.2em] text-emerald-500/75">성취 근거</p>
-              {basis ? (
-                <p className="mt-1.5 text-sm leading-relaxed text-white/82">{basis}</p>
-              ) : (
-                <p className="mt-1.5 text-[11px] text-white/30">기록된 근거 없음</p>
-              )}
-            </div>
-          </div>
-        );
-      })}
+            return (
+              <li key={row.id} className="relative">
+                <div
+                  className="absolute left-[5px] top-1.5 h-1.5 w-1.5 -translate-x-1/2 rounded-full bg-emerald-500 shadow-[0_0_8px_#10b981]"
+                  aria-hidden
+                />
+                <div className="ml-6">
+                  <p className="mb-1 text-xs font-semibold uppercase tracking-widest text-emerald-400">{header}</p>
+                  {basis ? (
+                    <p className="text-sm font-light leading-relaxed text-gray-300">{basis}</p>
+                  ) : (
+                    <p className="text-sm font-light text-gray-600">기록된 근거 없음</p>
+                  )}
+                </div>
+              </li>
+            );
+          })}
+        </ul>
+      </div>
     </div>
   );
 }

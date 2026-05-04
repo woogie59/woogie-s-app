@@ -489,7 +489,7 @@ export default function MemberStatusTab({ userId, profile, stats, memberLevel, o
               epicLevelUpKey={epicKey}
             />
             <div>
-              <p className="mb-3 text-center text-[10px] font-bold uppercase tracking-[0.35em] text-emerald-500/55">
+              <p className="mb-3 text-center text-[10px] font-medium uppercase tracking-[0.35em] text-white/30">
                 Growth Ledger
               </p>
               <MemberSimulatorLedger memberId={userId} refreshKey={ledgerRefreshKey} />
