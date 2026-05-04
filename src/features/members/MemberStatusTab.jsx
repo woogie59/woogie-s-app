@@ -197,14 +197,8 @@ export default function MemberStatusTab({ userId, profile, stats, memberLevel, o
         if (Number(data?.levels_gained) > 0) anyLevelGain = true;
       }
 
-      /* Align profile.member_level with EXP RPC results without double-applying UI bonuses. */
-      const { data: profRow, error: profErr } = await supabase
-        .from('profiles')
-        .select('member_level')
-        .eq('id', userId)
-        .maybeSingle();
-      if (profErr) throw profErr;
-      const dbLevel = profRow?.member_level != null ? Number(profRow.member_level) : committedMemberLevel;
+      /* Keep admin save flow RPC-only: no direct profiles.member_level read. */
+      const dbLevel = committedMemberLevel;
       const normalizedLevel = Math.min(
         PHYSICAL_AUTONOMY_MAX,
         Math.max(1, Number.isFinite(dbLevel) ? dbLevel : committedMemberLevel)
@@ -245,11 +239,7 @@ export default function MemberStatusTab({ userId, profile, stats, memberLevel, o
       if (Number.isFinite(syncedLevel)) {
         onMemberLevelSynced?.(syncedLevel);
       }
-      let finalLevel = null;
-      if (anyLevelGain) {
-        const { data: prof } = await supabase.from('profiles').select('member_level').eq('id', userId).maybeSingle();
-        finalLevel = prof?.member_level != null ? Number(prof.member_level) : null;
-      }
+      const finalLevel = Number.isFinite(syncedLevel) ? syncedLevel : null;
       if (anyLevelGain && finalLevel != null && Number.isFinite(finalLevel)) {
         try {
           await invokeNotifyMemberEvents(
