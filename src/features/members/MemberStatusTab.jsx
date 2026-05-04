@@ -74,6 +74,8 @@ export default function MemberStatusTab({ userId, profile, stats, memberLevel, o
   const [epicKey, setEpicKey] = useState(0);
   const [achievementReasonByStatId, setAchievementReasonByStatId] = useState({});
   const [ledgerRefreshKey, setLedgerRefreshKey] = useState(0);
+  /** Right-column LV: instant feedback before RPC completes */
+  const [optimisticMemberLevel, setOptimisticMemberLevel] = useState(null);
 
   const prevBonusRef = useRef(null);
 
@@ -125,6 +127,13 @@ export default function MemberStatusTab({ userId, profile, stats, memberLevel, o
     Math.max(1, effectiveBaseLevel + expBonusLevels)
   );
 
+  const displaySimulatedLevel =
+    optimisticMemberLevel != null ? optimisticMemberLevel : simulatedLevel;
+
+  useEffect(() => {
+    setOptimisticMemberLevel(null);
+  }, [userId]);
+
   useEffect(() => {
     if (prevBonusRef.current === null) {
       prevBonusRef.current = expBonusLevels;
@@ -161,6 +170,8 @@ export default function MemberStatusTab({ userId, profile, stats, memberLevel, o
       toast('변경된 경험치가 없습니다.', { icon: 'ℹ️' });
       return;
     }
+    const levelSnapshot = simulatedLevel;
+    setOptimisticMemberLevel(levelSnapshot);
     setSaving(true);
     let anyLevelGain = false;
     const dirtyList = sortedStats.filter((s) => isStatDirty(s));
@@ -180,6 +191,26 @@ export default function MemberStatusTab({ userId, profile, stats, memberLevel, o
         if (Number(data?.levels_gained) > 0) anyLevelGain = true;
       }
 
+      /* Align profile.member_level with EXP RPC results without double-applying UI bonuses. */
+      const { data: profRow, error: profErr } = await supabase
+        .from('profiles')
+        .select('member_level')
+        .eq('id', userId)
+        .maybeSingle();
+      if (profErr) throw profErr;
+      const dbLevel = profRow?.member_level != null ? Number(profRow.member_level) : levelSnapshot;
+      const normalizedLevel = Math.min(
+        PHYSICAL_AUTONOMY_MAX,
+        Math.max(1, Number.isFinite(dbLevel) ? dbLevel : levelSnapshot)
+      );
+      const { data: syncRpc, error: syncErr } = await supabase.rpc('admin_force_sync_level', {
+        p_target_user: userId,
+        p_new_level: normalizedLevel,
+      });
+      if (syncErr) throw syncErr;
+      const syncedLevel =
+        syncRpc?.member_level != null ? Number(syncRpc.member_level) : normalizedLevel;
+
       setLedgerRefreshKey((k) => k + 1);
 
       setAchievementReasonByStatId((prev) => {
@@ -191,6 +222,10 @@ export default function MemberStatusTab({ userId, profile, stats, memberLevel, o
       });
 
       await onRefresh?.();
+      setOptimisticMemberLevel(null);
+      if (Number.isFinite(syncedLevel)) {
+        onMemberLevelSynced?.(syncedLevel);
+      }
       let finalLevel = null;
       if (anyLevelGain) {
         const { data: prof } = await supabase.from('profiles').select('member_level').eq('id', userId).maybeSingle();
@@ -213,6 +248,7 @@ export default function MemberStatusTab({ userId, profile, stats, memberLevel, o
       }
     } catch (e) {
       console.error('[MemberStatusTab] save', e);
+      setOptimisticMemberLevel(null);
       toast.error(`저장 실패: ${supabaseErrorMessage(e)}`);
     } finally {
       setSaving(false);
@@ -231,20 +267,17 @@ export default function MemberStatusTab({ userId, profile, stats, memberLevel, o
 
     const prevLevel = Number(memberLevel) || 1;
     const targetLevel = Math.min(PHYSICAL_AUTONOMY_MAX, Math.max(1, manualParsed));
+    const optimisticDisplay = Math.min(
+      PHYSICAL_AUTONOMY_MAX,
+      Math.max(1, targetLevel + expBonusLevels)
+    );
 
+    setOptimisticMemberLevel(optimisticDisplay);
     setSaving(true);
     try {
-      const { data: sessionData, error: sessionErr } = await supabase.auth.getSession();
-      if (sessionErr) throw sessionErr;
-      const adminId = sessionData?.session?.user?.id;
-      if (!adminId) {
-        throw new Error('no_admin_session');
-      }
-
-      const { data: rpcData, error } = await supabase.rpc('admin_force_update_level', {
+      const { data: rpcData, error } = await supabase.rpc('admin_force_sync_level', {
         p_target_user: userId,
         p_new_level: targetLevel,
-        p_admin_id: adminId,
       });
 
       if (error) throw error;
@@ -261,8 +294,10 @@ export default function MemberStatusTab({ userId, profile, stats, memberLevel, o
 
       toast.success('프로필 레벨이 반영되었습니다.');
       await onRefresh?.();
+      setOptimisticMemberLevel(null);
     } catch (e) {
-      console.error('[MemberStatusTab] admin_force_update_level', e);
+      console.error('[MemberStatusTab] admin_force_sync_level', e);
+      setOptimisticMemberLevel(null);
       toast.error('레벨 동기화 실패: 시스템 관리자에게 문의하십시오.');
     } finally {
       setSaving(false);
@@ -356,7 +391,8 @@ export default function MemberStatusTab({ userId, profile, stats, memberLevel, o
                 </button>
               </div>
               <p className="mt-3 text-xs text-emerald-400/80">
-                Sim LV <span className="font-mono font-bold tabular-nums text-emerald-200">{simulatedLevel}</span>
+                Sim LV{' '}
+                <span className="font-mono font-bold tabular-nums text-emerald-200">{displaySimulatedLevel}</span>
                 {expBonusLevels > 0 ? (
                   <span className="text-white/35"> · +{expBonusLevels} from 100% segments</span>
                 ) : null}
@@ -482,7 +518,7 @@ export default function MemberStatusTab({ userId, profile, stats, memberLevel, o
           <div className="space-y-6 px-1">
             <AthleteStatus
               memberName={displayName}
-              memberLevel={simulatedLevel}
+              memberLevel={displaySimulatedLevel}
               stats={mirrorStats}
               subtitle="Physical Autonomy"
               compact

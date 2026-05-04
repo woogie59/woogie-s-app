@@ -1,43 +1,70 @@
-import React, { useMemo } from 'react';
-import { motion as Motion } from 'framer-motion';
-import {
-  PolarAngleAxis,
-  PolarGrid,
-  PolarRadiusAxis,
-  Radar,
-  RadarChart,
-  ResponsiveContainer,
-} from 'recharts';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { animate, motion as Motion } from 'framer-motion';
 import LevelUpEpicFX from './LevelUpEpicFX';
 
-const HEX_VERTICES = 6;
 const ROADMAP_MAX = 10;
-const EMPTY_HEX_LABELS = ['STR', 'END', 'AGI', 'VIT', 'TEC', 'MND'];
-const RADAR_NEON = '#10b981';
+const SEGMENT_COUNT = 16;
 
-function buildRadarRows(stats) {
-  let rows = [];
-  if (stats?.length) {
-    rows = stats.map((s) => ({
-      subject:
-        s.category_name?.length > 12 ? `${s.category_name.slice(0, 11)}…` : s.category_name || '—',
-      value: Math.min(100, Math.max(0, Number(s.exp_percent) || 0)),
-      key: s.id,
-    }));
-  } else {
-    rows = EMPTY_HEX_LABELS.map((l, i) => ({ subject: l, value: 0, key: `placeholder-${i}` }));
-  }
-  if (rows.length < HEX_VERTICES) {
-    let pad = 0;
-    while (rows.length < HEX_VERTICES) {
-      rows.push({ subject: 'OPEN', value: 0, key: `open-slot-${pad++}` });
-    }
-  }
-  return rows;
+const ACTIVE_SEGMENT =
+  'rounded-[1px] bg-[#10b981] shadow-[0_0_10px_rgba(16,185,129,0.85),0_0_4px_rgba(16,185,129,0.5)]';
+const INACTIVE_SEGMENT = 'rounded-[1px] bg-[rgba(255,255,255,0.05)]';
+
+function StatBiometricRow({ label, pct }) {
+  const clamped = Math.min(100, Math.max(0, Number(pct) || 0));
+  const prevRef = useRef(clamped);
+  const [displayPct, setDisplayPct] = useState(clamped);
+
+  useEffect(() => {
+    const from = prevRef.current;
+    prevRef.current = clamped;
+    const controls = animate(from, clamped, {
+      duration: 0.38,
+      ease: [0.22, 1, 0.36, 1],
+      onUpdate: (v) => setDisplayPct(v),
+    });
+    return () => controls.stop();
+  }, [clamped]);
+
+  const activeCount = Math.min(
+    SEGMENT_COUNT,
+    Math.max(0, Math.round((displayPct / 100) * SEGMENT_COUNT))
+  );
+  const rounded = Math.round(displayPct * 10) / 10;
+
+  return (
+    <div className="mb-8 last:mb-0">
+      <p className="mb-2 text-[10px] uppercase tracking-[0.2em] text-gray-500">{label}</p>
+      <div className="flex items-center gap-3">
+        <div className="flex min-w-0 flex-1 gap-[3px]">
+          {Array.from({ length: SEGMENT_COUNT }, (_, i) => {
+            const on = i < activeCount;
+            return (
+              <Motion.div
+                key={i}
+                layout
+                className={`h-2 min-w-[3px] flex-1 ${on ? ACTIVE_SEGMENT : INACTIVE_SEGMENT}`}
+                initial={false}
+                animate={{ scaleY: on ? 1 : 0.92 }}
+                transition={{
+                  delay: on ? i * 0.02 : (SEGMENT_COUNT - 1 - i) * 0.012,
+                  duration: 0.14,
+                  ease: 'easeOut',
+                }}
+              />
+            );
+          })}
+        </div>
+        <span className="shrink-0 font-mono text-xl font-black tabular-nums tracking-tight text-white">
+          {rounded}
+          <span className="text-base font-bold text-white/80">%</span>
+        </span>
+      </div>
+    </div>
+  );
 }
 
 /**
- * High-end minimalist gamified athlete status — abyssal chrome, wireframe radar, monolith level.
+ * Linear bio-metrics HUD — segmented instrument bars (Oura / Health Pro style).
  */
 export default function AthleteStatus({
   memberName,
@@ -47,23 +74,31 @@ export default function AthleteStatus({
   compact = false,
   epicLevelUpKey = 0,
 }) {
-  const radarData = useMemo(() => buildRadarRows(stats), [stats]);
+  const rows = useMemo(() => {
+    const list = (stats || []).map((s) => ({
+      id: s.id,
+      label: (s.category_name || '—').toUpperCase(),
+      pct: Math.min(100, Math.max(0, Number(s.exp_percent) || 0)),
+    }));
+    return list.length
+      ? list
+      : [{ id: 'placeholder', label: 'NO METRICS', pct: 0 }];
+  }, [stats]);
 
-  const chartH = compact ? 240 : 280;
   const rawLv = Number(memberLevel) || 1;
   const roadmapLevel = Math.min(ROADMAP_MAX, Math.max(1, rawLv));
   const isGraduated = roadmapLevel >= ROADMAP_MAX;
   const levelProgressPct = Math.min(100, Math.max(0, (roadmapLevel / ROADMAP_MAX) * 100));
 
-  const radarStroke = isGraduated ? '#eab308' : RADAR_NEON;
-  const radarFill = isGraduated ? '#422006' : '#064e3b';
+  const bioPad = compact ? 'pt-3 pb-4' : 'pt-4 pb-6';
 
   return (
     <div className="relative overflow-hidden bg-black text-white">
       <LevelUpEpicFX triggerKey={epicLevelUpKey} />
 
-      {/* Monolith level — top center */}
-      <div className="relative z-10 px-4 pt-5 text-center">
+      <div className="pointer-events-none absolute left-1/2 top-[58%] h-[min(90%,380px)] w-[min(100%,360px)] -translate-x-1/2 -translate-y-1/2 bg-[radial-gradient(circle_at_center,rgba(6,78,59,0.1)_0%,#000000_55%,#000000_100%)]" />
+
+      <div className="relative z-10 px-3 pt-5 text-center">
         <Motion.div
           key={epicLevelUpKey}
           initial={epicLevelUpKey > 0 ? { scale: 0.96, opacity: 0.85 } : false}
@@ -93,67 +128,16 @@ export default function AthleteStatus({
         </p>
       </div>
 
-      {/* Holographic glow + radar */}
-      <div className="relative z-10 px-1 pb-6 pt-4" style={{ height: chartH }}>
-        <div
-          className="pointer-events-none absolute left-1/2 top-1/2 h-[min(105%,420px)] w-[min(105%,420px)] -translate-x-1/2 -translate-y-1/2 bg-[radial-gradient(circle_at_center,rgba(6,78,59,0.1)_0%,#000000_50%,#000000_100%)]"
-          aria-hidden
-        />
-        <div className="relative h-full w-full">
-          <ResponsiveContainer width="100%" height="100%">
-            <RadarChart cx="50%" cy="52%" outerRadius="72%" data={radarData}>
-              <defs>
-                <filter id="athlete-radar-line-glow" x="-50%" y="-50%" width="200%" height="200%">
-                  <feGaussianBlur stdDeviation="2.5" result="blur" />
-                  <feMerge>
-                    <feMergeNode in="blur" />
-                    <feMergeNode in="SourceGraphic" />
-                  </feMerge>
-                </filter>
-              </defs>
-              <PolarGrid
-                gridType="polygon"
-                stroke="rgba(255,255,255,0.05)"
-                strokeWidth={1}
-                radialLines
-              />
-              <PolarAngleAxis
-                dataKey="subject"
-                tick={{
-                  fill: 'rgba(255,255,255,0.4)',
-                  fontSize: 11,
-                  fontWeight: 600,
-                  letterSpacing: '0.1em',
-                }}
-                tickLine={false}
-              />
-              <PolarRadiusAxis angle={90} domain={[0, 100]} tick={false} axisLine={false} />
-              <Radar
-                name="EXP"
-                dataKey="value"
-                stroke={radarStroke}
-                strokeWidth={2}
-                fill={radarFill}
-                fillOpacity={isGraduated ? 0.1 : 0.08}
-                filter="url(#athlete-radar-line-glow)"
-                dot={{
-                  r: 3,
-                  fill: radarStroke,
-                  stroke: '#000',
-                  strokeWidth: 1,
-                }}
-                isAnimationActive
-                animationDuration={480}
-                animationEasing="ease-out"
-              />
-            </RadarChart>
-          </ResponsiveContainer>
+      <div className={`relative z-10 px-3 ${bioPad}`}>
+        <p className="mb-6 text-center text-[10px] font-medium uppercase tracking-[0.2em] text-white/20">
+          Bio-metrics
+        </p>
+        <div>
+          {rows.map((r) => (
+            <StatBiometricRow key={r.id} label={r.label} pct={r.pct} />
+          ))}
         </div>
       </div>
-
-      <p className="relative z-10 pb-4 text-center text-[10px] font-medium uppercase tracking-[0.2em] text-white/20">
-        {isGraduated ? 'Physical Autonomy — Complete' : 'Performance Matrix'}
-      </p>
     </div>
   );
 }
