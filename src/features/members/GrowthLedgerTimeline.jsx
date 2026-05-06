@@ -59,7 +59,7 @@ export default function GrowthLedgerTimeline({ entries, loading = false }) {
                   </p>
                   {custom ? (
                     <div className="mt-3 rounded-lg border border-emerald-500/25 bg-emerald-950/20 px-3 py-2">
-                      <p className="text-sm leading-relaxed text-emerald-400">{custom}</p>
+                      <p className="text-sm font-semibold leading-relaxed text-emerald-300">{custom}</p>
                     </div>
                   ) : null}
                 </div>

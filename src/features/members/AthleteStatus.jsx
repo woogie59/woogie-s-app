@@ -49,6 +49,7 @@ export default function AthleteStatus({
   const touchStartYRef = useRef(null);
   const rawLv = Number(memberLevel) || 1;
   const roadmapLevel = Math.min(ROADMAP_MAX, Math.max(1, rawLv));
+  const isMaxLevel = roadmapLevel === ROADMAP_MAX;
   const phaseTheme = useMemo(() => {
     if (roadmapLevel <= 3) {
       return {
@@ -208,7 +209,11 @@ export default function AthleteStatus({
 
       <div
         className="pointer-events-none absolute left-1/2 top-[58%] h-[min(90%,380px)] w-[min(100%,360px)] -translate-x-1/2 -translate-y-1/2"
-        style={{ background: phaseTheme.halo }}
+        style={{
+          background: isMaxLevel
+            ? 'radial-gradient(circle_at_center,rgba(250,204,21,0.36)_0%,rgba(255,255,255,0.14)_28%,#000000_66%,#000000_100%)'
+            : phaseTheme.halo,
+        }}
       />
 
       <div className="relative z-10 px-3 pt-5 text-center">
@@ -220,10 +225,17 @@ export default function AthleteStatus({
         >
           <div className="flex items-center justify-center gap-2">
             <span
-              className={`block text-6xl font-black leading-none tracking-tight text-transparent bg-clip-text bg-gradient-to-b ${phaseTheme.lvGradient} tabular-nums`}
+              className={`block text-6xl font-black leading-none tracking-tight text-transparent bg-clip-text bg-gradient-to-b ${phaseTheme.lvGradient} tabular-nums ${
+                isMaxLevel ? 'drop-shadow-[0_0_18px_rgba(250,204,21,0.75)]' : ''
+              }`}
             >
               LV. {roadmapLevel}
             </span>
+            {isMaxLevel ? (
+              <span className="rounded-full border border-amber-300/55 bg-amber-200/15 px-2 py-1 text-[10px] font-bold tracking-[0.18em] text-amber-100 shadow-[0_0_14px_rgba(251,191,36,0.45)]">
+                👑 MAX
+              </span>
+            ) : null}
             <button
               type="button"
               aria-label="레벨 가이드 열기"

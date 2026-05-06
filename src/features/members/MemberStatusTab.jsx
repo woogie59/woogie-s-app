@@ -22,8 +22,8 @@ export default function MemberStatusTab({ userId, profile, stats, memberLevel, o
   const [selectedLevel, setSelectedLevel] = useState('');
   const [titleInput, setTitleInput] = useState('');
   const [customComment, setCustomComment] = useState('');
-  const [roadmapGuides, setRoadmapGuides] = useState([]);
-  const [loadingGuides, setLoadingGuides] = useState(false);
+  const [selectedGuide, setSelectedGuide] = useState(null);
+  const [loadingGuide, setLoadingGuide] = useState(false);
   const [committedMemberLevel, setCommittedMemberLevel] = useState(() => {
     const n = Number(memberLevel);
     return Number.isFinite(n) ? Math.min(PHYSICAL_AUTONOMY_MAX, Math.max(1, n)) : 1;
@@ -42,28 +42,6 @@ export default function MemberStatusTab({ userId, profile, stats, memberLevel, o
     setTitleInput(nextTitle);
   }, [profile?.current_title, userId]);
 
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      setLoadingGuides(true);
-      const { data, error } = await supabase
-        .from('roadmap_guides')
-        .select('*')
-        .order('phase_order', { ascending: true });
-      if (cancelled) return;
-      setLoadingGuides(false);
-      if (error) {
-        console.error('[MemberStatusTab] roadmap_guides', error);
-        setRoadmapGuides([]);
-        return;
-      }
-      setRoadmapGuides(Array.isArray(data) ? data : []);
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
   const displayName = profile?.name || '회원';
 
   const selectedLevelNumber = useMemo(() => {
@@ -72,21 +50,32 @@ export default function MemberStatusTab({ userId, profile, stats, memberLevel, o
     return Math.min(PHYSICAL_AUTONOMY_MAX, Math.max(1, n));
   }, [selectedLevel]);
 
-  const selectedGuide = useMemo(() => {
-    if (selectedLevelNumber == null) return null;
-    return (
-      roadmapGuides.find((row) => {
-        const nums = String(row.level_range || '')
-          .match(/\d+/g)
-          ?.map((v) => Number.parseInt(v, 10))
-          .filter((v) => Number.isFinite(v));
-        if (!nums || nums.length === 0) return false;
-        const min = nums.length === 1 ? nums[0] : Math.min(nums[0], nums[1]);
-        const max = nums.length === 1 ? nums[0] : Math.max(nums[0], nums[1]);
-        return selectedLevelNumber >= min && selectedLevelNumber <= max;
-      }) || null
-    );
-  }, [roadmapGuides, selectedLevelNumber]);
+  useEffect(() => {
+    if (selectedLevelNumber == null) {
+      setSelectedGuide(null);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      setLoadingGuide(true);
+      const { data, error } = await supabase
+        .from('roadmap_guides')
+        .select('level,title,description')
+        .eq('level', selectedLevelNumber)
+        .maybeSingle();
+      if (cancelled) return;
+      setLoadingGuide(false);
+      if (error) {
+        console.error('[MemberStatusTab] roadmap_guides by level', error);
+        setSelectedGuide(null);
+        return;
+      }
+      setSelectedGuide(data ?? null);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedLevelNumber]);
 
   const standardComment = selectedGuide?.description ? String(selectedGuide.description) : '';
 
@@ -170,9 +159,16 @@ export default function MemberStatusTab({ userId, profile, stats, memberLevel, o
             <div className="border-t border-white/10 pt-6">
               <h3 className="text-xs font-bold uppercase tracking-[0.2em] text-emerald-500/70">해당 레벨 표준 기준</h3>
               <div className="mt-3 rounded-xl border border-white/10 bg-black/35 px-3 py-3 text-sm leading-relaxed text-white/75">
-                {loadingGuides
-                  ? '기준 불러오는 중...'
-                  : standardComment || '선택한 레벨의 기준이 없습니다. roadmap_guides를 확인하세요.'}
+                {loadingGuide ? (
+                  '기준 불러오는 중...'
+                ) : selectedGuide ? (
+                  <div className="space-y-1.5">
+                    <p className="text-xs font-semibold tracking-wide text-emerald-300">{selectedGuide.title || `LV. ${selectedLevelNumber}`}</p>
+                    <p>{standardComment}</p>
+                  </div>
+                ) : (
+                  '선택한 레벨의 기준이 없습니다. roadmap_guides를 확인하세요.'
+                )}
               </div>
             </div>
 
