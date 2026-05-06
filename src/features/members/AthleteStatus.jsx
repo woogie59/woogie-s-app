@@ -119,6 +119,7 @@ export default function AthleteStatus({
   const [isRoadmapSaving, setIsRoadmapSaving] = useState(false);
   const [isRoadmapEditMode, setIsRoadmapEditMode] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
+  const touchStartYRef = useRef(null);
   const rows = useMemo(() => {
     const list = (stats || []).map((s) => ({
       id: s.id,
@@ -148,6 +149,8 @@ export default function AthleteStatus({
   }, [roadmapGuides, roadmapLevel]);
 
   const bioPad = compact ? 'pt-3 pb-4' : 'pt-4 pb-6';
+
+  const closeRoadmap = () => setIsRoadmapOpen(false);
 
   useEffect(() => {
     if (!isRoadmapOpen) {
@@ -203,6 +206,15 @@ export default function AthleteStatus({
     loadRoadmap();
     return () => {
       cancelled = true;
+    };
+  }, [isRoadmapOpen]);
+
+  useEffect(() => {
+    if (!isRoadmapOpen) return;
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = prevOverflow;
     };
   }, [isRoadmapOpen]);
 
@@ -309,16 +321,31 @@ export default function AthleteStatus({
 
       {isRoadmapOpen ? (
         <div
-          className="absolute inset-0 z-30 flex items-center justify-center bg-black/70 px-4 backdrop-blur-xl"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4 backdrop-blur-xl"
           role="dialog"
           aria-modal="true"
           aria-label="Physical Autonomy Roadmap"
+          onClick={closeRoadmap}
         >
-          <div className="relative w-full max-w-[320px] rounded-2xl border border-white/10 bg-zinc-950/95 p-5 shadow-[0_20px_80px_-10px_rgba(0,0,0,0.7)]">
+          <div
+            className="relative w-full max-w-[320px] rounded-2xl border border-white/10 bg-zinc-950/95 p-5 shadow-[0_20px_80px_-10px_rgba(0,0,0,0.7)]"
+            onClick={(e) => e.stopPropagation()}
+            onTouchStart={(e) => {
+              touchStartYRef.current = e.touches?.[0]?.clientY ?? null;
+            }}
+            onTouchEnd={(e) => {
+              const startY = touchStartYRef.current;
+              const endY = e.changedTouches?.[0]?.clientY ?? null;
+              touchStartYRef.current = null;
+              if (startY == null || endY == null) return;
+              if (endY - startY > 50) closeRoadmap();
+            }}
+          >
+            <div className="mx-auto mb-4 h-1.5 w-12 rounded-full bg-gray-600 opacity-50" />
             <button
               type="button"
               aria-label="가이드 닫기"
-              onClick={() => setIsRoadmapOpen(false)}
+              onClick={closeRoadmap}
               className="absolute right-4 top-4 text-base font-medium leading-none text-white/55 transition hover:text-white"
             >
               X
