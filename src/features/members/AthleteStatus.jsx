@@ -185,6 +185,7 @@ export default function AthleteStatus({
         .select('*')
         .eq('user_id', memberId)
         .order('granted_at', { ascending: false });
+      console.log('Titles Found:', data);
       if (cancelled) return;
       setLoadingTitles(false);
       if (error) {
@@ -208,6 +209,7 @@ export default function AthleteStatus({
         .from('title_definitions')
         .select('*')
         .order('id', { ascending: true });
+      console.log('Titles Found:', data);
       if (cancelled) return;
       setLoadingTitleDefinitions(false);
       if (error) {
@@ -225,20 +227,18 @@ export default function AthleteStatus({
   const titleHierarchy = useMemo(() => {
     const defs = Array.isArray(titleDefinitions) ? titleDefinitions : [];
     const owned = new Set((titleRows || []).map((row) => String(row.title || '').trim()));
-    const mains = defs.filter((row) => {
-      const t = String(row.type ?? row.title_type ?? '').toLowerCase();
-      return t === 'main' || row.is_main === true || row.parent_title == null;
-    });
-    const subs = defs.filter((row) => {
-      const t = String(row.type ?? row.title_type ?? '').toLowerCase();
-      return t === 'sub' || row.is_sub === true || row.parent_title != null;
-    });
-    return mains.map((main) => {
-      const mainTitle = String(main.title || '').trim();
-      const children = subs.filter((sub) => {
-        const parent = String(sub.parent_title ?? sub.main_title ?? '').trim();
-        return parent && parent === mainTitle;
-      });
+    const mainRows = defs.filter((row) => String(row.parent_title ?? '').trim() === '');
+    const subRows = defs.filter((row) => String(row.parent_title ?? '').trim() !== '');
+    const mainTitlesFromSubs = [...new Set(subRows.map((row) => String(row.parent_title || '').trim()).filter(Boolean))];
+    const allMainTitles = [
+      ...new Set([
+        ...mainRows.map((row) => String(row.title || '').trim()).filter(Boolean),
+        ...mainTitlesFromSubs,
+      ]),
+    ];
+
+    return allMainTitles.map((mainTitle) => {
+      const children = subRows.filter((sub) => String(sub.parent_title || '').trim() === mainTitle);
       const unlockedSubs = children.filter((sub) => owned.has(String(sub.title || '').trim())).length;
       const totalSubs = children.length;
       const mainUnlocked = owned.has(mainTitle);
@@ -508,7 +508,7 @@ export default function AthleteStatus({
               {loadingTitles || loadingTitleDefinitions ? (
                 <p className="py-8 text-center text-sm text-white/45">칭호 불러오는 중...</p>
               ) : titleHierarchy.length === 0 ? (
-                <p className="py-8 text-center text-sm text-white/45">보유한 칭호가 없습니다.</p>
+                <p className="py-8 text-center text-sm text-white/45">획득 가능한 칭호가 없습니다.</p>
               ) : (
                 titleHierarchy.map((group) => (
                   <div

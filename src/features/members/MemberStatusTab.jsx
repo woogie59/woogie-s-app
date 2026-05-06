@@ -38,6 +38,43 @@ export default function MemberStatusTab({ userId, profile, stats, memberLevel, o
   const [committedTitle, setCommittedTitle] = useState(() => String(profile?.current_title ?? ''));
   const [ledgerRefreshKey, setLedgerRefreshKey] = useState(0);
 
+  const fetchOwnedTitles = async () => {
+    if (!userId) {
+      setOwnedTitles([]);
+      return;
+    }
+    setLoadingOwnedTitles(true);
+    const { data, error } = await supabase
+      .from('member_titles')
+      .select('*')
+      .eq('user_id', userId)
+      .order('granted_at', { ascending: false });
+    console.log('Titles Found:', data);
+    setLoadingOwnedTitles(false);
+    if (error) {
+      console.error('[MemberStatusTab] member_titles', error);
+      setOwnedTitles([]);
+      return;
+    }
+    setOwnedTitles(Array.isArray(data) ? data : []);
+  };
+
+  const fetchTitleDefinitions = async () => {
+    setLoadingTitleDefinitions(true);
+    const { data, error } = await supabase
+      .from('title_definitions')
+      .select('*')
+      .order('id', { ascending: true });
+    console.log('Titles Found:', data);
+    setLoadingTitleDefinitions(false);
+    if (error) {
+      console.error('[MemberStatusTab] title_definitions', error);
+      setTitleDefinitions([]);
+      return;
+    }
+    setTitleDefinitions(Array.isArray(data) ? data : []);
+  };
+
   useEffect(() => {
     const n = Number(memberLevel);
     setCommittedMemberLevel(Number.isFinite(n) ? Math.min(PHYSICAL_AUTONOMY_MAX, Math.max(1, n)) : 1);
@@ -49,26 +86,10 @@ export default function MemberStatusTab({ userId, profile, stats, memberLevel, o
   }, [profile?.current_title, userId]);
 
   useEffect(() => {
-    if (!userId) {
-      setOwnedTitles([]);
-      return;
-    }
     let cancelled = false;
     (async () => {
-      setLoadingOwnedTitles(true);
-      const { data, error } = await supabase
-        .from('member_titles')
-        .select('*')
-        .eq('user_id', userId)
-        .order('granted_at', { ascending: false });
+      await fetchOwnedTitles();
       if (cancelled) return;
-      setLoadingOwnedTitles(false);
-      if (error) {
-        console.error('[MemberStatusTab] member_titles', error);
-        setOwnedTitles([]);
-        return;
-      }
-      setOwnedTitles(Array.isArray(data) ? data : []);
     })();
     return () => {
       cancelled = true;
@@ -78,19 +99,8 @@ export default function MemberStatusTab({ userId, profile, stats, memberLevel, o
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      setLoadingTitleDefinitions(true);
-      const { data, error } = await supabase
-        .from('title_definitions')
-        .select('*')
-        .order('id', { ascending: true });
+      await fetchTitleDefinitions();
       if (cancelled) return;
-      setLoadingTitleDefinitions(false);
-      if (error) {
-        console.error('[MemberStatusTab] title_definitions', error);
-        setTitleDefinitions([]);
-        return;
-      }
-      setTitleDefinitions(Array.isArray(data) ? data : []);
     })();
     return () => {
       cancelled = true;
@@ -136,22 +146,20 @@ export default function MemberStatusTab({ userId, profile, stats, memberLevel, o
 
   const titleHierarchy = useMemo(() => {
     const defs = Array.isArray(titleDefinitions) ? titleDefinitions : [];
-    const mainRows = defs.filter((row) => {
-      const t = String(row.type ?? row.title_type ?? '').toLowerCase();
-      return t === 'main' || row.is_main === true || row.parent_title == null;
-    });
-    const subRows = defs.filter((row) => {
-      const t = String(row.type ?? row.title_type ?? '').toLowerCase();
-      return t === 'sub' || row.is_sub === true || row.parent_title != null;
-    });
-    return mainRows.map((main) => {
-      const mainTitle = String(main.title ?? '');
-      const subs = subRows.filter((sub) => {
-        const parent = String(sub.parent_title ?? sub.main_title ?? '');
-        if (!parent) return false;
-        return parent === mainTitle;
-      });
-      return { main, subs };
+    const subRows = defs.filter((row) => String(row.parent_title ?? '').trim() !== '');
+    const mainRows = defs.filter((row) => String(row.parent_title ?? '').trim() === '');
+    const mainTitlesFromSubs = [...new Set(subRows.map((row) => String(row.parent_title || '').trim()).filter(Boolean))];
+    const allMainTitles = [
+      ...new Set([
+        ...mainRows.map((row) => String(row.title || '').trim()).filter(Boolean),
+        ...mainTitlesFromSubs,
+      ]),
+    ];
+
+    return allMainTitles.map((mainTitle) => {
+      const main = mainRows.find((row) => String(row.title || '').trim() === mainTitle) ?? null;
+      const subs = subRows.filter((row) => String(row.parent_title || '').trim() === mainTitle);
+      return { mainTitle, main, subs };
     });
   }, [titleDefinitions]);
 
@@ -216,13 +224,7 @@ export default function MemberStatusTab({ userId, profile, stats, memberLevel, o
       if (error) throw error;
       setNewMainTitle('');
       setNewSubTitlesRaw('');
-
-      const { data, error: defsError } = await supabase
-        .from('title_definitions')
-        .select('*')
-        .order('id', { ascending: true });
-      if (defsError) throw defsError;
-      setTitleDefinitions(Array.isArray(data) ? data : []);
+      await fetchTitleDefinitions();
       toast.success('칭호 세트가 생성되었습니다.');
     } catch (e) {
       console.error('[MemberStatusTab] admin_create_title_set', e);
@@ -363,11 +365,10 @@ export default function MemberStatusTab({ userId, profile, stats, memberLevel, o
                   <p className="mt-2 text-sm text-white/40">칭호 정의가 없습니다.</p>
                 ) : (
                   <div className="mt-2 space-y-3">
-                    {titleHierarchy.map(({ main, subs }) => {
-                      const mainTitle = String(main.title || '');
+                    {titleHierarchy.map(({ mainTitle, subs }) => {
                       const mainOwned = ownedTitleSet.has(mainTitle);
                       return (
-                        <div key={main.id} className="rounded-xl border border-white/10 bg-white/[0.02] p-2.5">
+                        <div key={mainTitle} className="rounded-xl border border-white/10 bg-white/[0.02] p-2.5">
                           <p
                             className={`text-sm font-semibold tracking-wide ${
                               mainOwned
