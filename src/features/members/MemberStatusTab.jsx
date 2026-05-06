@@ -4,19 +4,11 @@ import { motion as Motion } from 'framer-motion';
 import { supabase } from '../../lib/supabaseClient';
 import { invokeNotifyMemberEvents } from '../../utils/notifications';
 import AthleteStatus from './AthleteStatus';
-import GrowthLedgerTimeline from './GrowthLedgerTimeline';
+import MemberGrowthLedger from './MemberGrowthLedger';
 import MemberPhoneMirror from './MemberPhoneMirror';
+import { CORE_BIO_METRICS, CORE_BIO_METRIC_SET, sortCoreBioMetrics } from './coreBioMetrics';
 
 const PHYSICAL_AUTONOMY_MAX = 10;
-const CORE_STATS = [
-  'Movement IQ (운동 지능)',
-  'Mobility (가동성)',
-  'Strength (절대 근력)',
-  'Metabolic (대사 능력)',
-  'Resilience (수행 심리)',
-];
-const CORE_STAT_SET = new Set(CORE_STATS);
-const CORE_STAT_INDEX = new Map(CORE_STATS.map((name, idx) => [name, idx]));
 
 function totalExpFloorBonus(stats, pendingExp) {
   return stats.reduce((acc, s) => {
@@ -32,43 +24,6 @@ function supabaseErrorMessage(error) {
     if (bits.length) return bits.join(' — ');
   }
   return String(error);
-}
-
-const LEDGER_PAGE_SIZE = 60;
-
-function MemberSimulatorLedger({ memberId, refreshKey }) {
-  const [entries, setEntries] = useState([]);
-  const [loading, setLoading] = useState(false);
-
-  useEffect(() => {
-    if (!memberId) {
-      setEntries([]);
-      return;
-    }
-    let cancelled = false;
-    (async () => {
-      setLoading(true);
-      const { data, error } = await supabase
-        .from('exp_logs')
-        .select('*')
-        .eq('user_id', memberId)
-        .order('created_at', { ascending: false })
-        .limit(LEDGER_PAGE_SIZE);
-      if (cancelled) return;
-      setLoading(false);
-      if (error) {
-        console.error('[MemberSimulatorLedger] exp_logs', error);
-        setEntries([]);
-        return;
-      }
-      setEntries(data || []);
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [memberId, refreshKey]);
-
-  return <GrowthLedgerTimeline entries={entries} loading={loading} />;
 }
 
 export default function MemberStatusTab({ userId, profile, stats, memberLevel, onRefresh, onMemberLevelSynced }) {
@@ -118,21 +73,11 @@ export default function MemberStatusTab({ userId, profile, stats, memberLevel, o
 
   const displayName = profile?.name || '회원';
 
-  const sortedStats = useMemo(
-    () =>
-      [...(stats || [])]
-        .filter((s) => CORE_STAT_SET.has(String(s.category_name || '').trim()))
-        .sort((a, b) => {
-          const ai = CORE_STAT_INDEX.get(String(a.category_name || '').trim()) ?? Number.MAX_SAFE_INTEGER;
-          const bi = CORE_STAT_INDEX.get(String(b.category_name || '').trim()) ?? Number.MAX_SAFE_INTEGER;
-          return ai - bi;
-        }),
-    [stats]
-  );
+  const sortedStats = useMemo(() => sortCoreBioMetrics(stats), [stats]);
 
   const missingCoreStats = useMemo(() => {
     const existing = new Set(sortedStats.map((s) => String(s.category_name || '').trim()));
-    return CORE_STATS.filter((name) => !existing.has(name));
+    return CORE_BIO_METRICS.filter((name) => !existing.has(name));
   }, [sortedStats]);
 
   const mirrorStats = useMemo(
@@ -325,7 +270,7 @@ export default function MemberStatusTab({ userId, profile, stats, memberLevel, o
 
   const addCategory = async (name) => {
     const trimmed = String(name || '').trim();
-    if (!CORE_STAT_SET.has(trimmed)) {
+    if (!CORE_BIO_METRIC_SET.has(trimmed)) {
       toast.error('코어 스탯 5종만 추가할 수 있습니다.');
       return;
     }
@@ -421,7 +366,7 @@ export default function MemberStatusTab({ userId, profile, stats, memberLevel, o
                 Athlete Status는 5개 코어 바이오메트릭만 사용합니다. 빠른 추가로 오타를 방지하세요.
               </p>
               <div className="mt-3 flex flex-wrap gap-2">
-                {CORE_STATS.map((name) => {
+                {CORE_BIO_METRICS.map((name) => {
                   const exists = !missingCoreStats.includes(name);
                   return (
                     <button
@@ -548,7 +493,7 @@ export default function MemberStatusTab({ userId, profile, stats, memberLevel, o
               <p className="mb-3 text-center text-[10px] font-medium uppercase tracking-[0.35em] text-white/30">
                 Growth Ledger
               </p>
-              <MemberSimulatorLedger memberId={userId} refreshKey={ledgerRefreshKey} />
+              <MemberGrowthLedger targetUserId={userId} refreshKey={ledgerRefreshKey} />
             </div>
           </div>
         </MemberPhoneMirror>

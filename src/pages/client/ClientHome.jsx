@@ -14,6 +14,9 @@ import { useGlobalModal } from '../../context/GlobalModalContext';
 import LabDotBrand from '../../components/ui/LabDotBrand';
 import Skeleton from '../../components/ui/Skeleton';
 import SessionHistoryModal from '../../features/members/SessionHistoryModal';
+import AthleteStatus from '../../features/members/AthleteStatus';
+import MemberGrowthLedger from '../../features/members/MemberGrowthLedger';
+import { sortCoreBioMetrics } from '../../features/members/coreBioMetrics';
 import { parseBookingToLocalDate } from '../../utils/bookingDateKeys';
 import MemberCancelBookingModals from '../../components/member/MemberCancelBookingModals';
 
@@ -47,6 +50,9 @@ const ClientHome = ({ user, logout, setView }) => {
   const { showAlert } = useGlobalModal();
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [statusStats, setStatusStats] = useState([]);
+  const [statusStatsLoading, setStatusStatsLoading] = useState(false);
+  const [ledgerRefreshKey, setLedgerRefreshKey] = useState(0);
   const [isCheckInSubmitting, setIsCheckInSubmitting] = useState(false);
   /** attendance_logs INSERT + bookings UPDATE 둘 다 올 때 토스트/팝업 중복 방지 */
   const lastCheckInRealtimeRef = useRef(0);
@@ -84,6 +90,44 @@ const ClientHome = ({ user, logout, setView }) => {
 
     fetchProfile();
   }, [user]);
+
+  useEffect(() => {
+    if (!user?.id) return;
+    let cancelled = false;
+    (async () => {
+      setStatusStatsLoading(true);
+      const { data, error } = await supabase
+        .from('member_stats')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: true });
+      if (cancelled) return;
+      setStatusStatsLoading(false);
+      if (error) {
+        console.error('[ClientHome] member_stats', error);
+        setStatusStats([]);
+        return;
+      }
+      setStatusStats(data || []);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [user?.id]);
+
+  useEffect(() => {
+    if (!user?.id) return;
+    const bump = () => setLedgerRefreshKey((k) => k + 1);
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') bump();
+    };
+    window.addEventListener('focus', bump);
+    document.addEventListener('visibilitychange', onVisible);
+    return () => {
+      window.removeEventListener('focus', bump);
+      document.removeEventListener('visibilitychange', onVisible);
+    };
+  }, [user?.id]);
 
   const loadSessionMetrics = useCallback(async () => {
     if (!user?.id) return;
@@ -477,6 +521,13 @@ const ClientHome = ({ user, logout, setView }) => {
     return { totalPurchased, usedSessionCount, remaining };
   }, [sessionBatches, attendanceLogs]);
 
+  const normalizedStatusStats = useMemo(() => sortCoreBioMetrics(statusStats), [statusStats]);
+
+  const memberLevelDisplay = useMemo(() => {
+    const n = Number(profile?.member_level);
+    return Number.isFinite(n) ? Math.min(10, Math.max(1, n)) : 1;
+  }, [profile?.member_level]);
+
   const sessionRemainBadgeLabel = useMemo(() => `잔여 ${sessionMetrics.remaining}회`, [sessionMetrics.remaining]);
 
   if (!user) {
@@ -571,6 +622,38 @@ const ClientHome = ({ user, logout, setView }) => {
             </button>
           </div>
         </div>
+
+        <section className="w-full shrink-0 overflow-hidden rounded-2xl border border-slate-900/10 bg-black text-white shadow-[0_16px_48px_-12px_rgba(15,23,42,0.35)]">
+          <div className="border-b border-white/10 px-4 py-3">
+            <p className="text-[10px] font-medium uppercase tracking-[0.28em] text-white/45">Physical Autonomy</p>
+            <p className="mt-1 text-xs leading-relaxed text-white/50">
+              코치가 반영한 EXP 기록은 아래 Growth Ledger에 쌓입니다.
+            </p>
+          </div>
+          {statusStatsLoading ? (
+            <div className="flex justify-center py-12">
+              <div
+                className="h-8 w-8 animate-spin rounded-full border-2 border-emerald-500/25 border-t-emerald-400"
+                aria-hidden
+              />
+            </div>
+          ) : (
+            <AthleteStatus
+              memberName={profile?.name || '회원'}
+              memberLevel={memberLevelDisplay}
+              stats={normalizedStatusStats}
+              subtitle="Physical Autonomy"
+              compact
+              epicLevelUpKey={0}
+            />
+          )}
+          <div className="border-t border-white/10 px-1 pb-4 pt-2">
+            <p className="mb-1 text-center text-[10px] font-medium uppercase tracking-[0.35em] text-white/30">
+              Growth Ledger
+            </p>
+            <MemberGrowthLedger targetUserId={user.id} refreshKey={ledgerRefreshKey} />
+          </div>
+        </section>
 
         {/* 2. Open schedule flow */}
         <div className="flex flex-col gap-5 pb-2">
