@@ -20,10 +20,14 @@ function supabaseErrorMessage(error) {
 export default function MemberStatusTab({ userId, profile, stats, memberLevel, onRefresh, onMemberLevelSynced }) {
   const [saving, setSaving] = useState(false);
   const [selectedLevel, setSelectedLevel] = useState('');
-  const [titleInput, setTitleInput] = useState('');
   const [customComment, setCustomComment] = useState('');
   const [selectedGuide, setSelectedGuide] = useState(null);
   const [loadingGuide, setLoadingGuide] = useState(false);
+  const [newTitleText, setNewTitleText] = useState('');
+  const [equipImmediately, setEquipImmediately] = useState(true);
+  const [grantingTitle, setGrantingTitle] = useState(false);
+  const [ownedTitles, setOwnedTitles] = useState([]);
+  const [loadingOwnedTitles, setLoadingOwnedTitles] = useState(false);
   const [committedMemberLevel, setCommittedMemberLevel] = useState(() => {
     const n = Number(memberLevel);
     return Number.isFinite(n) ? Math.min(PHYSICAL_AUTONOMY_MAX, Math.max(1, n)) : 1;
@@ -39,8 +43,34 @@ export default function MemberStatusTab({ userId, profile, stats, memberLevel, o
   useEffect(() => {
     const nextTitle = String(profile?.current_title ?? '');
     setCommittedTitle(nextTitle);
-    setTitleInput(nextTitle);
   }, [profile?.current_title, userId]);
+
+  useEffect(() => {
+    if (!userId) {
+      setOwnedTitles([]);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      setLoadingOwnedTitles(true);
+      const { data, error } = await supabase
+        .from('member_titles')
+        .select('*')
+        .eq('user_id', userId)
+        .order('granted_at', { ascending: false });
+      if (cancelled) return;
+      setLoadingOwnedTitles(false);
+      if (error) {
+        console.error('[MemberStatusTab] member_titles', error);
+        setOwnedTitles([]);
+        return;
+      }
+      setOwnedTitles(Array.isArray(data) ? data : []);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [userId, ledgerRefreshKey]);
 
   const displayName = profile?.name || '회원';
 
@@ -95,12 +125,10 @@ export default function MemberStatusTab({ userId, profile, stats, memberLevel, o
         p_new_level: selectedLevelNumber,
         p_standard_comment: standardComment || null,
         p_custom_comment: customComment.trim() || null,
-        p_title: titleInput.trim() || null,
       });
       if (error) throw error;
 
       setCommittedMemberLevel(selectedLevelNumber);
-      setCommittedTitle(titleInput.trim());
       setLedgerRefreshKey((k) => k + 1);
       setCustomComment('');
       await onRefresh?.();
@@ -111,6 +139,39 @@ export default function MemberStatusTab({ userId, profile, stats, memberLevel, o
       toast.error(`저장 실패: ${supabaseErrorMessage(e)}`);
     } finally {
       setSaving(false);
+    }
+  };
+
+  const grantTitle = async () => {
+    if (!userId) {
+      toast.error('회원 정보가 없습니다.');
+      return;
+    }
+    const title = newTitleText.trim();
+    if (!title) {
+      toast.error('수여할 칭호를 입력하세요.');
+      return;
+    }
+    setGrantingTitle(true);
+    try {
+      const { error } = await supabase.rpc('admin_grant_title', {
+        p_target_user: userId,
+        p_title: title,
+        p_equip: equipImmediately,
+      });
+      if (error) throw error;
+      if (equipImmediately) {
+        setCommittedTitle(title);
+      }
+      setNewTitleText('');
+      setLedgerRefreshKey((k) => k + 1);
+      await onRefresh?.();
+      toast.success('칭호가 수여되었습니다.');
+    } catch (e) {
+      console.error('[MemberStatusTab] admin_grant_title', e);
+      toast.error(`칭호 수여 실패: ${supabaseErrorMessage(e)}`);
+    } finally {
+      setGrantingTitle(false);
     }
   };
 
@@ -146,17 +207,6 @@ export default function MemberStatusTab({ userId, profile, stats, memberLevel, o
             </div>
 
             <div className="border-t border-white/10 pt-6">
-              <label className="text-xs font-bold uppercase tracking-[0.2em] text-emerald-500/70">칭호 (Title)</label>
-              <input
-                type="text"
-                value={titleInput}
-                onChange={(e) => setTitleInput(e.target.value)}
-                placeholder="예: 새벽의 정복자, 강철의 코어"
-                className="mt-2 w-full rounded-xl border border-white/10 bg-black/35 px-3 py-2.5 text-sm text-white/90 outline-none ring-emerald-500/25 placeholder:text-white/25 focus:ring-2"
-              />
-            </div>
-
-            <div className="border-t border-white/10 pt-6">
               <h3 className="text-xs font-bold uppercase tracking-[0.2em] text-emerald-500/70">해당 레벨 표준 기준</h3>
               <div className="mt-3 rounded-xl border border-white/10 bg-black/35 px-3 py-3 text-sm leading-relaxed text-white/75">
                 {loadingGuide ? (
@@ -186,6 +236,57 @@ export default function MemberStatusTab({ userId, profile, stats, memberLevel, o
             </div>
 
             <div className="border-t border-white/10 pt-6">
+              <h3 className="text-xs font-bold uppercase tracking-[0.2em] text-emerald-500/70">칭호 보관함 관리</h3>
+              <label className="mt-3 block text-[11px] text-white/55">새로운 칭호 수여</label>
+              <input
+                type="text"
+                value={newTitleText}
+                onChange={(e) => setNewTitleText(e.target.value)}
+                placeholder="예: 새벽의 정복자"
+                className="mt-2 w-full rounded-xl border border-white/10 bg-black/35 px-3 py-2.5 text-sm text-white/90 outline-none ring-emerald-500/25 placeholder:text-white/25 focus:ring-2"
+              />
+              <label className="mt-3 inline-flex items-center gap-2 text-sm text-white/75">
+                <input
+                  type="checkbox"
+                  checked={equipImmediately}
+                  onChange={(e) => setEquipImmediately(e.target.checked)}
+                  className="h-4 w-4 accent-emerald-500"
+                />
+                수여와 동시에 대표 칭호로 장착
+              </label>
+              <button
+                type="button"
+                disabled={grantingTitle || !newTitleText.trim()}
+                onClick={grantTitle}
+                className="mt-3 w-full rounded-xl border border-emerald-500/45 bg-emerald-900/30 px-4 py-2.5 text-sm font-semibold text-emerald-100 transition hover:bg-emerald-800/35 disabled:opacity-40"
+              >
+                수여하기
+              </button>
+
+              <div className="mt-4 rounded-xl border border-white/10 bg-black/25 p-3">
+                <p className="text-[11px] tracking-[0.14em] text-white/45">보유 칭호 목록</p>
+                {loadingOwnedTitles ? (
+                  <p className="mt-2 text-sm text-white/40">불러오는 중...</p>
+                ) : ownedTitles.length === 0 ? (
+                  <p className="mt-2 text-sm text-white/40">보유한 칭호가 없습니다.</p>
+                ) : (
+                  <ul className="mt-2 space-y-1.5">
+                    {ownedTitles.map((row) => {
+                      const title = String(row.title || '');
+                      const isEquipped = title !== '' && title === String(committedTitle || '');
+                      return (
+                        <li key={row.id} className="rounded-lg border border-white/10 bg-white/[0.02] px-2.5 py-2 text-sm text-white/80">
+                          <span className={isEquipped ? 'text-emerald-300' : ''}>{title || '무제 칭호'}</span>
+                          {isEquipped ? <span className="ml-2 text-[10px] text-emerald-300">대표 칭호</span> : null}
+                        </li>
+                      );
+                    })}
+                  </ul>
+                )}
+              </div>
+            </div>
+
+            <div className="border-t border-white/10 pt-6">
               <Motion.button
                 type="button"
                 disabled={saving || selectedLevelNumber == null}
@@ -209,6 +310,7 @@ export default function MemberStatusTab({ userId, profile, stats, memberLevel, o
         <MemberPhoneMirror label="아틀리트 상태">
           <div className="space-y-6 px-1">
             <AthleteStatus
+              memberId={userId}
               memberName={displayName}
               memberLevel={committedMemberLevel}
               memberTitle={committedTitle}

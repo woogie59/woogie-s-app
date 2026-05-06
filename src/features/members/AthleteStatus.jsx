@@ -33,6 +33,7 @@ function parseLevelRange(levelRangeText) {
 }
 
 export default function AthleteStatus({
+  memberId,
   memberName,
   memberLevel,
   memberTitle = '',
@@ -46,7 +47,11 @@ export default function AthleteStatus({
   const [isRoadmapSaving, setIsRoadmapSaving] = useState(false);
   const [isRoadmapEditMode, setIsRoadmapEditMode] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [isTitleArchiveOpen, setIsTitleArchiveOpen] = useState(false);
+  const [titleRows, setTitleRows] = useState([]);
+  const [loadingTitles, setLoadingTitles] = useState(false);
   const touchStartYRef = useRef(null);
+  const titleTouchStartYRef = useRef(null);
   const rawLv = Number(memberLevel) || 1;
   const roadmapLevel = Math.min(ROADMAP_MAX, Math.max(1, rawLv));
   const isMaxLevel = roadmapLevel === ROADMAP_MAX;
@@ -159,6 +164,39 @@ export default function AthleteStatus({
     };
   }, [isRoadmapOpen]);
 
+  useEffect(() => {
+    if (!isTitleArchiveOpen) return;
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = prevOverflow;
+    };
+  }, [isTitleArchiveOpen]);
+
+  useEffect(() => {
+    if (!isTitleArchiveOpen || !memberId) return;
+    let cancelled = false;
+    (async () => {
+      setLoadingTitles(true);
+      const { data, error } = await supabase
+        .from('member_titles')
+        .select('*')
+        .eq('user_id', memberId)
+        .order('granted_at', { ascending: false });
+      if (cancelled) return;
+      setLoadingTitles(false);
+      if (error) {
+        console.error('[AthleteStatus] member_titles', error);
+        setTitleRows([]);
+        return;
+      }
+      setTitleRows(Array.isArray(data) ? data : []);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [isTitleArchiveOpen, memberId]);
+
   const onGuideDraftChange = (id, key, value) => {
     setGuideDrafts((prev) => prev.map((item) => (item.id === id ? { ...item, [key]: value } : item)));
   };
@@ -251,6 +289,13 @@ export default function AthleteStatus({
         {String(memberTitle || '').trim() ? (
           <p className="mt-3 text-base font-semibold tracking-tight text-white">「{String(memberTitle).trim()}」</p>
         ) : null}
+        <button
+          type="button"
+          onClick={() => setIsTitleArchiveOpen(true)}
+          className="mt-2 text-[11px] tracking-[0.12em] text-white/55 transition hover:text-emerald-300"
+        >
+          [ ✦ 칭호 목록 ]
+        </button>
         <p className="mt-3 text-sm font-light tracking-wide text-gray-500">{memberName || '회원'}</p>
         <p className="mt-2 text-[11px] font-medium tracking-[0.12em] text-white/35">
           {subtitle}
@@ -369,6 +414,75 @@ export default function AthleteStatus({
                   </div>
                 );
               })}
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {isTitleArchiveOpen ? (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4 backdrop-blur-xl"
+          role="dialog"
+          aria-modal="true"
+          aria-label="보유 칭호 아카이브"
+          onClick={() => setIsTitleArchiveOpen(false)}
+        >
+          <div
+            className="relative w-full max-w-[340px] rounded-2xl border border-white/10 bg-zinc-950/95 p-5 shadow-[0_20px_80px_-10px_rgba(0,0,0,0.7)]"
+            onClick={(e) => e.stopPropagation()}
+            onTouchStart={(e) => {
+              titleTouchStartYRef.current = e.touches?.[0]?.clientY ?? null;
+            }}
+            onTouchEnd={(e) => {
+              const startY = titleTouchStartYRef.current;
+              const endY = e.changedTouches?.[0]?.clientY ?? null;
+              titleTouchStartYRef.current = null;
+              if (startY == null || endY == null) return;
+              if (endY - startY > 50) setIsTitleArchiveOpen(false);
+            }}
+          >
+            <div className="mx-auto mb-4 h-1.5 w-12 rounded-full bg-gray-600 opacity-50" />
+            <button
+              type="button"
+              aria-label="칭호 목록 닫기"
+              onClick={() => setIsTitleArchiveOpen(false)}
+              className="absolute right-4 top-4 text-base font-medium leading-none text-white/55 transition hover:text-white"
+            >
+              X
+            </button>
+            <p className="text-[10px] font-medium uppercase tracking-[0.28em] text-emerald-400/80">
+              보유 칭호 아카이브
+            </p>
+            <p className="mt-1 text-[11px] tracking-[0.08em] text-white/40">칭호 보관함</p>
+
+            <div className="mt-4 max-h-[52vh] space-y-2 overflow-y-auto pr-1 [scrollbar-width:thin]">
+              {loadingTitles ? (
+                <p className="py-8 text-center text-sm text-white/45">칭호 불러오는 중...</p>
+              ) : titleRows.length === 0 ? (
+                <p className="py-8 text-center text-sm text-white/45">보유한 칭호가 없습니다.</p>
+              ) : (
+                titleRows.map((row) => {
+                  const title = String(row.title || '');
+                  const grantedAt = row.granted_at ? new Date(row.granted_at).toLocaleDateString('ko-KR') : '';
+                  const equipped = title !== '' && title === String(memberTitle || '');
+                  return (
+                    <div
+                      key={row.id}
+                      className={`rounded-xl border px-3 py-3 ${
+                        equipped
+                          ? 'border-emerald-400/45 bg-emerald-900/20 shadow-[0_0_18px_rgba(16,185,129,0.25)]'
+                          : 'border-white/10 bg-white/[0.02]'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <p className="text-sm font-semibold tracking-wide text-white">{title || '무제 칭호'}</p>
+                        {equipped ? <span className="text-[10px] text-emerald-300">대표 칭호</span> : null}
+                      </div>
+                      <p className="mt-1 text-xs text-white/45">{grantedAt ? `${grantedAt} 수여됨` : '수여일 미상'}</p>
+                    </div>
+                  );
+                })
+              )}
             </div>
           </div>
         </div>
