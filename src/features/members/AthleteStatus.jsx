@@ -1,29 +1,17 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { animate, motion as Motion } from 'framer-motion';
+import { motion as Motion } from 'framer-motion';
 import toast from 'react-hot-toast';
 import { supabase } from '../../lib/supabaseClient';
 import LevelUpEpicFX from './LevelUpEpicFX';
 
 const ROADMAP_MAX = 10;
-const SEGMENT_COUNT = 16;
 const DEFAULT_LEVEL_PHASES = [
-  { id: 'phase-1', phase_order: 1, title: 'Phase 1 · Neophyte', level_range: 'Lv.1-3', description: '인지 - 기본 가동 범위 확보 및 운동 용어 이해' },
-  { id: 'phase-2', phase_order: 2, title: 'Phase 2 · Stabilizer', level_range: 'Lv.4-5', description: '안정 - 코어 안정성 및 7대 기초 패턴 완벽 수행' },
-  { id: 'phase-3', phase_order: 3, title: 'Phase 3 · Performer', level_range: 'Lv.6-7', description: '근력 - 자기 체중 비례 중량 통제 및 루틴 변형' },
-  { id: 'phase-4', phase_order: 4, title: 'Phase 4 · Master', level_range: 'Lv.8-9', description: '숙달 - RPE 통제 및 컨디션별 프로그램 최적화' },
-  { id: 'phase-5', phase_order: 5, title: 'Level 10 · Athlete', level_range: 'Lv.10', description: '자립 - 완벽한 독립. 자가 루틴 설계 및 기술적 마스터' },
+  { id: 'phase-1', phase_order: 1, title: '1단계', level_range: 'Lv.1-3', description: '인지 - 기본 가동 범위 확보 및 운동 용어 이해' },
+  { id: 'phase-2', phase_order: 2, title: '2단계', level_range: 'Lv.4-5', description: '안정 - 코어 안정성 및 7대 기초 패턴 완벽 수행' },
+  { id: 'phase-3', phase_order: 3, title: '3단계', level_range: 'Lv.6-7', description: '근력 - 자기 체중 비례 중량 통제 및 루틴 변형' },
+  { id: 'phase-4', phase_order: 4, title: '4단계', level_range: 'Lv.8-9', description: '숙달 - RPE 통제 및 컨디션별 프로그램 최적화' },
+  { id: 'phase-5', phase_order: 5, title: '10레벨', level_range: 'Lv.10', description: '자립 - 완벽한 독립. 자가 루틴 설계 및 기술적 마스터' },
 ];
-
-const ACTIVE_SEGMENT =
-  'rounded-[1px] bg-[#10b981] shadow-[0_0_10px_rgba(16,185,129,0.85),0_0_4px_rgba(16,185,129,0.5)]';
-const INACTIVE_SEGMENT = 'rounded-[1px] bg-[rgba(255,255,255,0.05)]';
-const CORE_STAT_LABELS = new Map([
-  ['Movement IQ (운동 지능)', { en: 'MOVEMENT IQ', ko: '운동 지능' }],
-  ['Mobility (가동성)', { en: 'MOBILITY', ko: '가동성' }],
-  ['Strength (절대 근력)', { en: 'STRENGTH', ko: '절대 근력' }],
-  ['Metabolic (대사 능력)', { en: 'METABOLIC', ko: '대사 능력' }],
-  ['Resilience (수행 심리)', { en: 'RESILIENCE', ko: '수행 심리' }],
-]);
 
 function toGuideDraft(row) {
   return {
@@ -44,72 +32,10 @@ function parseLevelRange(levelRangeText) {
   return { min: Math.min(nums[0], nums[1]), max: Math.max(nums[0], nums[1]) };
 }
 
-function StatBiometricRow({ label, pct }) {
-  const clamped = Math.min(100, Math.max(0, Number(pct) || 0));
-  const prevRef = useRef(clamped);
-  const [displayPct, setDisplayPct] = useState(clamped);
-
-  useEffect(() => {
-    const from = prevRef.current;
-    prevRef.current = clamped;
-    const controls = animate(from, clamped, {
-      duration: 0.38,
-      ease: [0.22, 1, 0.36, 1],
-      onUpdate: (v) => setDisplayPct(v),
-    });
-    return () => controls.stop();
-  }, [clamped]);
-
-  const activeCount = Math.min(
-    SEGMENT_COUNT,
-    Math.max(0, Math.round((displayPct / 100) * SEGMENT_COUNT))
-  );
-  const rounded = Math.round(displayPct * 10) / 10;
-
-  return (
-    <div className="mb-8 last:mb-0">
-      <p className="mb-2 flex items-baseline gap-1.5 text-[10px] tracking-[0.18em]">
-        <span className="font-semibold uppercase text-gray-300">{label.en}</span>
-        <span className="text-white/35">({label.ko})</span>
-      </p>
-      <div className="flex items-center gap-3">
-        <div className="flex min-w-0 flex-1 gap-[3px]">
-          {Array.from({ length: SEGMENT_COUNT }, (_, i) => {
-            const on = i < activeCount;
-            return (
-              <Motion.div
-                key={i}
-                layout
-                className={`h-2 min-w-[3px] flex-1 ${on ? ACTIVE_SEGMENT : INACTIVE_SEGMENT}`}
-                initial={false}
-                animate={{ scaleY: on ? 1 : 0.92 }}
-                transition={{
-                  delay: on ? i * 0.02 : (SEGMENT_COUNT - 1 - i) * 0.012,
-                  duration: 0.14,
-                  ease: 'easeOut',
-                }}
-              />
-            );
-          })}
-        </div>
-        <span className="shrink-0 font-mono text-xl font-black tabular-nums tracking-tight text-white">
-          {rounded}
-          <span className="text-base font-bold text-white/80">%</span>
-        </span>
-      </div>
-    </div>
-  );
-}
-
-/**
- * Linear bio-metrics HUD — segmented instrument bars (Oura / Health Pro style).
- */
 export default function AthleteStatus({
   memberName,
   memberLevel,
-  stats,
-  subtitle = 'Physical Autonomy',
-  compact = false,
+  subtitle = '아틀리트 상태',
   epicLevelUpKey = 0,
 }) {
   const [isRoadmapOpen, setIsRoadmapOpen] = useState(false);
@@ -120,25 +46,8 @@ export default function AthleteStatus({
   const [isRoadmapEditMode, setIsRoadmapEditMode] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
   const touchStartYRef = useRef(null);
-  const rows = useMemo(() => {
-    const list = (stats || []).map((s) => ({
-      id: s.id,
-      label:
-        CORE_STAT_LABELS.get(String(s.category_name || '').trim()) ?? {
-          en: String(s.category_name || 'NO METRICS').toUpperCase(),
-          ko: '미분류',
-        },
-      pct: Math.min(100, Math.max(0, Number(s.exp_percent) || 0)),
-    }));
-    return list.length
-      ? list
-      : [{ id: 'placeholder', label: { en: 'NO METRICS', ko: '데이터 없음' }, pct: 0 }];
-  }, [stats]);
-
   const rawLv = Number(memberLevel) || 1;
   const roadmapLevel = Math.min(ROADMAP_MAX, Math.max(1, rawLv));
-  const isGraduated = roadmapLevel >= ROADMAP_MAX;
-  const levelProgressPct = Math.min(100, Math.max(0, (roadmapLevel / ROADMAP_MAX) * 100));
   const currentPhaseKey = useMemo(() => {
     const found = roadmapGuides.find((phase) => {
       const parsed = parseLevelRange(phase.level_range);
@@ -147,8 +56,6 @@ export default function AthleteStatus({
     });
     return found?.id ?? null;
   }, [roadmapGuides, roadmapLevel]);
-
-  const bioPad = compact ? 'pt-3 pb-4' : 'pt-4 pb-6';
 
   const closeRoadmap = () => setIsRoadmapOpen(false);
 
@@ -276,7 +183,7 @@ export default function AthleteStatus({
           transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
         >
           <div className="flex items-center justify-center gap-2">
-            <span className="block text-5xl font-black leading-none tracking-tight text-transparent bg-clip-text bg-gradient-to-b from-white to-gray-500 tabular-nums">
+            <span className="block text-6xl font-black leading-none tracking-tight text-transparent bg-clip-text bg-gradient-to-b from-white to-gray-500 tabular-nums">
               LV. {roadmapLevel}
             </span>
             <button
@@ -290,33 +197,10 @@ export default function AthleteStatus({
           </div>
         </Motion.div>
 
-        <div className="mx-auto mt-4 flex w-32 flex-col items-center gap-1.5">
-          <div className="h-1 w-full overflow-hidden rounded-full bg-gray-900">
-            <div
-              className="h-full rounded-full bg-gradient-to-r from-emerald-600 to-emerald-400 shadow-[0_0_12px_rgba(16,185,129,0.65)] transition-[width] duration-500 ease-out"
-              style={{ width: `${levelProgressPct}%` }}
-            />
-          </div>
-          {isGraduated ? (
-            <p className="text-[10px] font-semibold uppercase tracking-[0.35em] text-amber-400/80">Graduation</p>
-          ) : null}
-        </div>
-
         <p className="mt-4 text-sm font-light tracking-wide text-gray-500">{memberName || '회원'}</p>
-        <p className="mt-2 text-[10px] font-medium uppercase tracking-[0.35em] text-white/25">
-          {subtitle} · {roadmapLevel}/{ROADMAP_MAX}
+        <p className="mt-2 text-[11px] font-medium tracking-[0.12em] text-white/35">
+          {subtitle}
         </p>
-      </div>
-
-      <div className={`relative z-10 px-3 ${bioPad}`}>
-        <p className="mb-6 text-center text-[10px] font-medium uppercase tracking-[0.2em] text-white/20">
-          Bio-metrics
-        </p>
-        <div>
-          {rows.map((r) => (
-            <StatBiometricRow key={r.id} label={r.label} pct={r.pct} />
-          ))}
-        </div>
       </div>
 
       {isRoadmapOpen ? (
@@ -324,7 +208,7 @@ export default function AthleteStatus({
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4 backdrop-blur-xl"
           role="dialog"
           aria-modal="true"
-          aria-label="Physical Autonomy Roadmap"
+          aria-label="레벨 가이드"
           onClick={closeRoadmap}
         >
           <div
@@ -351,7 +235,7 @@ export default function AthleteStatus({
               X
             </button>
             <p className="text-[10px] font-medium uppercase tracking-[0.32em] text-emerald-400/80">
-              Physical Autonomy Roadmap
+              레벨 가이드
             </p>
             {isAdmin ? (
               <button
@@ -370,7 +254,7 @@ export default function AthleteStatus({
                     : 'text-white/60 hover:text-white'
                 } disabled:opacity-40`}
               >
-                {isRoadmapEditMode ? 'Save' : 'Edit (✏️)'}
+                {isRoadmapEditMode ? '저장' : '수정'}
               </button>
             ) : null}
             <p className="mt-2 text-sm leading-7 text-white/70">

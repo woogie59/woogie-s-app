@@ -3,7 +3,7 @@ import { supabase } from '../../lib/supabaseClient';
 import GrowthLedgerTimeline from './GrowthLedgerTimeline';
 
 /**
- * Fetches `exp_logs` for the target user and binds to {@link GrowthLedgerTimeline}.
+ * Fetches `growth_records` for the target user and binds to {@link GrowthLedgerTimeline}.
  * @param {{ targetUserId: string | null | undefined, refreshKey?: number }} props
  */
 export default function MemberGrowthLedger({ targetUserId, refreshKey = 0 }) {
@@ -19,15 +19,14 @@ export default function MemberGrowthLedger({ targetUserId, refreshKey = 0 }) {
     (async () => {
       setLoading(true);
       const { data, error } = await supabase
-        .from('exp_logs')
+        .from('growth_records')
         .select('*')
         .eq('user_id', targetUserId)
         .order('created_at', { ascending: false });
-      console.log('Fetched Ledger:', data);
       if (cancelled) return;
       setLoading(false);
       if (error) {
-        console.error('[MemberGrowthLedger] exp_logs', error);
+        console.error('[MemberGrowthLedger] growth_records', error);
         setEntries([]);
         return;
       }
