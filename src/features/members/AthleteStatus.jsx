@@ -35,6 +35,7 @@ function parseLevelRange(levelRangeText) {
 export default function AthleteStatus({
   memberName,
   memberLevel,
+  memberTitle = '',
   subtitle = '아틀리트 상태',
   epicLevelUpKey = 0,
 }) {
@@ -48,6 +49,38 @@ export default function AthleteStatus({
   const touchStartYRef = useRef(null);
   const rawLv = Number(memberLevel) || 1;
   const roadmapLevel = Math.min(ROADMAP_MAX, Math.max(1, rawLv));
+  const phaseTheme = useMemo(() => {
+    if (roadmapLevel <= 3) {
+      return {
+        phaseName: '기틀 (Foundation)',
+        halo: 'radial-gradient(circle_at_center,rgba(156,163,175,0.16)_0%,#000000_58%,#000000_100%)',
+        accent: 'text-gray-300',
+        lvGradient: 'from-white to-gray-400',
+      };
+    }
+    if (roadmapLevel <= 5) {
+      return {
+        phaseName: '통제 (Alignment)',
+        halo: 'radial-gradient(circle_at_center,rgba(16,185,129,0.18)_0%,#000000_58%,#000000_100%)',
+        accent: 'text-emerald-300',
+        lvGradient: 'from-emerald-100 to-emerald-400',
+      };
+    }
+    if (roadmapLevel <= 7) {
+      return {
+        phaseName: '발현 (Performance)',
+        halo: 'radial-gradient(circle_at_center,rgba(34,197,94,0.28)_0%,#000000_58%,#000000_100%)',
+        accent: 'text-lime-300',
+        lvGradient: 'from-lime-100 to-green-400',
+      };
+    }
+    return {
+      phaseName: '초월 (Autonomy)',
+      halo: 'radial-gradient(circle_at_center,rgba(251,191,36,0.26)_0%,rgba(255,255,255,0.05)_38%,#000000_64%,#000000_100%)',
+      accent: 'text-amber-200',
+      lvGradient: 'from-white to-amber-300',
+    };
+  }, [roadmapLevel]);
   const currentPhaseKey = useMemo(() => {
     const found = roadmapGuides.find((phase) => {
       const parsed = parseLevelRange(phase.level_range);
@@ -173,7 +206,10 @@ export default function AthleteStatus({
     <div className="relative overflow-hidden bg-black text-white">
       <LevelUpEpicFX triggerKey={epicLevelUpKey} />
 
-      <div className="pointer-events-none absolute left-1/2 top-[58%] h-[min(90%,380px)] w-[min(100%,360px)] -translate-x-1/2 -translate-y-1/2 bg-[radial-gradient(circle_at_center,rgba(6,78,59,0.1)_0%,#000000_55%,#000000_100%)]" />
+      <div
+        className="pointer-events-none absolute left-1/2 top-[58%] h-[min(90%,380px)] w-[min(100%,360px)] -translate-x-1/2 -translate-y-1/2"
+        style={{ background: phaseTheme.halo }}
+      />
 
       <div className="relative z-10 px-3 pt-5 text-center">
         <Motion.div
@@ -183,7 +219,9 @@ export default function AthleteStatus({
           transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
         >
           <div className="flex items-center justify-center gap-2">
-            <span className="block text-6xl font-black leading-none tracking-tight text-transparent bg-clip-text bg-gradient-to-b from-white to-gray-500 tabular-nums">
+            <span
+              className={`block text-6xl font-black leading-none tracking-tight text-transparent bg-clip-text bg-gradient-to-b ${phaseTheme.lvGradient} tabular-nums`}
+            >
               LV. {roadmapLevel}
             </span>
             <button
@@ -197,7 +235,11 @@ export default function AthleteStatus({
           </div>
         </Motion.div>
 
-        <p className="mt-4 text-sm font-light tracking-wide text-gray-500">{memberName || '회원'}</p>
+        <p className={`mt-3 text-[10px] font-medium tracking-[0.22em] ${phaseTheme.accent}`}>{phaseTheme.phaseName}</p>
+        {String(memberTitle || '').trim() ? (
+          <p className="mt-3 text-base font-semibold tracking-tight text-white">「{String(memberTitle).trim()}」</p>
+        ) : null}
+        <p className="mt-3 text-sm font-light tracking-wide text-gray-500">{memberName || '회원'}</p>
         <p className="mt-2 text-[11px] font-medium tracking-[0.12em] text-white/35">
           {subtitle}
         </p>
@@ -309,7 +351,7 @@ export default function AthleteStatus({
                     )}
                     {isCurrent ? (
                       <p className="mt-2 text-[10px] font-medium uppercase tracking-[0.22em] text-emerald-300">
-                        Current Location
+                        현재 위치
                       </p>
                     ) : null}
                   </div>

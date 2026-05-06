@@ -20,6 +20,7 @@ function supabaseErrorMessage(error) {
 export default function MemberStatusTab({ userId, profile, stats, memberLevel, onRefresh, onMemberLevelSynced }) {
   const [saving, setSaving] = useState(false);
   const [selectedLevel, setSelectedLevel] = useState('');
+  const [titleInput, setTitleInput] = useState('');
   const [customComment, setCustomComment] = useState('');
   const [roadmapGuides, setRoadmapGuides] = useState([]);
   const [loadingGuides, setLoadingGuides] = useState(false);
@@ -27,12 +28,19 @@ export default function MemberStatusTab({ userId, profile, stats, memberLevel, o
     const n = Number(memberLevel);
     return Number.isFinite(n) ? Math.min(PHYSICAL_AUTONOMY_MAX, Math.max(1, n)) : 1;
   });
+  const [committedTitle, setCommittedTitle] = useState(() => String(profile?.current_title ?? ''));
   const [ledgerRefreshKey, setLedgerRefreshKey] = useState(0);
 
   useEffect(() => {
     const n = Number(memberLevel);
     setCommittedMemberLevel(Number.isFinite(n) ? Math.min(PHYSICAL_AUTONOMY_MAX, Math.max(1, n)) : 1);
   }, [memberLevel, userId]);
+
+  useEffect(() => {
+    const nextTitle = String(profile?.current_title ?? '');
+    setCommittedTitle(nextTitle);
+    setTitleInput(nextTitle);
+  }, [profile?.current_title, userId]);
 
   useEffect(() => {
     let cancelled = false;
@@ -98,10 +106,12 @@ export default function MemberStatusTab({ userId, profile, stats, memberLevel, o
         p_new_level: selectedLevelNumber,
         p_standard_comment: standardComment || null,
         p_custom_comment: customComment.trim() || null,
+        p_title: titleInput.trim() || null,
       });
       if (error) throw error;
 
       setCommittedMemberLevel(selectedLevelNumber);
+      setCommittedTitle(titleInput.trim());
       setLedgerRefreshKey((k) => k + 1);
       setCustomComment('');
       await onRefresh?.();
@@ -120,7 +130,7 @@ export default function MemberStatusTab({ userId, profile, stats, memberLevel, o
       <div className="min-w-0 flex-1 rounded-3xl bg-[#030303] p-4 ring-1 ring-emerald-500/15">
         <div className="rounded-2xl border border-white/10 bg-white/5 p-6 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] backdrop-blur-xl">
           <div className="border-b border-white/10 pb-5">
-            <h2 className="text-[10px] font-bold uppercase tracking-[0.35em] text-emerald-400/80">Control Deck</h2>
+            <h2 className="text-[10px] font-bold uppercase tracking-[0.35em] text-emerald-400/80">조정 패널</h2>
             <p className="mt-2 text-sm leading-relaxed text-white/55">
               이제 스탯 퍼센트는 사용하지 않습니다. 레벨과 코멘트만 저장합니다.
             </p>
@@ -144,6 +154,17 @@ export default function MemberStatusTab({ userId, profile, stats, memberLevel, o
                   ))}
                 </select>
               </div>
+            </div>
+
+            <div className="border-t border-white/10 pt-6">
+              <label className="text-xs font-bold uppercase tracking-[0.2em] text-emerald-500/70">칭호 (Title)</label>
+              <input
+                type="text"
+                value={titleInput}
+                onChange={(e) => setTitleInput(e.target.value)}
+                placeholder="예: 새벽의 정복자, 강철의 코어"
+                className="mt-2 w-full rounded-xl border border-white/10 bg-black/35 px-3 py-2.5 text-sm text-white/90 outline-none ring-emerald-500/25 placeholder:text-white/25 focus:ring-2"
+              />
             </div>
 
             <div className="border-t border-white/10 pt-6">
@@ -177,7 +198,7 @@ export default function MemberStatusTab({ userId, profile, stats, memberLevel, o
                 whileTap={!saving && selectedLevelNumber != null ? { scale: 0.98 } : {}}
                 className="apply-exp-cta relative w-full overflow-hidden rounded-2xl border border-emerald-400/40 bg-gradient-to-r from-emerald-700 via-emerald-600 to-teal-700 py-4 text-center text-sm font-black uppercase tracking-[0.2em] text-white shadow-[0_0_32px_rgba(16,185,129,0.25)] transition disabled:cursor-not-allowed disabled:opacity-35"
               >
-                <span className="relative z-10">저장</span>
+                <span className="relative z-10">적용</span>
                 <span className="pointer-events-none absolute inset-0 bg-[linear-gradient(110deg,transparent_0%,rgba(255,255,255,0.12)_45%,transparent_90%)] opacity-60" />
               </Motion.button>
               <p className="mt-3 text-center text-[10px] text-white/30">
@@ -194,6 +215,7 @@ export default function MemberStatusTab({ userId, profile, stats, memberLevel, o
             <AthleteStatus
               memberName={displayName}
               memberLevel={committedMemberLevel}
+              memberTitle={committedTitle}
               subtitle="아틀리트 상태"
               epicLevelUpKey={0}
             />
