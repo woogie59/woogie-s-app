@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import toast from 'react-hot-toast';
 import { motion as Motion } from 'framer-motion';
+import { Trash2 } from 'lucide-react';
 import { supabase } from '../../lib/supabaseClient';
 import AthleteStatus from './AthleteStatus';
 import MemberGrowthLedger from './MemberGrowthLedger';
@@ -15,6 +16,10 @@ function supabaseErrorMessage(error) {
     if (bits.length) return bits.join(' — ');
   }
   return String(error);
+}
+
+function getTitleName(row) {
+  return String(row?.name ?? row?.title ?? '').trim();
 }
 
 export default function MemberStatusTab({ userId, profile, stats, memberLevel, onRefresh, onMemberLevelSynced }) {
@@ -157,7 +162,7 @@ export default function MemberStatusTab({ userId, profile, stats, memberLevel, o
     ];
 
     return allMainTitles.map((mainTitle) => {
-      const main = mainRows.find((row) => String(row.title || '').trim() === mainTitle) ?? null;
+      const main = mainRows.find((row) => getTitleName(row) === mainTitle) ?? null;
       const subs = subRows.filter((row) => String(row.parent_title || '').trim() === mainTitle);
       return { mainTitle, main, subs };
     });
@@ -203,10 +208,14 @@ export default function MemberStatusTab({ userId, profile, stats, memberLevel, o
 
   const createTitleSet = async () => {
     const mainVal = newMainTitle.trim();
-    const subArray = newSubTitlesRaw
-      .split(',')
-      .map((v) => v.trim())
-      .filter(Boolean);
+    const subArray = [
+      ...new Set(
+        newSubTitlesRaw
+          .split(',')
+          .map((v) => v.trim())
+          .filter(Boolean)
+      ),
+    ];
     if (!mainVal) {
       toast.error('메인 칭호 명을 입력하세요.');
       return;
@@ -231,6 +240,27 @@ export default function MemberStatusTab({ userId, profile, stats, memberLevel, o
       toast.error(`칭호 세트 생성 실패: ${supabaseErrorMessage(e)}`);
     } finally {
       setCreatingTitleSet(false);
+    }
+  };
+
+  const deleteTitleSet = async (mainTitleName) => {
+    const mainTitle = String(mainTitleName || '').trim();
+    if (!mainTitle) return;
+    const ok = window.confirm(
+      '이 칭호 세트(메인 및 서브)를 완전히 삭제하시겠습니까? 회원들의 획득 기록도 사라집니다.'
+    );
+    if (!ok) return;
+    try {
+      const { error } = await supabase.rpc('admin_delete_title_set', { p_main_title: mainTitle });
+      if (error) throw error;
+      await fetchTitleDefinitions();
+      await fetchOwnedTitles();
+      setLedgerRefreshKey((k) => k + 1);
+      await onRefresh?.();
+      toast.success('칭호 세트를 삭제했습니다.');
+    } catch (e) {
+      console.error('[MemberStatusTab] admin_delete_title_set', e);
+      toast.error(`칭호 세트 삭제 실패: ${supabaseErrorMessage(e)}`);
     }
   };
 
@@ -369,18 +399,26 @@ export default function MemberStatusTab({ userId, profile, stats, memberLevel, o
                       const mainOwned = ownedTitleSet.has(mainTitle);
                       return (
                         <div key={mainTitle} className="rounded-xl border border-white/10 bg-white/[0.02] p-2.5">
-                          <p
-                            className={`text-sm font-semibold tracking-wide ${
-                              mainOwned
-                                ? 'text-amber-200 drop-shadow-[0_0_10px_rgba(251,191,36,0.45)]'
-                                : 'text-white/45'
-                            }`}
-                          >
-                            {mainTitle || '메인 칭호'}
-                          </p>
+                          <div className="flex items-center justify-between gap-2">
+                            <p
+                              className={`text-sm font-black tracking-wide text-transparent bg-clip-text bg-gradient-to-r from-yellow-500 via-yellow-300 to-yellow-500 drop-shadow-[0_0_10px_rgba(234,179,8,0.4)] ${
+                                mainOwned ? '' : 'opacity-60'
+                              }`}
+                            >
+                              {mainTitle || '메인 칭호'}
+                            </p>
+                            <button
+                              type="button"
+                              onClick={() => deleteTitleSet(mainTitle)}
+                              className="rounded-md border border-white/10 bg-zinc-900 p-1.5 text-white/55 transition hover:border-red-400/40 hover:text-red-300"
+                              aria-label="칭호 세트 삭제"
+                            >
+                              <Trash2 size={14} />
+                            </button>
+                          </div>
                           <div className="mt-2 flex flex-wrap gap-1.5">
                             {subs.map((sub) => {
-                              const subTitle = String(sub.title || '');
+                              const subTitle = getTitleName(sub);
                               const active = ownedTitleSet.has(subTitle);
                               const pending = togglingTitleName === subTitle;
                               return (
@@ -391,11 +429,11 @@ export default function MemberStatusTab({ userId, profile, stats, memberLevel, o
                                   onClick={() => toggleSubTitle(subTitle, active)}
                                   className={`rounded-full border px-2.5 py-1 text-xs transition ${
                                     active
-                                      ? 'border-emerald-300/70 bg-emerald-500/35 text-emerald-100'
-                                      : 'border-white/20 bg-black/25 text-white/60'
+                                      ? 'border-emerald-300/70 bg-gradient-to-r from-emerald-500/40 to-yellow-400/30 text-emerald-100 shadow-[0_0_12px_rgba(16,185,129,0.45)]'
+                                      : 'border-zinc-700 bg-zinc-900 text-zinc-300'
                                   } disabled:opacity-50`}
                                 >
-                                  {subTitle || '서브 칭호'}
+                                  {subTitle}
                                 </button>
                               );
                             })}

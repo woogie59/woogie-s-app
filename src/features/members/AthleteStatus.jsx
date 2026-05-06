@@ -32,6 +32,10 @@ function parseLevelRange(levelRangeText) {
   return { min: Math.min(nums[0], nums[1]), max: Math.max(nums[0], nums[1]) };
 }
 
+function getTitleName(row) {
+  return String(row?.name ?? row?.title ?? '').trim();
+}
+
 export default function AthleteStatus({
   memberId,
   memberName,
@@ -520,7 +524,11 @@ export default function AthleteStatus({
                     }`}
                   >
                     <div className="flex items-center justify-between gap-2">
-                      <p className={`text-base font-semibold tracking-tight ${group.mainUnlocked ? 'text-amber-200' : 'text-white/70'}`}>
+                      <p
+                        className={`text-base font-black tracking-wide text-transparent bg-clip-text bg-gradient-to-r from-yellow-500 via-yellow-300 to-yellow-500 drop-shadow-[0_0_10px_rgba(234,179,8,0.4)] ${
+                          group.mainUnlocked ? '' : 'opacity-40'
+                        }`}
+                      >
                         {group.mainTitle || '메인 칭호'}
                       </p>
                       <span className="text-[11px] text-white/45">
@@ -529,7 +537,7 @@ export default function AthleteStatus({
                     </div>
                     <div className="mt-2 space-y-1.5">
                       {group.children.map((sub) => {
-                        const subTitle = String(sub.title || '').trim();
+                        const subTitle = getTitleName(sub);
                         const ownedRow = titleRows.find((r) => String(r.title || '').trim() === subTitle);
                         const unlocked = Boolean(ownedRow);
                         const grantedAt = ownedRow?.granted_at
@@ -539,10 +547,12 @@ export default function AthleteStatus({
                           <div
                             key={sub.id}
                             className={`rounded-lg border px-2.5 py-2 ${
-                              unlocked ? 'border-emerald-400/35 bg-emerald-900/15' : 'border-white/10 bg-black/20'
+                              unlocked
+                                ? 'border-emerald-300/70 bg-gradient-to-r from-emerald-500/30 to-yellow-400/20 shadow-[0_0_10px_rgba(16,185,129,0.35)]'
+                                : 'border-zinc-700 bg-zinc-900'
                             }`}
                           >
-                            <p className={`text-sm ${unlocked ? 'text-emerald-300' : 'text-white/50'}`}>{subTitle || '서브 칭호'}</p>
+                            <p className={`text-sm ${unlocked ? 'text-emerald-200' : 'text-zinc-300'}`}>{subTitle}</p>
                             {grantedAt ? <p className="mt-0.5 text-[11px] text-white/45">{grantedAt}</p> : null}
                           </div>
                         );
