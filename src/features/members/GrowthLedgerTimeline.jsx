@@ -44,6 +44,12 @@ export default function GrowthLedgerTimeline({ entries, loading = false }) {
             const achievedLevel = Number(row.achieved_level) || Number(row.new_level) || '—';
             const standard = (row.standard_comment ?? '').trim();
             const custom = (row.custom_comment ?? '').trim();
+            const titleName = String(
+              row.title_name || row.granted_title || row.sub_title_name || row.main_title_name || ''
+            ).trim();
+            const unlockedMainTitle = String(row.unlocked_main_title || row.main_title_name || '').trim();
+            const hasTitleGain = titleName !== '';
+            const hasMainUnlock = unlockedMainTitle !== '';
 
             return (
               <li key={row.id} className="relative">
@@ -53,6 +59,14 @@ export default function GrowthLedgerTimeline({ entries, loading = false }) {
                 />
                 <div className="ml-6">
                   <p className="mb-2 text-[10px] font-medium uppercase tracking-[0.22em] text-white/35">{dt}</p>
+                  {hasTitleGain ? (
+                    <p className="mb-2 text-xs font-semibold tracking-wide text-emerald-300">[칭호 획득] {titleName}</p>
+                  ) : null}
+                  {hasMainUnlock ? (
+                    <p className="mb-2 rounded-md border border-amber-300/45 bg-amber-900/20 px-2 py-1 text-xs font-semibold tracking-wide text-amber-200">
+                      [메인 칭호 해금] {unlockedMainTitle}
+                    </p>
+                  ) : null}
                   <p className="text-sm font-semibold tracking-wide text-emerald-400">[LV. {achievedLevel} 달성]</p>
                   <p className="mt-2 text-sm leading-relaxed text-gray-400">
                     {standard || '표준 기준 코멘트 없음'}

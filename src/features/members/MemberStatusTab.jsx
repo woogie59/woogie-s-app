@@ -23,7 +23,9 @@ export default function MemberStatusTab({ userId, profile, stats, memberLevel, o
   const [customComment, setCustomComment] = useState('');
   const [selectedGuide, setSelectedGuide] = useState(null);
   const [loadingGuide, setLoadingGuide] = useState(false);
-  const [newTitleText, setNewTitleText] = useState('');
+  const [titleDefinitions, setTitleDefinitions] = useState([]);
+  const [loadingTitleDefinitions, setLoadingTitleDefinitions] = useState(false);
+  const [selectedSubTitle, setSelectedSubTitle] = useState('');
   const [equipImmediately, setEquipImmediately] = useState(true);
   const [grantingTitle, setGrantingTitle] = useState(false);
   const [ownedTitles, setOwnedTitles] = useState([]);
@@ -72,6 +74,28 @@ export default function MemberStatusTab({ userId, profile, stats, memberLevel, o
     };
   }, [userId, ledgerRefreshKey]);
 
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      setLoadingTitleDefinitions(true);
+      const { data, error } = await supabase
+        .from('title_definitions')
+        .select('*')
+        .order('id', { ascending: true });
+      if (cancelled) return;
+      setLoadingTitleDefinitions(false);
+      if (error) {
+        console.error('[MemberStatusTab] title_definitions', error);
+        setTitleDefinitions([]);
+        return;
+      }
+      setTitleDefinitions(Array.isArray(data) ? data : []);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   const displayName = profile?.name || '회원';
 
   const selectedLevelNumber = useMemo(() => {
@@ -108,6 +132,27 @@ export default function MemberStatusTab({ userId, profile, stats, memberLevel, o
   }, [selectedLevelNumber]);
 
   const standardComment = selectedGuide?.description ? String(selectedGuide.description) : '';
+
+  const titleHierarchy = useMemo(() => {
+    const defs = Array.isArray(titleDefinitions) ? titleDefinitions : [];
+    const mainRows = defs.filter((row) => {
+      const t = String(row.type ?? row.title_type ?? '').toLowerCase();
+      return t === 'main' || row.is_main === true || row.parent_title == null;
+    });
+    const subRows = defs.filter((row) => {
+      const t = String(row.type ?? row.title_type ?? '').toLowerCase();
+      return t === 'sub' || row.is_sub === true || row.parent_title != null;
+    });
+    return mainRows.map((main) => {
+      const mainTitle = String(main.title ?? '');
+      const subs = subRows.filter((sub) => {
+        const parent = String(sub.parent_title ?? sub.main_title ?? '');
+        if (!parent) return false;
+        return parent === mainTitle;
+      });
+      return { main, subs };
+    });
+  }, [titleDefinitions]);
 
   const saveGrowthRecord = async () => {
     if (!userId) {
@@ -147,14 +192,14 @@ export default function MemberStatusTab({ userId, profile, stats, memberLevel, o
       toast.error('회원 정보가 없습니다.');
       return;
     }
-    const title = newTitleText.trim();
+    const title = selectedSubTitle.trim();
     if (!title) {
-      toast.error('수여할 칭호를 입력하세요.');
+      toast.error('수여할 서브 칭호를 선택하세요.');
       return;
     }
     setGrantingTitle(true);
     try {
-      const { error } = await supabase.rpc('admin_grant_title', {
+      const { data, error } = await supabase.rpc('admin_grant_title', {
         p_target_user: userId,
         p_title: title,
         p_equip: equipImmediately,
@@ -163,10 +208,16 @@ export default function MemberStatusTab({ userId, profile, stats, memberLevel, o
       if (equipImmediately) {
         setCommittedTitle(title);
       }
-      setNewTitleText('');
+      const unlockedMainTitle =
+        String(data?.unlocked_main_title || data?.main_title || data?.unlocked_title || '').trim();
+      setSelectedSubTitle('');
       setLedgerRefreshKey((k) => k + 1);
       await onRefresh?.();
       toast.success('칭호가 수여되었습니다.');
+      if (unlockedMainTitle) {
+        window.alert(`[${unlockedMainTitle}] 칭호가 자동으로 해금되었습니다!`);
+        toast.success(`[${unlockedMainTitle}] 칭호가 자동으로 해금되었습니다!`);
+      }
     } catch (e) {
       console.error('[MemberStatusTab] admin_grant_title', e);
       toast.error(`칭호 수여 실패: ${supabaseErrorMessage(e)}`);
@@ -237,14 +288,25 @@ export default function MemberStatusTab({ userId, profile, stats, memberLevel, o
 
             <div className="border-t border-white/10 pt-6">
               <h3 className="text-xs font-bold uppercase tracking-[0.2em] text-emerald-500/70">칭호 보관함 관리</h3>
-              <label className="mt-3 block text-[11px] text-white/55">새로운 칭호 수여</label>
-              <input
-                type="text"
-                value={newTitleText}
-                onChange={(e) => setNewTitleText(e.target.value)}
-                placeholder="예: 새벽의 정복자"
-                className="mt-2 w-full rounded-xl border border-white/10 bg-black/35 px-3 py-2.5 text-sm text-white/90 outline-none ring-emerald-500/25 placeholder:text-white/25 focus:ring-2"
-              />
+              <label className="mt-3 block text-[11px] text-white/55">서브 칭호 수여</label>
+              <select
+                value={selectedSubTitle}
+                onChange={(e) => setSelectedSubTitle(e.target.value)}
+                className="mt-2 w-full rounded-xl border border-white/10 bg-black/35 px-3 py-2.5 text-sm text-white/90 outline-none ring-emerald-500/25 focus:ring-2"
+              >
+                <option value="">
+                  {loadingTitleDefinitions ? '칭호 목록 불러오는 중...' : '수여할 서브 칭호 선택'}
+                </option>
+                {titleHierarchy.map(({ main, subs }) => (
+                  <optgroup key={main.id} label={String(main.title || '메인 칭호')}>
+                    {subs.map((sub) => (
+                      <option key={sub.id} value={String(sub.title || '')}>
+                        {String(sub.title || '')}
+                      </option>
+                    ))}
+                  </optgroup>
+                ))}
+              </select>
               <label className="mt-3 inline-flex items-center gap-2 text-sm text-white/75">
                 <input
                   type="checkbox"
@@ -256,7 +318,7 @@ export default function MemberStatusTab({ userId, profile, stats, memberLevel, o
               </label>
               <button
                 type="button"
-                disabled={grantingTitle || !newTitleText.trim()}
+                disabled={grantingTitle || !selectedSubTitle.trim()}
                 onClick={grantTitle}
                 className="mt-3 w-full rounded-xl border border-emerald-500/45 bg-emerald-900/30 px-4 py-2.5 text-sm font-semibold text-emerald-100 transition hover:bg-emerald-800/35 disabled:opacity-40"
               >

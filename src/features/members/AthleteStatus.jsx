@@ -50,6 +50,8 @@ export default function AthleteStatus({
   const [isTitleArchiveOpen, setIsTitleArchiveOpen] = useState(false);
   const [titleRows, setTitleRows] = useState([]);
   const [loadingTitles, setLoadingTitles] = useState(false);
+  const [titleDefinitions, setTitleDefinitions] = useState([]);
+  const [loadingTitleDefinitions, setLoadingTitleDefinitions] = useState(false);
   const touchStartYRef = useRef(null);
   const titleTouchStartYRef = useRef(null);
   const rawLv = Number(memberLevel) || 1;
@@ -196,6 +198,53 @@ export default function AthleteStatus({
       cancelled = true;
     };
   }, [isTitleArchiveOpen, memberId]);
+
+  useEffect(() => {
+    if (!isTitleArchiveOpen) return;
+    let cancelled = false;
+    (async () => {
+      setLoadingTitleDefinitions(true);
+      const { data, error } = await supabase
+        .from('title_definitions')
+        .select('*')
+        .order('id', { ascending: true });
+      if (cancelled) return;
+      setLoadingTitleDefinitions(false);
+      if (error) {
+        console.error('[AthleteStatus] title_definitions', error);
+        setTitleDefinitions([]);
+        return;
+      }
+      setTitleDefinitions(Array.isArray(data) ? data : []);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [isTitleArchiveOpen]);
+
+  const titleHierarchy = useMemo(() => {
+    const defs = Array.isArray(titleDefinitions) ? titleDefinitions : [];
+    const owned = new Set((titleRows || []).map((row) => String(row.title || '').trim()));
+    const mains = defs.filter((row) => {
+      const t = String(row.type ?? row.title_type ?? '').toLowerCase();
+      return t === 'main' || row.is_main === true || row.parent_title == null;
+    });
+    const subs = defs.filter((row) => {
+      const t = String(row.type ?? row.title_type ?? '').toLowerCase();
+      return t === 'sub' || row.is_sub === true || row.parent_title != null;
+    });
+    return mains.map((main) => {
+      const mainTitle = String(main.title || '').trim();
+      const children = subs.filter((sub) => {
+        const parent = String(sub.parent_title ?? sub.main_title ?? '').trim();
+        return parent && parent === mainTitle;
+      });
+      const unlockedSubs = children.filter((sub) => owned.has(String(sub.title || '').trim())).length;
+      const totalSubs = children.length;
+      const mainUnlocked = owned.has(mainTitle);
+      return { mainTitle, children, unlockedSubs, totalSubs, mainUnlocked };
+    });
+  }, [titleDefinitions, titleRows]);
 
   const onGuideDraftChange = (id, key, value) => {
     setGuideDrafts((prev) => prev.map((item) => (item.id === id ? { ...item, [key]: value } : item)));
@@ -453,35 +502,57 @@ export default function AthleteStatus({
             <p className="text-[10px] font-medium uppercase tracking-[0.28em] text-emerald-400/80">
               보유 칭호 아카이브
             </p>
-            <p className="mt-1 text-[11px] tracking-[0.08em] text-white/40">칭호 보관함</p>
+            <p className="mt-1 text-[11px] tracking-[0.08em] text-white/40">트로피 룸</p>
 
             <div className="mt-4 max-h-[52vh] space-y-2 overflow-y-auto pr-1 [scrollbar-width:thin]">
-              {loadingTitles ? (
+              {loadingTitles || loadingTitleDefinitions ? (
                 <p className="py-8 text-center text-sm text-white/45">칭호 불러오는 중...</p>
-              ) : titleRows.length === 0 ? (
+              ) : titleHierarchy.length === 0 ? (
                 <p className="py-8 text-center text-sm text-white/45">보유한 칭호가 없습니다.</p>
               ) : (
-                titleRows.map((row) => {
-                  const title = String(row.title || '');
-                  const grantedAt = row.granted_at ? new Date(row.granted_at).toLocaleDateString('ko-KR') : '';
-                  const equipped = title !== '' && title === String(memberTitle || '');
-                  return (
-                    <div
-                      key={row.id}
-                      className={`rounded-xl border px-3 py-3 ${
-                        equipped
-                          ? 'border-emerald-400/45 bg-emerald-900/20 shadow-[0_0_18px_rgba(16,185,129,0.25)]'
-                          : 'border-white/10 bg-white/[0.02]'
-                      }`}
-                    >
-                      <div className="flex items-center justify-between gap-2">
-                        <p className="text-sm font-semibold tracking-wide text-white">{title || '무제 칭호'}</p>
-                        {equipped ? <span className="text-[10px] text-emerald-300">대표 칭호</span> : null}
-                      </div>
-                      <p className="mt-1 text-xs text-white/45">{grantedAt ? `${grantedAt} 수여됨` : '수여일 미상'}</p>
+                titleHierarchy.map((group) => (
+                  <div
+                    key={group.mainTitle}
+                    className={`rounded-xl border px-3 py-3 ${
+                      group.mainUnlocked
+                        ? 'border-amber-300/45 bg-amber-900/10 shadow-[0_0_18px_rgba(251,191,36,0.24)]'
+                        : 'border-white/10 bg-white/[0.02] grayscale'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <p className={`text-base font-semibold tracking-tight ${group.mainUnlocked ? 'text-amber-200' : 'text-white/70'}`}>
+                        {group.mainTitle || '메인 칭호'}
+                      </p>
+                      <span className="text-[11px] text-white/45">
+                        {group.totalSubs > 0 ? `${group.unlockedSubs}/${group.totalSubs}` : group.mainUnlocked ? '달성' : '잠금'}
+                      </span>
                     </div>
-                  );
-                })
+                    <div className="mt-2 space-y-1.5">
+                      {group.children.map((sub) => {
+                        const subTitle = String(sub.title || '').trim();
+                        const ownedRow = titleRows.find((r) => String(r.title || '').trim() === subTitle);
+                        const unlocked = Boolean(ownedRow);
+                        const grantedAt = ownedRow?.granted_at
+                          ? `${new Date(ownedRow.granted_at).toLocaleDateString('ko-KR')} 수여됨`
+                          : null;
+                        return (
+                          <div
+                            key={sub.id}
+                            className={`rounded-lg border px-2.5 py-2 ${
+                              unlocked ? 'border-emerald-400/35 bg-emerald-900/15' : 'border-white/10 bg-black/20'
+                            }`}
+                          >
+                            <p className={`text-sm ${unlocked ? 'text-emerald-300' : 'text-white/50'}`}>{subTitle || '서브 칭호'}</p>
+                            {grantedAt ? <p className="mt-0.5 text-[11px] text-white/45">{grantedAt}</p> : null}
+                          </div>
+                        );
+                      })}
+                    </div>
+                    {group.mainTitle === String(memberTitle || '').trim() ? (
+                      <p className="mt-2 text-[10px] text-emerald-300">대표 칭호</p>
+                    ) : null}
+                  </div>
+                ))
               )}
             </div>
           </div>
