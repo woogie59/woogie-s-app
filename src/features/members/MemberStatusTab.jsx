@@ -25,9 +25,10 @@ export default function MemberStatusTab({ userId, profile, stats, memberLevel, o
   const [loadingGuide, setLoadingGuide] = useState(false);
   const [titleDefinitions, setTitleDefinitions] = useState([]);
   const [loadingTitleDefinitions, setLoadingTitleDefinitions] = useState(false);
-  const [selectedSubTitle, setSelectedSubTitle] = useState('');
-  const [equipImmediately, setEquipImmediately] = useState(true);
-  const [grantingTitle, setGrantingTitle] = useState(false);
+  const [newMainTitle, setNewMainTitle] = useState('');
+  const [newSubTitlesRaw, setNewSubTitlesRaw] = useState('');
+  const [creatingTitleSet, setCreatingTitleSet] = useState(false);
+  const [togglingTitleName, setTogglingTitleName] = useState('');
   const [ownedTitles, setOwnedTitles] = useState([]);
   const [loadingOwnedTitles, setLoadingOwnedTitles] = useState(false);
   const [committedMemberLevel, setCommittedMemberLevel] = useState(() => {
@@ -154,6 +155,11 @@ export default function MemberStatusTab({ userId, profile, stats, memberLevel, o
     });
   }, [titleDefinitions]);
 
+  const ownedTitleSet = useMemo(
+    () => new Set((ownedTitles || []).map((row) => String(row.title || '').trim()).filter(Boolean)),
+    [ownedTitles]
+  );
+
   const saveGrowthRecord = async () => {
     if (!userId) {
       toast.error('회원 정보가 없습니다.');
@@ -187,42 +193,75 @@ export default function MemberStatusTab({ userId, profile, stats, memberLevel, o
     }
   };
 
-  const grantTitle = async () => {
+  const createTitleSet = async () => {
+    const mainVal = newMainTitle.trim();
+    const subArray = newSubTitlesRaw
+      .split(',')
+      .map((v) => v.trim())
+      .filter(Boolean);
+    if (!mainVal) {
+      toast.error('메인 칭호 명을 입력하세요.');
+      return;
+    }
+    if (subArray.length === 0) {
+      toast.error('서브 칭호를 1개 이상 입력하세요.');
+      return;
+    }
+    setCreatingTitleSet(true);
+    try {
+      const { error } = await supabase.rpc('admin_create_title_set', {
+        p_main_title: mainVal,
+        p_sub_titles: subArray,
+      });
+      if (error) throw error;
+      setNewMainTitle('');
+      setNewSubTitlesRaw('');
+
+      const { data, error: defsError } = await supabase
+        .from('title_definitions')
+        .select('*')
+        .order('id', { ascending: true });
+      if (defsError) throw defsError;
+      setTitleDefinitions(Array.isArray(data) ? data : []);
+      toast.success('칭호 세트가 생성되었습니다.');
+    } catch (e) {
+      console.error('[MemberStatusTab] admin_create_title_set', e);
+      toast.error(`칭호 세트 생성 실패: ${supabaseErrorMessage(e)}`);
+    } finally {
+      setCreatingTitleSet(false);
+    }
+  };
+
+  const toggleSubTitle = async (titleName, currentlyActive) => {
     if (!userId) {
       toast.error('회원 정보가 없습니다.');
       return;
     }
-    const title = selectedSubTitle.trim();
-    if (!title) {
-      toast.error('수여할 서브 칭호를 선택하세요.');
-      return;
-    }
-    setGrantingTitle(true);
+    const title = String(titleName || '').trim();
+    if (!title) return;
+    setTogglingTitleName(title);
     try {
-      const { data, error } = await supabase.rpc('admin_grant_title', {
+      const { data, error } = await supabase.rpc('admin_toggle_sub_title', {
         p_target_user: userId,
-        p_title: title,
-        p_equip: equipImmediately,
+        p_title_name: title,
+        p_is_active: !currentlyActive,
       });
       if (error) throw error;
-      if (equipImmediately) {
-        setCommittedTitle(title);
-      }
-      const unlockedMainTitle =
-        String(data?.unlocked_main_title || data?.main_title || data?.unlocked_title || '').trim();
-      setSelectedSubTitle('');
+
+      const unlockedMainTitle = typeof data === 'string'
+        ? data.trim()
+        : String(data?.unlocked_main_title || data?.main_title || '').trim();
       setLedgerRefreshKey((k) => k + 1);
       await onRefresh?.();
-      toast.success('칭호가 수여되었습니다.');
       if (unlockedMainTitle) {
-        window.alert(`[${unlockedMainTitle}] 칭호가 자동으로 해금되었습니다!`);
-        toast.success(`[${unlockedMainTitle}] 칭호가 자동으로 해금되었습니다!`);
+        toast.success(`[${unlockedMainTitle}] 칭호 달성!`);
       }
+      toast.success(currentlyActive ? '서브 칭호를 회수했습니다.' : '서브 칭호를 수여했습니다.');
     } catch (e) {
-      console.error('[MemberStatusTab] admin_grant_title', e);
-      toast.error(`칭호 수여 실패: ${supabaseErrorMessage(e)}`);
+      console.error('[MemberStatusTab] admin_toggle_sub_title', e);
+      toast.error(`칭호 토글 실패: ${supabaseErrorMessage(e)}`);
     } finally {
-      setGrantingTitle(false);
+      setTogglingTitleName('');
     }
   };
 
@@ -288,62 +327,82 @@ export default function MemberStatusTab({ userId, profile, stats, memberLevel, o
 
             <div className="border-t border-white/10 pt-6">
               <h3 className="text-xs font-bold uppercase tracking-[0.2em] text-emerald-500/70">칭호 보관함 관리</h3>
-              <label className="mt-3 block text-[11px] text-white/55">서브 칭호 수여</label>
-              <select
-                value={selectedSubTitle}
-                onChange={(e) => setSelectedSubTitle(e.target.value)}
-                className="mt-2 w-full rounded-xl border border-white/10 bg-black/35 px-3 py-2.5 text-sm text-white/90 outline-none ring-emerald-500/25 focus:ring-2"
-              >
-                <option value="">
-                  {loadingTitleDefinitions ? '칭호 목록 불러오는 중...' : '수여할 서브 칭호 선택'}
-                </option>
-                {titleHierarchy.map(({ main, subs }) => (
-                  <optgroup key={main.id} label={String(main.title || '메인 칭호')}>
-                    {subs.map((sub) => (
-                      <option key={sub.id} value={String(sub.title || '')}>
-                        {String(sub.title || '')}
-                      </option>
-                    ))}
-                  </optgroup>
-                ))}
-              </select>
-              <label className="mt-3 inline-flex items-center gap-2 text-sm text-white/75">
+              <div className="mt-3 rounded-xl border border-white/10 bg-black/25 p-3">
+                <p className="text-[11px] tracking-[0.14em] text-white/45">신규 칭호 세트 창조</p>
+                <label className="mt-2 block text-[11px] text-white/55">메인 칭호 명 (예: 굿포머)</label>
                 <input
-                  type="checkbox"
-                  checked={equipImmediately}
-                  onChange={(e) => setEquipImmediately(e.target.checked)}
-                  className="h-4 w-4 accent-emerald-500"
+                  type="text"
+                  value={newMainTitle}
+                  onChange={(e) => setNewMainTitle(e.target.value)}
+                  className="mt-1.5 w-full rounded-xl border border-white/10 bg-black/35 px-3 py-2.5 text-sm text-white/90 outline-none ring-emerald-500/25 focus:ring-2"
                 />
-                수여와 동시에 대표 칭호로 장착
-              </label>
-              <button
-                type="button"
-                disabled={grantingTitle || !selectedSubTitle.trim()}
-                onClick={grantTitle}
-                className="mt-3 w-full rounded-xl border border-emerald-500/45 bg-emerald-900/30 px-4 py-2.5 text-sm font-semibold text-emerald-100 transition hover:bg-emerald-800/35 disabled:opacity-40"
-              >
-                수여하기
-              </button>
+                <label className="mt-3 block text-[11px] text-white/55">
+                  서브 칭호 목록 (쉼표로 구분. 예: 가슴, 등, 하체, 어깨)
+                </label>
+                <input
+                  type="text"
+                  value={newSubTitlesRaw}
+                  onChange={(e) => setNewSubTitlesRaw(e.target.value)}
+                  className="mt-1.5 w-full rounded-xl border border-white/10 bg-black/35 px-3 py-2.5 text-sm text-white/90 outline-none ring-emerald-500/25 focus:ring-2"
+                />
+                <button
+                  type="button"
+                  disabled={creatingTitleSet}
+                  onClick={createTitleSet}
+                  className="mt-3 w-full rounded-xl border border-emerald-500/45 bg-emerald-900/30 px-4 py-2.5 text-sm font-semibold text-emerald-100 transition hover:bg-emerald-800/35 disabled:opacity-40"
+                >
+                  칭호 세트 생성
+                </button>
+              </div>
 
               <div className="mt-4 rounded-xl border border-white/10 bg-black/25 p-3">
-                <p className="text-[11px] tracking-[0.14em] text-white/45">보유 칭호 목록</p>
-                {loadingOwnedTitles ? (
+                <p className="text-[11px] tracking-[0.14em] text-white/45">칭호 토글 보드</p>
+                {loadingTitleDefinitions || loadingOwnedTitles ? (
                   <p className="mt-2 text-sm text-white/40">불러오는 중...</p>
-                ) : ownedTitles.length === 0 ? (
-                  <p className="mt-2 text-sm text-white/40">보유한 칭호가 없습니다.</p>
+                ) : titleHierarchy.length === 0 ? (
+                  <p className="mt-2 text-sm text-white/40">칭호 정의가 없습니다.</p>
                 ) : (
-                  <ul className="mt-2 space-y-1.5">
-                    {ownedTitles.map((row) => {
-                      const title = String(row.title || '');
-                      const isEquipped = title !== '' && title === String(committedTitle || '');
+                  <div className="mt-2 space-y-3">
+                    {titleHierarchy.map(({ main, subs }) => {
+                      const mainTitle = String(main.title || '');
+                      const mainOwned = ownedTitleSet.has(mainTitle);
                       return (
-                        <li key={row.id} className="rounded-lg border border-white/10 bg-white/[0.02] px-2.5 py-2 text-sm text-white/80">
-                          <span className={isEquipped ? 'text-emerald-300' : ''}>{title || '무제 칭호'}</span>
-                          {isEquipped ? <span className="ml-2 text-[10px] text-emerald-300">대표 칭호</span> : null}
-                        </li>
+                        <div key={main.id} className="rounded-xl border border-white/10 bg-white/[0.02] p-2.5">
+                          <p
+                            className={`text-sm font-semibold tracking-wide ${
+                              mainOwned
+                                ? 'text-amber-200 drop-shadow-[0_0_10px_rgba(251,191,36,0.45)]'
+                                : 'text-white/45'
+                            }`}
+                          >
+                            {mainTitle || '메인 칭호'}
+                          </p>
+                          <div className="mt-2 flex flex-wrap gap-1.5">
+                            {subs.map((sub) => {
+                              const subTitle = String(sub.title || '');
+                              const active = ownedTitleSet.has(subTitle);
+                              const pending = togglingTitleName === subTitle;
+                              return (
+                                <button
+                                  key={sub.id}
+                                  type="button"
+                                  disabled={pending || togglingTitleName !== ''}
+                                  onClick={() => toggleSubTitle(subTitle, active)}
+                                  className={`rounded-full border px-2.5 py-1 text-xs transition ${
+                                    active
+                                      ? 'border-emerald-300/70 bg-emerald-500/35 text-emerald-100'
+                                      : 'border-white/20 bg-black/25 text-white/60'
+                                  } disabled:opacity-50`}
+                                >
+                                  {subTitle || '서브 칭호'}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
                       );
                     })}
-                  </ul>
+                  </div>
                 )}
               </div>
             </div>
