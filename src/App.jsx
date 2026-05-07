@@ -111,6 +111,8 @@ export default function App() {
   const [isRevenueLoading, setIsRevenueLoading] = useState(false);
   /** OneSignal deep link → open schedule on a specific day */
   const [scheduleCalendarSeed, setScheduleCalendarSeed] = useState(null);
+  const [calendarActionModal, setCalendarActionModal] = useState(null);
+  const [calendarActionBusy, setCalendarActionBusy] = useState(false);
 
   // Salary Configuration (Persist in LocalStorage)
   const [salaryConfig, setSalaryConfig] = useState(() => {
@@ -612,71 +614,63 @@ export default function App() {
   };
 
   /** 관리자 일정(캘린더)에서 예약 삭제 */
-  const handleScheduleDashCancel = (item) => {
-    if (!item?.booking?.id) return;
-    const b = item.booking;
-    showConfirm({
-      title: '일정 삭제',
-      message:
-        '이 일정을 삭제하시겠습니까? 삭제 시 해당 시간은 다른 회원이 예약할 수 있게 즉시 개방됩니다.',
-      confirmLabel: '삭제하기',
-      cancelLabel: '닫기',
-      onConfirm: async (close) => {
-        const bookingId = b.id;
-        try {
-          console.log(`🗑️ 예약(ID: ${bookingId}) 삭제 시도 중...`);
-
-          const { data: attData, error: attErr } = await deleteAttendanceLogsForBooking(supabase, b);
-          if (attErr) {
-            console.error('[schedule_dash] attendance_logs 삭제 실패:', attErr);
-            showAlert({ message: '출석 기록 삭제 실패: ' + attErr.message });
-            return;
-          }
-          console.log('[schedule_dash] attendance_logs 삭제 행 수:', attData?.length ?? 0);
-
-          const { data: bookData, error: bookErr } = await supabase
-            .from('bookings')
-            .delete()
-            .eq('id', bookingId)
-            .select();
-
-          if (bookErr) {
-            console.error('❌ bookings 삭제 실패:', bookErr);
-            showAlert({ message: '예약 삭제 실패: ' + bookErr.message });
-            return;
-          }
-
-          if (!bookData || bookData.length === 0) {
-            showAlert({
-              message: 'DB에서 삭제되지 않았습니다! (권한 또는 ID 문제)',
-            });
-            return;
-          }
-
-          console.log('✅ bookings 삭제 확인:', bookData);
-
-          setDashboardBookings((prev) => prev.filter((row) => row.id !== bookingId));
-          setRevenueLogs((prev) =>
-            prev.filter((log) => {
-              if (log.user_id !== b.user_id) return true;
-              const logDay = toDateKey(log.check_in_at);
-              const bDay = String(b.date).slice(0, 10);
-              if (logDay !== bDay) return true;
-              const logTimeNorm = log.session_time_fixed
-                ? toTime24h(log.session_time_fixed)
-                : toTime24h(getSessionTime24h(log));
-              return logTimeNorm !== toTime24h(b.time);
-            })
-          );
-          close();
-          showToast('일정이 삭제되었습니다');
-          emitSessionBalanceRefresh();
-        } catch (err) {
-          console.error('🚨 예기치 못한 에러:', err);
-          showAlert({ message: '삭제 중 예기치 못한 오류가 발생했습니다.' });
-        }
-      },
+  const openCalendarActionModal = (item) => {
+    const b = item?.booking;
+    if (!b?.id) return;
+    setCalendarActionModal({
+      bookingId: b.id,
+      userName: b.profiles?.name || item?.userName || '회원',
+      date: String(b.date || ''),
+      time: String(b.time || ''),
+      status: String(b.status || ''),
     });
+  };
+
+  const closeCalendarActionModal = () => {
+    if (calendarActionBusy) return;
+    setCalendarActionModal(null);
+  };
+
+  const completeBookingFromCalendar = async () => {
+    const id = calendarActionModal?.bookingId;
+    if (!id) return;
+    setCalendarActionBusy(true);
+    try {
+      const { error } = await supabase.rpc('admin_update_session_status', {
+        p_booking_id: id,
+        p_new_status: 'completed',
+      });
+      if (error) throw error;
+      setDashboardBookings((prev) =>
+        prev.map((b) => (b.id === id ? { ...b, status: 'completed' } : b))
+      );
+      showToast('수업 완료 처리되었습니다.');
+      closeCalendarActionModal();
+    } catch (e) {
+      console.error('[admin_update_session_status]', e);
+      showAlert({ message: e?.message ? `완료 처리 실패: ${e.message}` : '완료 처리에 실패했습니다.' });
+    } finally {
+      setCalendarActionBusy(false);
+    }
+  };
+
+  const cancelBookingFromCalendar = async () => {
+    const id = calendarActionModal?.bookingId;
+    if (!id) return;
+    setCalendarActionBusy(true);
+    try {
+      const { error } = await supabase.from('bookings').delete().eq('id', id);
+      if (error) throw error;
+      setDashboardBookings((prev) => prev.filter((b) => b.id !== id));
+      closeCalendarActionModal();
+      showToast('일정이 캘린더에서 삭제되었습니다.');
+      emitSessionBalanceRefresh();
+    } catch (e) {
+      console.error('[bookings delete]', e);
+      showAlert({ message: e?.message ? `일정 취소 실패: ${e.message}` : '일정 취소에 실패했습니다.' });
+    } finally {
+      setCalendarActionBusy(false);
+    }
   };
 
   const changeMonth = (delta) => {
@@ -714,7 +708,7 @@ export default function App() {
       const time = normalizeTime24h(b.time);
       const matchKey = `${key}|${b.user_id}|${time}`;
       const matchedLog = logsByUserTime[matchKey];
-      const isCompleted = !!matchedLog;
+      const isCompleted = !!matchedLog || b.status === 'completed';
       result[key].push({
         type: 'booking',
         booking: b,
@@ -911,7 +905,7 @@ export default function App() {
                     <div className="min-w-0">
                       <BackButton onClick={goBack} />
                       <h1 className="mt-3 text-lg sm:text-xl font-light tracking-wide text-[#064e3b]">일정 &amp; 예약</h1>
-                      <p className="text-xs sm:text-sm text-slate-500 mt-0.5">50분 세션 · 예약을 누르면 삭제 확인</p>
+                      <p className="text-xs sm:text-sm text-slate-500 mt-0.5">50분 세션 · 예약을 누르면 작업 선택</p>
                     </div>
                     <button
                       type="button"
@@ -933,11 +927,69 @@ export default function App() {
                       onEventClick={(info) => {
                         const item = info?.event?.extendedProps?.item;
                         const dateKey = info?.event?.extendedProps?.dateKey;
-                        if (item && dateKey) handleScheduleDashCancel(item);
+                        if (!item || !dateKey) return;
+                        if (item?.booking?.status === 'completed' || item?.status === 'Completed') return;
+                        openCalendarActionModal(item);
                       }}
                     />
                   </div>
                 </div>
+
+                {calendarActionModal ? (
+                  <div
+                    className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-xl"
+                    role="dialog"
+                    aria-modal="true"
+                    aria-label="일정 작업 선택"
+                    onClick={closeCalendarActionModal}
+                  >
+                    <div
+                      className="w-full max-w-md rounded-2xl border border-white/10 bg-zinc-950/95 p-5 text-white shadow-[0_24px_90px_-12px_rgba(0,0,0,0.7)]"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <p className="text-[10px] font-medium uppercase tracking-[0.32em] text-emerald-400/80">
+                            예약 상세
+                          </p>
+                          <p className="mt-2 text-lg font-semibold tracking-tight text-white">
+                            {calendarActionModal.userName}
+                          </p>
+                          <p className="mt-1 text-sm text-white/55">
+                            {calendarActionModal.date} · {calendarActionModal.time}
+                          </p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={closeCalendarActionModal}
+                          className="text-white/55 transition hover:text-white"
+                          aria-label="모달 닫기"
+                        >
+                          X
+                        </button>
+                      </div>
+
+                      <div className="mt-5 grid grid-cols-1 gap-3">
+                        <button
+                          type="button"
+                          disabled={calendarActionBusy}
+                          onClick={completeBookingFromCalendar}
+                          className="rounded-xl border border-emerald-400/30 bg-emerald-500/15 px-4 py-3 text-sm font-bold text-emerald-100 transition hover:bg-emerald-500/20 disabled:opacity-40"
+                        >
+                          수업 완료 처리
+                        </button>
+                        <button
+                          type="button"
+                          disabled={calendarActionBusy}
+                          onClick={cancelBookingFromCalendar}
+                          className="rounded-xl border border-white/15 bg-transparent px-4 py-3 text-sm font-semibold text-white/80 transition hover:border-red-400/40 hover:text-red-200 disabled:opacity-40"
+                        >
+                          일정 취소
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ) : null}
               </div>
             </AdminRoute>
           )}
