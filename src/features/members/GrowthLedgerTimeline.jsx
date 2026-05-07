@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo, useState } from 'react';
 
 function formatLedgerDate(iso) {
   if (!iso) return '';
@@ -15,7 +15,11 @@ function formatLedgerDate(iso) {
  * Vertical growth ledger for `growth_records`.
  */
 export default function GrowthLedgerTimeline({ entries, loading = false }) {
-  const list = Array.isArray(entries) ? entries : [];
+  const [isLedgerExpanded, setIsLedgerExpanded] = useState(false);
+  const records = useMemo(() => {
+    const list = Array.isArray(entries) ? entries : [];
+    return [...list].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+  }, [entries]);
 
   if (loading) {
     return (
@@ -23,7 +27,7 @@ export default function GrowthLedgerTimeline({ entries, loading = false }) {
     );
   }
 
-  if (list.length === 0) {
+  if (records.length === 0) {
     return (
       <div className="py-8 text-center text-sm font-light text-gray-500">
         아직 기록된 성장 이력이 없습니다.
@@ -31,56 +35,82 @@ export default function GrowthLedgerTimeline({ entries, loading = false }) {
     );
   }
 
-  return (
-    <div className="max-h-[min(40vh,360px)] overflow-y-auto pr-1 [scrollbar-width:thin]">
-      <div className="relative">
-        <div
-          className="pointer-events-none absolute bottom-2 left-[5px] top-2 w-px bg-white/10"
-          aria-hidden
-        />
-        <ul className="relative space-y-10 pb-2 pt-1">
-          {list.map((row) => {
-            const dt = formatLedgerDate(row.created_at);
-            const achievedLevel = Number(row.achieved_level) || Number(row.new_level) || '—';
-            const standard = (row.standard_comment ?? '').trim();
-            const custom = (row.custom_comment ?? '').trim();
-            const titleName = String(
-              row.title_name || row.granted_title || row.sub_title_name || row.main_title_name || ''
-            ).trim();
-            const unlockedMainTitle = String(row.unlocked_main_title || row.main_title_name || '').trim();
-            const hasTitleGain = titleName !== '';
-            const hasMainUnlock = unlockedMainTitle !== '';
+  const latestRecord = records[0];
+  const olderRecords = records.slice(1);
 
-            return (
-              <li key={row.id} className="relative">
-                <div
-                  className="absolute left-[5px] top-1.5 h-1.5 w-1.5 -translate-x-1/2 rounded-full bg-emerald-500 shadow-[0_0_8px_#10b981]"
-                  aria-hidden
-                />
-                <div className="ml-6">
-                  <p className="mb-2 text-[10px] font-medium uppercase tracking-[0.22em] text-white/35">{dt}</p>
-                  {hasTitleGain ? (
-                    <p className="mb-2 text-xs font-semibold tracking-wide text-emerald-300">[칭호 획득] {titleName}</p>
-                  ) : null}
-                  {hasMainUnlock ? (
-                    <p className="mb-2 rounded-md border border-amber-300/45 bg-amber-900/20 px-2 py-1 text-xs font-semibold tracking-wide text-amber-200">
-                      [메인 칭호 해금] {unlockedMainTitle}
-                    </p>
-                  ) : null}
-                  <p className="text-sm font-semibold tracking-wide text-emerald-400">[LV. {achievedLevel} 달성]</p>
-                  <p className="mt-2 text-sm leading-relaxed text-gray-400">
-                    {standard || '표준 기준 코멘트 없음'}
-                  </p>
-                  {custom ? (
-                    <div className="mt-3 rounded-lg border border-emerald-500/25 bg-emerald-950/20 px-3 py-2">
-                      <p className="text-sm font-semibold leading-relaxed text-emerald-300">{custom}</p>
-                    </div>
-                  ) : null}
-                </div>
-              </li>
-            );
-          })}
-        </ul>
+  const renderRecord = (row, { variant }) => {
+    const dt = formatLedgerDate(row.created_at);
+    const achievedLevel = Number(row.achieved_level) || Number(row.new_level) || '—';
+    const standard = (row.standard_comment ?? '').trim();
+    const custom = (row.custom_comment ?? '').trim();
+    const titleName = String(
+      row.title_name || row.granted_title || row.sub_title_name || row.main_title_name || ''
+    ).trim();
+    const unlockedMainTitle = String(row.unlocked_main_title || row.main_title_name || '').trim();
+    const hasTitleGain = titleName !== '';
+    const hasMainUnlock = unlockedMainTitle !== '';
+
+    const isHero = variant === 'hero';
+    return (
+      <div
+        className={`rounded-2xl border px-4 py-4 transition-all duration-300 ${
+          isHero
+            ? 'border-emerald-400/25 bg-white/[0.03] shadow-[0_0_24px_rgba(16,185,129,0.12)]'
+            : 'border-white/10 bg-white/[0.015] opacity-80'
+        }`}
+      >
+        <p className="text-[10px] font-medium uppercase tracking-[0.22em] text-white/35">{dt}</p>
+        {hasTitleGain ? (
+          <p className={`mt-2 text-xs font-semibold tracking-wide ${isHero ? 'text-emerald-200' : 'text-emerald-300/80'}`}>
+            [칭호 획득] {titleName}
+          </p>
+        ) : null}
+        {hasMainUnlock ? (
+          <p
+            className={`mt-2 rounded-md border px-2 py-1 text-xs font-semibold tracking-wide ${
+              isHero
+                ? 'border-amber-300/45 bg-amber-900/20 text-amber-200'
+                : 'border-amber-300/30 bg-amber-900/10 text-amber-200/80'
+            }`}
+          >
+            [메인 칭호 해금] {unlockedMainTitle}
+          </p>
+        ) : null}
+        <p className={`mt-2 font-semibold tracking-wide ${isHero ? 'text-emerald-300 text-base' : 'text-emerald-400 text-sm'}`}>
+          [LV. {achievedLevel} 달성]
+        </p>
+        <p className={`mt-2 leading-relaxed ${isHero ? 'text-gray-300 text-sm' : 'text-gray-400 text-sm'}`}>
+          {standard || '표준 기준 코멘트 없음'}
+        </p>
+        {custom ? (
+          <div className={`mt-3 rounded-lg border px-3 py-2 ${isHero ? 'border-emerald-500/25 bg-emerald-950/20' : 'border-emerald-500/15 bg-emerald-950/10'}`}>
+            <p className={`font-semibold leading-relaxed ${isHero ? 'text-emerald-200' : 'text-emerald-300'}`}>{custom}</p>
+          </div>
+        ) : null}
+      </div>
+    );
+  };
+
+  return (
+    <div className="space-y-3">
+      {renderRecord(latestRecord, { variant: 'hero' })}
+
+      {olderRecords.length > 0 ? (
+        <button
+          type="button"
+          onClick={() => setIsLedgerExpanded(!isLedgerExpanded)}
+          className="w-full rounded-xl border border-white/10 bg-white/[0.02] px-3 py-2 text-sm font-semibold text-white/70 transition hover:border-white/20 hover:text-white"
+        >
+          {isLedgerExpanded ? '이전 기록 닫기' : '이전 성장 기록 보기'}
+        </button>
+      ) : null}
+
+      <div
+        className={`space-y-3 overflow-hidden transition-all duration-300 ${
+          isLedgerExpanded ? 'max-h-[1200px] opacity-100' : 'max-h-0 opacity-0'
+        }`}
+      >
+        {isLedgerExpanded ? olderRecords.map((r) => <div key={r.id}>{renderRecord(r, { variant: 'older' })}</div>) : null}
       </div>
     </div>
   );

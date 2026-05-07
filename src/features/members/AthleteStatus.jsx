@@ -51,11 +51,14 @@ export default function AthleteStatus({
   const [isRoadmapSaving, setIsRoadmapSaving] = useState(false);
   const [isRoadmapEditMode, setIsRoadmapEditMode] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
-  const [isTitleArchiveOpen, setIsTitleArchiveOpen] = useState(false);
+  // Title modal (member autonomy)
+  const [isTitleModalOpen, setIsTitleModalOpen] = useState(false);
   const [titleRows, setTitleRows] = useState([]);
   const [loadingTitles, setLoadingTitles] = useState(false);
   const [titleDefinitions, setTitleDefinitions] = useState([]);
   const [loadingTitleDefinitions, setLoadingTitleDefinitions] = useState(false);
+  const [localCurrentTitle, setLocalCurrentTitle] = useState(() => String(memberTitle || '').trim());
+  const [equippingTitle, setEquippingTitle] = useState('');
   const touchStartYRef = useRef(null);
   const titleTouchStartYRef = useRef(null);
   const rawLv = Number(memberLevel) || 1;
@@ -103,6 +106,10 @@ export default function AthleteStatus({
   }, [roadmapGuides, roadmapLevel]);
 
   const closeRoadmap = () => setIsRoadmapOpen(false);
+
+  useEffect(() => {
+    setLocalCurrentTitle(String(memberTitle || '').trim());
+  }, [memberTitle]);
 
   useEffect(() => {
     if (!isRoadmapOpen) {
@@ -171,16 +178,16 @@ export default function AthleteStatus({
   }, [isRoadmapOpen]);
 
   useEffect(() => {
-    if (!isTitleArchiveOpen) return;
+    if (!isTitleModalOpen) return;
     const prevOverflow = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
     return () => {
       document.body.style.overflow = prevOverflow;
     };
-  }, [isTitleArchiveOpen]);
+  }, [isTitleModalOpen]);
 
   useEffect(() => {
-    if (!isTitleArchiveOpen || !memberId) return;
+    if (!isTitleModalOpen || !memberId) return;
     let cancelled = false;
     (async () => {
       setLoadingTitles(true);
@@ -202,10 +209,10 @@ export default function AthleteStatus({
     return () => {
       cancelled = true;
     };
-  }, [isTitleArchiveOpen, memberId]);
+  }, [isTitleModalOpen, memberId]);
 
   useEffect(() => {
-    if (!isTitleArchiveOpen) return;
+    if (!isTitleModalOpen) return;
     let cancelled = false;
     (async () => {
       setLoadingTitleDefinitions(true);
@@ -226,7 +233,24 @@ export default function AthleteStatus({
     return () => {
       cancelled = true;
     };
-  }, [isTitleArchiveOpen]);
+  }, [isTitleModalOpen]);
+
+  const equipTitle = async (titleName) => {
+    const t = String(titleName || '').trim();
+    if (!t) return;
+    setEquippingTitle(t);
+    try {
+      const { error } = await supabase.rpc('equip_member_title', { p_title: t });
+      if (error) throw error;
+      setLocalCurrentTitle(t);
+      toast.success('대표 칭호가 변경되었습니다.');
+    } catch (e) {
+      console.error('[AthleteStatus] equip_member_title', e);
+      toast.error('칭호 장착에 실패했습니다.');
+    } finally {
+      setEquippingTitle('');
+    }
+  };
 
   const titleHierarchy = useMemo(() => {
     const defs = Array.isArray(titleDefinitions) ? titleDefinitions : [];
@@ -339,14 +363,14 @@ export default function AthleteStatus({
         </Motion.div>
 
         <p className={`mt-3 text-[10px] font-medium tracking-[0.22em] ${phaseTheme.accent}`}>{phaseTheme.phaseName}</p>
-        {String(memberTitle || '').trim() ? (
-          <p className="mt-3 text-base font-black tracking-wide text-transparent bg-clip-text bg-gradient-to-r from-yellow-500 via-yellow-300 to-yellow-500 drop-shadow-[0_0_10px_rgba(234,179,8,0.4)]">
-            「{String(memberTitle).trim()}」
+        {String(localCurrentTitle || '').trim() ? (
+          <p className="mt-3 font-sans text-base font-black tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-yellow-500 via-yellow-300 to-yellow-500 drop-shadow-[0_0_10px_rgba(234,179,8,0.4)]">
+            「{String(localCurrentTitle).trim()}」
           </p>
         ) : null}
         <button
           type="button"
-          onClick={() => setIsTitleArchiveOpen(true)}
+          onClick={() => setIsTitleModalOpen(true)}
           className="mt-2 text-[11px] tracking-[0.12em] text-white/55 transition hover:text-emerald-300"
         >
           [ ✦ 칭호 목록 ]
@@ -474,13 +498,13 @@ export default function AthleteStatus({
         </div>
       ) : null}
 
-      {isTitleArchiveOpen ? (
+      {isTitleModalOpen ? (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4 backdrop-blur-xl"
           role="dialog"
           aria-modal="true"
           aria-label="보유 칭호 아카이브"
-          onClick={() => setIsTitleArchiveOpen(false)}
+          onClick={() => setIsTitleModalOpen(false)}
         >
           <div
             className="relative w-full max-w-[340px] rounded-2xl border border-white/10 bg-zinc-950/95 p-5 shadow-[0_20px_80px_-10px_rgba(0,0,0,0.7)]"
@@ -493,14 +517,14 @@ export default function AthleteStatus({
               const endY = e.changedTouches?.[0]?.clientY ?? null;
               titleTouchStartYRef.current = null;
               if (startY == null || endY == null) return;
-              if (endY - startY > 50) setIsTitleArchiveOpen(false);
+              if (endY - startY > 50) setIsTitleModalOpen(false);
             }}
           >
             <div className="mx-auto mb-4 h-1.5 w-12 rounded-full bg-gray-600 opacity-50" />
             <button
               type="button"
               aria-label="칭호 목록 닫기"
-              onClick={() => setIsTitleArchiveOpen(false)}
+              onClick={() => setIsTitleModalOpen(false)}
               className="absolute right-4 top-4 text-base font-medium leading-none text-white/55 transition hover:text-white"
             >
               X
@@ -527,15 +551,27 @@ export default function AthleteStatus({
                   >
                     <div className="flex items-center justify-between gap-2">
                       <p
-                        className={`text-base font-black tracking-wide text-transparent bg-clip-text bg-gradient-to-r from-yellow-500 via-yellow-300 to-yellow-500 drop-shadow-[0_0_10px_rgba(234,179,8,0.4)] ${
+                        className={`font-sans text-base font-black tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-yellow-500 via-yellow-300 to-yellow-500 drop-shadow-[0_0_10px_rgba(234,179,8,0.4)] ${
                           group.mainUnlocked ? '' : 'opacity-40'
                         }`}
                       >
                         {group.mainTitle || '메인 칭호'}
                       </p>
-                      <span className="text-[11px] text-white/45">
-                        {group.totalSubs > 0 ? `${group.unlockedSubs}/${group.totalSubs}` : group.mainUnlocked ? '달성' : '잠금'}
-                      </span>
+                      <div className="flex items-center gap-2">
+                        <span className="text-[11px] text-white/45">
+                          {group.totalSubs > 0 ? `${group.unlockedSubs}/${group.totalSubs}` : group.mainUnlocked ? '달성' : '잠금'}
+                        </span>
+                        {group.mainUnlocked ? (
+                          <button
+                            type="button"
+                            disabled={equippingTitle !== '' && equippingTitle !== group.mainTitle}
+                            onClick={() => equipTitle(group.mainTitle)}
+                            className="rounded-lg border border-white/10 bg-zinc-900 px-2 py-1 text-[11px] font-semibold text-white/75 transition hover:border-emerald-400/40 hover:text-emerald-200 disabled:opacity-40"
+                          >
+                            {equippingTitle === group.mainTitle ? '장착 중…' : '장착'}
+                          </button>
+                        ) : null}
+                      </div>
                     </div>
                     <div className="mt-2 space-y-1.5">
                       {group.children.map((sub) => {
