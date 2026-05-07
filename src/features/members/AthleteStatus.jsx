@@ -340,7 +340,9 @@ export default function AthleteStatus({
 
         <p className={`mt-3 text-[10px] font-medium tracking-[0.22em] ${phaseTheme.accent}`}>{phaseTheme.phaseName}</p>
         {String(memberTitle || '').trim() ? (
-          <p className="mt-3 text-base font-semibold tracking-tight text-white">「{String(memberTitle).trim()}」</p>
+          <p className="mt-3 text-base font-black tracking-wide text-transparent bg-clip-text bg-gradient-to-r from-yellow-500 via-yellow-300 to-yellow-500 drop-shadow-[0_0_10px_rgba(234,179,8,0.4)]">
+            「{String(memberTitle).trim()}」
+          </p>
         ) : null}
         <button
           type="button"
