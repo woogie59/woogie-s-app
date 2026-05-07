@@ -238,15 +238,22 @@ export default function AthleteStatus({
   const equipTitle = async (titleName) => {
     const t = String(titleName || '').trim();
     if (!t) return;
+    if (!memberId) {
+      toast.error('회원 식별자가 없어 칭호를 장착할 수 없습니다.');
+      return;
+    }
     setEquippingTitle(t);
     try {
-      const { error } = await supabase.rpc('equip_member_title', { p_title: t });
+      const { error } = await supabase.rpc('equip_member_title', {
+        p_target_user: memberId,
+        p_title: t,
+      });
       if (error) throw error;
       setLocalCurrentTitle(t);
       toast.success('대표 칭호가 변경되었습니다.');
     } catch (e) {
-      console.error('[AthleteStatus] equip_member_title', e);
-      toast.error('칭호 장착에 실패했습니다.');
+      console.error('Equip Error:', e);
+      toast.error(`칭호 장착 실패: ${e?.message || String(e)}`);
     } finally {
       setEquippingTitle('');
     }
