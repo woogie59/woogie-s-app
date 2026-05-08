@@ -78,6 +78,7 @@ export default function AthleteStatus({
   const [loadingCurrentGuide, setLoadingCurrentGuide] = useState(false);
   const [masterExamSubmitting, setMasterExamSubmitting] = useState(false);
   const [masterExamPending, setMasterExamPending] = useState(false);
+  const [masterAchieved, setMasterAchieved] = useState(false);
   const touchStartYRef = useRef(null);
   const titleTouchStartYRef = useRef(null);
   const rawLv = Number(memberLevel) || 1;
@@ -87,40 +88,40 @@ export default function AthleteStatus({
     if (roadmapLevel === 1) {
       return {
         phaseName: '초심자',
-        halo: 'radial-gradient(circle_at_center,rgba(156,163,175,0.16)_0%,#000000_58%,#000000_100%)',
-        accent: 'text-zinc-300 drop-shadow-[0_0_24px_rgba(161,161,170,0.35)]',
-        lvClass: 'text-zinc-200 drop-shadow-[0_0_24px_rgba(161,161,170,0.4)]',
+        halo: 'radial-gradient(circle_at_center,rgba(255,255,255,0.14)_0%,#050505_60%,#050505_100%)',
+        accent: 'text-white drop-shadow-[0_0_24px_rgba(255,255,255,0.35)]',
+        lvClass: 'text-white drop-shadow-[0_0_26px_rgba(255,255,255,0.35)]',
       };
     }
     if (roadmapLevel <= 4) {
       return {
         phaseName: '수행자',
-        halo: 'radial-gradient(circle_at_center,rgba(16,185,129,0.18)_0%,#000000_58%,#000000_100%)',
-        accent: 'text-cyan-300 drop-shadow-[0_0_24px_rgba(34,211,238,0.35)]',
-        lvClass: 'text-cyan-300 drop-shadow-[0_0_28px_rgba(34,211,238,0.45)]',
+        halo: 'radial-gradient(circle_at_center,rgba(205,127,50,0.2)_0%,#050505_60%,#050505_100%)',
+        accent: 'text-[#CD7F32] drop-shadow-[0_0_26px_rgba(205,127,50,0.42)]',
+        lvClass: 'text-[#CD7F32] drop-shadow-[0_0_30px_rgba(205,127,50,0.45)]',
       };
     }
     if (roadmapLevel <= 7) {
       return {
         phaseName: '숙련자',
-        halo: 'radial-gradient(circle_at_center,rgba(34,197,94,0.28)_0%,#000000_58%,#000000_100%)',
-        accent: 'text-violet-300 drop-shadow-[0_0_26px_rgba(196,181,253,0.4)]',
-        lvClass: 'text-violet-300 drop-shadow-[0_0_30px_rgba(196,181,253,0.5)]',
+        halo: 'radial-gradient(circle_at_center,rgba(192,192,192,0.2)_0%,#050505_60%,#050505_100%)',
+        accent: 'text-[#C0C0C0] drop-shadow-[0_0_26px_rgba(192,192,192,0.44)]',
+        lvClass: 'text-[#C0C0C0] drop-shadow-[0_0_30px_rgba(192,192,192,0.48)]',
       };
     }
     if (roadmapLevel <= 9) {
       return {
         phaseName: '엘리트',
-        halo: 'radial-gradient(circle_at_center,rgba(251,191,36,0.18)_0%,rgba(255,255,255,0.03)_38%,#000000_66%,#000000_100%)',
-        accent: 'text-amber-200 drop-shadow-[0_0_26px_rgba(251,191,36,0.45)]',
-        lvClass: 'text-amber-200 drop-shadow-[0_0_32px_rgba(251,191,36,0.5)]',
+        halo: 'radial-gradient(circle_at_center,rgba(251,191,36,0.24)_0%,rgba(255,255,255,0.04)_36%,#050505_66%,#050505_100%)',
+        accent: 'text-[#FBBF24] drop-shadow-[0_0_28px_rgba(251,191,36,0.5)]',
+        lvClass: 'text-[#FBBF24] drop-shadow-[0_0_34px_rgba(251,191,36,0.54)]',
       };
     }
     return {
       phaseName: '챌린저',
-      halo: 'radial-gradient(circle_at_center,rgba(220,38,38,0.32)_0%,rgba(120,0,0,0.2)_34%,#000000_66%,#000000_100%)',
-      accent: 'text-red-600 drop-shadow-[0_0_15px_rgba(220,38,38,0.8)]',
-      lvClass: 'text-red-600 drop-shadow-[0_0_40px_rgba(239,68,68,0.6)]',
+      halo: 'radial-gradient(circle_at_center,rgba(239,68,68,0.34)_0%,rgba(120,0,0,0.24)_34%,#050505_66%,#050505_100%)',
+      accent: 'text-[#EF4444] drop-shadow-[0_0_20px_rgba(239,68,68,0.75)]',
+      lvClass: 'text-[#EF4444] drop-shadow-[0_0_40px_rgba(239,68,68,0.6)]',
     };
   }, [roadmapLevel]);
   const currentPhaseKey = useMemo(() => {
@@ -170,11 +171,18 @@ export default function AthleteStatus({
         .from('master_exam_requests')
         .select('id,status')
         .eq('user_id', memberId)
-        .eq('status', 'pending')
-        .limit(1);
+        .order('created_at', { ascending: false })
+        .limit(5);
       if (cancelled) return;
       if (error) return;
-      setMasterExamPending(Boolean((data || []).length > 0));
+      const rows = Array.isArray(data) ? data : [];
+      setMasterExamPending(rows.some((row) => String(row.status || '').toLowerCase() === 'pending'));
+      setMasterAchieved(
+        rows.some((row) => {
+          const s = String(row.status || '').toLowerCase();
+          return s === 'approved' || s === 'passed' || s === 'master' || s === 'completed';
+        })
+      );
     })();
     return () => {
       cancelled = true;
@@ -319,7 +327,7 @@ export default function AthleteStatus({
   }, [titleDefinitions, titleRows]);
 
   return (
-    <div className="relative overflow-hidden bg-black text-white">
+    <div className="relative overflow-hidden bg-[#050505] text-white [font-family:Urbanist,sans-serif]">
       <LevelUpEpicFX triggerKey={epicLevelUpKey} />
 
       <div
@@ -342,7 +350,7 @@ export default function AthleteStatus({
             <span
               className={`block text-8xl font-black leading-none tracking-tight tabular-nums ${phaseTheme.lvClass}`}
             >
-              LV. {roadmapLevel}
+              {roadmapLevel === 10 && masterAchieved ? '마스터' : `LV. ${roadmapLevel}`}
             </span>
             <button
               type="button"
@@ -356,6 +364,11 @@ export default function AthleteStatus({
         </Motion.div>
 
         <p className={`mt-3 text-[10px] font-medium tracking-[0.22em] ${phaseTheme.accent}`}>{phaseTheme.phaseName}</p>
+        {roadmapLevel === 10 && masterAchieved ? (
+          <p className="mt-2 text-sm tracking-wide text-purple-300/90 drop-shadow-[0_0_20px_rgba(168,85,247,0.5)]">
+            완전한 자립에 도달한 자, 이제 스스로 길을 증명한다.
+          </p>
+        ) : null}
         {String(localCurrentTitle || '').trim() ? (
           <p className="mt-4 text-2xl font-bold tracking-tight text-transparent bg-gradient-to-r from-zinc-200 via-white to-zinc-200 bg-clip-text">
             「{String(localCurrentTitle).trim()}」
@@ -378,7 +391,7 @@ export default function AthleteStatus({
           <p className="mt-2 text-xs leading-relaxed text-white/45">{String(currentLevelGuide.description)}</p>
         ) : null}
 
-        {roadmapLevel === 10 ? (
+        {roadmapLevel === 10 && !masterAchieved ? (
           <button
             type="button"
             disabled={masterExamPending || masterExamSubmitting}

@@ -301,8 +301,8 @@ export default function MemberStatusTab({ userId, profile, stats, memberLevel, o
   };
 
   return (
-    <div className="flex flex-col gap-12 xl:flex-row xl:items-start xl:gap-12">
-      <div className="min-w-0 flex-1 rounded-3xl bg-[#030303] p-4">
+    <div className="flex flex-col gap-12 xl:flex-row xl:items-start xl:gap-12 [font-family:Urbanist,sans-serif]">
+      <div className="min-w-0 flex-1 rounded-3xl bg-[#050505] p-4">
         <div className="rounded-2xl border border-white/5 bg-zinc-900/40 p-6 shadow-2xl backdrop-blur-xl">
           <div className="border-b border-white/10 pb-5">
             <h2 className="text-zinc-400 text-xs font-bold uppercase tracking-widest">조정 패널</h2>
