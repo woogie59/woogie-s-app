@@ -644,7 +644,7 @@ export default function App() {
       setDashboardBookings((prev) =>
         prev.map((b) => (b.id === id ? { ...b, status: 'completed' } : b))
       );
-      showToast('수업 완료 처리되었습니다.');
+      showToast('수업이 완료 처리되었습니다.');
       closeCalendarActionModal();
     } catch (e) {
       console.error('[admin_update_session_status]', e);
@@ -663,7 +663,7 @@ export default function App() {
       if (error) throw error;
       setDashboardBookings((prev) => prev.filter((b) => b.id !== id));
       closeCalendarActionModal();
-      showToast('일정이 캘린더에서 삭제되었습니다.');
+      showToast('일정이 취소(삭제)되었습니다.');
       emitSessionBalanceRefresh();
     } catch (e) {
       console.error('[bookings delete]', e);
@@ -950,13 +950,16 @@ export default function App() {
                       <div className="flex items-start justify-between gap-3">
                         <div className="min-w-0">
                           <p className="text-[10px] font-medium uppercase tracking-[0.32em] text-emerald-400/80">
-                            예약 상세
+                            일정 관리 (Schedule Management)
                           </p>
                           <p className="mt-2 text-lg font-semibold tracking-tight text-white">
                             {calendarActionModal.userName}
                           </p>
                           <p className="mt-1 text-sm text-white/55">
                             {calendarActionModal.date} · {calendarActionModal.time}
+                          </p>
+                          <p className="mt-2 text-xs leading-relaxed text-white/45">
+                            해당 일정의 수업을 완료(출석/노쇼) 처리하거나, 일정을 캘린더에서 취소할 수 있습니다.
                           </p>
                         </div>
                         <button
@@ -974,7 +977,7 @@ export default function App() {
                           type="button"
                           disabled={calendarActionBusy}
                           onClick={completeBookingFromCalendar}
-                          className="rounded-xl border border-emerald-400/30 bg-emerald-500/15 px-4 py-3 text-sm font-bold text-emerald-100 transition hover:bg-emerald-500/20 disabled:opacity-40"
+                          className="rounded-xl border border-emerald-300/40 bg-emerald-500/30 px-4 py-3 text-sm font-black text-emerald-50 shadow-[0_0_20px_rgba(16,185,129,0.35)] transition hover:bg-emerald-500/40 disabled:opacity-40"
                         >
                           수업 완료 처리
                         </button>
@@ -982,9 +985,17 @@ export default function App() {
                           type="button"
                           disabled={calendarActionBusy}
                           onClick={cancelBookingFromCalendar}
-                          className="rounded-xl border border-white/15 bg-transparent px-4 py-3 text-sm font-semibold text-white/80 transition hover:border-red-400/40 hover:text-red-200 disabled:opacity-40"
+                          className="rounded-xl border border-red-300/35 bg-transparent px-4 py-3 text-sm font-semibold text-red-200/90 transition hover:bg-red-500/10 disabled:opacity-40"
                         >
                           일정 취소
+                        </button>
+                        <button
+                          type="button"
+                          disabled={calendarActionBusy}
+                          onClick={closeCalendarActionModal}
+                          className="rounded-xl px-4 py-2 text-sm font-medium text-white/60 transition hover:text-white disabled:opacity-40"
+                        >
+                          닫기
                         </button>
                       </div>
                     </div>
