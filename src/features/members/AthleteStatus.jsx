@@ -59,38 +59,53 @@ export default function AthleteStatus({
   const [loadingTitleDefinitions, setLoadingTitleDefinitions] = useState(false);
   const [localCurrentTitle, setLocalCurrentTitle] = useState(() => String(memberTitle || '').trim());
   const [equippingTitle, setEquippingTitle] = useState('');
+  const [currentLevelGuide, setCurrentLevelGuide] = useState(null);
+  const [loadingCurrentGuide, setLoadingCurrentGuide] = useState(false);
+  const [canApplyMasterExam, setCanApplyMasterExam] = useState(false);
+  const [isMasterExamModalOpen, setIsMasterExamModalOpen] = useState(false);
+  const [masterExamSubmitting, setMasterExamSubmitting] = useState(false);
+  const [masterExamPending, setMasterExamPending] = useState(false);
   const touchStartYRef = useRef(null);
   const titleTouchStartYRef = useRef(null);
   const rawLv = Number(memberLevel) || 1;
   const roadmapLevel = Math.min(ROADMAP_MAX, Math.max(1, rawLv));
   const isMaxLevel = roadmapLevel === ROADMAP_MAX;
   const phaseTheme = useMemo(() => {
-    if (roadmapLevel <= 3) {
+    // Tier names (final)
+    if (roadmapLevel <= 2) {
       return {
-        phaseName: '기틀 (Foundation)',
+        phaseName: '초심자',
         halo: 'radial-gradient(circle_at_center,rgba(156,163,175,0.16)_0%,#000000_58%,#000000_100%)',
         accent: 'text-gray-300',
         lvGradient: 'from-white to-gray-400',
       };
     }
-    if (roadmapLevel <= 5) {
+    if (roadmapLevel <= 4) {
       return {
-        phaseName: '통제 (Alignment)',
+        phaseName: '수행자',
         halo: 'radial-gradient(circle_at_center,rgba(16,185,129,0.18)_0%,#000000_58%,#000000_100%)',
         accent: 'text-emerald-300',
         lvGradient: 'from-emerald-100 to-emerald-400',
       };
     }
-    if (roadmapLevel <= 7) {
+    if (roadmapLevel <= 6) {
       return {
-        phaseName: '발현 (Performance)',
+        phaseName: '숙련자',
         halo: 'radial-gradient(circle_at_center,rgba(34,197,94,0.28)_0%,#000000_58%,#000000_100%)',
         accent: 'text-lime-300',
         lvGradient: 'from-lime-100 to-green-400',
       };
     }
+    if (roadmapLevel <= 8) {
+      return {
+        phaseName: '엘리트',
+        halo: 'radial-gradient(circle_at_center,rgba(251,191,36,0.18)_0%,rgba(255,255,255,0.03)_38%,#000000_66%,#000000_100%)',
+        accent: 'text-amber-200',
+        lvGradient: 'from-white to-amber-300',
+      };
+    }
     return {
-      phaseName: '초월 (Autonomy)',
+      phaseName: '챌린저',
       halo: 'radial-gradient(circle_at_center,rgba(251,191,36,0.26)_0%,rgba(255,255,255,0.05)_38%,#000000_64%,#000000_100%)',
       accent: 'text-amber-200',
       lvGradient: 'from-white to-amber-300',
@@ -110,6 +125,87 @@ export default function AthleteStatus({
   useEffect(() => {
     setLocalCurrentTitle(String(memberTitle || '').trim());
   }, [memberTitle]);
+
+  useEffect(() => {
+    if (!memberId) {
+      setCanApplyMasterExam(false);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      const { data, error } = await supabase.auth.getSession();
+      if (cancelled) return;
+      if (error) {
+        setCanApplyMasterExam(false);
+        return;
+      }
+      const uid = data?.session?.user?.id;
+      setCanApplyMasterExam(Boolean(uid && uid === memberId));
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [memberId]);
+
+  useEffect(() => {
+    if (!memberId || roadmapLevel == null) return;
+    let cancelled = false;
+    (async () => {
+      setLoadingCurrentGuide(true);
+      const { data, error } = await supabase
+        .from('roadmap_guides')
+        .select('level,title,description')
+        .eq('level', roadmapLevel)
+        .maybeSingle();
+      if (cancelled) return;
+      setLoadingCurrentGuide(false);
+      if (error) {
+        console.error('[AthleteStatus] roadmap_guides (level)', error);
+        setCurrentLevelGuide(null);
+        return;
+      }
+      setCurrentLevelGuide(data ?? null);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [memberId, roadmapLevel]);
+
+  useEffect(() => {
+    if (!memberId || roadmapLevel !== 10 || !canApplyMasterExam) return;
+    let cancelled = false;
+    (async () => {
+      const { data, error } = await supabase
+        .from('master_exam_requests')
+        .select('id,status')
+        .eq('user_id', memberId)
+        .eq('status', 'pending')
+        .limit(1);
+      if (cancelled) return;
+      if (error) return;
+      setMasterExamPending(Boolean((data || []).length > 0));
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [memberId, roadmapLevel, canApplyMasterExam]);
+
+  const submitMasterExamRequest = async () => {
+    if (!canApplyMasterExam) return;
+    setMasterExamSubmitting(true);
+    try {
+      const { error } = await supabase.rpc('apply_for_master_exam');
+      if (error) throw error;
+      setMasterExamPending(true);
+      setIsMasterExamModalOpen(false);
+      toast.success('마스터 심사 신청이 접수되었습니다.');
+    } catch (e) {
+      console.error('[apply_for_master_exam]', e);
+      toast.error(e?.message ? `신청 실패: ${e.message}` : '신청에 실패했습니다.');
+    } finally {
+      setMasterExamSubmitting(false);
+    }
+  };
 
   useEffect(() => {
     if (!isRoadmapOpen) {
@@ -386,6 +482,22 @@ export default function AthleteStatus({
         <p className="mt-2 text-[11px] font-medium tracking-[0.12em] text-white/35">
           {subtitle}
         </p>
+        {loadingCurrentGuide ? (
+          <p className="mt-2 text-xs text-white/35">레벨 기준 불러오는 중...</p>
+        ) : currentLevelGuide?.description ? (
+          <p className="mt-2 text-xs leading-relaxed text-white/45">{String(currentLevelGuide.description)}</p>
+        ) : null}
+
+        {roadmapLevel === 10 && canApplyMasterExam ? (
+          <button
+            type="button"
+            disabled={masterExamPending}
+            onClick={() => setIsMasterExamModalOpen(true)}
+            className="mt-4 w-full rounded-2xl border border-yellow-400/40 bg-black px-4 py-3 font-serif text-sm font-semibold tracking-wide text-yellow-100 shadow-[0_0_22px_rgba(234,179,8,0.25)] transition hover:border-yellow-300/60 disabled:opacity-50"
+          >
+            {masterExamPending ? '심사 대기 중...' : '👑 마스터(졸업) 심사 신청'}
+          </button>
+        ) : null}
       </div>
 
       {isRoadmapOpen ? (
@@ -609,6 +721,44 @@ export default function AthleteStatus({
                   </div>
                 ))
               )}
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {isMasterExamModalOpen ? (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4 backdrop-blur-xl"
+          role="dialog"
+          aria-modal="true"
+          aria-label="마스터 심사 신청 확인"
+          onClick={() => (masterExamSubmitting ? null : setIsMasterExamModalOpen(false))}
+        >
+          <div
+            className="w-full max-w-sm rounded-2xl border border-white/10 bg-zinc-950/95 p-5 text-white shadow-[0_24px_90px_-12px_rgba(0,0,0,0.7)]"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <p className="text-[10px] font-medium uppercase tracking-[0.32em] text-amber-300/90">마스터 심사</p>
+            <p className="mt-3 text-sm leading-relaxed text-white/75">
+              마스터(졸업) 심사를 신청하시겠습니까? 신청 시 권태욱 트레이너에게 알림이 전송되며, 실기 심사가 진행됩니다.
+            </p>
+            <div className="mt-5 grid grid-cols-1 gap-3">
+              <button
+                type="button"
+                disabled={masterExamSubmitting}
+                onClick={submitMasterExamRequest}
+                className="rounded-xl border border-yellow-300/45 bg-yellow-500/15 px-4 py-3 text-sm font-bold text-yellow-100 shadow-[0_0_18px_rgba(234,179,8,0.25)] transition hover:bg-yellow-500/20 disabled:opacity-40"
+              >
+                {masterExamSubmitting ? '처리 중...' : '신청하기'}
+              </button>
+              <button
+                type="button"
+                disabled={masterExamSubmitting}
+                onClick={() => setIsMasterExamModalOpen(false)}
+                className="rounded-xl px-4 py-2 text-sm font-medium text-white/60 transition hover:text-white disabled:opacity-40"
+              >
+                닫기
+              </button>
             </div>
           </div>
         </div>
