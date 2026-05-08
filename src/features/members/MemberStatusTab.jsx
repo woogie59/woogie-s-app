@@ -22,7 +22,7 @@ function getTitleName(row) {
   return String(row?.name ?? row?.title ?? '').trim();
 }
 
-export default function MemberStatusTab({ userId, profile, stats, memberLevel, onRefresh, onMemberLevelSynced }) {
+export default function MemberStatusTab({ userId, profile, stats, memberLevel, onRefresh, onMemberLevelSynced, onExitAthlete }) {
   const [saving, setSaving] = useState(false);
   const [selectedLevel, setSelectedLevel] = useState('');
   const [customComment, setCustomComment] = useState('');
@@ -42,6 +42,14 @@ export default function MemberStatusTab({ userId, profile, stats, memberLevel, o
   });
   const [committedTitle, setCommittedTitle] = useState(() => String(profile?.current_title ?? ''));
   const [ledgerRefreshKey, setLedgerRefreshKey] = useState(0);
+
+  if (!profile || !userId) {
+    return (
+      <div className="min-h-[60vh] bg-[#050505] [font-family:Urbanist,sans-serif] px-6 py-10 text-center text-zinc-400">
+        <p className="text-sm tracking-wide">회원 데이터가 유실되어 아틀리트 화면을 종료합니다.</p>
+      </div>
+    );
+  }
 
   const fetchOwnedTitles = async () => {
     if (!userId) {
@@ -301,7 +309,19 @@ export default function MemberStatusTab({ userId, profile, stats, memberLevel, o
   };
 
   return (
-    <div className="flex flex-col gap-12 xl:flex-row xl:items-start xl:gap-12 [font-family:Urbanist,sans-serif]">
+    <div className="animate-in fade-in zoom-in-95 duration-700 ease-out [font-family:Urbanist,sans-serif]">
+      <div className="sticky top-0 z-20 mb-4 flex items-center justify-between border-b border-white/10 bg-[#050505]/85 px-2 py-3 backdrop-blur-xl">
+        <button
+          type="button"
+          onClick={() => onExitAthlete?.()}
+          className="text-sm font-semibold tracking-wide text-zinc-400 transition-colors hover:text-white"
+        >
+          {'< 돌아가기'}
+        </button>
+        <p className="text-xs font-bold uppercase tracking-widest text-zinc-500">아틀리트 시스템</p>
+      </div>
+
+      <div className="flex flex-col gap-12 xl:flex-row xl:items-start xl:gap-12">
       <div className="min-w-0 flex-1 rounded-3xl bg-[#050505] p-4">
         <div className="rounded-2xl border border-white/5 bg-zinc-900/40 p-6 shadow-2xl backdrop-blur-xl">
           <div className="border-b border-white/10 pb-5">
@@ -488,6 +508,7 @@ export default function MemberStatusTab({ userId, profile, stats, memberLevel, o
             </div>
           </div>
         </MemberPhoneMirror>
+      </div>
       </div>
     </div>
   );

@@ -888,6 +888,22 @@ export default function App() {
               <MemberDetail selectedMemberId={selectedMemberId} goBack={goBack} />
             </AdminRoute>
           )}
+          {view === 'member_detail' && !selectedMemberId && (
+            <AdminRoute session={session} replaceView={replaceView}>
+              <div className="min-h-[100dvh] flex items-center justify-center bg-[#050505] px-6 text-zinc-300">
+                <div className="rounded-2xl border border-white/10 bg-zinc-900/40 p-6 text-center backdrop-blur-xl">
+                  <p className="text-sm tracking-wide">회원 상태가 유실되어 목록으로 이동합니다.</p>
+                  <button
+                    type="button"
+                    onClick={() => navigate('member_list')}
+                    className="mt-4 rounded-lg border border-white/10 bg-zinc-800/50 px-4 py-2 text-sm text-zinc-200 transition hover:bg-zinc-700/50"
+                  >
+                    회원 목록으로
+                  </button>
+                </div>
+              </div>
+            </AdminRoute>
+          )}
 
           {/* QR 스캐너 */}
           {view === 'scanner' && (

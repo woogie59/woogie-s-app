@@ -7,6 +7,23 @@ import BackButton from '../../components/ui/BackButton';
 import AddSessionModal from './AddSessionModal';
 import MemberStatusTab from './MemberStatusTab';
 
+function FallbackRedirectToMain({ goBack }) {
+  useEffect(() => {
+    const t = window.setTimeout(() => {
+      goBack?.();
+    }, 300);
+    return () => window.clearTimeout(t);
+  }, [goBack]);
+
+  return (
+    <div className="min-h-[100dvh] bg-[#050505] flex items-center justify-center px-6 text-zinc-300 [font-family:Urbanist,sans-serif]">
+      <div className="rounded-2xl border border-white/10 bg-zinc-900/40 p-6 text-center backdrop-blur-xl">
+        <p className="text-sm tracking-wide">데이터가 없어 메인 화면으로 이동합니다.</p>
+      </div>
+    </div>
+  );
+}
+
 const MemberDetail = ({ selectedMemberId, goBack }) => {
   const [u, setU] = useState(null);
   const [batches, setBatches] = useState([]);
@@ -18,6 +35,7 @@ const MemberDetail = ({ selectedMemberId, goBack }) => {
   const [isMemoSaving, setIsMemoSaving] = useState(false);
   const [memoSavedFlash, setMemoSavedFlash] = useState(false);
   const [detailTab, setDetailTab] = useState('overview');
+  const [showAthleteEntryModal, setShowAthleteEntryModal] = useState(false);
   const [memberStats, setMemberStats] = useState([]);
 
   const fetchMemberStats = useCallback(async () => {
@@ -129,6 +147,10 @@ const MemberDetail = ({ selectedMemberId, goBack }) => {
     window.setTimeout(() => setMemoSavedFlash(false), 1200);
   }, [u, memoDraft]);
 
+  if (!selectedMemberId) {
+    return <FallbackRedirectToMain goBack={goBack} />;
+  }
+
   if (!u)
     return (
       <div className="min-h-[100dvh] bg-white flex items-center justify-center text-neutral-400 text-sm">불러오는 중…</div>
@@ -159,7 +181,7 @@ const MemberDetail = ({ selectedMemberId, goBack }) => {
         </button>
         <button
           type="button"
-          onClick={() => setDetailTab('status')}
+          onClick={() => setShowAthleteEntryModal(true)}
           className={`flex-1 rounded-lg py-2.5 transition-colors ${
             detailTab === 'status' ? 'bg-white text-neutral-950 shadow-sm' : 'text-neutral-500 hover:text-neutral-800'
           }`}
@@ -177,6 +199,7 @@ const MemberDetail = ({ selectedMemberId, goBack }) => {
           onMemberLevelSynced={(nextLevel) => {
             setU((prev) => (prev ? { ...prev, member_level: nextLevel } : prev));
           }}
+          onExitAthlete={() => setDetailTab('overview')}
           onRefresh={async () => {
             await fetchMemberStats();
             const { data: userData } = await supabase.from('profiles').select('*').eq('id', selectedMemberId).single();
@@ -330,6 +353,43 @@ const MemberDetail = ({ selectedMemberId, goBack }) => {
           onSaved={fetchMemberDetails}
         />
       )}
+
+      {showAthleteEntryModal ? (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4 backdrop-blur-xl"
+          role="dialog"
+          aria-modal="true"
+          aria-label="아틀리트 명예의 전당 입장"
+          onClick={() => setShowAthleteEntryModal(false)}
+        >
+          <div
+            className="w-full max-w-sm rounded-2xl border border-white/10 bg-zinc-900/40 p-6 text-white shadow-2xl backdrop-blur-xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <p className="text-xs font-bold uppercase tracking-widest text-zinc-300">아틀리트 명예의 전당</p>
+            <p className="mt-3 text-sm text-zinc-200">명예의 전당에 입장하시겠습니까?</p>
+            <div className="mt-6 grid grid-cols-2 gap-3">
+              <button
+                type="button"
+                onClick={() => {
+                  setDetailTab('status');
+                  setShowAthleteEntryModal(false);
+                }}
+                className="rounded-xl border border-amber-300/45 bg-gradient-to-r from-amber-700/40 to-emerald-700/40 px-3 py-2 text-sm font-semibold text-amber-100 transition hover:opacity-90"
+              >
+                입장
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowAthleteEntryModal(false)}
+                className="rounded-xl border border-white/10 bg-zinc-800/50 px-3 py-2 text-sm font-medium text-zinc-300 transition hover:bg-zinc-700/50"
+              >
+                돌아가기
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 };
