@@ -6,21 +6,42 @@ import LevelUpEpicFX from './LevelUpEpicFX';
 
 const ROADMAP_MAX = 10;
 const DEFAULT_LEVEL_PHASES = [
-  { id: 'phase-1', phase_order: 1, title: '1단계', level_range: 'Lv.1-3', description: '인지 - 기본 가동 범위 확보 및 운동 용어 이해' },
-  { id: 'phase-2', phase_order: 2, title: '2단계', level_range: 'Lv.4-5', description: '안정 - 코어 안정성 및 7대 기초 패턴 완벽 수행' },
-  { id: 'phase-3', phase_order: 3, title: '3단계', level_range: 'Lv.6-7', description: '근력 - 자기 체중 비례 중량 통제 및 루틴 변형' },
-  { id: 'phase-4', phase_order: 4, title: '4단계', level_range: 'Lv.8-9', description: '숙달 - RPE 통제 및 컨디션별 프로그램 최적화' },
-  { id: 'phase-5', phase_order: 5, title: '10레벨', level_range: 'Lv.10', description: '자립 - 완벽한 독립. 자가 루틴 설계 및 기술적 마스터' },
+  {
+    id: 'tier-1',
+    phase_order: 1,
+    title: '[ 1계급 ] 초심자',
+    level_range: 'Lv.1',
+    description: '운동의 필요성을 체감하고 열정에 불을 붙이는 첫걸음.',
+  },
+  {
+    id: 'tier-2',
+    phase_order: 2,
+    title: '[ 2계급 ] 수행자',
+    level_range: 'Lv.2~4',
+    description: '운동 동작의 목적과 관절의 궤적을 이해하는 단계.',
+  },
+  {
+    id: 'tier-3',
+    phase_order: 3,
+    title: '[ 3계급 ] 숙련자',
+    level_range: 'Lv.5~7',
+    description: '조건: 칭호 1개 이상 / 정확한 타겟 자극, 기본 체력과 절대 근력 장착.',
+  },
+  {
+    id: 'tier-4',
+    phase_order: 4,
+    title: '[ 4계급 ] 엘리트',
+    level_range: 'Lv.8~9',
+    description: '조건: 칭호 2개 이상 / 스스로 자세 교정 및 타인에게 원리 설명 가능.',
+  },
+  {
+    id: 'tier-5',
+    phase_order: 5,
+    title: '[ 5계급 ] 챌린저',
+    level_range: 'Lv.10',
+    description: '조건: 칭호 3개 이상 / 고중량 통제 및 완벽한 자립. (마스터 심사 자격)',
+  },
 ];
-
-function toGuideDraft(row) {
-  return {
-    ...row,
-    title: String(row.title ?? ''),
-    level_range: String(row.level_range ?? ''),
-    description: String(row.description ?? ''),
-  };
-}
 
 function parseLevelRange(levelRangeText) {
   const nums = String(levelRangeText || '')
@@ -45,12 +66,6 @@ export default function AthleteStatus({
   epicLevelUpKey = 0,
 }) {
   const [isRoadmapOpen, setIsRoadmapOpen] = useState(false);
-  const [roadmapGuides, setRoadmapGuides] = useState(DEFAULT_LEVEL_PHASES);
-  const [guideDrafts, setGuideDrafts] = useState(DEFAULT_LEVEL_PHASES.map(toGuideDraft));
-  const [isRoadmapLoading, setIsRoadmapLoading] = useState(false);
-  const [isRoadmapSaving, setIsRoadmapSaving] = useState(false);
-  const [isRoadmapEditMode, setIsRoadmapEditMode] = useState(false);
-  const [isAdmin, setIsAdmin] = useState(false);
   // Title modal (member autonomy)
   const [isTitleModalOpen, setIsTitleModalOpen] = useState(false);
   const [titleRows, setTitleRows] = useState([]);
@@ -61,8 +76,6 @@ export default function AthleteStatus({
   const [equippingTitle, setEquippingTitle] = useState('');
   const [currentLevelGuide, setCurrentLevelGuide] = useState(null);
   const [loadingCurrentGuide, setLoadingCurrentGuide] = useState(false);
-  const [canApplyMasterExam, setCanApplyMasterExam] = useState(false);
-  const [isMasterExamModalOpen, setIsMasterExamModalOpen] = useState(false);
   const [masterExamSubmitting, setMasterExamSubmitting] = useState(false);
   const [masterExamPending, setMasterExamPending] = useState(false);
   const touchStartYRef = useRef(null);
@@ -71,13 +84,11 @@ export default function AthleteStatus({
   const roadmapLevel = Math.min(ROADMAP_MAX, Math.max(1, rawLv));
   const isMaxLevel = roadmapLevel === ROADMAP_MAX;
   const phaseTheme = useMemo(() => {
-    // Tier names (final)
-    if (roadmapLevel <= 2) {
+    if (roadmapLevel === 1) {
       return {
         phaseName: '초심자',
         halo: 'radial-gradient(circle_at_center,rgba(156,163,175,0.16)_0%,#000000_58%,#000000_100%)',
         accent: 'text-gray-300',
-        lvGradient: 'from-white to-gray-400',
       };
     }
     if (roadmapLevel <= 4) {
@@ -85,67 +96,42 @@ export default function AthleteStatus({
         phaseName: '수행자',
         halo: 'radial-gradient(circle_at_center,rgba(16,185,129,0.18)_0%,#000000_58%,#000000_100%)',
         accent: 'text-emerald-300',
-        lvGradient: 'from-emerald-100 to-emerald-400',
       };
     }
-    if (roadmapLevel <= 6) {
+    if (roadmapLevel <= 7) {
       return {
         phaseName: '숙련자',
         halo: 'radial-gradient(circle_at_center,rgba(34,197,94,0.28)_0%,#000000_58%,#000000_100%)',
         accent: 'text-lime-300',
-        lvGradient: 'from-lime-100 to-green-400',
       };
     }
-    if (roadmapLevel <= 8) {
+    if (roadmapLevel <= 9) {
       return {
         phaseName: '엘리트',
         halo: 'radial-gradient(circle_at_center,rgba(251,191,36,0.18)_0%,rgba(255,255,255,0.03)_38%,#000000_66%,#000000_100%)',
         accent: 'text-amber-200',
-        lvGradient: 'from-white to-amber-300',
       };
     }
     return {
       phaseName: '챌린저',
-      halo: 'radial-gradient(circle_at_center,rgba(251,191,36,0.26)_0%,rgba(255,255,255,0.05)_38%,#000000_64%,#000000_100%)',
-      accent: 'text-amber-200',
-      lvGradient: 'from-white to-amber-300',
+      halo: 'radial-gradient(circle_at_center,rgba(220,38,38,0.32)_0%,rgba(120,0,0,0.2)_34%,#000000_66%,#000000_100%)',
+      accent: 'text-red-600 drop-shadow-[0_0_15px_rgba(220,38,38,0.8)]',
     };
   }, [roadmapLevel]);
   const currentPhaseKey = useMemo(() => {
-    const found = roadmapGuides.find((phase) => {
+    const found = DEFAULT_LEVEL_PHASES.find((phase) => {
       const parsed = parseLevelRange(phase.level_range);
       if (!parsed) return false;
       return roadmapLevel >= parsed.min && roadmapLevel <= parsed.max;
     });
     return found?.id ?? null;
-  }, [roadmapGuides, roadmapLevel]);
+  }, [roadmapLevel]);
 
   const closeRoadmap = () => setIsRoadmapOpen(false);
 
   useEffect(() => {
     setLocalCurrentTitle(String(memberTitle || '').trim());
   }, [memberTitle]);
-
-  useEffect(() => {
-    if (!memberId) {
-      setCanApplyMasterExam(false);
-      return;
-    }
-    let cancelled = false;
-    (async () => {
-      const { data, error } = await supabase.auth.getSession();
-      if (cancelled) return;
-      if (error) {
-        setCanApplyMasterExam(false);
-        return;
-      }
-      const uid = data?.session?.user?.id;
-      setCanApplyMasterExam(Boolean(uid && uid === memberId));
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [memberId]);
 
   useEffect(() => {
     if (!memberId || roadmapLevel == null) return;
@@ -172,7 +158,7 @@ export default function AthleteStatus({
   }, [memberId, roadmapLevel]);
 
   useEffect(() => {
-    if (!memberId || roadmapLevel !== 10 || !canApplyMasterExam) return;
+    if (!memberId || roadmapLevel !== 10) return;
     let cancelled = false;
     (async () => {
       const { data, error } = await supabase
@@ -188,17 +174,17 @@ export default function AthleteStatus({
     return () => {
       cancelled = true;
     };
-  }, [memberId, roadmapLevel, canApplyMasterExam]);
+  }, [memberId, roadmapLevel]);
 
   const submitMasterExamRequest = async () => {
-    if (!canApplyMasterExam) return;
+    const ok = window.confirm('마스터(졸업) 심사를 신청하시겠습니까?');
+    if (!ok) return;
     setMasterExamSubmitting(true);
     try {
       const { error } = await supabase.rpc('apply_for_master_exam');
       if (error) throw error;
       setMasterExamPending(true);
-      setIsMasterExamModalOpen(false);
-      toast.success('마스터 심사 신청이 접수되었습니다.');
+      toast.success('심사 요청이 완료되었습니다.');
     } catch (e) {
       console.error('[apply_for_master_exam]', e);
       toast.error(e?.message ? `신청 실패: ${e.message}` : '신청에 실패했습니다.');
@@ -206,63 +192,6 @@ export default function AthleteStatus({
       setMasterExamSubmitting(false);
     }
   };
-
-  useEffect(() => {
-    if (!isRoadmapOpen) {
-      setIsRoadmapEditMode(false);
-      return;
-    }
-
-    let cancelled = false;
-    const loadRoadmap = async () => {
-      setIsRoadmapLoading(true);
-      try {
-        const [{ data: guides, error: guidesError }, { data: sessionData, error: sessionError }] = await Promise.all([
-          supabase.from('roadmap_guides').select('*').order('phase_order', { ascending: true }),
-          supabase.auth.getSession(),
-        ]);
-        if (cancelled) return;
-        if (guidesError) throw guidesError;
-        if (sessionError) throw sessionError;
-
-        const normalized = (guides || []).map((row, index) => ({
-          id: row.id ?? `row-${index}`,
-          phase_order: row.phase_order ?? index + 1,
-          title: String(row.title ?? ''),
-          level_range: String(row.level_range ?? ''),
-          description: String(row.description ?? ''),
-        }));
-        if (normalized.length > 0) {
-          setRoadmapGuides(normalized);
-          setGuideDrafts(normalized.map(toGuideDraft));
-        }
-
-        const uid = sessionData?.session?.user?.id;
-        if (!uid) {
-          setIsAdmin(false);
-          return;
-        }
-        const { data: prof, error: profErr } = await supabase
-          .from('profiles')
-          .select('role')
-          .eq('id', uid)
-          .maybeSingle();
-        if (cancelled) return;
-        if (profErr) throw profErr;
-        setIsAdmin((prof?.role || '') === 'admin');
-      } catch (e) {
-        console.error('[AthleteStatus] roadmap load', e);
-        toast.error('레벨 가이드를 불러오지 못했습니다.');
-      } finally {
-        if (!cancelled) setIsRoadmapLoading(false);
-      }
-    };
-
-    loadRoadmap();
-    return () => {
-      cancelled = true;
-    };
-  }, [isRoadmapOpen]);
 
   useEffect(() => {
     if (!isRoadmapOpen) return;
@@ -377,50 +306,6 @@ export default function AthleteStatus({
     });
   }, [titleDefinitions, titleRows]);
 
-  const onGuideDraftChange = (id, key, value) => {
-    setGuideDrafts((prev) => prev.map((item) => (item.id === id ? { ...item, [key]: value } : item)));
-  };
-
-  const saveRoadmapGuides = async () => {
-    if (!isAdmin) return;
-    setIsRoadmapSaving(true);
-    try {
-      for (const item of guideDrafts) {
-        const payload = {
-          title: item.title,
-          level_range: item.level_range,
-          description: item.description,
-        };
-        const { error } = await supabase.from('roadmap_guides').update(payload).eq('id', item.id);
-        if (error) throw error;
-      }
-
-      const { data, error } = await supabase
-        .from('roadmap_guides')
-        .select('*')
-        .order('phase_order', { ascending: true });
-      if (error) throw error;
-
-      const normalized = (data || []).map((row, index) => ({
-        id: row.id ?? `row-${index}`,
-        phase_order: row.phase_order ?? index + 1,
-        title: String(row.title ?? ''),
-        level_range: String(row.level_range ?? ''),
-        description: String(row.description ?? ''),
-      }));
-
-      setRoadmapGuides(normalized.length > 0 ? normalized : DEFAULT_LEVEL_PHASES);
-      setGuideDrafts((normalized.length > 0 ? normalized : DEFAULT_LEVEL_PHASES).map(toGuideDraft));
-      setIsRoadmapEditMode(false);
-      toast.success('가이드라인이 성공적으로 업데이트되었습니다.');
-    } catch (e) {
-      console.error('[AthleteStatus] roadmap save', e);
-      toast.error('가이드라인 저장에 실패했습니다.');
-    } finally {
-      setIsRoadmapSaving(false);
-    }
-  };
-
   return (
     <div className="relative overflow-hidden bg-black text-white">
       <LevelUpEpicFX triggerKey={epicLevelUpKey} />
@@ -429,7 +314,7 @@ export default function AthleteStatus({
         className="pointer-events-none absolute left-1/2 top-[58%] h-[min(90%,380px)] w-[min(100%,360px)] -translate-x-1/2 -translate-y-1/2"
         style={{
           background: isMaxLevel
-            ? 'radial-gradient(circle_at_center,rgba(250,204,21,0.36)_0%,rgba(255,255,255,0.14)_28%,#000000_66%,#000000_100%)'
+            ? 'radial-gradient(circle_at_center,rgba(220,38,38,0.3)_0%,rgba(120,0,0,0.22)_34%,#000000_66%,#000000_100%)'
             : phaseTheme.halo,
         }}
       />
@@ -443,17 +328,14 @@ export default function AthleteStatus({
         >
           <div className="flex items-center justify-center gap-2">
             <span
-              className={`block text-6xl font-black leading-none tracking-tight text-transparent bg-clip-text bg-gradient-to-b ${phaseTheme.lvGradient} tabular-nums ${
-                isMaxLevel ? 'drop-shadow-[0_0_18px_rgba(250,204,21,0.75)]' : ''
+              className={`block text-6xl font-black leading-none tracking-tight tabular-nums ${
+                isMaxLevel
+                  ? 'text-red-600 drop-shadow-[0_0_15px_rgba(220,38,38,0.8)]'
+                  : 'text-transparent bg-clip-text bg-gradient-to-b from-white to-zinc-300'
               }`}
             >
               LV. {roadmapLevel}
             </span>
-            {isMaxLevel ? (
-              <span className="rounded-full border border-amber-300/55 bg-amber-200/15 px-2 py-1 text-[10px] font-bold tracking-[0.18em] text-amber-100 shadow-[0_0_14px_rgba(251,191,36,0.45)]">
-                👑 MAX
-              </span>
-            ) : null}
             <button
               type="button"
               aria-label="레벨 가이드 열기"
@@ -488,14 +370,14 @@ export default function AthleteStatus({
           <p className="mt-2 text-xs leading-relaxed text-white/45">{String(currentLevelGuide.description)}</p>
         ) : null}
 
-        {roadmapLevel === 10 && canApplyMasterExam ? (
+        {roadmapLevel === 10 ? (
           <button
             type="button"
-            disabled={masterExamPending}
-            onClick={() => setIsMasterExamModalOpen(true)}
-            className="mt-4 w-full rounded-2xl border border-yellow-400/40 bg-black px-4 py-3 font-serif text-sm font-semibold tracking-wide text-yellow-100 shadow-[0_0_22px_rgba(234,179,8,0.25)] transition hover:border-yellow-300/60 disabled:opacity-50"
+            disabled={masterExamPending || masterExamSubmitting}
+            onClick={submitMasterExamRequest}
+            className="mt-4 w-full rounded-2xl border border-red-500/60 bg-black px-4 py-3 font-serif text-sm font-semibold tracking-wide text-red-100 shadow-[0_0_24px_rgba(220,38,38,0.35)] transition hover:border-yellow-400/60 hover:shadow-[0_0_22px_rgba(234,179,8,0.24)] disabled:opacity-50"
           >
-            {masterExamPending ? '심사 대기 중...' : '👑 마스터(졸업) 심사 신청'}
+            {masterExamPending ? '심사 대기 중...' : '[ 👑 마스터(졸업) 심사 요청 ]'}
           </button>
         ) : null}
       </div>
@@ -534,35 +416,12 @@ export default function AthleteStatus({
             <p className="text-[10px] font-medium uppercase tracking-[0.32em] text-emerald-400/80">
               레벨 가이드
             </p>
-            {isAdmin ? (
-              <button
-                type="button"
-                onClick={() => {
-                  if (isRoadmapEditMode) {
-                    saveRoadmapGuides();
-                    return;
-                  }
-                  setIsRoadmapEditMode(true);
-                }}
-                disabled={isRoadmapLoading || isRoadmapSaving}
-                className={`absolute right-12 top-4 text-[11px] font-medium tracking-wide transition ${
-                  isRoadmapEditMode
-                    ? 'text-emerald-300 drop-shadow-[0_0_8px_rgba(16,185,129,0.5)] hover:text-emerald-200'
-                    : 'text-white/60 hover:text-white'
-                } disabled:opacity-40`}
-              >
-                {isRoadmapEditMode ? '저장' : '수정'}
-              </button>
-            ) : null}
             <p className="mt-2 text-sm leading-7 text-white/70">
-              현재 레벨의 의미를 단계별 로드맵으로 확인하세요.
+              현재 레벨의 계급 위치를 확인하세요.
             </p>
 
             <div className="mt-4 space-y-2.5">
-              {isRoadmapLoading ? (
-                <p className="py-8 text-center text-xs tracking-wide text-white/45">가이드 로딩 중...</p>
-              ) : null}
-              {(isRoadmapEditMode ? guideDrafts : roadmapGuides).map((phase) => {
+              {DEFAULT_LEVEL_PHASES.map((phase) => {
                 const isCurrent = phase.id === currentPhaseKey;
                 return (
                   <div
@@ -570,40 +429,14 @@ export default function AthleteStatus({
                     className={`rounded-xl border px-3 py-3 transition-all ${
                       isCurrent
                         ? 'border-emerald-400/60 bg-emerald-900/20 opacity-100 shadow-[0_0_22px_rgba(16,185,129,0.35)]'
-                        : 'border-white/10 bg-white/[0.02] opacity-40'
+                        : 'border-white/10 bg-white/[0.02] opacity-55'
                     }`}
                   >
                     <div className="flex items-center justify-between gap-3">
-                      {isRoadmapEditMode && isAdmin ? (
-                        <>
-                          <input
-                            value={phase.title}
-                            onChange={(e) => onGuideDraftChange(phase.id, 'title', e.target.value)}
-                            className="w-[62%] rounded-lg border border-white/10 bg-black/40 px-2.5 py-1.5 text-xs text-white outline-none focus:border-emerald-400/60"
-                          />
-                          <input
-                            value={phase.level_range}
-                            onChange={(e) => onGuideDraftChange(phase.id, 'level_range', e.target.value)}
-                            className="w-[34%] rounded-lg border border-white/10 bg-black/40 px-2.5 py-1.5 text-[10px] uppercase tracking-[0.16em] text-white/80 outline-none focus:border-emerald-400/60"
-                          />
-                        </>
-                      ) : (
-                        <>
-                          <p className="text-xs font-semibold tracking-wide text-white">{phase.title}</p>
-                          <span className="text-[10px] uppercase tracking-[0.2em] text-white/50">{phase.level_range}</span>
-                        </>
-                      )}
+                      <p className="text-xs font-semibold tracking-wide text-white">{phase.title}</p>
+                      <span className="text-[10px] uppercase tracking-[0.2em] text-white/50">{phase.level_range}</span>
                     </div>
-                    {isRoadmapEditMode && isAdmin ? (
-                      <textarea
-                        rows={2}
-                        value={phase.description}
-                        onChange={(e) => onGuideDraftChange(phase.id, 'description', e.target.value)}
-                        className="mt-2 w-full resize-none rounded-lg border border-white/10 bg-black/40 px-2.5 py-2 text-xs leading-6 text-white/90 outline-none focus:border-emerald-400/60"
-                      />
-                    ) : (
-                      <p className="mt-1.5 text-xs leading-6 text-white/75">{phase.description}</p>
-                    )}
+                    <p className="mt-1.5 text-xs leading-6 text-white/75">{phase.description}</p>
                     {isCurrent ? (
                       <p className="mt-2 text-[10px] font-medium uppercase tracking-[0.22em] text-emerald-300">
                         현재 위치
@@ -721,44 +554,6 @@ export default function AthleteStatus({
                   </div>
                 ))
               )}
-            </div>
-          </div>
-        </div>
-      ) : null}
-
-      {isMasterExamModalOpen ? (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4 backdrop-blur-xl"
-          role="dialog"
-          aria-modal="true"
-          aria-label="마스터 심사 신청 확인"
-          onClick={() => (masterExamSubmitting ? null : setIsMasterExamModalOpen(false))}
-        >
-          <div
-            className="w-full max-w-sm rounded-2xl border border-white/10 bg-zinc-950/95 p-5 text-white shadow-[0_24px_90px_-12px_rgba(0,0,0,0.7)]"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <p className="text-[10px] font-medium uppercase tracking-[0.32em] text-amber-300/90">마스터 심사</p>
-            <p className="mt-3 text-sm leading-relaxed text-white/75">
-              마스터(졸업) 심사를 신청하시겠습니까? 신청 시 권태욱 트레이너에게 알림이 전송되며, 실기 심사가 진행됩니다.
-            </p>
-            <div className="mt-5 grid grid-cols-1 gap-3">
-              <button
-                type="button"
-                disabled={masterExamSubmitting}
-                onClick={submitMasterExamRequest}
-                className="rounded-xl border border-yellow-300/45 bg-yellow-500/15 px-4 py-3 text-sm font-bold text-yellow-100 shadow-[0_0_18px_rgba(234,179,8,0.25)] transition hover:bg-yellow-500/20 disabled:opacity-40"
-              >
-                {masterExamSubmitting ? '처리 중...' : '신청하기'}
-              </button>
-              <button
-                type="button"
-                disabled={masterExamSubmitting}
-                onClick={() => setIsMasterExamModalOpen(false)}
-                className="rounded-xl px-4 py-2 text-sm font-medium text-white/60 transition hover:text-white disabled:opacity-40"
-              >
-                닫기
-              </button>
             </div>
           </div>
         </div>

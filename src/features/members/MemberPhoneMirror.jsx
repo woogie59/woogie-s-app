@@ -23,7 +23,7 @@ export default function MemberPhoneMirror({ children, label = 'Live Member Mirro
             <div className="pointer-events-none absolute -left-0.5 top-[32%] z-0 h-16 w-[3px] rounded-r-sm bg-zinc-700/90" />
 
             <div className="max-h-[min(72vh,640px)] overflow-y-auto overflow-x-hidden overscroll-contain [scrollbar-width:thin]">
-              <div className="min-h-full bg-black px-3 pb-10 pt-11">{children}</div>
+              <div className="min-h-full bg-black px-3 pb-40 pt-11">{children}</div>
             </div>
           </div>
         </div>
