@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { Crown, ChevronRight } from 'lucide-react';
 import { supabase } from '../../lib/supabaseClient';
+import toast from 'react-hot-toast';
 
 export default function HallOfFameHub({ setView, setSelectedMemberId, goBack }) {
   const [members, setMembers] = useState([]);
@@ -52,6 +53,10 @@ export default function HallOfFameHub({ setView, setSelectedMemberId, goBack }) 
               key={m.id}
               type="button"
               onClick={() => {
+                if ((m.name || '').trim() !== '테스트용1') {
+                  toast('현재 명예의 전당 테스트는 테스트용1 계정만 입장 가능합니다.');
+                  return;
+                }
                 setSelectedMemberId(m.id);
                 sessionStorage.setItem('hall_of_fame_member_id', m.id);
                 setView('hall_of_fame_member');

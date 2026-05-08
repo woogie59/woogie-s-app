@@ -78,16 +78,36 @@ const AdminHome = ({ setView, logout, onOpenTrainingLog }) => {
     setPendingMasterExamLoading(true);
     const { data, error } = await supabase
       .from('master_exam_requests')
-      .select('id, user_id, status, created_at, profiles(name)')
-      .eq('status', 'pending')
+      .select('id, user_id, status, created_at')
+      .ilike('status', 'pending')
       .order('created_at', { ascending: false });
-    setPendingMasterExamLoading(false);
     if (error) {
       console.warn('[AdminHome] master_exam_requests', error);
       setPendingMasterExamRequests([]);
+      setPendingMasterExamLoading(false);
       return;
     }
-    setPendingMasterExamRequests(Array.isArray(data) ? data : []);
+    const rows = Array.isArray(data) ? data : [];
+    const userIds = [...new Set(rows.map((r) => r?.user_id).filter(Boolean))];
+    if (userIds.length === 0) {
+      setPendingMasterExamRequests([]);
+      setPendingMasterExamLoading(false);
+      return;
+    }
+
+    const { data: profileRows, error: profileError } = await supabase
+      .from('profiles')
+      .select('id,name')
+      .in('id', userIds);
+    if (profileError) {
+      console.warn('[AdminHome] profiles for exam requests', profileError);
+      setPendingMasterExamRequests(rows);
+      setPendingMasterExamLoading(false);
+      return;
+    }
+    const nameById = new Map((profileRows || []).map((p) => [p.id, p.name]));
+    setPendingMasterExamRequests(rows.map((row) => ({ ...row, profiles: { name: nameById.get(row.user_id) || '회원' } })));
+    setPendingMasterExamLoading(false);
   }, []);
 
   const loadUnscheduledVipRadar = useCallback(async () => {

@@ -3,6 +3,7 @@ import { Plus, Settings2 } from 'lucide-react';
 import { supabase } from '../../lib/supabaseClient';
 import { fetchSessionBalanceMetrics } from '../../utils/sessionHelpers';
 import { SESSION_BALANCE_REFRESH_EVENT } from '../../utils/sessionBalanceEvents';
+import toast from 'react-hot-toast';
 import BackButton from '../../components/ui/BackButton';
 import AddSessionModal from './AddSessionModal';
 import MemberStatusTab from './MemberStatusTab';
@@ -168,6 +169,8 @@ const MemberDetail = ({ selectedMemberId, goBack, startInStatusMode = false, onE
       <div className="min-h-[100dvh] bg-white flex items-center justify-center text-neutral-400 text-sm">불러오는 중…</div>
     );
 
+  const canEnterHallOfFame = String(u?.name || '').trim() === '테스트용1';
+
   return (
     <div
       className={`min-h-[100dvh] bg-white text-neutral-950 px-6 py-10 pb-24 mx-auto w-full ${
@@ -193,7 +196,13 @@ const MemberDetail = ({ selectedMemberId, goBack, startInStatusMode = false, onE
         </button>
         <button
           type="button"
-          onClick={() => setShowAthleteEntryModal(true)}
+          onClick={() => {
+            if (!canEnterHallOfFame) {
+              toast('현재 명예의 전당 테스트는 테스트용1 계정만 허용됩니다.');
+              return;
+            }
+            setShowAthleteEntryModal(true);
+          }}
           className={`flex-1 rounded-lg py-2.5 transition-colors ${
             detailTab === 'status' ? 'bg-white text-neutral-950 shadow-sm' : 'text-neutral-500 hover:text-neutral-800'
           }`}
@@ -202,7 +211,7 @@ const MemberDetail = ({ selectedMemberId, goBack, startInStatusMode = false, onE
         </button>
       </div>
 
-      {detailTab === 'status' ? (
+      {detailTab === 'status' && canEnterHallOfFame ? (
         <MemberStatusTab
           userId={selectedMemberId}
           profile={u}
