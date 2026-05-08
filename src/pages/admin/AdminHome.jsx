@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { motion } from 'framer-motion';
-import { LogOut, Users, Calendar, Archive, NotebookPen, ChevronDown, Table2, Bell } from 'lucide-react';
+import { LogOut, Users, Calendar, Archive, NotebookPen, ChevronDown, Table2 } from 'lucide-react';
 import { supabase } from '../../lib/supabaseClient';
 import { fetchMembersBalanceSummaries, fetchSessionBalanceMetrics } from '../../utils/sessionHelpers';
 import LabDotBrand from '../../components/ui/LabDotBrand';
@@ -44,71 +44,13 @@ const VISIBLE_UNCONFIRMED = 1;
 /** MVP: 지식창고(라이브러리)·트레이닝 일지 메뉴 비표시 — 라우트/컴포넌트는 유지 */
 const MVP_HIDE_LIBRARY_AND_TRAINING_NAV = true;
 
-function MasterExamNotification({ count = 0, loading = false, onClick }) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className="relative inline-flex items-center gap-2 rounded-xl border border-amber-300/35 bg-amber-500/10 px-2.5 py-1.5 text-xs font-semibold text-amber-700 transition hover:bg-amber-500/15"
-      aria-label="마스터 심사 요청 알림"
-      title="마스터 심사 요청 확인"
-    >
-      <Bell size={14} strokeWidth={2} />
-      <span>{loading ? '심사 요청 확인 중...' : `심사 ${count}건`}</span>
-      {count > 0 ? (
-        <span className="absolute -right-1 -top-1 inline-flex min-w-[18px] items-center justify-center rounded-full bg-red-600 px-1.5 py-0.5 text-[10px] font-black text-white shadow-[0_0_12px_rgba(220,38,38,0.7)]">
-          {count}
-        </span>
-      ) : null}
-    </button>
-  );
-}
-
 const AdminHome = ({ setView, logout, onOpenTrainingLog }) => {
   const [unscheduledVips, setUnscheduledVips] = useState([]);
   const [radarLoading, setRadarLoading] = useState(true);
   const [unconfirmedExpanded, setUnconfirmedExpanded] = useState(false);
   const [lowCreditAlert, setLowCreditAlert] = useState(null);
   const [overview, setOverview] = useState({ total: 0, active: 0, unbooked: 0 });
-  const [pendingMasterExamRequests, setPendingMasterExamRequests] = useState([]);
-  const [pendingMasterExamLoading, setPendingMasterExamLoading] = useState(false);
   const realtimeToastTimerRef = useRef(null);
-
-  const loadPendingMasterExamRequests = useCallback(async () => {
-    setPendingMasterExamLoading(true);
-    const { data, error } = await supabase
-      .from('master_exam_requests')
-      .select('id, user_id, status, created_at')
-      .ilike('status', 'pending')
-      .order('created_at', { ascending: false });
-    if (error) {
-      console.warn('[AdminHome] master_exam_requests', error);
-      setPendingMasterExamRequests([]);
-      setPendingMasterExamLoading(false);
-      return;
-    }
-    const rows = Array.isArray(data) ? data : [];
-    const userIds = [...new Set(rows.map((r) => r?.user_id).filter(Boolean))];
-    if (userIds.length === 0) {
-      setPendingMasterExamRequests([]);
-      setPendingMasterExamLoading(false);
-      return;
-    }
-
-    const { data: profileRows, error: profileError } = await supabase
-      .from('profiles')
-      .select('id,name')
-      .in('id', userIds);
-    if (profileError) {
-      console.warn('[AdminHome] profiles for exam requests', profileError);
-      setPendingMasterExamRequests(rows);
-      setPendingMasterExamLoading(false);
-      return;
-    }
-    const nameById = new Map((profileRows || []).map((p) => [p.id, p.name]));
-    setPendingMasterExamRequests(rows.map((row) => ({ ...row, profiles: { name: nameById.get(row.user_id) || '회원' } })));
-    setPendingMasterExamLoading(false);
-  }, []);
 
   const loadUnscheduledVipRadar = useCallback(async () => {
     setRadarLoading(true);
@@ -181,22 +123,6 @@ const AdminHome = ({ setView, logout, onOpenTrainingLog }) => {
   useEffect(() => {
     loadUnscheduledVipRadar();
   }, [loadUnscheduledVipRadar]);
-
-  useEffect(() => {
-    void loadPendingMasterExamRequests();
-  }, [loadPendingMasterExamRequests]);
-
-  useEffect(() => {
-    const ch = supabase
-      .channel('master-exam-channel')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'master_exam_requests' }, () => {
-        void loadPendingMasterExamRequests();
-      })
-      .subscribe();
-    return () => {
-      supabase.removeChannel(ch);
-    };
-  }, [loadPendingMasterExamRequests]);
 
   const loadLatestLowCreditAlert = useCallback(async () => {
     const { data, error } = await supabase
@@ -323,18 +249,6 @@ const AdminHome = ({ setView, logout, onOpenTrainingLog }) => {
     [onOpenTrainingLog, setView]
   );
 
-  const jumpToMasterExamRequests = useCallback(() => {
-    const node = typeof document !== 'undefined' ? document.getElementById('master-exam-requests') : null;
-    if (node && typeof node.scrollIntoView === 'function') {
-      node.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      return;
-    }
-    if (pendingMasterExamRequests.length > 0) {
-      const names = pendingMasterExamRequests.map((row) => row?.profiles?.name || '회원').join(', ');
-      toast(`대기 중인 마스터 심사: ${pendingMasterExamRequests.length}건 (${names})`, { icon: '🔔' });
-    }
-  }, [pendingMasterExamRequests]);
-
   return (
     <div className="min-h-[100dvh] bg-gray-50 text-slate-900 flex flex-col font-sans relative pb-safe">
       <header className="grid grid-cols-[1fr_auto_1fr] items-start gap-2 p-6 shrink-0 bg-gray-50">
@@ -344,11 +258,6 @@ const AdminHome = ({ setView, logout, onOpenTrainingLog }) => {
           <p className="mt-1 text-[10px] uppercase tracking-[0.2em] text-gray-400">Manager Mode</p>
         </div>
         <div className="flex items-center justify-end gap-2 pt-0.5">
-          <MasterExamNotification
-            count={pendingMasterExamRequests.length}
-            loading={pendingMasterExamLoading}
-            onClick={jumpToMasterExamRequests}
-          />
           <button type="button" onClick={logout} aria-label="Log out" className="rounded-lg p-1.5 transition-colors hover:bg-gray-100/80">
             <LogOut size={20} strokeWidth={ICON_STROKE} className="text-gray-600" />
           </button>
@@ -385,42 +294,6 @@ const AdminHome = ({ setView, logout, onOpenTrainingLog }) => {
           </div>
         </section>
       )}
-
-      <section id="master-exam-requests" className="w-full max-w-lg mx-auto px-6 pb-3">
-        <div className="w-full rounded-2xl border border-amber-200/30 bg-gradient-to-b from-white to-amber-50 p-4 shadow-sm">
-          <div className="flex items-start justify-between gap-3">
-            <div>
-              <p className="text-[11px] font-semibold tracking-[0.12em] text-amber-700 uppercase flex items-center gap-2">
-                <Bell size={14} strokeWidth={2} />
-                심사 요청
-              </p>
-              {pendingMasterExamLoading ? (
-                <p className="mt-1 text-sm text-amber-900/70">불러오는 중...</p>
-              ) : pendingMasterExamRequests.length > 0 ? (
-                <>
-                  <p className="mt-1 text-sm font-semibold text-amber-900">
-                    {pendingMasterExamRequests.length}건의 마스터 심사 요청이 있습니다!
-                  </p>
-                  <ul className="mt-2 space-y-1">
-                    {pendingMasterExamRequests.slice(0, 6).map((r) => (
-                      <li key={r.id} className="text-sm text-amber-900/80">
-                        - {r.profiles?.name || '회원'}
-                      </li>
-                    ))}
-                  </ul>
-                </>
-              ) : (
-                <p className="mt-1 text-sm text-amber-900/70">대기 중인 심사 요청이 없습니다.</p>
-              )}
-            </div>
-            {pendingMasterExamRequests.length > 0 ? (
-              <div className="shrink-0 rounded-full bg-amber-600 px-2.5 py-1 text-xs font-bold text-white">
-                {pendingMasterExamRequests.length}
-              </div>
-            ) : null}
-          </div>
-        </div>
-      </section>
 
       {/* 일정 미확정 회원 — full-width data card (no in-app scheduling action) */}
       <section className="w-full max-w-lg mx-auto px-6 pb-5">

@@ -574,6 +574,17 @@ const ClientHome = ({ user, logout, setView }) => {
 
         {/* 2. Open schedule flow */}
         <div className="flex flex-col gap-5 pb-2">
+          {String(profile?.name || '').trim() === '테스트용1' ? (
+            <button
+              type="button"
+              onClick={() => setView('hall_of_fame_member_self')}
+              className="w-full rounded-2xl border border-amber-300/35 bg-gradient-to-r from-zinc-900 to-black px-4 py-4 text-left text-white shadow-[0_0_24px_rgba(0,0,0,0.45)] transition-all duration-200 hover:border-amber-300/50 active:scale-[0.99]"
+            >
+              <p className="text-[11px] uppercase tracking-[0.16em] text-zinc-400">Hall of Fame</p>
+              <p className="mt-1 text-sm font-semibold tracking-tight">명예의 전당 입장</p>
+            </button>
+          ) : null}
+
           <button
             type="button"
             onClick={() => setView('class_booking')}

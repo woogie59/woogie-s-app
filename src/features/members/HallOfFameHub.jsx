@@ -6,6 +6,9 @@ import toast from 'react-hot-toast';
 export default function HallOfFameHub({ setView, setSelectedMemberId, goBack }) {
   const [members, setMembers] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [pendingExams, setPendingExams] = useState([]);
+  const [loadingPendingExams, setLoadingPendingExams] = useState(false);
+  const [examActionBusyId, setExamActionBusyId] = useState('');
 
   const fetchMembers = useCallback(async () => {
     setLoading(true);
@@ -27,6 +30,78 @@ export default function HallOfFameHub({ setView, setSelectedMemberId, goBack }) 
     fetchMembers();
   }, [fetchMembers]);
 
+  const fetchPendingExams = useCallback(async () => {
+    setLoadingPendingExams(true);
+    // Prefer SECURITY DEFINER RPC (RLS-safe). Fallback to direct read.
+    const rpcRes = await supabase.rpc('get_pending_exams');
+    if (!rpcRes.error) {
+      const rows = Array.isArray(rpcRes.data) ? rpcRes.data : [];
+      setPendingExams(rows);
+      setLoadingPendingExams(false);
+      return;
+    }
+
+    const { data, error } = await supabase
+      .from('master_exam_requests')
+      .select('id, user_id, status, created_at, profiles(name)')
+      .ilike('status', 'pending')
+      .order('created_at', { ascending: false });
+    if (error) {
+      console.error('[HallOfFameHub] pending exams', error);
+      setPendingExams([]);
+      setLoadingPendingExams(false);
+      return;
+    }
+    setPendingExams(Array.isArray(data) ? data : []);
+    setLoadingPendingExams(false);
+  }, []);
+
+  useEffect(() => {
+    fetchPendingExams();
+  }, [fetchPendingExams]);
+
+  useEffect(() => {
+    const ch = supabase
+      .channel('hall-of-fame-exam-queue')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'master_exam_requests' }, () => {
+        void fetchPendingExams();
+      })
+      .subscribe();
+    return () => {
+      supabase.removeChannel(ch);
+    };
+  }, [fetchPendingExams]);
+
+  const approveExam = async (requestId) => {
+    const id = String(requestId || '');
+    if (!id) return;
+    setExamActionBusyId(id);
+    const { error } = await supabase.from('master_exam_requests').update({ status: 'approved' }).eq('id', id);
+    if (error) {
+      toast.error(`승인 실패: ${error.message || String(error)}`);
+      setExamActionBusyId('');
+      return;
+    }
+    toast.success('마스터 심사를 승인했습니다.');
+    setExamActionBusyId('');
+    await fetchPendingExams();
+  };
+
+  const rejectExam = async (requestId) => {
+    const id = String(requestId || '');
+    if (!id) return;
+    setExamActionBusyId(id);
+    const { error } = await supabase.from('master_exam_requests').delete().eq('id', id);
+    if (error) {
+      toast.error(`반려 실패: ${error.message || String(error)}`);
+      setExamActionBusyId('');
+      return;
+    }
+    toast.success('심사 요청을 반려했습니다.');
+    setExamActionBusyId('');
+    await fetchPendingExams();
+  };
+
   return (
     <div className="min-h-[100dvh] bg-[#050505] px-6 py-8 text-white [font-family:Urbanist,sans-serif]">
       <button
@@ -42,6 +117,47 @@ export default function HallOfFameHub({ setView, setSelectedMemberId, goBack }) 
         <p className="mt-2 text-sm text-zinc-500">다크 매터 컨트롤 허브에서 회원을 선택하세요.</p>
       </div>
 
+      <div className="mt-6 rounded-2xl border border-white/5 bg-zinc-900/40 p-6 shadow-2xl backdrop-blur-xl">
+        <p className="text-xs font-bold uppercase tracking-widest text-zinc-400">마스터 심사 대기열</p>
+        {loadingPendingExams ? (
+          <p className="mt-2 text-sm text-zinc-500">불러오는 중...</p>
+        ) : pendingExams.length === 0 ? (
+          <p className="mt-2 text-sm text-zinc-500">대기 중인 마스터 심사가 없습니다.</p>
+        ) : (
+          <div className="mt-3 space-y-2">
+            {pendingExams.map((row) => {
+              const pending = examActionBusyId === String(row.id);
+              return (
+                <div key={row.id} className="rounded-xl border border-white/10 bg-black/35 p-3">
+                  <p className="text-sm font-semibold text-zinc-100">{row?.profiles?.name || row?.name || '회원'}</p>
+                  <p className="mt-0.5 text-xs text-zinc-500">
+                    {row?.created_at ? new Date(row.created_at).toLocaleString('ko-KR') : ''}
+                  </p>
+                  <div className="mt-3 grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      disabled={pending}
+                      onClick={() => approveExam(row.id)}
+                      className="rounded-lg border border-amber-300/35 bg-amber-900/25 px-3 py-2 text-sm font-semibold text-amber-100 transition hover:bg-amber-800/30 disabled:opacity-40"
+                    >
+                      승인
+                    </button>
+                    <button
+                      type="button"
+                      disabled={pending}
+                      onClick={() => rejectExam(row.id)}
+                      className="rounded-lg border border-red-300/30 bg-red-950/20 px-3 py-2 text-sm font-semibold text-red-200 transition hover:bg-red-900/30 disabled:opacity-40"
+                    >
+                      반려
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
       <div className="mt-6 space-y-3">
         {loading ? (
           <p className="text-sm text-zinc-500">불러오는 중...</p>
@@ -53,10 +169,6 @@ export default function HallOfFameHub({ setView, setSelectedMemberId, goBack }) 
               key={m.id}
               type="button"
               onClick={() => {
-                if ((m.name || '').trim() !== '테스트용1') {
-                  toast('현재 명예의 전당 테스트는 테스트용1 계정만 입장 가능합니다.');
-                  return;
-                }
                 setSelectedMemberId(m.id);
                 sessionStorage.setItem('hall_of_fame_member_id', m.id);
                 setView('hall_of_fame_member');

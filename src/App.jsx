@@ -862,6 +862,14 @@ export default function App() {
 
               {/* 로그인 했을 때 보여줄 화면 (일반 회원) */}
               {session && view === 'client_home' && <ClientHome user={session.user} logout={handleLogout} setView={navigate} goBack={goBack} />}
+          {session && view === 'hall_of_fame_member_self' && (
+            <MemberDetail
+              selectedMemberId={session.user.id}
+              goBack={goBack}
+              startInStatusMode
+              fallbackToHub={false}
+            />
+          )}
 
           {/* 관리자 화면 (admin role 필수) */}
           {view === 'admin_home' && (
