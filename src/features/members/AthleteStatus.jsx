@@ -167,28 +167,25 @@ export default function AthleteStatus({
     if (!memberId) return;
     let cancelled = false;
     (async () => {
-      const { data, error } = await supabase
-        .from('master_exam_requests')
-        .select('status')
-        .eq('user_id', memberId)
-        .single();
+      const { data, error } = await supabase.rpc('get_master_exam_status', {
+        p_user_id: memberId,
+      });
       if (cancelled) return;
       if (error) {
-        // No row yet: keep idle. Any other error: log and keep idle.
-        if (error.code !== 'PGRST116') {
-          console.error('[AthleteStatus] master_exam_requests status load', error);
-        }
+        console.error('[AthleteStatus] get_master_exam_status', error);
         setExamStatus('idle');
         setMasterAchieved(false);
         return;
       }
-      const status = String(data?.status || '').toLowerCase();
+      const status = String(
+        typeof data === 'string' ? data : data?.status ?? data?.exam_status ?? 'none'
+      ).toLowerCase();
       if (status === 'pending') {
         setExamStatus('pending');
         setMasterAchieved(false);
         return;
       }
-      if (status === 'approved' || status === 'passed' || status === 'master' || status === 'completed') {
+      if (status === 'approved') {
         setExamStatus('approved');
         setMasterAchieved(true);
         return;
