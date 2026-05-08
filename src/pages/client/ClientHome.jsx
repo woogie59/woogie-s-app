@@ -59,6 +59,7 @@ const ClientHome = ({ user, logout, setView }) => {
   const [attendanceLogs, setAttendanceLogs] = useState([]);
   const [showHistory, setShowHistory] = useState(false);
   const [showCheckInDoneModal, setShowCheckInDoneModal] = useState(false);
+  const [showHallEntryModal, setShowHallEntryModal] = useState(false);
   const [cancelIntent, setCancelIntent] = useState(null);
   /** Most recent training log row (`client_session_reports`) for gateway teaser */
   const [latestReport, setLatestReport] = useState(null);
@@ -577,7 +578,7 @@ const ClientHome = ({ user, logout, setView }) => {
           {String(profile?.name || '').trim() === '테스트용1' ? (
             <button
               type="button"
-              onClick={() => setView('hall_of_fame_member_self')}
+              onClick={() => setShowHallEntryModal(true)}
               className="w-full rounded-2xl border border-amber-300/35 bg-gradient-to-r from-zinc-900 to-black px-4 py-4 text-left text-white shadow-[0_0_24px_rgba(0,0,0,0.45)] transition-all duration-200 hover:border-amber-300/50 active:scale-[0.99]"
             >
               <p className="text-[11px] uppercase tracking-[0.16em] text-zinc-400">Hall of Fame</p>
@@ -733,6 +734,48 @@ const ClientHome = ({ user, logout, setView }) => {
       <AnimatePresence>
         {showHistory && (
           <SessionHistoryModal user={user} onClose={() => setShowHistory(false)} />
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {showHallEntryModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-6 backdrop-blur-sm"
+            onClick={() => setShowHallEntryModal(false)}
+          >
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.98, y: 8 }}
+              transition={{ duration: 0.2, ease: 'easeOut' }}
+              className="w-full max-w-sm rounded-2xl border border-white/10 bg-[#0a0a0a] p-6 shadow-[0_20px_70px_rgba(0,0,0,0.7)]"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <p className="text-center text-sm tracking-[0.14em] text-zinc-300">명예의 전당에 입장하시겠습니까?</p>
+              <div className="mt-5 grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowHallEntryModal(false);
+                    setView('hall_of_fame_member_self');
+                  }}
+                  className="rounded-xl border border-amber-300/40 bg-amber-200/10 px-3 py-2.5 text-sm font-semibold text-amber-200 transition hover:bg-amber-200/20"
+                >
+                  입장
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowHallEntryModal(false)}
+                  className="rounded-xl border border-white/10 bg-white/5 px-3 py-2.5 text-sm font-semibold text-zinc-200 transition hover:bg-white/10"
+                >
+                  취소
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
         )}
       </AnimatePresence>
 

@@ -80,6 +80,7 @@ export default function AthleteStatus({
   memberTitle = '',
   subtitle = '아틀리트 상태',
   epicLevelUpKey = 0,
+  viewMode = 'admin',
 }) {
   const [isRoadmapOpen, setIsRoadmapOpen] = useState(false);
   // Title modal (member autonomy)
@@ -100,6 +101,7 @@ export default function AthleteStatus({
   const rawLv = Number(memberLevel) || 1;
   const roadmapLevel = Math.min(ROADMAP_MAX, Math.max(1, rawLv));
   const isMaxLevel = roadmapLevel === ROADMAP_MAX;
+  const isMemberIsolatedView = viewMode === 'member';
   const phaseTheme = useMemo(() => {
     if (roadmapLevel === 1) {
       return {
@@ -151,6 +153,23 @@ export default function AthleteStatus({
 
   const closeRoadmap = () => setIsRoadmapOpen(false);
 
+  const normalizeMasterExamError = (error) => {
+    const message = String(error?.message || '').toLowerCase();
+    if (message.includes('duplicate key') || message.includes('unique constraint')) {
+      return '이미 신청되었습니다.';
+    }
+    if (message.includes('칭호')) {
+      return '칭호가 부족합니다.';
+    }
+    if (message.includes('레벨') || message.includes('level')) {
+      return '레벨 조건을 충족하지 못했습니다.';
+    }
+    if (message.includes('pending')) {
+      return '이미 심사 대기 중입니다.';
+    }
+    return '심사 요청 처리 중 오류가 발생했습니다.';
+  };
+
   useEffect(() => {
     setLocalCurrentTitle(String(memberTitle || '').trim());
   }, [memberTitle]);
@@ -179,35 +198,45 @@ export default function AthleteStatus({
     };
   }, [memberId, roadmapLevel]);
 
-  useEffect(() => {
-    if (!memberId) return;
-    let cancelled = false;
-    (async () => {
-      const { data, error } = await supabase.rpc('get_master_exam_status', {
-        p_user_id: memberId,
-      });
-      if (cancelled) return;
-      if (error) {
-        console.error('[AthleteStatus] get_master_exam_status', error);
-        setExamStatus('idle');
-        setMasterAchieved(false);
-        return;
-      }
-      const status = String(
-        typeof data === 'string' ? data : data?.status ?? data?.exam_status ?? 'none'
-      ).toLowerCase();
-      if (status === 'pending') {
-        setExamStatus('pending');
-        setMasterAchieved(false);
-        return;
-      }
-      if (status === 'approved') {
-        setExamStatus('approved');
-        setMasterAchieved(true);
-        return;
-      }
+  const syncMasterExamStatus = async () => {
+    if (!memberId) {
       setExamStatus('idle');
       setMasterAchieved(false);
+      return 'idle';
+    }
+    const { data, error } = await supabase.rpc('get_master_exam_status', {
+      p_user_id: memberId,
+    });
+    if (error) {
+      console.error('[AthleteStatus] get_master_exam_status', error);
+      setExamStatus('idle');
+      setMasterAchieved(false);
+      return 'idle';
+    }
+    const status = String(
+      typeof data === 'string' ? data : data?.status ?? data?.exam_status ?? 'none'
+    ).toLowerCase();
+    if (status === 'pending') {
+      setExamStatus('pending');
+      setMasterAchieved(false);
+      return 'pending';
+    }
+    if (status === 'approved') {
+      setExamStatus('approved');
+      setMasterAchieved(true);
+      return 'approved';
+    }
+    setExamStatus('idle');
+    setMasterAchieved(false);
+    return 'idle';
+  };
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const next = await syncMasterExamStatus();
+      if (cancelled) return;
+      return next;
     })();
     return () => {
       cancelled = true;
@@ -219,10 +248,13 @@ export default function AthleteStatus({
       toast.error('회원 식별자가 없어 심사 요청을 진행할 수 없습니다.');
       return;
     }
-    const ok = window.confirm('마스터(졸업) 심사를 신청하시겠습니까?');
-    if (!ok) return;
     setMasterExamSubmitting(true);
     try {
+      const latestStatus = await syncMasterExamStatus();
+      if (latestStatus === 'pending') {
+        toast('이미 심사 대기 중입니다.');
+        return;
+      }
       const { error } = await supabase.rpc('apply_for_master_exam', {
         p_target_user: memberId,
       });
@@ -231,8 +263,7 @@ export default function AthleteStatus({
       toast.success('심사 요청이 완료되었습니다.');
     } catch (e) {
       console.error('[apply_for_master_exam]', e);
-      const message = e?.message ? String(e.message) : '신청 처리 중 오류가 발생했습니다.';
-      toast.error(`신청 실패: ${message}`);
+      toast.error(normalizeMasterExamError(e));
     } finally {
       setMasterExamSubmitting(false);
     }
@@ -364,25 +395,17 @@ export default function AthleteStatus({
         }}
       />
 
-      <div className="relative z-10 px-3 pt-5 text-center">
+      <div className="relative z-10 px-3 py-32 text-center">
         <Motion.div
           key={epicLevelUpKey}
           initial={epicLevelUpKey > 0 ? { scale: 0.96, opacity: 0.85 } : false}
           animate={{ scale: 1, opacity: 1 }}
           transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
         >
-          <div className="flex items-center justify-center gap-2">
-            <span className={`block text-8xl font-black leading-none tracking-tight tabular-nums ${phaseTheme.lvClass}`}>
+          <div className="flex items-center justify-center">
+            <span className={`block text-[8rem] font-black leading-none tracking-tighter tabular-nums ${phaseTheme.lvClass}`}>
               {roadmapLevel === 10 && masterAchieved ? '마스터' : `LV. ${roadmapLevel}`}
             </span>
-            <button
-              type="button"
-              aria-label="레벨 가이드 열기"
-              onClick={() => setIsRoadmapOpen(true)}
-              className="mt-1 text-xs font-semibold leading-none text-zinc-500 transition hover:text-zinc-300"
-            >
-              (i)
-            </button>
           </div>
         </Motion.div>
 
@@ -399,29 +422,44 @@ export default function AthleteStatus({
         ) : null}
         <button
           type="button"
+          aria-label="레벨 가이드 열기"
+          onClick={() => setIsRoadmapOpen(true)}
+          className="mt-5 inline-flex items-center justify-center px-6 py-3 rounded-full bg-white/5 border border-white/10 hover:bg-white/10 backdrop-blur-md transition-all text-xs tracking-[0.16em] text-white/85"
+        >
+          [ ✦ 아틀리트 계급 로드맵 ]
+        </button>
+        {!isMemberIsolatedView ? (
+        <button
+          type="button"
           onClick={() => setIsTitleModalOpen(true)}
           className="mt-2 text-[11px] tracking-[0.12em] text-zinc-500 transition hover:text-zinc-300"
         >
           [ ✦ 칭호 목록 ]
         </button>
+        ) : null}
+        {!isMemberIsolatedView ? (
         <p className="mt-3 text-sm font-light tracking-wide text-zinc-500">{memberName || '회원'}</p>
+        ) : null}
+        {!isMemberIsolatedView ? (
         <p className="mt-2 text-sm font-medium tracking-[0.12em] text-zinc-500">
           {subtitle}
         </p>
-        {loadingCurrentGuide ? (
+        ) : null}
+        {!isMemberIsolatedView && loadingCurrentGuide ? (
           <p className="mt-2 text-xs text-white/35">레벨 기준 불러오는 중...</p>
-        ) : currentLevelGuide?.description ? (
+        ) : null}
+        {!isMemberIsolatedView && !loadingCurrentGuide && currentLevelGuide?.description ? (
           <p className="mt-2 text-xs leading-relaxed text-white/45">{String(currentLevelGuide.description)}</p>
         ) : null}
 
-        {roadmapLevel === 10 && !masterAchieved ? (
+        {!isMemberIsolatedView && roadmapLevel === 10 && !masterAchieved ? (
           <button
             type="button"
             disabled={examStatus === 'pending' || masterExamSubmitting}
             onClick={submitMasterExamRequest}
             className="mt-4 w-full rounded-2xl border border-red-500/50 bg-red-950/30 px-4 py-3 font-serif text-sm font-semibold tracking-wide text-red-500 transition-all duration-300 hover:bg-red-900/50 disabled:opacity-50"
           >
-            {examStatus === 'pending' ? '심사 대기 중...' : '[ 👑 마스터(졸업) 심사 요청 ]'}
+            {examStatus === 'pending' ? '심사 대기 중' : '[ 👑 마스터(졸업) 심사 요청 ]'}
           </button>
         ) : null}
       </div>

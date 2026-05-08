@@ -72,6 +72,7 @@ export default function MemberAthleteView({ userId, goBack }) {
           memberTitle={profile.current_title ?? ''}
           subtitle="아틀리트 상태"
           epicLevelUpKey={animKey}
+          viewMode="member"
         />
       </div>
     </div>

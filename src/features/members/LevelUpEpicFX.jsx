@@ -18,13 +18,13 @@ export default function LevelUpEpicFX({ triggerKey }) {
             transition={{ duration: 0.35 }}
           >
             <Motion.div
-              className="absolute inset-[-40%] bg-[conic-gradient(from_210deg,rgba(34,197,94,0)_0deg,rgba(52,211,153,0.35)_90deg,rgba(16,185,129,0)_280deg)] opacity-90"
+              className="absolute inset-[-40%] bg-[conic-gradient(from_210deg,rgba(239,68,68,0)_0deg,rgba(239,68,68,0.28)_90deg,rgba(239,68,68,0)_280deg)] opacity-90"
               initial={{ rotate: -25, scale: 0.6, opacity: 0 }}
               animate={{ rotate: 40, scale: 1.25, opacity: 0.85 }}
               transition={{ duration: 0.9, ease: [0.16, 1, 0.3, 1] }}
             />
             <Motion.div
-              className="absolute h-[140%] w-[140%] rounded-full border-2 border-emerald-300/50 shadow-[0_0_60px_rgba(52,211,153,0.55)]"
+              className="absolute h-[140%] w-[140%] rounded-full border-2 border-red-400/50 shadow-[0_0_60px_rgba(239,68,68,0.45)]"
               initial={{ scale: 0.2, opacity: 0.9 }}
               animate={{ scale: 1.35, opacity: 0 }}
               transition={{ duration: 0.75, ease: 'easeOut' }}
@@ -41,9 +41,9 @@ export default function LevelUpEpicFX({ triggerKey }) {
               animate={{ scale: 1, y: 0, opacity: 1, filter: 'blur(0px)' }}
               transition={{ duration: 0.55, delay: 0.08, ease: [0.22, 1, 0.36, 1] }}
             >
-              <p className="text-[10px] font-bold uppercase tracking-[0.45em] text-emerald-200/90">Level Up</p>
-              <p className="mt-1 text-2xl font-black tracking-tight text-white drop-shadow-[0_0_24px_rgba(52,211,153,0.9)]">
-                성장 기록됨
+              <p className="text-[10px] font-bold uppercase tracking-[0.45em] text-red-200/90">Level Up</p>
+              <p className="mt-1 text-2xl font-black tracking-tight text-white drop-shadow-[0_0_24px_rgba(239,68,68,0.8)]">
+                상승 완료
               </p>
             </Motion.div>
           </Motion.div>
