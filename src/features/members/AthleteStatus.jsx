@@ -53,6 +53,22 @@ function parseLevelRange(levelRangeText) {
   return { min: Math.min(nums[0], nums[1]), max: Math.max(nums[0], nums[1]) };
 }
 
+function renderLevelRangeText(min, max) {
+  if (!Number.isFinite(min)) return 'LV.--';
+  if (!Number.isFinite(max) || min === max) return `LV.${min}`;
+  return `LV.${min}~${max}`;
+}
+
+function LevelFacetBadge({ text, className = '' }) {
+  return (
+    <span
+      className={`inline-flex items-center justify-center rounded-xl bg-gradient-to-br from-zinc-800 to-zinc-950 px-2.5 py-1 text-[10px] font-bold tracking-[0.18em] text-transparent bg-clip-text bg-gradient-to-r from-zinc-200 via-white to-zinc-300 border border-white/10 shadow-[inset_0_1px_0_rgba(255,255,255,0.1)] ${className}`}
+    >
+      {text}
+    </span>
+  );
+}
+
 function getTitleName(row) {
   return String(row?.name ?? row?.title ?? '').trim();
 }
@@ -356,9 +372,7 @@ export default function AthleteStatus({
           transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
         >
           <div className="flex items-center justify-center gap-2">
-            <span
-              className={`block text-8xl font-black leading-none tracking-tight tabular-nums ${phaseTheme.lvClass}`}
-            >
+            <span className={`block text-8xl font-black leading-none tracking-tight tabular-nums ${phaseTheme.lvClass}`}>
               {roadmapLevel === 10 && masterAchieved ? '마스터' : `LV. ${roadmapLevel}`}
             </span>
             <button
@@ -450,31 +464,45 @@ export default function AthleteStatus({
               현재 레벨의 계급 위치를 확인하세요.
             </p>
 
-            <div className="mt-4 space-y-2.5">
+            <div className="mt-4 rounded-2xl bg-black/40 p-2.5 backdrop-blur-2xl">
+              <div className="divide-y divide-white/5">
               {DEFAULT_LEVEL_PHASES.map((phase) => {
                 const isCurrent = phase.id === currentPhaseKey;
+                const parsed = parseLevelRange(phase.level_range);
+                const tierMin = parsed?.min ?? null;
+                const tierMax = parsed?.max ?? null;
+                const isLevel10Tier = tierMax === 10;
                 return (
                   <div
                     key={phase.id}
-                    className={`rounded-xl border px-3 py-3 transition-all ${
+                    className={`px-3 py-3 transition-all ${
                       isCurrent
-                        ? 'border-zinc-400/60 bg-zinc-700/20 opacity-100 shadow-[0_0_22px_rgba(161,161,170,0.35)]'
-                        : 'border-white/10 bg-white/[0.02] opacity-55'
+                        ? 'bg-zinc-700/15 opacity-100'
+                        : 'opacity-70'
                     }`}
                   >
-                    <div className="flex items-center justify-between gap-3">
-                      <p className="text-xs font-semibold tracking-wide text-white">{phase.title}</p>
-                      <span className="text-[10px] uppercase tracking-[0.2em] text-white/50">{phase.level_range}</span>
+                    <div className="flex items-center justify-between gap-3 py-0.5">
+                      <p
+                        className={`text-xs font-semibold tracking-widest ${
+                          isLevel10Tier
+                            ? 'text-red-600 drop-shadow-[0_0_20px_rgba(153,27,27,0.8)]'
+                            : 'text-zinc-100'
+                        }`}
+                      >
+                        {phase.title}
+                      </p>
+                      <LevelFacetBadge text={renderLevelRangeText(tierMin, tierMax)} />
                     </div>
-                    <p className="mt-1.5 text-xs leading-6 text-white/75">{phase.description}</p>
+                    <p className="mt-1.5 text-xs font-light leading-6 text-zinc-400">{phase.description}</p>
                     {isCurrent ? (
-                      <p className="mt-2 text-[10px] font-medium uppercase tracking-[0.22em] text-zinc-300">
+                      <p className="mt-2 text-[10px] font-medium uppercase tracking-widest text-zinc-300">
                         현재 위치
                       </p>
                     ) : null}
                   </div>
                 );
               })}
+              </div>
             </div>
           </div>
         </div>
