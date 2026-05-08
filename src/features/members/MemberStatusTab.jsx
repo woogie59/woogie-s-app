@@ -301,25 +301,25 @@ export default function MemberStatusTab({ userId, profile, stats, memberLevel, o
   };
 
   return (
-    <div className="flex flex-col gap-10 xl:flex-row xl:items-start xl:gap-10">
-      <div className="min-w-0 flex-1 rounded-3xl bg-[#030303] p-4 ring-1 ring-emerald-500/15">
-        <div className="rounded-2xl border border-white/10 bg-white/5 p-6 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] backdrop-blur-xl">
+    <div className="flex flex-col gap-12 xl:flex-row xl:items-start xl:gap-12">
+      <div className="min-w-0 flex-1 rounded-3xl bg-[#030303] p-4">
+        <div className="rounded-2xl border border-white/5 bg-zinc-900/40 p-6 shadow-2xl backdrop-blur-xl">
           <div className="border-b border-white/10 pb-5">
-            <h2 className="text-[10px] font-bold uppercase tracking-[0.35em] text-emerald-400/80">조정 패널</h2>
-            <p className="mt-2 text-sm leading-relaxed text-white/55">
+            <h2 className="text-zinc-400 text-xs font-bold uppercase tracking-widest">조정 패널</h2>
+            <p className="mt-2 text-sm leading-relaxed text-zinc-500">
               이제 스탯 퍼센트는 사용하지 않습니다. 레벨과 코멘트만 저장합니다.
             </p>
           </div>
 
-          <div className="mt-6 space-y-6">
+          <div className="mt-8 space-y-10">
             <div className="border-t border-white/10 pt-6">
-              <h3 className="text-xs font-bold uppercase tracking-[0.2em] text-emerald-500/70">레벨 부여</h3>
-              <p className="mt-1 text-[11px] text-white/40">회원의 목표 레벨(1~10)을 선택하세요.</p>
+              <h3 className="text-zinc-400 text-xs font-bold uppercase tracking-widest">레벨 부여</h3>
+              <p className="mt-2 text-sm text-zinc-500">회원의 목표 레벨(1~10)을 선택하세요.</p>
               <div className="mt-3">
                 <select
                   value={selectedLevel}
                   onChange={(e) => setSelectedLevel(e.target.value)}
-                  className="w-full rounded-xl border border-white/10 bg-black/40 px-3 py-2.5 text-sm text-white outline-none ring-emerald-500/30 focus:ring-2"
+                  className="w-full rounded-lg border border-white/10 bg-black/50 px-3 py-2.5 text-sm text-white outline-none transition-all focus:ring-1 focus:ring-zinc-500"
                 >
                   <option value="">레벨 선택</option>
                   {Array.from({ length: PHYSICAL_AUTONOMY_MAX }, (_, i) => i + 1).map((lv) => (
@@ -332,13 +332,13 @@ export default function MemberStatusTab({ userId, profile, stats, memberLevel, o
             </div>
 
             <div className="border-t border-white/10 pt-6">
-              <h3 className="text-xs font-bold uppercase tracking-[0.2em] text-emerald-500/70">해당 레벨 표준 기준</h3>
-              <div className="mt-3 rounded-xl border border-white/10 bg-black/35 px-3 py-3 text-sm leading-relaxed text-white/75">
+              <h3 className="text-zinc-400 text-xs font-bold uppercase tracking-widest">해당 레벨 표준 기준</h3>
+              <div className="mt-3 rounded-lg border border-white/10 bg-black/50 px-3 py-3 text-sm leading-relaxed text-zinc-300">
                 {loadingGuide ? (
                   '기준 불러오는 중...'
                 ) : selectedGuide ? (
                   <div className="space-y-1.5">
-                    <p className="text-xs font-semibold tracking-wide text-emerald-300">{selectedGuide.title || `LV. ${selectedLevelNumber}`}</p>
+                    <p className="text-xs font-semibold tracking-wide text-zinc-200">{selectedGuide.title || `LV. ${selectedLevelNumber}`}</p>
                     <p>{standardComment}</p>
                   </div>
                 ) : (
@@ -348,7 +348,7 @@ export default function MemberStatusTab({ userId, profile, stats, memberLevel, o
             </div>
 
             <div className="border-t border-white/10 pt-6">
-              <label className="text-xs font-bold uppercase tracking-[0.2em] text-emerald-500/70">
+              <label className="text-zinc-400 text-xs font-bold uppercase tracking-widest">
                 개별 코멘트 (선택 사항)
               </label>
               <textarea
@@ -356,46 +356,46 @@ export default function MemberStatusTab({ userId, profile, stats, memberLevel, o
                 onChange={(e) => setCustomComment(e.target.value)}
                 rows={4}
                 placeholder="예: 지난 4주간 루틴 준수율이 높고 폼 안정성이 크게 향상되었습니다."
-                className="mt-2 w-full resize-none rounded-xl border border-white/10 bg-black/35 px-3 py-2 text-sm text-white/90 outline-none ring-emerald-500/25 placeholder:text-white/25 focus:ring-2"
+                className="mt-2 w-full resize-none rounded-lg border border-white/10 bg-black/50 px-3 py-2 text-sm text-white outline-none transition-all placeholder:text-zinc-500 focus:ring-1 focus:ring-zinc-500"
               />
             </div>
 
             <div className="border-t border-white/10 pt-6">
-              <h3 className="text-xs font-bold uppercase tracking-[0.2em] text-emerald-500/70">칭호 보관함 관리</h3>
-              <div className="mt-3 rounded-xl border border-white/10 bg-black/25 p-3">
-                <p className="text-[11px] tracking-[0.14em] text-white/45">신규 칭호 세트 창조</p>
-                <label className="mt-2 block text-[11px] text-white/55">메인 칭호 명 (예: 굿포머)</label>
+              <h3 className="text-zinc-400 text-xs font-bold uppercase tracking-widest">칭호 보관함 관리</h3>
+              <div className="mt-3 rounded-2xl border border-white/5 bg-zinc-900/40 p-4 shadow-2xl backdrop-blur-xl">
+                <p className="text-sm tracking-wide text-zinc-500">신규 칭호 세트 창조</p>
+                <label className="mt-3 block text-sm text-zinc-500">메인 칭호 명 (예: 굿포머)</label>
                 <input
                   type="text"
                   value={newMainTitle}
                   onChange={(e) => setNewMainTitle(e.target.value)}
-                  className="mt-1.5 w-full rounded-xl border border-white/10 bg-black/35 px-3 py-2.5 text-sm text-white/90 outline-none ring-emerald-500/25 focus:ring-2"
+                  className="mt-1.5 w-full rounded-lg border border-white/10 bg-black/50 px-3 py-2.5 text-sm text-white outline-none transition-all focus:ring-1 focus:ring-zinc-500"
                 />
-                <label className="mt-3 block text-[11px] text-white/55">
+                <label className="mt-3 block text-sm text-zinc-500">
                   서브 칭호 목록 (쉼표로 구분. 예: 가슴, 등, 하체, 어깨)
                 </label>
                 <input
                   type="text"
                   value={newSubTitlesRaw}
                   onChange={(e) => setNewSubTitlesRaw(e.target.value)}
-                  className="mt-1.5 w-full rounded-xl border border-white/10 bg-black/35 px-3 py-2.5 text-sm text-white/90 outline-none ring-emerald-500/25 focus:ring-2"
+                  className="mt-1.5 w-full rounded-lg border border-white/10 bg-black/50 px-3 py-2.5 text-sm text-white outline-none transition-all focus:ring-1 focus:ring-zinc-500"
                 />
                 <button
                   type="button"
                   disabled={creatingTitleSet}
                   onClick={createTitleSet}
-                  className="mt-3 w-full rounded-xl border border-emerald-500/45 bg-emerald-900/30 px-4 py-2.5 text-sm font-semibold text-emerald-100 transition hover:bg-emerald-800/35 disabled:opacity-40"
+                  className="mt-4 w-full rounded-lg border border-white/10 bg-black/50 px-4 py-2.5 text-sm font-semibold text-zinc-200 transition-all hover:border-zinc-500 disabled:opacity-40"
                 >
                   칭호 세트 생성
                 </button>
               </div>
 
-              <div className="mt-4 rounded-xl border border-white/10 bg-black/25 p-3">
-                <p className="text-[11px] tracking-[0.14em] text-white/45">칭호 토글 보드</p>
+              <div className="mt-4 rounded-2xl border border-white/5 bg-zinc-900/40 p-4 shadow-2xl backdrop-blur-xl">
+                <p className="text-sm tracking-wide text-zinc-500">칭호 토글 보드</p>
                 {loadingTitleDefinitions || loadingOwnedTitles ? (
-                  <p className="mt-2 text-sm text-white/40">불러오는 중...</p>
+                  <p className="mt-2 text-sm text-zinc-500">불러오는 중...</p>
                 ) : titleHierarchy.length === 0 ? (
-                  <p className="mt-2 text-sm text-white/40">칭호 정의가 없습니다.</p>
+                  <p className="mt-2 text-sm text-zinc-500">칭호 정의가 없습니다.</p>
                 ) : (
                   <div className="mt-2 space-y-3">
                     {titleHierarchy.map(({ mainTitle, subs }) => {
@@ -432,7 +432,7 @@ export default function MemberStatusTab({ userId, profile, stats, memberLevel, o
                                   onClick={() => toggleSubTitle(subTitle, active)}
                                   className={`rounded-full border px-2.5 py-1 text-xs transition ${
                                     active
-                                      ? 'border-emerald-300/70 bg-gradient-to-r from-emerald-500/40 to-yellow-400/30 text-emerald-100 shadow-[0_0_12px_rgba(16,185,129,0.45)]'
+                                      ? 'border-zinc-400/70 bg-gradient-to-r from-zinc-700/80 to-zinc-500/60 text-zinc-100 shadow-[0_0_12px_rgba(161,161,170,0.38)]'
                                       : 'border-zinc-700 bg-zinc-900 text-zinc-300'
                                   } disabled:opacity-50`}
                                 >
@@ -456,12 +456,12 @@ export default function MemberStatusTab({ userId, profile, stats, memberLevel, o
                 onClick={saveGrowthRecord}
                 whileHover={!saving && selectedLevelNumber != null ? { scale: 1.02 } : {}}
                 whileTap={!saving && selectedLevelNumber != null ? { scale: 0.98 } : {}}
-                className="apply-exp-cta relative w-full overflow-hidden rounded-2xl border border-emerald-400/40 bg-gradient-to-r from-emerald-700 via-emerald-600 to-teal-700 py-4 text-center text-sm font-black uppercase tracking-[0.2em] text-white shadow-[0_0_32px_rgba(16,185,129,0.25)] transition disabled:cursor-not-allowed disabled:opacity-35"
+                className="apply-exp-cta relative w-full overflow-hidden rounded-2xl border border-white/10 bg-zinc-900/60 py-4 text-center text-sm font-black uppercase tracking-[0.2em] text-white shadow-2xl transition-all hover:border-zinc-500 disabled:cursor-not-allowed disabled:opacity-35"
               >
                 <span className="relative z-10">적용</span>
                 <span className="pointer-events-none absolute inset-0 bg-[linear-gradient(110deg,transparent_0%,rgba(255,255,255,0.12)_45%,transparent_90%)] opacity-60" />
               </Motion.button>
-              <p className="mt-3 text-center text-[10px] text-white/30">
+              <p className="mt-3 text-center text-sm text-zinc-500">
                 {selectedLevelNumber == null ? '레벨을 먼저 선택하세요.' : '선택 레벨과 코멘트를 성장 기록에 저장합니다.'}
               </p>
             </div>

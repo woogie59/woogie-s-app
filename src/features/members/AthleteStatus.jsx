@@ -88,34 +88,39 @@ export default function AthleteStatus({
       return {
         phaseName: '초심자',
         halo: 'radial-gradient(circle_at_center,rgba(156,163,175,0.16)_0%,#000000_58%,#000000_100%)',
-        accent: 'text-gray-300',
+        accent: 'text-zinc-300 drop-shadow-[0_0_24px_rgba(161,161,170,0.35)]',
+        lvClass: 'text-zinc-200 drop-shadow-[0_0_24px_rgba(161,161,170,0.4)]',
       };
     }
     if (roadmapLevel <= 4) {
       return {
         phaseName: '수행자',
         halo: 'radial-gradient(circle_at_center,rgba(16,185,129,0.18)_0%,#000000_58%,#000000_100%)',
-        accent: 'text-emerald-300',
+        accent: 'text-cyan-300 drop-shadow-[0_0_24px_rgba(34,211,238,0.35)]',
+        lvClass: 'text-cyan-300 drop-shadow-[0_0_28px_rgba(34,211,238,0.45)]',
       };
     }
     if (roadmapLevel <= 7) {
       return {
         phaseName: '숙련자',
         halo: 'radial-gradient(circle_at_center,rgba(34,197,94,0.28)_0%,#000000_58%,#000000_100%)',
-        accent: 'text-lime-300',
+        accent: 'text-violet-300 drop-shadow-[0_0_26px_rgba(196,181,253,0.4)]',
+        lvClass: 'text-violet-300 drop-shadow-[0_0_30px_rgba(196,181,253,0.5)]',
       };
     }
     if (roadmapLevel <= 9) {
       return {
         phaseName: '엘리트',
         halo: 'radial-gradient(circle_at_center,rgba(251,191,36,0.18)_0%,rgba(255,255,255,0.03)_38%,#000000_66%,#000000_100%)',
-        accent: 'text-amber-200',
+        accent: 'text-amber-200 drop-shadow-[0_0_26px_rgba(251,191,36,0.45)]',
+        lvClass: 'text-amber-200 drop-shadow-[0_0_32px_rgba(251,191,36,0.5)]',
       };
     }
     return {
       phaseName: '챌린저',
       halo: 'radial-gradient(circle_at_center,rgba(220,38,38,0.32)_0%,rgba(120,0,0,0.2)_34%,#000000_66%,#000000_100%)',
       accent: 'text-red-600 drop-shadow-[0_0_15px_rgba(220,38,38,0.8)]',
+      lvClass: 'text-red-600 drop-shadow-[0_0_40px_rgba(239,68,68,0.6)]',
     };
   }, [roadmapLevel]);
   const currentPhaseKey = useMemo(() => {
@@ -335,11 +340,7 @@ export default function AthleteStatus({
         >
           <div className="flex items-center justify-center gap-2">
             <span
-              className={`block text-6xl font-black leading-none tracking-tight tabular-nums ${
-                isMaxLevel
-                  ? 'text-red-600 drop-shadow-[0_0_15px_rgba(220,38,38,0.8)]'
-                  : 'text-transparent bg-clip-text bg-gradient-to-b from-white to-zinc-300'
-              }`}
+              className={`block text-8xl font-black leading-none tracking-tight tabular-nums ${phaseTheme.lvClass}`}
             >
               LV. {roadmapLevel}
             </span>
@@ -347,7 +348,7 @@ export default function AthleteStatus({
               type="button"
               aria-label="레벨 가이드 열기"
               onClick={() => setIsRoadmapOpen(true)}
-              className="mt-1 text-xs font-semibold leading-none text-white/55 transition hover:text-emerald-300"
+              className="mt-1 text-xs font-semibold leading-none text-zinc-500 transition hover:text-zinc-300"
             >
               (i)
             </button>
@@ -356,19 +357,19 @@ export default function AthleteStatus({
 
         <p className={`mt-3 text-[10px] font-medium tracking-[0.22em] ${phaseTheme.accent}`}>{phaseTheme.phaseName}</p>
         {String(localCurrentTitle || '').trim() ? (
-          <p className="mt-3 font-sans text-base font-black tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-yellow-500 via-yellow-300 to-yellow-500 drop-shadow-[0_0_10px_rgba(234,179,8,0.4)]">
+          <p className="mt-4 text-2xl font-bold tracking-tight text-transparent bg-gradient-to-r from-zinc-200 via-white to-zinc-200 bg-clip-text">
             「{String(localCurrentTitle).trim()}」
           </p>
         ) : null}
         <button
           type="button"
           onClick={() => setIsTitleModalOpen(true)}
-          className="mt-2 text-[11px] tracking-[0.12em] text-white/55 transition hover:text-emerald-300"
+          className="mt-2 text-[11px] tracking-[0.12em] text-zinc-500 transition hover:text-zinc-300"
         >
           [ ✦ 칭호 목록 ]
         </button>
-        <p className="mt-3 text-sm font-light tracking-wide text-gray-500">{memberName || '회원'}</p>
-        <p className="mt-2 text-[11px] font-medium tracking-[0.12em] text-white/35">
+        <p className="mt-3 text-sm font-light tracking-wide text-zinc-500">{memberName || '회원'}</p>
+        <p className="mt-2 text-sm font-medium tracking-[0.12em] text-zinc-500">
           {subtitle}
         </p>
         {loadingCurrentGuide ? (
@@ -382,7 +383,7 @@ export default function AthleteStatus({
             type="button"
             disabled={masterExamPending || masterExamSubmitting}
             onClick={submitMasterExamRequest}
-            className="mt-4 w-full rounded-2xl border border-red-500/60 bg-black px-4 py-3 font-serif text-sm font-semibold tracking-wide text-red-100 shadow-[0_0_24px_rgba(220,38,38,0.35)] transition hover:border-yellow-400/60 hover:shadow-[0_0_22px_rgba(234,179,8,0.24)] disabled:opacity-50"
+            className="mt-4 w-full rounded-2xl border border-red-500/50 bg-red-950/30 px-4 py-3 font-serif text-sm font-semibold tracking-wide text-red-500 transition-all duration-300 hover:bg-red-900/50 disabled:opacity-50"
           >
             {masterExamPending ? '심사 대기 중...' : '[ 👑 마스터(졸업) 심사 요청 ]'}
           </button>
@@ -420,7 +421,7 @@ export default function AthleteStatus({
             >
               X
             </button>
-            <p className="text-[10px] font-medium uppercase tracking-[0.32em] text-emerald-400/80">
+            <p className="text-[10px] font-medium uppercase tracking-[0.32em] text-zinc-400">
               레벨 가이드
             </p>
             <p className="mt-2 text-sm leading-7 text-white/70">
@@ -435,7 +436,7 @@ export default function AthleteStatus({
                     key={phase.id}
                     className={`rounded-xl border px-3 py-3 transition-all ${
                       isCurrent
-                        ? 'border-emerald-400/60 bg-emerald-900/20 opacity-100 shadow-[0_0_22px_rgba(16,185,129,0.35)]'
+                        ? 'border-zinc-400/60 bg-zinc-700/20 opacity-100 shadow-[0_0_22px_rgba(161,161,170,0.35)]'
                         : 'border-white/10 bg-white/[0.02] opacity-55'
                     }`}
                   >
@@ -445,7 +446,7 @@ export default function AthleteStatus({
                     </div>
                     <p className="mt-1.5 text-xs leading-6 text-white/75">{phase.description}</p>
                     {isCurrent ? (
-                      <p className="mt-2 text-[10px] font-medium uppercase tracking-[0.22em] text-emerald-300">
+                      <p className="mt-2 text-[10px] font-medium uppercase tracking-[0.22em] text-zinc-300">
                         현재 위치
                       </p>
                     ) : null}
@@ -488,7 +489,7 @@ export default function AthleteStatus({
             >
               X
             </button>
-            <p className="text-[10px] font-medium uppercase tracking-[0.28em] text-emerald-400/80">
+            <p className="text-[10px] font-medium uppercase tracking-[0.28em] text-zinc-400">
               보유 칭호 아카이브
             </p>
             <p className="mt-1 text-[11px] tracking-[0.08em] text-white/40">트로피 룸</p>
@@ -525,7 +526,7 @@ export default function AthleteStatus({
                             type="button"
                             disabled={equippingTitle !== '' && equippingTitle !== group.mainTitle}
                             onClick={() => equipTitle(group.mainTitle)}
-                            className="rounded-lg border border-white/10 bg-zinc-900 px-2 py-1 text-[11px] font-semibold text-white/75 transition hover:border-emerald-400/40 hover:text-emerald-200 disabled:opacity-40"
+                            className="rounded-lg border border-white/10 bg-zinc-900 px-2 py-1 text-[11px] font-semibold text-white/75 transition hover:border-zinc-400/40 hover:text-zinc-200 disabled:opacity-40"
                           >
                             {equippingTitle === group.mainTitle ? '장착 중…' : '장착'}
                           </button>
@@ -545,18 +546,18 @@ export default function AthleteStatus({
                             key={sub.id}
                             className={`rounded-lg border px-2.5 py-2 ${
                               unlocked
-                                ? 'border-emerald-300/70 bg-gradient-to-r from-emerald-500/30 to-yellow-400/20 shadow-[0_0_10px_rgba(16,185,129,0.35)]'
+                                ? 'border-zinc-300/70 bg-gradient-to-r from-zinc-700/80 to-zinc-500/50 shadow-[0_0_10px_rgba(161,161,170,0.35)]'
                                 : 'border-zinc-700 bg-zinc-900'
                             }`}
                           >
-                            <p className={`text-sm ${unlocked ? 'text-emerald-200' : 'text-zinc-300'}`}>{subTitle}</p>
+                            <p className={`text-sm ${unlocked ? 'text-zinc-100' : 'text-zinc-300'}`}>{subTitle}</p>
                             {grantedAt ? <p className="mt-0.5 text-[11px] text-white/45">{grantedAt}</p> : null}
                           </div>
                         );
                       })}
                     </div>
                     {group.mainTitle === String(memberTitle || '').trim() ? (
-                      <p className="mt-2 text-[10px] text-emerald-300">대표 칭호</p>
+                      <p className="mt-2 text-[10px] text-zinc-300">대표 칭호</p>
                     ) : null}
                   </div>
                 ))
