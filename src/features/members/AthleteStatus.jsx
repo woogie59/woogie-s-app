@@ -77,7 +77,7 @@ export default function AthleteStatus({
   const [currentLevelGuide, setCurrentLevelGuide] = useState(null);
   const [loadingCurrentGuide, setLoadingCurrentGuide] = useState(false);
   const [masterExamSubmitting, setMasterExamSubmitting] = useState(false);
-  const [masterExamPending, setMasterExamPending] = useState(false);
+  const [examStatus, setExamStatus] = useState('idle');
   const [masterAchieved, setMasterAchieved] = useState(false);
   const touchStartYRef = useRef(null);
   const titleTouchStartYRef = useRef(null);
@@ -164,30 +164,42 @@ export default function AthleteStatus({
   }, [memberId, roadmapLevel]);
 
   useEffect(() => {
-    if (!memberId || roadmapLevel !== 10) return;
+    if (!memberId) return;
     let cancelled = false;
     (async () => {
       const { data, error } = await supabase
         .from('master_exam_requests')
-        .select('id,status')
+        .select('status')
         .eq('user_id', memberId)
-        .order('created_at', { ascending: false })
-        .limit(5);
+        .single();
       if (cancelled) return;
-      if (error) return;
-      const rows = Array.isArray(data) ? data : [];
-      setMasterExamPending(rows.some((row) => String(row.status || '').toLowerCase() === 'pending'));
-      setMasterAchieved(
-        rows.some((row) => {
-          const s = String(row.status || '').toLowerCase();
-          return s === 'approved' || s === 'passed' || s === 'master' || s === 'completed';
-        })
-      );
+      if (error) {
+        // No row yet: keep idle. Any other error: log and keep idle.
+        if (error.code !== 'PGRST116') {
+          console.error('[AthleteStatus] master_exam_requests status load', error);
+        }
+        setExamStatus('idle');
+        setMasterAchieved(false);
+        return;
+      }
+      const status = String(data?.status || '').toLowerCase();
+      if (status === 'pending') {
+        setExamStatus('pending');
+        setMasterAchieved(false);
+        return;
+      }
+      if (status === 'approved' || status === 'passed' || status === 'master' || status === 'completed') {
+        setExamStatus('approved');
+        setMasterAchieved(true);
+        return;
+      }
+      setExamStatus('idle');
+      setMasterAchieved(false);
     })();
     return () => {
       cancelled = true;
     };
-  }, [memberId, roadmapLevel]);
+  }, [memberId]);
 
   const submitMasterExamRequest = async () => {
     if (!memberId) {
@@ -202,7 +214,7 @@ export default function AthleteStatus({
         p_target_user: memberId,
       });
       if (error) throw error;
-      setMasterExamPending(true);
+      setExamStatus('pending');
       toast.success('심사 요청이 완료되었습니다.');
     } catch (e) {
       console.error('[apply_for_master_exam]', e);
@@ -394,11 +406,11 @@ export default function AthleteStatus({
         {roadmapLevel === 10 && !masterAchieved ? (
           <button
             type="button"
-            disabled={masterExamPending || masterExamSubmitting}
+            disabled={examStatus === 'pending' || masterExamSubmitting}
             onClick={submitMasterExamRequest}
             className="mt-4 w-full rounded-2xl border border-red-500/50 bg-red-950/30 px-4 py-3 font-serif text-sm font-semibold tracking-wide text-red-500 transition-all duration-300 hover:bg-red-900/50 disabled:opacity-50"
           >
-            {masterExamPending ? '심사 대기 중...' : '[ 👑 마스터(졸업) 심사 요청 ]'}
+            {examStatus === 'pending' ? '심사 대기 중...' : '[ 👑 마스터(졸업) 심사 요청 ]'}
           </button>
         ) : null}
       </div>

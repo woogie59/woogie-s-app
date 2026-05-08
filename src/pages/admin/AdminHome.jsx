@@ -44,6 +44,26 @@ const VISIBLE_UNCONFIRMED = 1;
 /** MVP: 지식창고(라이브러리)·트레이닝 일지 메뉴 비표시 — 라우트/컴포넌트는 유지 */
 const MVP_HIDE_LIBRARY_AND_TRAINING_NAV = true;
 
+function MasterExamNotification({ count = 0, loading = false, onClick }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="relative inline-flex items-center gap-2 rounded-xl border border-amber-300/35 bg-amber-500/10 px-2.5 py-1.5 text-xs font-semibold text-amber-700 transition hover:bg-amber-500/15"
+      aria-label="마스터 심사 요청 알림"
+      title="마스터 심사 요청 확인"
+    >
+      <Bell size={14} strokeWidth={2} />
+      <span>{loading ? '심사 요청 확인 중...' : `심사 ${count}건`}</span>
+      {count > 0 ? (
+        <span className="absolute -right-1 -top-1 inline-flex min-w-[18px] items-center justify-center rounded-full bg-red-600 px-1.5 py-0.5 text-[10px] font-black text-white shadow-[0_0_12px_rgba(220,38,38,0.7)]">
+          {count}
+        </span>
+      ) : null}
+    </button>
+  );
+}
+
 const AdminHome = ({ setView, logout, onOpenTrainingLog }) => {
   const [unscheduledVips, setUnscheduledVips] = useState([]);
   const [radarLoading, setRadarLoading] = useState(true);
@@ -283,6 +303,18 @@ const AdminHome = ({ setView, logout, onOpenTrainingLog }) => {
     [onOpenTrainingLog, setView]
   );
 
+  const jumpToMasterExamRequests = useCallback(() => {
+    const node = typeof document !== 'undefined' ? document.getElementById('master-exam-requests') : null;
+    if (node && typeof node.scrollIntoView === 'function') {
+      node.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      return;
+    }
+    if (pendingMasterExamRequests.length > 0) {
+      const names = pendingMasterExamRequests.map((row) => row?.profiles?.name || '회원').join(', ');
+      toast(`대기 중인 마스터 심사: ${pendingMasterExamRequests.length}건 (${names})`, { icon: '🔔' });
+    }
+  }, [pendingMasterExamRequests]);
+
   return (
     <div className="min-h-[100dvh] bg-gray-50 text-slate-900 flex flex-col font-sans relative pb-safe">
       <header className="grid grid-cols-[1fr_auto_1fr] items-start gap-2 p-6 shrink-0 bg-gray-50">
@@ -291,7 +323,12 @@ const AdminHome = ({ setView, logout, onOpenTrainingLog }) => {
           <LabDotBrand variant="header" />
           <p className="mt-1 text-[10px] uppercase tracking-[0.2em] text-gray-400">Manager Mode</p>
         </div>
-        <div className="flex justify-end pt-0.5">
+        <div className="flex items-center justify-end gap-2 pt-0.5">
+          <MasterExamNotification
+            count={pendingMasterExamRequests.length}
+            loading={pendingMasterExamLoading}
+            onClick={jumpToMasterExamRequests}
+          />
           <button type="button" onClick={logout} aria-label="Log out" className="rounded-lg p-1.5 transition-colors hover:bg-gray-100/80">
             <LogOut size={20} strokeWidth={ICON_STROKE} className="text-gray-600" />
           </button>
@@ -329,7 +366,7 @@ const AdminHome = ({ setView, logout, onOpenTrainingLog }) => {
         </section>
       )}
 
-      <section className="w-full max-w-lg mx-auto px-6 pb-3">
+      <section id="master-exam-requests" className="w-full max-w-lg mx-auto px-6 pb-3">
         <div className="w-full rounded-2xl border border-amber-200/30 bg-gradient-to-b from-white to-amber-50 p-4 shadow-sm">
           <div className="flex items-start justify-between gap-3">
             <div>
