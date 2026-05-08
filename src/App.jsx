@@ -42,6 +42,7 @@ import ClassBooking from './features/booking/ClassBooking';
 import MemberList from './features/members/MemberList';
 import MemberDetail from './features/members/MemberDetail';
 import HallOfFameHub from './features/members/HallOfFameHub';
+import MemberAthleteView from './features/members/MemberAthleteView';
 import AdminTrainingReportForm from './features/members/AdminTrainingReportForm';
 import QRScanner from './features/checkin/QRScanner';
 // --- (가짜 데이터 삭제함) ---
@@ -863,12 +864,7 @@ export default function App() {
               {/* 로그인 했을 때 보여줄 화면 (일반 회원) */}
               {session && view === 'client_home' && <ClientHome user={session.user} logout={handleLogout} setView={navigate} goBack={goBack} />}
           {session && view === 'hall_of_fame_member_self' && (
-            <MemberDetail
-              selectedMemberId={session.user.id}
-              goBack={goBack}
-              startInStatusMode
-              fallbackToHub={false}
-            />
+            <MemberAthleteView userId={session.user.id} goBack={goBack} />
           )}
 
           {/* 관리자 화면 (admin role 필수) */}

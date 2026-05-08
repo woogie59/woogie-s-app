@@ -32,22 +32,9 @@ export default function HallOfFameHub({ setView, setSelectedMemberId, goBack }) 
 
   const fetchPendingExams = useCallback(async () => {
     setLoadingPendingExams(true);
-    // Prefer SECURITY DEFINER RPC (RLS-safe). Fallback to direct read.
-    const rpcRes = await supabase.rpc('get_pending_exams');
-    if (!rpcRes.error) {
-      const rows = Array.isArray(rpcRes.data) ? rpcRes.data : [];
-      setPendingExams(rows);
-      setLoadingPendingExams(false);
-      return;
-    }
-
-    const { data, error } = await supabase
-      .from('master_exam_requests')
-      .select('id, user_id, status, created_at, profiles(name)')
-      .ilike('status', 'pending')
-      .order('created_at', { ascending: false });
+    const { data, error } = await supabase.rpc('get_pending_master_exams');
     if (error) {
-      console.error('[HallOfFameHub] pending exams', error);
+      console.error('[HallOfFameHub] get_pending_master_exams', error);
       setPendingExams([]);
       setLoadingPendingExams(false);
       return;
@@ -76,7 +63,10 @@ export default function HallOfFameHub({ setView, setSelectedMemberId, goBack }) 
     const id = String(requestId || '');
     if (!id) return;
     setExamActionBusyId(id);
-    const { error } = await supabase.from('master_exam_requests').update({ status: 'approved' }).eq('id', id);
+    const { error } = await supabase.rpc('update_master_exam_status', {
+      p_request_id: id,
+      p_new_status: 'approved',
+    });
     if (error) {
       toast.error(`승인 실패: ${error.message || String(error)}`);
       setExamActionBusyId('');
@@ -91,7 +81,10 @@ export default function HallOfFameHub({ setView, setSelectedMemberId, goBack }) 
     const id = String(requestId || '');
     if (!id) return;
     setExamActionBusyId(id);
-    const { error } = await supabase.from('master_exam_requests').delete().eq('id', id);
+    const { error } = await supabase.rpc('update_master_exam_status', {
+      p_request_id: id,
+      p_new_status: 'rejected',
+    });
     if (error) {
       toast.error(`반려 실패: ${error.message || String(error)}`);
       setExamActionBusyId('');
@@ -125,19 +118,20 @@ export default function HallOfFameHub({ setView, setSelectedMemberId, goBack }) 
           <p className="mt-2 text-sm text-zinc-500">대기 중인 마스터 심사가 없습니다.</p>
         ) : (
           <div className="mt-3 space-y-2">
-            {pendingExams.map((row) => {
-              const pending = examActionBusyId === String(row.id);
+            {pendingExams.map((req) => {
+              const requestId = String(req.request_id || req.id || '');
+              const pending = examActionBusyId === requestId;
               return (
-                <div key={row.id} className="rounded-xl border border-white/10 bg-black/35 p-3">
-                  <p className="text-sm font-semibold text-zinc-100">{row?.profiles?.name || row?.name || '회원'}</p>
+                <div key={requestId} className="rounded-xl border border-white/10 bg-black/35 p-3">
+                  <p className="text-sm font-semibold text-zinc-100">{req?.name || req?.member_name || '회원'}</p>
                   <p className="mt-0.5 text-xs text-zinc-500">
-                    {row?.created_at ? new Date(row.created_at).toLocaleString('ko-KR') : ''}
+                    {req?.created_at ? new Date(req.created_at).toLocaleString('ko-KR') : ''}
                   </p>
                   <div className="mt-3 grid grid-cols-2 gap-2">
                     <button
                       type="button"
                       disabled={pending}
-                      onClick={() => approveExam(row.id)}
+                      onClick={() => approveExam(requestId)}
                       className="rounded-lg border border-amber-300/35 bg-amber-900/25 px-3 py-2 text-sm font-semibold text-amber-100 transition hover:bg-amber-800/30 disabled:opacity-40"
                     >
                       승인
@@ -145,7 +139,7 @@ export default function HallOfFameHub({ setView, setSelectedMemberId, goBack }) 
                     <button
                       type="button"
                       disabled={pending}
-                      onClick={() => rejectExam(row.id)}
+                      onClick={() => rejectExam(requestId)}
                       className="rounded-lg border border-red-300/30 bg-red-950/20 px-3 py-2 text-sm font-semibold text-red-200 transition hover:bg-red-900/30 disabled:opacity-40"
                     >
                       반려
