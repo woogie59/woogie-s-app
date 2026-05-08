@@ -233,7 +233,10 @@ export default function MemberStatusTab({ userId, profile, stats, memberLevel, o
       if (error) throw error;
       setNewMainTitle('');
       setNewSubTitlesRaw('');
+      // 생성 직후 보드 즉시 동기화 (정의 + 보유 현황)
       await fetchTitleDefinitions();
+      await fetchOwnedTitles();
+      setLedgerRefreshKey((k) => k + 1);
       toast.success('칭호 세트가 생성되었습니다.');
     } catch (e) {
       console.error('[MemberStatusTab] admin_create_title_set', e);

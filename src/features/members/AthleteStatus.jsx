@@ -177,17 +177,24 @@ export default function AthleteStatus({
   }, [memberId, roadmapLevel]);
 
   const submitMasterExamRequest = async () => {
+    if (!memberId) {
+      toast.error('회원 식별자가 없어 심사 요청을 진행할 수 없습니다.');
+      return;
+    }
     const ok = window.confirm('마스터(졸업) 심사를 신청하시겠습니까?');
     if (!ok) return;
     setMasterExamSubmitting(true);
     try {
-      const { error } = await supabase.rpc('apply_for_master_exam');
+      const { error } = await supabase.rpc('apply_for_master_exam', {
+        p_target_user: memberId,
+      });
       if (error) throw error;
       setMasterExamPending(true);
       toast.success('심사 요청이 완료되었습니다.');
     } catch (e) {
       console.error('[apply_for_master_exam]', e);
-      toast.error(e?.message ? `신청 실패: ${e.message}` : '신청에 실패했습니다.');
+      const message = e?.message ? String(e.message) : '신청 처리 중 오류가 발생했습니다.';
+      toast.error(`신청 실패: ${message}`);
     } finally {
       setMasterExamSubmitting(false);
     }
