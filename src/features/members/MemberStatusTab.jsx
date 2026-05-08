@@ -309,7 +309,7 @@ export default function MemberStatusTab({ userId, profile, stats, memberLevel, o
   };
 
   return (
-    <div className="animate-in fade-in zoom-in-95 duration-700 ease-out [font-family:Urbanist,sans-serif]">
+    <div className="animate-in fade-in zoom-in-95 duration-1000 ease-out fill-mode-forwards [font-family:Urbanist,sans-serif]">
       <div className="sticky top-0 z-20 mb-4 flex items-center justify-between border-b border-white/10 bg-[#050505]/85 px-2 py-3 backdrop-blur-xl">
         <button
           type="button"

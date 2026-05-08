@@ -24,7 +24,7 @@ function FallbackRedirectToMain({ goBack }) {
   );
 }
 
-const MemberDetail = ({ selectedMemberId, goBack }) => {
+const MemberDetail = ({ selectedMemberId, goBack, startInStatusMode = false, onExitAthleteView, fallbackToHub = false }) => {
   const [u, setU] = useState(null);
   const [batches, setBatches] = useState([]);
   const [loadingBatches, setLoadingBatches] = useState(true);
@@ -34,9 +34,10 @@ const MemberDetail = ({ selectedMemberId, goBack }) => {
   const [isMemoEditing, setIsMemoEditing] = useState(false);
   const [isMemoSaving, setIsMemoSaving] = useState(false);
   const [memoSavedFlash, setMemoSavedFlash] = useState(false);
-  const [detailTab, setDetailTab] = useState('overview');
+  const [detailTab, setDetailTab] = useState(startInStatusMode ? 'status' : 'overview');
   const [showAthleteEntryModal, setShowAthleteEntryModal] = useState(false);
   const [memberStats, setMemberStats] = useState([]);
+  const [portalOverlayVisible, setPortalOverlayVisible] = useState(startInStatusMode);
 
   const fetchMemberStats = useCallback(async () => {
     if (!selectedMemberId) return;
@@ -90,6 +91,17 @@ const MemberDetail = ({ selectedMemberId, goBack }) => {
   useEffect(() => {
     fetchMemberDetails();
   }, [selectedMemberId]);
+
+  useEffect(() => {
+    setDetailTab(startInStatusMode ? 'status' : 'overview');
+    if (startInStatusMode) {
+      setPortalOverlayVisible(true);
+      const t = window.setTimeout(() => setPortalOverlayVisible(false), 950);
+      return () => window.clearTimeout(t);
+    }
+    setPortalOverlayVisible(false);
+    return undefined;
+  }, [startInStatusMode, selectedMemberId]);
 
   const reloadBalanceOnly = useCallback(async () => {
     const m = await fetchSessionBalanceMetrics(supabase, selectedMemberId);
@@ -148,7 +160,7 @@ const MemberDetail = ({ selectedMemberId, goBack }) => {
   }, [u, memoDraft]);
 
   if (!selectedMemberId) {
-    return <FallbackRedirectToMain goBack={goBack} />;
+    return <FallbackRedirectToMain goBack={fallbackToHub ? () => onExitAthleteView?.() : goBack} />;
   }
 
   if (!u)
@@ -199,7 +211,13 @@ const MemberDetail = ({ selectedMemberId, goBack }) => {
           onMemberLevelSynced={(nextLevel) => {
             setU((prev) => (prev ? { ...prev, member_level: nextLevel } : prev));
           }}
-          onExitAthlete={() => setDetailTab('overview')}
+          onExitAthlete={() => {
+            if (startInStatusMode) {
+              onExitAthleteView?.();
+              return;
+            }
+            setDetailTab('overview');
+          }}
           onRefresh={async () => {
             await fetchMemberStats();
             const { data: userData } = await supabase.from('profiles').select('*').eq('id', selectedMemberId).single();
@@ -389,6 +407,9 @@ const MemberDetail = ({ selectedMemberId, goBack }) => {
             </div>
           </div>
         </div>
+      ) : null}
+      {detailTab === 'status' && portalOverlayVisible ? (
+        <div className="pointer-events-none fixed inset-0 z-40 bg-black/85 animate-in fade-in duration-700 ease-out fill-mode-forwards" />
       ) : null}
     </div>
   );

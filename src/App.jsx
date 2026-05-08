@@ -41,6 +41,7 @@ import TrainingLogDetail from './features/training/TrainingLogDetail';
 import ClassBooking from './features/booking/ClassBooking';
 import MemberList from './features/members/MemberList';
 import MemberDetail from './features/members/MemberDetail';
+import HallOfFameHub from './features/members/HallOfFameHub';
 import AdminTrainingReportForm from './features/members/AdminTrainingReportForm';
 import QRScanner from './features/checkin/QRScanner';
 // --- (가짜 데이터 삭제함) ---
@@ -79,7 +80,7 @@ export default function App() {
   const [showIntro, setShowIntro] = useState(true);
   const [session, setSession] = useState(null); // 현재 로그인 세션
   const [view, setViewState] = useState('login');
-  const [selectedMemberId, setSelectedMemberId] = useState(null); // 선택된 회원 ID
+  const [selectedMemberId, setSelectedMemberId] = useState(() => sessionStorage.getItem('hall_of_fame_member_id')); // 선택된 회원 ID
   const [trainingLogId, setTrainingLogId] = useState(null);
 
   // [PASSWORD RESET STATE - OVERRIDES EVERYTHING]
@@ -811,6 +812,12 @@ export default function App() {
   }, [view]);
 
   useEffect(() => {
+    if (selectedMemberId) {
+      sessionStorage.setItem('hall_of_fame_member_id', selectedMemberId);
+    }
+  }, [selectedMemberId]);
+
+  useEffect(() => {
     if (view !== 'admin_schedule') setScheduleCalendarSeed(null);
   }, [view]);
 
@@ -870,6 +877,12 @@ export default function App() {
             </AdminRoute>
           )}
 
+          {view === 'hall_of_fame_hub' && (
+            <AdminRoute session={session} replaceView={replaceView}>
+              <HallOfFameHub setView={navigate} goBack={goBack} setSelectedMemberId={setSelectedMemberId} />
+            </AdminRoute>
+          )}
+
           {view === 'admin_settings' && (
             <AdminRoute session={session} replaceView={replaceView}>
               <AdminSettings goBack={goBack} />
@@ -886,6 +899,21 @@ export default function App() {
           {view === 'member_detail' && selectedMemberId && (
             <AdminRoute session={session} replaceView={replaceView}>
               <MemberDetail selectedMemberId={selectedMemberId} goBack={goBack} />
+            </AdminRoute>
+          )}
+          {view === 'hall_of_fame_member' && selectedMemberId && (
+            <AdminRoute session={session} replaceView={replaceView}>
+              <MemberDetail
+                selectedMemberId={selectedMemberId}
+                goBack={() => navigate('hall_of_fame_hub')}
+                startInStatusMode
+                onExitAthleteView={() => {
+                  sessionStorage.removeItem('hall_of_fame_member_id');
+                  setSelectedMemberId(null);
+                  navigate('hall_of_fame_hub');
+                }}
+                fallbackToHub
+              />
             </AdminRoute>
           )}
           {view === 'member_detail' && !selectedMemberId && (

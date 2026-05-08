@@ -168,7 +168,7 @@ const AdminHome = ({ setView, logout, onOpenTrainingLog }) => {
 
   useEffect(() => {
     const ch = supabase
-      .channel('admin_master_exam_requests_rt')
+      .channel('master-exam-channel')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'master_exam_requests' }, () => {
         void loadPendingMasterExamRequests();
       })
@@ -489,6 +489,16 @@ const AdminHome = ({ setView, logout, onOpenTrainingLog }) => {
               <Table2 size={24} strokeWidth={ICON_STROKE} className="text-[#064e3b] shrink-0" aria-hidden />
               <span className="text-sm font-medium text-slate-900 tracking-tight">페이롤 · 출석</span>
             </div>
+          </button>
+        </div>
+        <div className="mt-4">
+          <button
+            type="button"
+            onClick={() => goMenu({ view: 'hall_of_fame_hub' })}
+            className="w-full rounded-2xl border border-amber-300/35 bg-gradient-to-r from-zinc-900 to-black p-5 text-left text-white shadow-[0_0_24px_rgba(0,0,0,0.45)] transition-all duration-200 hover:border-amber-300/50 active:scale-[0.99]"
+          >
+            <p className="text-[11px] uppercase tracking-[0.16em] text-zinc-400">Hall of Fame</p>
+            <p className="mt-1 text-sm font-semibold tracking-tight">아틀리트 명예의 전당</p>
           </button>
         </div>
       </section>
