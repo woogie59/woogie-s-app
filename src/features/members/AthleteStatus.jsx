@@ -61,11 +61,7 @@ function renderLevelRangeText(min, max) {
 
 function LevelFacetBadge({ text, className = '' }) {
   return (
-    <span
-      className={`inline-flex items-center justify-center rounded-xl bg-gradient-to-br from-zinc-800 to-zinc-950 px-2.5 py-1 text-[10px] font-bold tracking-[0.18em] text-transparent bg-clip-text bg-gradient-to-r from-zinc-200 via-white to-zinc-300 border border-white/10 shadow-[inset_0_1px_0_rgba(255,255,255,0.1)] ${className}`}
-    >
-      {text}
-    </span>
+    <span className={`text-[10px] font-semibold tabular-nums tracking-[0.32em] text-platinum/55 ${className}`}>{text}</span>
   );
 }
 
@@ -100,48 +96,54 @@ export default function AthleteStatus({
   const titleTouchStartYRef = useRef(null);
   const rawLv = Number(memberLevel) || 1;
   const roadmapLevel = Math.min(ROADMAP_MAX, Math.max(1, rawLv));
-  const isMaxLevel = roadmapLevel === ROADMAP_MAX;
   const isMemberIsolatedView = viewMode === 'member';
-  const phaseTheme = useMemo(() => {
-    if (roadmapLevel === 1) {
+  /** Prestige Protocol — metallic tiers + amethyst master singularity */
+  const prestige = useMemo(() => {
+    if (roadmapLevel === 10 && masterAchieved) {
       return {
-        phaseName: '초심자',
-        halo: 'radial-gradient(circle_at_center,rgba(255,255,255,0.14)_0%,#050505_60%,#050505_100%)',
-        accent: 'text-white drop-shadow-[0_0_24px_rgba(255,255,255,0.35)]',
-        lvClass: 'text-white drop-shadow-[0_0_26px_rgba(255,255,255,0.35)]',
+        halo: 'radial-gradient(circle_at_center,rgba(147,51,234,0.32)_0%,rgba(76,29,149,0.14)_42%,#050505_74%,#050505_100%)',
+        mode: 'master',
       };
     }
-    if (roadmapLevel <= 4) {
+    if (roadmapLevel === 10 && !masterAchieved) {
       return {
-        phaseName: '수행자',
-        halo: 'radial-gradient(circle_at_center,rgba(205,127,50,0.2)_0%,#050505_60%,#050505_100%)',
-        accent: 'text-[#CD7F32] drop-shadow-[0_0_26px_rgba(205,127,50,0.42)]',
-        lvClass: 'text-[#CD7F32] drop-shadow-[0_0_30px_rgba(205,127,50,0.45)]',
+        halo: 'radial-gradient(circle_at_center,rgba(253,224,71,0.12)_0%,rgba(147,51,234,0.06)_40%,#050505_72%,#050505_100%)',
+        mode: 'lv10_pending',
+        levelText: `LV. ${roadmapLevel}`,
+        levelClassName:
+          'block text-[8rem] font-black leading-none tracking-tighter tabular-nums bg-gradient-to-br from-yellow-200 via-yellow-400 to-yellow-600 bg-clip-text text-transparent drop-shadow-[0_0_36px_rgba(253,224,71,0.35)]',
+        classLine: 'CLASS : CHALLENGER',
       };
     }
-    if (roadmapLevel <= 7) {
+    if (roadmapLevel >= 8) {
       return {
-        phaseName: '숙련자',
-        halo: 'radial-gradient(circle_at_center,rgba(192,192,192,0.2)_0%,#050505_60%,#050505_100%)',
-        accent: 'text-[#C0C0C0] drop-shadow-[0_0_26px_rgba(192,192,192,0.44)]',
-        lvClass: 'text-[#C0C0C0] drop-shadow-[0_0_30px_rgba(192,192,192,0.48)]',
+        halo: 'radial-gradient(circle_at_center,rgba(253,224,71,0.14)_0%,rgba(255,255,255,0.03)_38%,#050505_68%,#050505_100%)',
+        mode: 'tier',
+        levelText: `LV. ${roadmapLevel}`,
+        levelClassName:
+          'block text-[8rem] font-black leading-none tracking-tighter tabular-nums bg-gradient-to-br from-yellow-200 via-yellow-400 to-yellow-600 bg-clip-text text-transparent drop-shadow-[0_0_34px_rgba(253,224,71,0.28)]',
+        classLine: 'CLASS : ELITE',
       };
     }
-    if (roadmapLevel <= 9) {
+    if (roadmapLevel >= 5) {
       return {
-        phaseName: '엘리트',
-        halo: 'radial-gradient(circle_at_center,rgba(251,191,36,0.24)_0%,rgba(255,255,255,0.04)_36%,#050505_66%,#050505_100%)',
-        accent: 'text-[#FBBF24] drop-shadow-[0_0_28px_rgba(251,191,36,0.5)]',
-        lvClass: 'text-[#FBBF24] drop-shadow-[0_0_34px_rgba(251,191,36,0.54)]',
+        halo: 'radial-gradient(circle_at_center,rgba(161,161,170,0.14)_0%,#050505_62%,#050505_100%)',
+        mode: 'tier',
+        levelText: `LV. ${roadmapLevel}`,
+        levelClassName:
+          'block text-[8rem] font-black leading-none tracking-tighter tabular-nums bg-gradient-to-br from-zinc-300 to-zinc-600 bg-clip-text text-transparent drop-shadow-[0_0_28px_rgba(228,228,231,0.2)]',
+        classLine: 'CLASS : ADEPT',
       };
     }
     return {
-      phaseName: '챌린저',
-      halo: 'radial-gradient(circle_at_center,rgba(239,68,68,0.34)_0%,rgba(120,0,0,0.24)_34%,#050505_66%,#050505_100%)',
-      accent: 'text-[#EF4444] drop-shadow-[0_0_20px_rgba(239,68,68,0.75)]',
-      lvClass: 'text-[#EF4444] drop-shadow-[0_0_40px_rgba(239,68,68,0.6)]',
+      halo: 'radial-gradient(circle_at_center,rgba(229,231,235,0.1)_0%,#050505_58%,#050505_100%)',
+      mode: 'tier',
+      levelText: `LV. ${roadmapLevel}`,
+      levelClassName:
+        'block text-[8rem] font-black leading-none tracking-tighter tabular-nums bg-gradient-to-br from-gray-200 to-gray-500 bg-clip-text text-transparent drop-shadow-[0_0_26px_rgba(255,255,255,0.14)]',
+      classLine: 'CLASS : INITIATE',
     };
-  }, [roadmapLevel]);
+  }, [roadmapLevel, masterAchieved]);
   const currentPhaseKey = useMemo(() => {
     const found = DEFAULT_LEVEL_PHASES.find((phase) => {
       const parsed = parseLevelRange(phase.level_range);
@@ -382,86 +384,88 @@ export default function AthleteStatus({
     });
   }, [titleDefinitions, titleRows]);
 
+  const roadmapPill = (
+    <button
+      type="button"
+      aria-label="레벨 가이드 열기"
+      onClick={() => setIsRoadmapOpen(true)}
+      className="inline-flex items-center justify-center px-6 py-3 rounded-full bg-white/5 border border-white/10 hover:bg-white/10 backdrop-blur-md transition-all text-xs tracking-[0.16em] text-white/85"
+    >
+      [ ✦ 아틀리트 계급 로드맵 ]
+    </button>
+  );
+
   return (
-    <div className="relative overflow-hidden bg-[#050505] text-white [font-family:Urbanist,sans-serif]">
+    <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden bg-obsidian font-sans text-white">
       <LevelUpEpicFX triggerKey={epicLevelUpKey} />
 
       <div
         className="pointer-events-none absolute left-1/2 top-[58%] h-[min(90%,380px)] w-[min(100%,360px)] -translate-x-1/2 -translate-y-1/2"
-        style={{
-          background: isMaxLevel
-            ? 'radial-gradient(circle_at_center,rgba(220,38,38,0.3)_0%,rgba(120,0,0,0.22)_34%,#000000_66%,#000000_100%)'
-            : phaseTheme.halo,
-        }}
+        style={{ background: prestige.halo }}
       />
 
-      <div className="relative z-10 px-3 py-32 text-center">
-        <Motion.div
-          key={epicLevelUpKey}
-          initial={epicLevelUpKey > 0 ? { scale: 0.96, opacity: 0.85 } : false}
-          animate={{ scale: 1, opacity: 1 }}
-          transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
-        >
-          <div className="flex items-center justify-center">
-            <span className={`block text-[8rem] font-black leading-none tracking-tighter tabular-nums ${phaseTheme.lvClass}`}>
-              {roadmapLevel === 10 && masterAchieved ? '마스터' : `LV. ${roadmapLevel}`}
-            </span>
-          </div>
-        </Motion.div>
-
-        <p className={`mt-3 text-[10px] font-medium tracking-[0.22em] ${phaseTheme.accent}`}>{phaseTheme.phaseName}</p>
-        {roadmapLevel === 10 && masterAchieved ? (
-          <p className="mt-2 text-sm tracking-wide text-purple-300/90 drop-shadow-[0_0_20px_rgba(168,85,247,0.5)]">
-            완전한 자립에 도달한 자, 이제 스스로 길을 증명한다.
-          </p>
-        ) : null}
-        {String(localCurrentTitle || '').trim() ? (
-          <p className="mt-4 text-2xl font-bold tracking-tight text-transparent bg-gradient-to-r from-zinc-200 via-white to-zinc-200 bg-clip-text">
-            「{String(localCurrentTitle).trim()}」
-          </p>
-        ) : null}
-        <button
-          type="button"
-          aria-label="레벨 가이드 열기"
-          onClick={() => setIsRoadmapOpen(true)}
-          className="mt-5 inline-flex items-center justify-center px-6 py-3 rounded-full bg-white/5 border border-white/10 hover:bg-white/10 backdrop-blur-md transition-all text-xs tracking-[0.16em] text-white/85"
-        >
-          [ ✦ 아틀리트 계급 로드맵 ]
-        </button>
-        {!isMemberIsolatedView ? (
-        <button
-          type="button"
-          onClick={() => setIsTitleModalOpen(true)}
-          className="mt-2 text-[11px] tracking-[0.12em] text-zinc-500 transition hover:text-zinc-300"
-        >
-          [ ✦ 칭호 목록 ]
-        </button>
-        ) : null}
-        {!isMemberIsolatedView ? (
-        <p className="mt-3 text-sm font-light tracking-wide text-zinc-500">{memberName || '회원'}</p>
-        ) : null}
-        {!isMemberIsolatedView ? (
-        <p className="mt-2 text-sm font-medium tracking-[0.12em] text-zinc-500">
-          {subtitle}
-        </p>
-        ) : null}
-        {!isMemberIsolatedView && loadingCurrentGuide ? (
-          <p className="mt-2 text-xs text-white/35">레벨 기준 불러오는 중...</p>
-        ) : null}
-        {!isMemberIsolatedView && !loadingCurrentGuide && currentLevelGuide?.description ? (
-          <p className="mt-2 text-xs leading-relaxed text-white/45">{String(currentLevelGuide.description)}</p>
-        ) : null}
-
-        {!isMemberIsolatedView && roadmapLevel === 10 && !masterAchieved ? (
-          <button
-            type="button"
-            disabled={examStatus === 'pending' || masterExamSubmitting}
-            onClick={submitMasterExamRequest}
-            className="mt-4 w-full rounded-2xl border border-red-500/50 bg-red-950/30 px-4 py-3 font-serif text-sm font-semibold tracking-wide text-red-500 transition-all duration-300 hover:bg-red-900/50 disabled:opacity-50"
+      <div
+        className={`relative z-10 flex flex-1 flex-col px-3 text-center ${isMemberIsolatedView ? 'min-h-[min(85dvh,640px)]' : ''}`}
+      >
+        <div className={`flex flex-1 flex-col items-center gap-16 py-32 ${isMemberIsolatedView ? 'pb-8' : ''}`}>
+          <Motion.div
+            key={epicLevelUpKey}
+            className="flex flex-col items-center gap-4"
+            initial={epicLevelUpKey > 0 ? { scale: 0.96, opacity: 0.85 } : false}
+            animate={{ scale: 1, opacity: 1 }}
+            transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
           >
-            {examStatus === 'pending' ? '심사 대기 중' : '[ 👑 마스터(졸업) 심사 요청 ]'}
-          </button>
-        ) : null}
+            {prestige.mode === 'master' ? (
+              <span className="max-w-[100vw] px-2 text-center text-[clamp(3.25rem,11vw,8rem)] font-black leading-none tracking-[0.14em] bg-gradient-to-br from-purple-400 to-purple-700 bg-clip-text text-transparent drop-shadow-[0_0_40px_rgba(147,51,234,0.5)]">
+                {'MASTER'.split('').join(' ')}
+              </span>
+            ) : (
+              <span className={prestige.levelClassName}>{prestige.levelText}</span>
+            )}
+            {prestige.mode !== 'master' && prestige.classLine ? (
+              <p className="text-xs font-semibold tracking-[0.4em] text-zinc-500">{prestige.classLine}</p>
+            ) : null}
+          </Motion.div>
+
+          {String(localCurrentTitle || '').trim() ? (
+            <p className="text-2xl font-bold tracking-tight text-transparent bg-gradient-to-r from-platinum via-white to-platinum bg-clip-text">
+              「{String(localCurrentTitle).trim()}」
+            </p>
+          ) : null}
+
+          {!isMemberIsolatedView ? (
+            <>
+              <button
+                type="button"
+                onClick={() => setIsTitleModalOpen(true)}
+                className="text-[11px] tracking-[0.12em] text-zinc-500 transition hover:text-zinc-300"
+              >
+                [ ✦ 칭호 목록 ]
+              </button>
+              <p className="text-sm font-light tracking-wide text-zinc-500">{memberName || '회원'}</p>
+              <p className="text-sm font-medium tracking-[0.12em] text-zinc-500">{subtitle}</p>
+              {loadingCurrentGuide ? (
+                <p className="text-xs text-white/35">레벨 기준 불러오는 중...</p>
+              ) : null}
+              {!loadingCurrentGuide && currentLevelGuide?.description ? (
+                <p className="text-xs leading-relaxed text-white/45">{String(currentLevelGuide.description)}</p>
+              ) : null}
+              {roadmapLevel === 10 && !masterAchieved ? (
+                <button
+                  type="button"
+                  disabled={examStatus === 'pending' || masterExamSubmitting}
+                  onClick={submitMasterExamRequest}
+                  className="mt-2 w-full max-w-sm rounded-2xl border border-amethyst/40 bg-amethyst/10 px-4 py-3 text-sm font-semibold tracking-wide text-purple-200 shadow-[0_0_28px_rgba(147,51,234,0.2)] transition-all duration-300 hover:border-amethyst/55 hover:bg-amethyst/15 disabled:opacity-50"
+                >
+                  {examStatus === 'pending' ? '심사 대기 중' : '[ 👑 마스터(졸업) 심사 요청 ]'}
+                </button>
+              ) : null}
+              <div className="mt-4">{roadmapPill}</div>
+            </>
+          ) : (
+            <div className="mt-auto flex w-full justify-center pt-8">{roadmapPill}</div>
+          )}
+        </div>
       </div>
 
       {isRoadmapOpen ? (
@@ -523,7 +527,7 @@ export default function AthleteStatus({
                       <p
                         className={`text-xs font-semibold tracking-widest ${
                           isLevel10Tier
-                            ? 'text-red-600 drop-shadow-[0_0_20px_rgba(153,27,27,0.8)]'
+                            ? 'text-purple-400 drop-shadow-[0_0_24px_rgba(147,51,234,0.45)]'
                             : 'text-zinc-100'
                         }`}
                       >

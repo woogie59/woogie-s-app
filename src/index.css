@@ -1,5 +1,14 @@
 @import 'tailwindcss';
 
+@theme {
+  --color-obsidian: #050505;
+  --color-amethyst: #9333ea;
+  --color-champagne: #fde047;
+  --color-platinum: #e5e7eb;
+  --font-sans: 'Urbanist', 'Pretendard', 'Pretendard Variable', 'Noto Sans KR', ui-sans-serif, system-ui,
+    sans-serif;
+}
+
 @layer base {
   :root {
     color-scheme: light;
@@ -22,6 +31,7 @@
 
   body {
     font-family:
+      'Urbanist',
       'Pretendard',
       'Pretendard Variable',
       'Noto Sans KR',

@@ -1,54 +1,58 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { AnimatePresence, motion as Motion } from 'framer-motion';
 
 /**
- * Short "premium" level-up burst for the member mirror (contained, no full-app takeover).
+ * Full-viewport ephemeral "LEVEL UP" — no static DOM text; does not block the level readout after fade-out.
  */
 export default function LevelUpEpicFX({ triggerKey }) {
-  return (
-    <div className="pointer-events-none absolute inset-0 z-30 overflow-hidden rounded-[inherit]">
-      <AnimatePresence mode="sync">
-        {triggerKey > 0 ? (
+  const [open, setOpen] = useState(false);
+
+  useEffect(() => {
+    if (!triggerKey || triggerKey <= 0) return;
+    setOpen(true);
+    const hide = window.setTimeout(() => setOpen(false), 3200);
+    return () => window.clearTimeout(hide);
+  }, [triggerKey]);
+
+  if (typeof document === 'undefined') return null;
+
+  return createPortal(
+    <AnimatePresence>
+      {open ? (
+        <Motion.div
+          key={triggerKey}
+          role="presentation"
+          aria-hidden
+          className="fixed inset-0 z-[200] flex items-center justify-center bg-black/80 backdrop-blur-md"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 0.25, ease: [0.22, 1, 0.36, 1] }}
+        >
           <Motion.div
-            key={triggerKey}
-            className="absolute inset-0 flex items-center justify-center"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.35 }}
+            className="pointer-events-none flex flex-col items-center justify-center px-8"
+            initial={{ opacity: 0, scale: 0.92, filter: 'blur(10px)' }}
+            animate={{
+              opacity: [0, 1, 1, 0],
+              scale: [0.92, 1, 1, 0.98],
+              filter: ['blur(10px)', 'blur(0px)', 'blur(0px)', 'blur(6px)'],
+            }}
+            transition={{
+              duration: 3,
+              times: [0, 0.08, 0.67, 1],
+              ease: 'easeInOut',
+            }}
           >
-            <Motion.div
-              className="absolute inset-[-40%] bg-[conic-gradient(from_210deg,rgba(239,68,68,0)_0deg,rgba(239,68,68,0.28)_90deg,rgba(239,68,68,0)_280deg)] opacity-90"
-              initial={{ rotate: -25, scale: 0.6, opacity: 0 }}
-              animate={{ rotate: 40, scale: 1.25, opacity: 0.85 }}
-              transition={{ duration: 0.9, ease: [0.16, 1, 0.3, 1] }}
-            />
-            <Motion.div
-              className="absolute h-[140%] w-[140%] rounded-full border-2 border-red-400/50 shadow-[0_0_60px_rgba(239,68,68,0.45)]"
-              initial={{ scale: 0.2, opacity: 0.9 }}
-              animate={{ scale: 1.35, opacity: 0 }}
-              transition={{ duration: 0.75, ease: 'easeOut' }}
-            />
-            <Motion.div
-              className="absolute h-[90%] w-[90%] rounded-full border border-white/25"
-              initial={{ scale: 0.35, opacity: 0.7 }}
-              animate={{ scale: 1.2, opacity: 0 }}
-              transition={{ duration: 0.55, ease: 'easeOut', delay: 0.05 }}
-            />
-            <Motion.div
-              className="relative text-center"
-              initial={{ scale: 0.5, y: 24, opacity: 0, filter: 'blur(12px)' }}
-              animate={{ scale: 1, y: 0, opacity: 1, filter: 'blur(0px)' }}
-              transition={{ duration: 0.55, delay: 0.08, ease: [0.22, 1, 0.36, 1] }}
-            >
-              <p className="text-[10px] font-bold uppercase tracking-[0.45em] text-red-200/90">Level Up</p>
-              <p className="mt-1 text-2xl font-black tracking-tight text-white drop-shadow-[0_0_24px_rgba(239,68,68,0.8)]">
-                상승 완료
+            <div className="rounded-3xl border border-white/10 bg-white/[0.06] px-14 py-10 shadow-[0_0_80px_rgba(147,51,234,0.12)] backdrop-blur-xl">
+              <p className="text-center font-sans text-[11px] font-semibold uppercase tracking-[0.55em] text-platinum/90">
+                LEVEL UP
               </p>
-            </Motion.div>
+            </div>
           </Motion.div>
-        ) : null}
-      </AnimatePresence>
-    </div>
+        </Motion.div>
+      ) : null}
+    </AnimatePresence>,
+    document.body
   );
 }

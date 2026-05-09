@@ -5,7 +5,7 @@ import AthleteStatus from './AthleteStatus';
 export default function MemberAthleteView({ userId, goBack }) {
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [animKey, setAnimKey] = useState(0);
+  const [entranceKey, setEntranceKey] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
@@ -27,7 +27,7 @@ export default function MemberAthleteView({ userId, goBack }) {
         setProfile(data || null);
       }
       setLoading(false);
-      setAnimKey((k) => k + 1);
+      setEntranceKey((k) => k + 1);
     })();
     return () => {
       cancelled = true;
@@ -35,7 +35,11 @@ export default function MemberAthleteView({ userId, goBack }) {
   }, [userId]);
 
   if (loading) {
-    return <div className="min-h-[100dvh] bg-[#050505] text-zinc-400 flex items-center justify-center">불러오는 중...</div>;
+    return (
+      <div className="min-h-[100dvh] bg-obsidian text-zinc-400 flex items-center justify-center font-sans">
+        불러오는 중...
+      </div>
+    );
   }
 
   if (!profile || String(profile.name || '').trim() !== '테스트용1') {
@@ -56,26 +60,28 @@ export default function MemberAthleteView({ userId, goBack }) {
   }
 
   return (
-    <div key={animKey} className="min-h-[100dvh] bg-[#050505] px-4 py-6 [font-family:Urbanist,sans-serif] animate-in fade-in duration-1000 ease-out zoom-in-95 fill-mode-forwards">
+    <div
+      key={entranceKey}
+      className="flex min-h-[100dvh] flex-col bg-obsidian px-4 py-6 font-sans animate-in fade-in duration-1000 ease-out zoom-in-95 fill-mode-forwards"
+    >
       <button
         type="button"
         onClick={goBack}
-        className="mb-4 text-sm font-semibold tracking-wide text-zinc-400 transition-colors hover:text-white"
+        className="mb-4 shrink-0 text-sm font-semibold tracking-wide text-zinc-400 transition-colors hover:text-white"
       >
         {'< 돌아가기'}
       </button>
-      <div className="mx-auto w-full max-w-[420px] rounded-3xl border border-white/5 bg-zinc-900/30 p-3 shadow-2xl backdrop-blur-xl">
+      <div className="flex min-h-0 flex-1 flex-col">
         <AthleteStatus
           memberId={profile.id}
           memberName={profile.name}
           memberLevel={profile.member_level ?? 1}
           memberTitle={profile.current_title ?? ''}
           subtitle="아틀리트 상태"
-          epicLevelUpKey={animKey}
+          epicLevelUpKey={0}
           viewMode="member"
         />
       </div>
     </div>
   );
 }
-
