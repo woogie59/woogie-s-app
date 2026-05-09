@@ -3,6 +3,7 @@ import { motion as Motion } from 'framer-motion';
 import toast from 'react-hot-toast';
 import { supabase } from '../../lib/supabaseClient';
 import LevelUpEpicFX from './LevelUpEpicFX';
+import MasterExamPendingSanctum from './MasterExamPendingSanctum';
 
 const ROADMAP_MAX = 10;
 const DEFAULT_LEVEL_PHASES = [
@@ -115,6 +116,7 @@ export default function AthleteStatus({
   subtitle = '아틀리트 상태',
   epicLevelUpKey = 0,
   viewMode = 'admin',
+  masterExamPendingFullBleed = false,
 }) {
   const [isRoadmapOpen, setIsRoadmapOpen] = useState(false);
   // Title modal (member autonomy)
@@ -135,6 +137,8 @@ export default function AthleteStatus({
   const rawLv = Number(memberLevel) || 1;
   const roadmapLevel = Math.min(ROADMAP_MAX, Math.max(1, rawLv));
   const isMemberIsolatedView = viewMode === 'member';
+  const isMasterExamPending = roadmapLevel === 10 && !masterAchieved && examStatus === 'pending';
+
   /** Tier gradients mapped to Korean tier strings; Lv.10 pre-master = 챌린저 (red); master = amethyst singularity */
   const prestige = useMemo(() => {
     if (roadmapLevel === 10 && masterAchieved) {
@@ -496,6 +500,10 @@ export default function AthleteStatus({
       return { mainTitle, children, unlockedSubs, totalSubs, mainUnlocked };
     });
   }, [titleDefinitions, titleRows]);
+
+  if (isMasterExamPending) {
+    return <MasterExamPendingSanctum fullScreen={Boolean(masterExamPendingFullBleed)} />;
+  }
 
   const roadmapPill = (
     <button
