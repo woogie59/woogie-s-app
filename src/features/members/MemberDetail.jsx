@@ -34,8 +34,6 @@ const MemberDetail = ({ selectedMemberId, goBack, startInStatusMode = false, onE
   const [isMemoEditing, setIsMemoEditing] = useState(false);
   const [isMemoSaving, setIsMemoSaving] = useState(false);
   const [memoSavedFlash, setMemoSavedFlash] = useState(false);
-  const [detailTab, setDetailTab] = useState(startInStatusMode ? 'status' : 'overview');
-  const [showAthleteEntryModal, setShowAthleteEntryModal] = useState(false);
   const [memberStats, setMemberStats] = useState([]);
   const [portalOverlayVisible, setPortalOverlayVisible] = useState(startInStatusMode);
 
@@ -93,7 +91,6 @@ const MemberDetail = ({ selectedMemberId, goBack, startInStatusMode = false, onE
   }, [selectedMemberId]);
 
   useEffect(() => {
-    setDetailTab(startInStatusMode ? 'status' : 'overview');
     if (startInStatusMode) {
       setPortalOverlayVisible(true);
       const t = window.setTimeout(() => setPortalOverlayVisible(false), 950);
@@ -168,41 +165,10 @@ const MemberDetail = ({ selectedMemberId, goBack, startInStatusMode = false, onE
       <div className="min-h-[100dvh] bg-white flex items-center justify-center text-neutral-400 text-sm">불러오는 중…</div>
     );
 
-  return (
-    <div
-      className={`min-h-[100dvh] bg-white text-neutral-950 px-6 py-10 pb-24 mx-auto w-full ${
-        detailTab === 'status' ? 'max-w-6xl' : 'max-w-lg'
-      }`}
-    >
-      <BackButton onClick={goBack} />
-
-      <header className="mt-8 mb-8">
-        <h1 className="text-2xl font-semibold tracking-tight text-neutral-950">{u?.name || '—'}</h1>
-        <p className="mt-2 text-sm text-neutral-500">{u.email}</p>
-      </header>
-
-      <div className="mb-10 flex rounded-xl bg-neutral-100 p-1 text-sm font-medium">
-        <button
-          type="button"
-          onClick={() => setDetailTab('overview')}
-          className={`flex-1 rounded-lg py-2.5 transition-colors ${
-            detailTab === 'overview' ? 'bg-white text-neutral-950 shadow-sm' : 'text-neutral-500 hover:text-neutral-800'
-          }`}
-        >
-          개요
-        </button>
-        <button
-          type="button"
-          onClick={() => setShowAthleteEntryModal(true)}
-          className={`flex-1 rounded-lg py-2.5 transition-colors ${
-            detailTab === 'status' ? 'bg-white text-neutral-950 shadow-sm' : 'text-neutral-500 hover:text-neutral-800'
-          }`}
-        >
-          스테이터스 관리
-        </button>
-      </div>
-
-      {detailTab === 'status' ? (
+  if (startInStatusMode) {
+    return (
+      <div className="min-h-[100dvh] bg-white text-neutral-950 px-6 py-10 pb-24 mx-auto w-full max-w-6xl">
+        <BackButton onClick={goBack} />
         <MemberStatusTab
           userId={selectedMemberId}
           profile={u}
@@ -212,11 +178,7 @@ const MemberDetail = ({ selectedMemberId, goBack, startInStatusMode = false, onE
             setU((prev) => (prev ? { ...prev, member_level: nextLevel } : prev));
           }}
           onExitAthlete={() => {
-            if (startInStatusMode) {
-              onExitAthleteView?.();
-              return;
-            }
-            setDetailTab('overview');
+            onExitAthleteView?.();
           }}
           onRefresh={async () => {
             await fetchMemberStats();
@@ -224,10 +186,22 @@ const MemberDetail = ({ selectedMemberId, goBack, startInStatusMode = false, onE
             if (userData) setU(userData);
           }}
         />
-      ) : null}
+        {portalOverlayVisible ? (
+          <div className="pointer-events-none fixed inset-0 z-40 bg-black/85 animate-in fade-in duration-700 ease-out fill-mode-forwards" />
+        ) : null}
+      </div>
+    );
+  }
 
-      {detailTab === 'overview' && (
-        <>
+  return (
+    <div className="min-h-[100dvh] bg-white text-neutral-950 px-6 py-10 pb-24 mx-auto w-full max-w-lg">
+      <BackButton onClick={goBack} />
+
+      <header className="mt-8 mb-8">
+        <h1 className="text-2xl font-semibold tracking-tight text-neutral-950">{u?.name || '—'}</h1>
+        <p className="mt-2 text-sm text-neutral-500">{u.email}</p>
+      </header>
+
       <section className="mb-16">
         <p className="text-xs font-medium uppercase tracking-[0.2em] text-neutral-400 mb-3">잔여 세션</p>
         <p className="text-5xl font-semibold tabular-nums text-neutral-950 tracking-tight">{totalRemaining}</p>
@@ -358,8 +332,6 @@ const MemberDetail = ({ selectedMemberId, goBack, startInStatusMode = false, onE
           </div>
         </dl>
       </section>
-        </>
-      )}
 
       {sessionModal && (
         <AddSessionModal
@@ -371,46 +343,6 @@ const MemberDetail = ({ selectedMemberId, goBack, startInStatusMode = false, onE
           onSaved={fetchMemberDetails}
         />
       )}
-
-      {showAthleteEntryModal ? (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4 backdrop-blur-xl"
-          role="dialog"
-          aria-modal="true"
-          aria-label="아틀리트 명예의 전당 입장"
-          onClick={() => setShowAthleteEntryModal(false)}
-        >
-          <div
-            className="w-full max-w-sm rounded-2xl border border-white/10 bg-zinc-900/40 p-6 text-white shadow-2xl backdrop-blur-xl"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <p className="text-xs font-bold uppercase tracking-widest text-zinc-300">아틀리트 명예의 전당</p>
-            <p className="mt-3 text-sm text-zinc-200">명예의 전당에 입장하시겠습니까?</p>
-            <div className="mt-6 grid grid-cols-2 gap-3">
-              <button
-                type="button"
-                onClick={() => {
-                  setDetailTab('status');
-                  setShowAthleteEntryModal(false);
-                }}
-                className="rounded-xl border border-amber-300/45 bg-gradient-to-r from-amber-700/40 to-emerald-700/40 px-3 py-2 text-sm font-semibold text-amber-100 transition hover:opacity-90"
-              >
-                입장
-              </button>
-              <button
-                type="button"
-                onClick={() => setShowAthleteEntryModal(false)}
-                className="rounded-xl border border-white/10 bg-zinc-800/50 px-3 py-2 text-sm font-medium text-zinc-300 transition hover:bg-zinc-700/50"
-              >
-                돌아가기
-              </button>
-            </div>
-          </div>
-        </div>
-      ) : null}
-      {detailTab === 'status' && portalOverlayVisible ? (
-        <div className="pointer-events-none fixed inset-0 z-40 bg-black/85 animate-in fade-in duration-700 ease-out fill-mode-forwards" />
-      ) : null}
     </div>
   );
 };

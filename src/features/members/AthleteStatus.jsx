@@ -69,6 +69,44 @@ function getTitleName(row) {
   return String(row?.name ?? row?.title ?? '').trim();
 }
 
+/** Strict tier → gradient (Korean labels per product spec) */
+function tierLabelFromLevel(level) {
+  const lv = Number(level) || 1;
+  if (lv <= 1) return '초심자';
+  if (lv <= 4) return '수행자';
+  if (lv <= 7) return '숙련자';
+  if (lv <= 9) return '엘리트';
+  return '챌린저';
+}
+
+const TIER_VISUAL = {
+  초심자: {
+    levelClassName:
+      'block text-[8rem] font-black leading-none tracking-tighter tabular-nums bg-gradient-to-br from-white to-gray-300 bg-clip-text text-transparent drop-shadow-[0_0_24px_rgba(255,255,255,0.2)]',
+    halo: 'radial-gradient(circle_at_center,rgba(255,255,255,0.16)_0%,#050505_58%,#050505_100%)',
+  },
+  수행자: {
+    levelClassName:
+      'block text-[8rem] font-black leading-none tracking-tighter tabular-nums bg-gradient-to-br from-orange-400 to-amber-700 bg-clip-text text-transparent drop-shadow-[0_0_26px_rgba(245,158,11,0.35)]',
+    halo: 'radial-gradient(circle_at_center,rgba(251,146,60,0.2)_0%,#050505_60%,#050505_100%)',
+  },
+  숙련자: {
+    levelClassName:
+      'block text-[8rem] font-black leading-none tracking-tighter tabular-nums bg-gradient-to-br from-gray-300 to-gray-500 bg-clip-text text-transparent drop-shadow-[0_0_24px_rgba(209,213,219,0.28)]',
+    halo: 'radial-gradient(circle_at_center,rgba(209,213,219,0.16)_0%,#050505_62%,#050505_100%)',
+  },
+  엘리트: {
+    levelClassName:
+      'block text-[8rem] font-black leading-none tracking-tighter tabular-nums bg-gradient-to-br from-yellow-300 to-yellow-600 bg-clip-text text-transparent drop-shadow-[0_0_30px_rgba(234,179,8,0.32)]',
+    halo: 'radial-gradient(circle_at_center,rgba(253,224,71,0.15)_0%,#050505_66%,#050505_100%)',
+  },
+  챌린저: {
+    levelClassName:
+      'block text-[8rem] font-black leading-none tracking-tighter tabular-nums bg-gradient-to-br from-red-500 to-red-800 bg-clip-text text-transparent drop-shadow-[0_0_20px_rgba(220,38,38,0.5)]',
+    halo: 'radial-gradient(circle_at_center,rgba(220,38,38,0.22)_0%,#050505_65%,#050505_100%)',
+  },
+};
+
 export default function AthleteStatus({
   memberId,
   memberName,
@@ -97,7 +135,7 @@ export default function AthleteStatus({
   const rawLv = Number(memberLevel) || 1;
   const roadmapLevel = Math.min(ROADMAP_MAX, Math.max(1, rawLv));
   const isMemberIsolatedView = viewMode === 'member';
-  /** Prestige Protocol — metallic tiers + amethyst master singularity */
+  /** Tier gradients mapped to Korean tier strings; Lv.10 pre-master = 챌린저 (red); master = amethyst singularity */
   const prestige = useMemo(() => {
     if (roadmapLevel === 10 && masterAchieved) {
       return {
@@ -105,43 +143,14 @@ export default function AthleteStatus({
         mode: 'master',
       };
     }
-    if (roadmapLevel === 10 && !masterAchieved) {
-      return {
-        halo: 'radial-gradient(circle_at_center,rgba(253,224,71,0.12)_0%,rgba(147,51,234,0.06)_40%,#050505_72%,#050505_100%)',
-        mode: 'lv10_pending',
-        levelText: `LV. ${roadmapLevel}`,
-        levelClassName:
-          'block text-[8rem] font-black leading-none tracking-tighter tabular-nums bg-gradient-to-br from-yellow-200 via-yellow-400 to-yellow-600 bg-clip-text text-transparent drop-shadow-[0_0_36px_rgba(253,224,71,0.35)]',
-        classLine: 'CLASS : CHALLENGER',
-      };
-    }
-    if (roadmapLevel >= 8) {
-      return {
-        halo: 'radial-gradient(circle_at_center,rgba(253,224,71,0.14)_0%,rgba(255,255,255,0.03)_38%,#050505_68%,#050505_100%)',
-        mode: 'tier',
-        levelText: `LV. ${roadmapLevel}`,
-        levelClassName:
-          'block text-[8rem] font-black leading-none tracking-tighter tabular-nums bg-gradient-to-br from-yellow-200 via-yellow-400 to-yellow-600 bg-clip-text text-transparent drop-shadow-[0_0_34px_rgba(253,224,71,0.28)]',
-        classLine: 'CLASS : ELITE',
-      };
-    }
-    if (roadmapLevel >= 5) {
-      return {
-        halo: 'radial-gradient(circle_at_center,rgba(161,161,170,0.14)_0%,#050505_62%,#050505_100%)',
-        mode: 'tier',
-        levelText: `LV. ${roadmapLevel}`,
-        levelClassName:
-          'block text-[8rem] font-black leading-none tracking-tighter tabular-nums bg-gradient-to-br from-zinc-300 to-zinc-600 bg-clip-text text-transparent drop-shadow-[0_0_28px_rgba(228,228,231,0.2)]',
-        classLine: 'CLASS : ADEPT',
-      };
-    }
+    const tierKey = roadmapLevel === 10 && !masterAchieved ? '챌린저' : tierLabelFromLevel(roadmapLevel);
+    const visual = TIER_VISUAL[tierKey];
     return {
-      halo: 'radial-gradient(circle_at_center,rgba(229,231,235,0.1)_0%,#050505_58%,#050505_100%)',
+      halo: visual.halo,
       mode: 'tier',
       levelText: `LV. ${roadmapLevel}`,
-      levelClassName:
-        'block text-[8rem] font-black leading-none tracking-tighter tabular-nums bg-gradient-to-br from-gray-200 to-gray-500 bg-clip-text text-transparent drop-shadow-[0_0_26px_rgba(255,255,255,0.14)]',
-      classLine: 'CLASS : INITIATE',
+      levelClassName: visual.levelClassName,
+      classLine: `CLASS : ${tierKey}`,
     };
   }, [roadmapLevel, masterAchieved]);
   const currentPhaseKey = useMemo(() => {
@@ -200,24 +209,8 @@ export default function AthleteStatus({
     };
   }, [memberId, roadmapLevel]);
 
-  const syncMasterExamStatus = async () => {
-    if (!memberId) {
-      setExamStatus('idle');
-      setMasterAchieved(false);
-      return 'idle';
-    }
-    const { data, error } = await supabase.rpc('get_master_exam_status', {
-      p_user_id: memberId,
-    });
-    if (error) {
-      console.error('[AthleteStatus] get_master_exam_status', error);
-      setExamStatus('idle');
-      setMasterAchieved(false);
-      return 'idle';
-    }
-    const status = String(
-      typeof data === 'string' ? data : data?.status ?? data?.exam_status ?? 'none'
-    ).toLowerCase();
+  const applyExamStatusFromString = (raw) => {
+    const status = String(raw ?? '').toLowerCase();
     if (status === 'pending') {
       setExamStatus('pending');
       setMasterAchieved(false);
@@ -228,9 +221,50 @@ export default function AthleteStatus({
       setMasterAchieved(true);
       return 'approved';
     }
+    if (status === 'rejected') {
+      setExamStatus('idle');
+      setMasterAchieved(false);
+      return 'idle';
+    }
     setExamStatus('idle');
     setMasterAchieved(false);
     return 'idle';
+  };
+
+  const syncMasterExamStatus = async () => {
+    if (!memberId) {
+      setExamStatus('idle');
+      setMasterAchieved(false);
+      return 'idle';
+    }
+    const { data, error } = await supabase.rpc('get_master_exam_status', {
+      p_user_id: memberId,
+    });
+    if (!error && data != null) {
+      const status = String(
+        typeof data === 'string' ? data : data?.status ?? data?.exam_status ?? 'none'
+      ).toLowerCase();
+      if (status !== 'none' && status !== '') {
+        return applyExamStatusFromString(status);
+      }
+    } else if (error) {
+      console.error('[AthleteStatus] get_master_exam_status', error);
+    }
+
+    const { data: rows, error: rowErr } = await supabase
+      .from('master_exam_requests')
+      .select('status')
+      .eq('user_id', memberId)
+      .order('created_at', { ascending: false })
+      .limit(1);
+    if (rowErr) {
+      console.error('[AthleteStatus] master_exam_requests read', rowErr);
+      setExamStatus('idle');
+      setMasterAchieved(false);
+      return 'idle';
+    }
+    const row = Array.isArray(rows) ? rows[0] : null;
+    return applyExamStatusFromString(row?.status);
   };
 
   useEffect(() => {
@@ -257,14 +291,28 @@ export default function AthleteStatus({
         toast('이미 심사 대기 중입니다.');
         return;
       }
-      const { error } = await supabase.rpc('apply_for_master_exam', {
-        p_target_user: memberId,
+      if (latestStatus === 'approved') {
+        toast('이미 심사가 완료된 상태입니다.');
+        return;
+      }
+      const { error } = await supabase.from('master_exam_requests').insert({
+        user_id: memberId,
+        status: 'pending',
       });
-      if (error) throw error;
+      if (error) {
+        const code = String(error.code || '');
+        const msg = String(error.message || '').toLowerCase();
+        if (code === '23505' || msg.includes('duplicate') || msg.includes('unique')) {
+          setExamStatus('pending');
+          toast('이미 심사 대기 중입니다.');
+          return;
+        }
+        throw error;
+      }
       setExamStatus('pending');
       toast.success('심사 요청이 완료되었습니다.');
     } catch (e) {
-      console.error('[apply_for_master_exam]', e);
+      console.error('[master_exam_requests insert]', e);
       toast.error(normalizeMasterExamError(e));
     } finally {
       setMasterExamSubmitting(false);
@@ -396,7 +444,7 @@ export default function AthleteStatus({
   );
 
   return (
-    <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden bg-obsidian font-sans text-white">
+    <div className="relative w-full min-h-min overflow-x-hidden overflow-y-visible bg-obsidian font-sans text-white">
       <LevelUpEpicFX triggerKey={epicLevelUpKey} />
 
       <div
@@ -404,10 +452,8 @@ export default function AthleteStatus({
         style={{ background: prestige.halo }}
       />
 
-      <div
-        className={`relative z-10 flex flex-1 flex-col px-3 text-center ${isMemberIsolatedView ? 'min-h-[min(85dvh,640px)]' : ''}`}
-      >
-        <div className={`flex flex-1 flex-col items-center gap-16 py-32 ${isMemberIsolatedView ? 'pb-8' : ''}`}>
+      <div className="relative z-10 w-full px-3 pb-32 text-center">
+        <div className="flex w-full flex-col items-center gap-16 py-32">
           <Motion.div
             key={epicLevelUpKey}
             className="flex flex-col items-center gap-4"
@@ -423,7 +469,7 @@ export default function AthleteStatus({
               <span className={prestige.levelClassName}>{prestige.levelText}</span>
             )}
             {prestige.mode !== 'master' && prestige.classLine ? (
-              <p className="text-xs font-semibold tracking-[0.4em] text-zinc-500">{prestige.classLine}</p>
+              <p className="max-w-[95vw] text-xs font-semibold tracking-[0.4em] text-zinc-500">{prestige.classLine}</p>
             ) : null}
           </Motion.div>
 
@@ -463,7 +509,19 @@ export default function AthleteStatus({
               <div className="mt-4">{roadmapPill}</div>
             </>
           ) : (
-            <div className="mt-auto flex w-full justify-center pt-8">{roadmapPill}</div>
+            <>
+              {roadmapLevel === 10 && !masterAchieved ? (
+                <button
+                  type="button"
+                  disabled={examStatus === 'pending' || masterExamSubmitting}
+                  onClick={submitMasterExamRequest}
+                  className="w-full max-w-sm rounded-2xl border border-amethyst/40 bg-amethyst/10 px-4 py-3 text-sm font-semibold tracking-wide text-purple-200 shadow-[0_0_28px_rgba(147,51,234,0.2)] transition-all duration-300 hover:border-amethyst/55 hover:bg-amethyst/15 disabled:opacity-50"
+                >
+                  {examStatus === 'pending' ? '심사 대기 중' : '마스터 심사 신청'}
+                </button>
+              ) : null}
+              <div className="mt-auto flex w-full justify-center pt-8">{roadmapPill}</div>
+            </>
           )}
         </div>
       </div>

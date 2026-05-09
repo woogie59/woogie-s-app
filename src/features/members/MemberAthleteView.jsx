@@ -36,7 +36,7 @@ export default function MemberAthleteView({ userId, goBack }) {
 
   if (loading) {
     return (
-      <div className="min-h-[100dvh] bg-obsidian text-zinc-400 flex items-center justify-center font-sans">
+      <div className="min-h-screen max-h-[100dvh] w-full overflow-y-auto overflow-x-hidden bg-obsidian text-zinc-400 flex items-center justify-center font-sans">
         불러오는 중...
       </div>
     );
@@ -44,7 +44,7 @@ export default function MemberAthleteView({ userId, goBack }) {
 
   if (!profile || String(profile.name || '').trim() !== '테스트용1') {
     return (
-      <div className="min-h-[100dvh] bg-white text-slate-900 flex items-center justify-center px-6">
+      <div className="min-h-screen max-h-[100dvh] w-full overflow-y-auto overflow-x-hidden bg-white text-slate-900 flex items-center justify-center px-6">
         <div className="text-center">
           <p className="text-sm text-slate-500">명예의 전당 테스트 권한이 없습니다.</p>
           <button
@@ -62,16 +62,16 @@ export default function MemberAthleteView({ userId, goBack }) {
   return (
     <div
       key={entranceKey}
-      className="flex min-h-[100dvh] flex-col bg-obsidian px-4 py-6 font-sans animate-in fade-in duration-1000 ease-out zoom-in-95 fill-mode-forwards"
+      className="min-h-screen max-h-[100dvh] w-full overflow-y-auto overflow-x-hidden bg-obsidian px-4 py-6 pb-32 font-sans animate-in fade-in duration-1000 ease-out zoom-in-95 fill-mode-forwards"
     >
       <button
         type="button"
         onClick={goBack}
-        className="mb-4 shrink-0 text-sm font-semibold tracking-wide text-zinc-400 transition-colors hover:text-white"
+        className="mb-4 text-sm font-semibold tracking-wide text-zinc-400 transition-colors hover:text-white"
       >
         {'< 돌아가기'}
       </button>
-      <div className="flex min-h-0 flex-1 flex-col">
+      <div className="w-full">
         <AthleteStatus
           memberId={profile.id}
           memberName={profile.name}
