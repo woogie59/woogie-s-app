@@ -3,6 +3,7 @@ import { supabase } from '../../lib/supabaseClient';
 import AthleteStatus from './AthleteStatus';
 import MemberGrowthLedger from './MemberGrowthLedger';
 import { MemberAcquiredTitlePills, MemberAthleteCoreStatsGrid } from './MemberAthleteMirrorSections';
+import MasterExamPendingSanctum from './MasterExamPendingSanctum';
 
 export default function MemberAthleteView({ userId, goBack }) {
   const [profile, setProfile] = useState(null);
@@ -14,6 +15,7 @@ export default function MemberAthleteView({ userId, goBack }) {
   const [ledgerRefreshKey, setLedgerRefreshKey] = useState(0);
   const [isTitleModalOpen, setIsTitleModalOpen] = useState(false);
   const [roadmapOpen, setRoadmapOpen] = useState(false);
+  const [isMasterExamPending, setIsMasterExamPending] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -78,6 +80,45 @@ export default function MemberAthleteView({ userId, goBack }) {
   }, [userId]);
 
   useEffect(() => {
+    if (!userId) {
+      setIsMasterExamPending(false);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      const { data: rpcData, error: rpcErr } = await supabase.rpc('get_master_exam_status', {
+        p_user_id: userId,
+      });
+      if (cancelled) return;
+      if (!rpcErr && rpcData != null) {
+        const status = String(typeof rpcData === 'string' ? rpcData : rpcData?.status ?? rpcData?.exam_status ?? '')
+          .toLowerCase()
+          .trim();
+        setIsMasterExamPending(status === 'pending');
+        return;
+      }
+
+      const { data: rows, error: rowErr } = await supabase
+        .from('master_exam_requests')
+        .select('status')
+        .eq('user_id', userId)
+        .order('created_at', { ascending: false })
+        .limit(1);
+      if (cancelled) return;
+      if (rowErr) {
+        console.error('[MemberAthleteView] master_exam_requests', rowErr);
+        setIsMasterExamPending(false);
+        return;
+      }
+      const latestStatus = String(Array.isArray(rows) ? rows[0]?.status ?? '' : '').toLowerCase().trim();
+      setIsMasterExamPending(latestStatus === 'pending');
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [userId]);
+
+  useEffect(() => {
     if (!isTitleModalOpen) return;
     const prev = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
@@ -109,6 +150,10 @@ export default function MemberAthleteView({ userId, goBack }) {
         </div>
       </div>
     );
+  }
+
+  if (isMasterExamPending) {
+    return <MasterExamPendingSanctum fullScreen />;
   }
 
   return (
