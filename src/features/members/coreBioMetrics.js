@@ -20,3 +20,32 @@ export function sortCoreBioMetrics(stats) {
       return ai - bi;
     });
 }
+
+/** Latest row per canonical category (matches admin tooling when duplicates exist). */
+export function latestCoreBioRowByCategory(stats) {
+  const byCat = new Map();
+  for (const row of stats || []) {
+    const cat = String(row.category_name || '').trim();
+    if (!CORE_BIO_METRIC_SET.has(cat)) continue;
+    const prev = byCat.get(cat);
+    const t = row.created_at ? new Date(row.created_at).getTime() : 0;
+    const pt = prev?.created_at ? new Date(prev.created_at).getTime() : -1;
+    if (!prev || t >= pt) byCat.set(cat, row);
+  }
+  return byCat;
+}
+
+/** Always 5 rows in canonical order — placeholders when DB has no row yet. */
+export function coreBioMetricsForMemberDisplay(stats) {
+  const byCat = latestCoreBioRowByCategory(stats);
+  return CORE_BIO_METRICS.map((name) => {
+    const row = byCat.get(name);
+    if (row) return row;
+    return {
+      id: `core-placeholder-${name}`,
+      category_name: name,
+      level: 1,
+      exp_percent: 0,
+    };
+  });
+}

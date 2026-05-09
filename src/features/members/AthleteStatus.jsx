@@ -117,8 +117,23 @@ export default function AthleteStatus({
   epicLevelUpKey = 0,
   viewMode = 'admin',
   masterExamPendingFullBleed = false,
+  roadmapOpen: roadmapOpenProp,
+  onRoadmapOpenChange,
+  suppressRoadmapButton = false,
+  hideTitleArchive = false,
+  compactMemberHero = false,
 }) {
-  const [isRoadmapOpen, setIsRoadmapOpen] = useState(false);
+  const [roadmapInternalOpen, setRoadmapInternalOpen] = useState(false);
+  const roadmapControlled = roadmapOpenProp !== undefined && typeof onRoadmapOpenChange === 'function';
+  const isRoadmapOpen = roadmapControlled ? roadmapOpenProp : roadmapInternalOpen;
+  const openRoadmap = () => {
+    if (roadmapControlled) onRoadmapOpenChange(true);
+    else setRoadmapInternalOpen(true);
+  };
+  const closeRoadmap = () => {
+    if (roadmapControlled) onRoadmapOpenChange(false);
+    else setRoadmapInternalOpen(false);
+  };
   // Title modal (member autonomy)
   const [isTitleModalOpen, setIsTitleModalOpen] = useState(false);
   const [titleRows, setTitleRows] = useState([]);
@@ -166,7 +181,6 @@ export default function AthleteStatus({
     return found?.id ?? null;
   }, [roadmapLevel]);
 
-  const closeRoadmap = () => setIsRoadmapOpen(false);
 
   const normalizeMasterExamError = (error) => {
     const raw = String(error?.message || error || '');
@@ -398,16 +412,16 @@ export default function AthleteStatus({
   }, [isRoadmapOpen]);
 
   useEffect(() => {
-    if (!isTitleModalOpen) return;
+    if (hideTitleArchive || !isTitleModalOpen) return;
     const prevOverflow = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
     return () => {
       document.body.style.overflow = prevOverflow;
     };
-  }, [isTitleModalOpen]);
+  }, [hideTitleArchive, isTitleModalOpen]);
 
   useEffect(() => {
-    if (!isTitleModalOpen || !memberId) return;
+    if (hideTitleArchive || !isTitleModalOpen || !memberId) return;
     let cancelled = false;
     (async () => {
       setLoadingTitles(true);
@@ -429,10 +443,10 @@ export default function AthleteStatus({
     return () => {
       cancelled = true;
     };
-  }, [isTitleModalOpen, memberId]);
+  }, [hideTitleArchive, isTitleModalOpen, memberId]);
 
   useEffect(() => {
-    if (!isTitleModalOpen) return;
+    if (hideTitleArchive || !isTitleModalOpen) return;
     let cancelled = false;
     (async () => {
       setLoadingTitleDefinitions(true);
@@ -453,7 +467,7 @@ export default function AthleteStatus({
     return () => {
       cancelled = true;
     };
-  }, [isTitleModalOpen]);
+  }, [hideTitleArchive, isTitleModalOpen]);
 
   const equipTitle = async (titleName) => {
     const t = String(titleName || '').trim();
@@ -509,12 +523,61 @@ export default function AthleteStatus({
     <button
       type="button"
       aria-label="레벨 가이드 열기"
-      onClick={() => setIsRoadmapOpen(true)}
+      onClick={openRoadmap}
       className="inline-flex items-center justify-center px-6 py-3 rounded-full bg-white/5 border border-white/10 hover:bg-white/10 backdrop-blur-md transition-all text-xs tracking-[0.16em] text-white/85"
     >
       [ ✦ 아틀리트 계급 로드맵 ]
     </button>
   );
+
+  const masterExamCtaClass =
+    'w-full max-w-sm rounded-2xl border border-amethyst/40 bg-amethyst/10 px-4 py-3 text-sm font-semibold tracking-wide text-purple-200 shadow-[0_0_28px_rgba(147,51,234,0.2)] transition-all duration-300 hover:border-amethyst/55 hover:bg-amethyst/15 disabled:opacity-50';
+
+  const heroBlock = (
+    <Motion.div
+      key={epicLevelUpKey}
+      className="flex flex-col items-center gap-4"
+      initial={epicLevelUpKey > 0 ? { scale: 0.96, opacity: 0.85 } : false}
+      animate={{ scale: 1, opacity: 1 }}
+      transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
+    >
+      {prestige.mode === 'master' ? (
+        <span className="max-w-[100vw] px-2 text-center text-[clamp(3.25rem,11vw,8rem)] font-black leading-none tracking-[0.14em] bg-gradient-to-br from-purple-400 to-purple-700 bg-clip-text text-transparent drop-shadow-[0_0_40px_rgba(147,51,234,0.5)]">
+          {'MASTER'.split('').join(' ')}
+        </span>
+      ) : (
+        <span className={prestige.levelClassName}>{prestige.levelText}</span>
+      )}
+      {prestige.mode !== 'master' && prestige.classLine ? (
+        <p className="max-w-[95vw] text-xs font-semibold tracking-[0.4em] text-zinc-500">{prestige.classLine}</p>
+      ) : null}
+    </Motion.div>
+  );
+
+  const guideBlock = (
+    <>
+      {loadingCurrentGuide ? <p className="text-xs text-white/35">레벨 기준 불러오는 중...</p> : null}
+      {!loadingCurrentGuide && currentLevelGuide?.description ? (
+        <p className="text-xs leading-relaxed text-white/45">{String(currentLevelGuide.description)}</p>
+      ) : null}
+    </>
+  );
+
+  const masterExamBlock =
+    roadmapLevel === 10 && !masterAchieved ? (
+      <button
+        type="button"
+        disabled={examStatus === 'pending' || masterExamSubmitting}
+        onClick={submitMasterExamRequest}
+        className={`${masterExamCtaClass} ${!isMemberIsolatedView ? 'mt-2' : ''}`}
+      >
+        {examStatus === 'pending'
+          ? '심사 대기 중'
+          : isMemberIsolatedView
+            ? '마스터 심사 신청'
+            : '[ 👑 마스터(졸업) 심사 요청 ]'}
+      </button>
+    ) : null;
 
   return (
     <div className="relative w-full min-h-min overflow-x-hidden overflow-y-visible bg-obsidian font-sans text-white">
@@ -525,75 +588,60 @@ export default function AthleteStatus({
         style={{ background: prestige.halo }}
       />
 
-      <div className="relative z-10 w-full px-3 pb-32 text-center">
-        <div className="flex w-full flex-col items-center gap-16 py-32">
-          <Motion.div
-            key={epicLevelUpKey}
-            className="flex flex-col items-center gap-4"
-            initial={epicLevelUpKey > 0 ? { scale: 0.96, opacity: 0.85 } : false}
-            animate={{ scale: 1, opacity: 1 }}
-            transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
-          >
-            {prestige.mode === 'master' ? (
-              <span className="max-w-[100vw] px-2 text-center text-[clamp(3.25rem,11vw,8rem)] font-black leading-none tracking-[0.14em] bg-gradient-to-br from-purple-400 to-purple-700 bg-clip-text text-transparent drop-shadow-[0_0_40px_rgba(147,51,234,0.5)]">
-                {'MASTER'.split('').join(' ')}
-              </span>
-            ) : (
-              <span className={prestige.levelClassName}>{prestige.levelText}</span>
-            )}
-            {prestige.mode !== 'master' && prestige.classLine ? (
-              <p className="max-w-[95vw] text-xs font-semibold tracking-[0.4em] text-zinc-500">{prestige.classLine}</p>
-            ) : null}
-          </Motion.div>
+      <div className={`relative z-10 w-full px-3 text-center ${compactMemberHero ? 'pb-2' : 'pb-32'}`}>
+        <div
+          className={`flex w-full flex-col items-center ${compactMemberHero ? 'gap-6 py-8' : 'gap-16 py-32'}`}
+        >
+          {heroBlock}
 
-          {String(localCurrentTitle || '').trim() ? (
-            <p className="text-2xl font-bold tracking-tight text-transparent bg-gradient-to-r from-platinum via-white to-platinum bg-clip-text">
-              「{String(localCurrentTitle).trim()}」
-            </p>
-          ) : null}
-
-          {!isMemberIsolatedView ? (
+          {compactMemberHero && isMemberIsolatedView ? (
             <>
-              <button
-                type="button"
-                onClick={() => setIsTitleModalOpen(true)}
-                className="text-[11px] tracking-[0.12em] text-zinc-500 transition hover:text-zinc-300"
-              >
-                [ ✦ 칭호 목록 ]
-              </button>
-              <p className="text-sm font-light tracking-wide text-zinc-500">{memberName || '회원'}</p>
+              <p className="text-base font-semibold tracking-wide text-zinc-100">{memberName || '회원'}</p>
               <p className="text-sm font-medium tracking-[0.12em] text-zinc-500">{subtitle}</p>
-              {loadingCurrentGuide ? (
-                <p className="text-xs text-white/35">레벨 기준 불러오는 중...</p>
+              {String(localCurrentTitle || '').trim() ? (
+                <p className="text-lg font-bold tracking-tight text-transparent bg-gradient-to-r from-platinum via-white to-platinum bg-clip-text">
+                  「{String(localCurrentTitle).trim()}」
+                </p>
               ) : null}
-              {!loadingCurrentGuide && currentLevelGuide?.description ? (
-                <p className="text-xs leading-relaxed text-white/45">{String(currentLevelGuide.description)}</p>
-              ) : null}
-              {roadmapLevel === 10 && !masterAchieved ? (
-                <button
-                  type="button"
-                  disabled={examStatus === 'pending' || masterExamSubmitting}
-                  onClick={submitMasterExamRequest}
-                  className="mt-2 w-full max-w-sm rounded-2xl border border-amethyst/40 bg-amethyst/10 px-4 py-3 text-sm font-semibold tracking-wide text-purple-200 shadow-[0_0_28px_rgba(147,51,234,0.2)] transition-all duration-300 hover:border-amethyst/55 hover:bg-amethyst/15 disabled:opacity-50"
-                >
-                  {examStatus === 'pending' ? '심사 대기 중' : '[ 👑 마스터(졸업) 심사 요청 ]'}
-                </button>
-              ) : null}
-              <div className="mt-4">{roadmapPill}</div>
+              {guideBlock}
+              {masterExamBlock}
             </>
           ) : (
             <>
-              {roadmapLevel === 10 && !masterAchieved ? (
+              {String(localCurrentTitle || '').trim() ? (
+                <p className="text-2xl font-bold tracking-tight text-transparent bg-gradient-to-r from-platinum via-white to-platinum bg-clip-text">
+                  「{String(localCurrentTitle).trim()}」
+                </p>
+              ) : null}
+
+              {!isMemberIsolatedView && !hideTitleArchive ? (
                 <button
                   type="button"
-                  disabled={examStatus === 'pending' || masterExamSubmitting}
-                  onClick={submitMasterExamRequest}
-                  className="w-full max-w-sm rounded-2xl border border-amethyst/40 bg-amethyst/10 px-4 py-3 text-sm font-semibold tracking-wide text-purple-200 shadow-[0_0_28px_rgba(147,51,234,0.2)] transition-all duration-300 hover:border-amethyst/55 hover:bg-amethyst/15 disabled:opacity-50"
+                  onClick={() => setIsTitleModalOpen(true)}
+                  className="text-[11px] tracking-[0.12em] text-zinc-500 transition hover:text-zinc-300"
                 >
-                  {examStatus === 'pending' ? '심사 대기 중' : '마스터 심사 신청'}
+                  [ ✦ 칭호 목록 ]
                 </button>
               ) : null}
-              <div className="mt-auto flex w-full justify-center pt-8">{roadmapPill}</div>
+
+              {!isMemberIsolatedView || !compactMemberHero ? (
+                <>
+                  <p className="text-sm font-light tracking-wide text-zinc-500">{memberName || '회원'}</p>
+                  <p className="text-sm font-medium tracking-[0.12em] text-zinc-500">{subtitle}</p>
+                </>
+              ) : null}
+
+              {guideBlock}
+
+              {masterExamBlock}
+
+              {!isMemberIsolatedView && !suppressRoadmapButton ? (
+                <div className="mt-4 w-full flex justify-center">{roadmapPill}</div>
+              ) : null}
+
+              {isMemberIsolatedView && !compactMemberHero && !suppressRoadmapButton ? (
+                <div className="mt-auto flex w-full justify-center pt-8">{roadmapPill}</div>
+              ) : null}
             </>
           )}
         </div>
@@ -681,7 +729,7 @@ export default function AthleteStatus({
         </div>
       ) : null}
 
-      {isTitleModalOpen ? (
+      {!hideTitleArchive && isTitleModalOpen ? (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4 backdrop-blur-xl"
           role="dialog"
