@@ -165,20 +165,31 @@ export default function AthleteStatus({
   const closeRoadmap = () => setIsRoadmapOpen(false);
 
   const normalizeMasterExamError = (error) => {
-    const message = String(error?.message || '').toLowerCase();
+    const raw = String(error?.message || error || '');
+    const message = raw.toLowerCase();
     if (message.includes('duplicate key') || message.includes('unique constraint')) {
       return '이미 신청되었습니다.';
     }
     if (message.includes('칭호')) {
       return '칭호가 부족합니다.';
     }
-    if (message.includes('레벨') || message.includes('level')) {
-      return '레벨 조건을 충족하지 못했습니다.';
-    }
-    if (message.includes('pending')) {
+    if (message.includes('pending') || message.includes('대기')) {
       return '이미 심사 대기 중입니다.';
     }
+    if (raw.trim()) {
+      return raw.trim();
+    }
     return '심사 요청 처리 중 오류가 발생했습니다.';
+  };
+
+  /** Coerce profile level for exam gate (string "10", numeric 10, etc.) */
+  const coerceMemberLevel = (raw) => {
+    const n = Number(raw);
+    if (Number.isFinite(n)) {
+      return Math.floor(n);
+    }
+    const parsed = Number.parseInt(String(raw ?? '').replace(/[^\d.-]/g, ''), 10);
+    return Number.isFinite(parsed) ? parsed : 0;
   };
 
   useEffect(() => {
@@ -286,6 +297,36 @@ export default function AthleteStatus({
     }
     setMasterExamSubmitting(true);
     try {
+      const { data: profRow, error: profErr } = await supabase
+        .from('profiles')
+        .select('member_level')
+        .eq('id', memberId)
+        .maybeSingle();
+      if (profErr) {
+        console.error('[submitMasterExamRequest] profiles', profErr);
+        toast.error(`프로필을 불러오지 못했습니다: ${profErr.message || String(profErr)}`);
+        return;
+      }
+      const rawLevel = profRow?.member_level;
+      const examLevel = coerceMemberLevel(rawLevel);
+      console.log(
+        'Exam Apply Check - Member Level:',
+        examLevel,
+        'Type:',
+        typeof rawLevel,
+        'raw:',
+        rawLevel,
+        'prop memberLevel:',
+        memberLevel,
+        'typeof prop:',
+        typeof memberLevel
+      );
+
+      if (examLevel < 10) {
+        toast.error(`레벨을 충족하지 못했습니다. (Lv.10 이상 필요, 현재 Lv.${examLevel})`);
+        return;
+      }
+
       const latestStatus = await syncMasterExamStatus();
       if (latestStatus === 'pending') {
         toast('이미 심사 대기 중입니다.');
@@ -295,24 +336,48 @@ export default function AthleteStatus({
         toast('이미 심사가 완료된 상태입니다.');
         return;
       }
-      const { error } = await supabase.from('master_exam_requests').insert({
+
+      const rpcRes = await supabase.rpc('apply_for_master_exam', {
+        p_target_user: memberId,
+      });
+      if (!rpcRes.error) {
+        setExamStatus('pending');
+        toast.success('심사 요청이 완료되었습니다.');
+        return;
+      }
+
+      const rpcMsg = String(rpcRes.error.message || '');
+      const rpcCode = String(rpcRes.error.code || '');
+      const rpcMissing =
+        rpcCode === '42883' ||
+        /does not exist|could not find.*function|function.*not found/i.test(rpcMsg);
+
+      if (!rpcMissing) {
+        toast.error(normalizeMasterExamError(rpcRes.error));
+        return;
+      }
+
+      console.warn('[submitMasterExamRequest] apply_for_master_exam RPC unavailable, falling back to direct insert', rpcRes.error);
+
+      const { error: insErr } = await supabase.from('master_exam_requests').insert({
         user_id: memberId,
         status: 'pending',
       });
-      if (error) {
-        const code = String(error.code || '');
-        const msg = String(error.message || '').toLowerCase();
+      if (insErr) {
+        const code = String(insErr.code || '');
+        const msg = String(insErr.message || '').toLowerCase();
         if (code === '23505' || msg.includes('duplicate') || msg.includes('unique')) {
           setExamStatus('pending');
           toast('이미 심사 대기 중입니다.');
           return;
         }
-        throw error;
+        toast.error(normalizeMasterExamError(insErr));
+        return;
       }
       setExamStatus('pending');
       toast.success('심사 요청이 완료되었습니다.');
     } catch (e) {
-      console.error('[master_exam_requests insert]', e);
+      console.error('[submitMasterExamRequest]', e);
       toast.error(normalizeMasterExamError(e));
     } finally {
       setMasterExamSubmitting(false);
