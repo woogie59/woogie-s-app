@@ -1,9 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { supabase } from '../../lib/supabaseClient';
 import AthleteStatus from './AthleteStatus';
-import MemberGrowthLedger from './MemberGrowthLedger';
-import { MemberAcquiredTitlePills, MemberAthleteCoreStatsGrid } from './MemberAthleteMirrorSections';
 import MasterExamPendingSanctum from './MasterExamPendingSanctum';
+import AthleteStatusBoard from './AthleteStatusBoard';
 
 export default function MemberAthleteView({ userId, goBack }) {
   const [profile, setProfile] = useState(null);
@@ -13,7 +12,6 @@ export default function MemberAthleteView({ userId, goBack }) {
   const [ownedTitles, setOwnedTitles] = useState([]);
   const [loadingMirrorData, setLoadingMirrorData] = useState(true);
   const [ledgerRefreshKey, setLedgerRefreshKey] = useState(0);
-  const [isTitleModalOpen, setIsTitleModalOpen] = useState(false);
   const [roadmapOpen, setRoadmapOpen] = useState(false);
   const [isMasterExamPending, setIsMasterExamPending] = useState(false);
 
@@ -118,15 +116,6 @@ export default function MemberAthleteView({ userId, goBack }) {
     };
   }, [userId]);
 
-  useEffect(() => {
-    if (!isTitleModalOpen) return;
-    const prev = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
-    return () => {
-      document.body.style.overflow = prev;
-    };
-  }, [isTitleModalOpen]);
-
   if (loading) {
     return (
       <div className="min-h-screen max-h-[100dvh] w-full overflow-y-auto overflow-x-hidden bg-obsidian text-zinc-400 flex items-center justify-center font-sans">
@@ -169,7 +158,7 @@ export default function MemberAthleteView({ userId, goBack }) {
         {'< 돌아가기'}
       </button>
 
-      <div className="mx-auto flex w-full max-w-[420px] flex-col gap-10">
+      <div className="mx-auto flex min-h-[calc(100dvh-6.5rem)] w-full max-w-[420px] flex-col gap-10">
         <AthleteStatus
           memberId={profile.id}
           memberName={profile.name}
@@ -186,25 +175,17 @@ export default function MemberAthleteView({ userId, goBack }) {
           onRoadmapOpenChange={setRoadmapOpen}
         />
 
-        <section className="rounded-2xl border border-white/10 bg-black/35 p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)] backdrop-blur-md">
-          <p className="text-center text-[11px] font-bold uppercase tracking-[0.28em] text-white/40">코어 스탯</p>
-          <MemberAthleteCoreStatsGrid stats={memberStats} loading={loadingMirrorData} />
-        </section>
+        <div className="space-y-10">
+          <AthleteStatusBoard
+            targetUserId={profile.id}
+            memberStats={memberStats}
+            ownedTitles={ownedTitles}
+            loadingData={loadingMirrorData}
+            ledgerRefreshKey={ledgerRefreshKey}
+          />
+        </div>
 
-        <button
-          type="button"
-          onClick={() => setIsTitleModalOpen(true)}
-          className="w-full rounded-2xl border border-white/10 bg-white/[0.04] py-3.5 text-center text-xs font-semibold tracking-[0.16em] text-white/85 transition hover:border-white/20 hover:bg-white/[0.07]"
-        >
-          [ ✦ 획득 칭호 확인하기 ]
-        </button>
-
-        <section>
-          <p className="mb-3 text-center text-[11px] font-medium tracking-[0.2em] text-white/40">성장 기록</p>
-          <MemberGrowthLedger targetUserId={profile.id} refreshKey={ledgerRefreshKey} />
-        </section>
-
-        <div className="flex justify-center pb-6 pt-2">
+        <div className="mt-auto flex justify-center pb-6 pt-2">
           <button
             type="button"
             aria-label="레벨 가이드 열기"
@@ -215,34 +196,6 @@ export default function MemberAthleteView({ userId, goBack }) {
           </button>
         </div>
       </div>
-
-      {isTitleModalOpen ? (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 px-4 backdrop-blur-md"
-          role="dialog"
-          aria-modal="true"
-          aria-label="획득 칭호"
-          onClick={() => setIsTitleModalOpen(false)}
-        >
-          <div
-            className="max-h-[min(88dvh,640px)] w-full max-w-[400px] overflow-y-auto rounded-2xl border border-white/10 bg-[#050505] p-6 shadow-[0_24px_80px_-12px_rgba(0,0,0,0.85)]"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <p className="text-center text-[10px] font-bold uppercase tracking-[0.32em] text-zinc-500">아카이브</p>
-            <p className="mt-2 text-center text-sm font-semibold text-zinc-200">획득 칭호</p>
-            <div className="mt-6">
-              <MemberAcquiredTitlePills ownedTitles={ownedTitles} loading={loadingMirrorData} />
-            </div>
-            <button
-              type="button"
-              onClick={() => setIsTitleModalOpen(false)}
-              className="mt-8 w-full rounded-xl border border-white/15 bg-white/5 py-3 text-center text-sm font-semibold tracking-wide text-zinc-200 transition hover:border-white/25 hover:bg-white/10"
-            >
-              [ 닫기 (Close) ]
-            </button>
-          </div>
-        </div>
-      ) : null}
     </div>
   );
 }

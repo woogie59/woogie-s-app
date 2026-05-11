@@ -4,8 +4,8 @@ import { motion as Motion } from 'framer-motion';
 import { Trash2 } from 'lucide-react';
 import { supabase } from '../../lib/supabaseClient';
 import AthleteStatus from './AthleteStatus';
-import MemberGrowthLedger from './MemberGrowthLedger';
 import MemberPhoneMirror from './MemberPhoneMirror';
+import AthleteStatusBoard from './AthleteStatusBoard';
 
 const PHYSICAL_AUTONOMY_MAX = 10;
 
@@ -42,6 +42,7 @@ export default function MemberStatusTab({ userId, profile, stats, memberLevel, o
   });
   const [committedTitle, setCommittedTitle] = useState(() => String(profile?.current_title ?? ''));
   const [ledgerRefreshKey, setLedgerRefreshKey] = useState(0);
+  const [roadmapOpen, setRoadmapOpen] = useState(false);
 
   if (!profile || !userId) {
     return (
@@ -491,7 +492,7 @@ export default function MemberStatusTab({ userId, profile, stats, memberLevel, o
 
       <div className="shrink-0 xl:sticky xl:top-6 xl:self-start">
         <MemberPhoneMirror label="아틀리트 상태">
-          <div className="space-y-6 px-1">
+          <div className="flex min-h-[min(72vh,640px)] flex-col gap-6 px-1">
             <AthleteStatus
               memberId={userId}
               memberName={displayName}
@@ -499,12 +500,32 @@ export default function MemberStatusTab({ userId, profile, stats, memberLevel, o
               memberTitle={committedTitle}
               subtitle="아틀리트 상태"
               epicLevelUpKey={0}
+              suppressRoadmapButton
+              hideTitleArchive
+              compactMemberHero
+              roadmapOpen={roadmapOpen}
+              onRoadmapOpenChange={setRoadmapOpen}
             />
-            <div>
-              <p className="mb-3 text-center text-[11px] font-medium tracking-[0.2em] text-white/40">
-                성장 기록
-              </p>
-              <MemberGrowthLedger targetUserId={userId} refreshKey={ledgerRefreshKey} />
+
+            <div className="space-y-6">
+              <AthleteStatusBoard
+                targetUserId={userId}
+                memberStats={stats}
+                ownedTitles={ownedTitles}
+                loadingData={loadingOwnedTitles}
+                ledgerRefreshKey={ledgerRefreshKey}
+              />
+            </div>
+
+            <div className="mt-auto flex justify-center pb-2 pt-1">
+              <button
+                type="button"
+                aria-label="레벨 가이드 열기"
+                onClick={() => setRoadmapOpen(true)}
+                className="inline-flex items-center justify-center rounded-full border border-white/10 bg-white/5 px-6 py-3 text-xs tracking-[0.16em] text-white/85 backdrop-blur-md transition-all hover:bg-white/10"
+              >
+                [ ✦ 아틀리트 계급 로드맵 ]
+              </button>
             </div>
           </div>
         </MemberPhoneMirror>
