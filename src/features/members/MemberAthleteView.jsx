@@ -167,6 +167,8 @@ export default function MemberAthleteView({ userId }) {
             ownedTitles={ownedTitles}
             loadingData={loadingMirrorData}
             ledgerRefreshKey={ledgerRefreshKey}
+            level={Number(profile.member_level) || 1}
+            isMaster={masterExamRequestStatus === 'approved'}
           />
         </div>
 

@@ -6,6 +6,7 @@ import { supabase } from '../../lib/supabaseClient';
 import AthleteStatus from './AthleteStatus';
 import MemberPhoneMirror from './MemberPhoneMirror';
 import AthleteStatusBoard from './AthleteStatusBoard';
+import { getAthleteLevelDescription } from './athleteLevelDescriptions';
 
 const PHYSICAL_AUTONOMY_MAX = 10;
 
@@ -22,12 +23,11 @@ function getTitleName(row) {
   return String(row?.name ?? row?.title ?? '').trim();
 }
 
-export default function MemberStatusTab({ userId, profile, stats, memberLevel, onRefresh, onMemberLevelSynced, onExitAthlete }) {
+export default function MemberStatusTab({ userId, profile, memberLevel, onRefresh, onMemberLevelSynced, onExitAthlete }) {
   const [saving, setSaving] = useState(false);
   const [selectedLevel, setSelectedLevel] = useState('');
   const [customComment, setCustomComment] = useState('');
-  const [selectedGuide, setSelectedGuide] = useState(null);
-  const [loadingGuide, setLoadingGuide] = useState(false);
+  const [masterExamStatus, setMasterExamStatus] = useState('idle');
   const [titleDefinitions, setTitleDefinitions] = useState([]);
   const [loadingTitleDefinitions, setLoadingTitleDefinitions] = useState(false);
   const [newMainTitle, setNewMainTitle] = useState('');
@@ -130,33 +130,49 @@ export default function MemberStatusTab({ userId, profile, stats, memberLevel, o
   }, [selectedLevel]);
 
   useEffect(() => {
-    if (selectedLevelNumber == null) {
-      setSelectedGuide(null);
+    if (!userId) {
+      setMasterExamStatus('idle');
       return;
     }
     let cancelled = false;
     (async () => {
-      setLoadingGuide(true);
-      const { data, error } = await supabase
-        .from('roadmap_guides')
-        .select('level,title,description')
-        .eq('level', selectedLevelNumber)
-        .maybeSingle();
+      const { data: rpcData, error } = await supabase.rpc('get_master_exam_status', {
+        p_user_id: userId,
+      });
       if (cancelled) return;
-      setLoadingGuide(false);
-      if (error) {
-        console.error('[MemberStatusTab] roadmap_guides by level', error);
-        setSelectedGuide(null);
+      if (!error && rpcData != null) {
+        const status = String(typeof rpcData === 'string' ? rpcData : rpcData?.status ?? rpcData?.exam_status ?? '')
+          .toLowerCase()
+          .trim();
+        setMasterExamStatus(status || 'idle');
         return;
       }
-      setSelectedGuide(data ?? null);
+
+      const { data: rows, error: rowErr } = await supabase
+        .from('master_exam_requests')
+        .select('status')
+        .eq('user_id', userId)
+        .order('created_at', { ascending: false })
+        .limit(1);
+      if (cancelled) return;
+      if (rowErr) {
+        console.error('[MemberStatusTab] master_exam_requests', rowErr);
+        setMasterExamStatus('idle');
+        return;
+      }
+      const latestStatus = String(Array.isArray(rows) ? rows[0]?.status ?? '' : '').toLowerCase().trim();
+      setMasterExamStatus(latestStatus || 'idle');
     })();
     return () => {
       cancelled = true;
     };
-  }, [selectedLevelNumber]);
+  }, [userId]);
 
-  const standardComment = selectedGuide?.description ? String(selectedGuide.description) : '';
+  const standardComment = selectedLevelNumber == null
+    ? ''
+    : getAthleteLevelDescription(selectedLevelNumber, {
+      isMaster: selectedLevelNumber === 10 && masterExamStatus === 'approved',
+    });
 
   const titleHierarchy = useMemo(() => {
     const defs = Array.isArray(titleDefinitions) ? titleDefinitions : [];
@@ -355,16 +371,7 @@ export default function MemberStatusTab({ userId, profile, stats, memberLevel, o
             <div className="border-t border-white/10 pt-6">
               <h3 className="text-zinc-400 text-xs font-bold uppercase tracking-widest">해당 레벨 표준 기준</h3>
               <div className="mt-3 rounded-lg border border-white/10 bg-black/50 px-3 py-3 text-sm leading-relaxed text-zinc-300">
-                {loadingGuide ? (
-                  '기준 불러오는 중...'
-                ) : selectedGuide ? (
-                  <div className="space-y-1.5">
-                    <p className="text-xs font-semibold tracking-wide text-zinc-200">{selectedGuide.title || `LV. ${selectedLevelNumber}`}</p>
-                    <p>{standardComment}</p>
-                  </div>
-                ) : (
-                  '선택한 레벨의 기준이 없습니다. roadmap_guides를 확인하세요.'
-                )}
+                {selectedLevelNumber == null ? '레벨을 선택하면 기준이 표시됩니다.' : standardComment}
               </div>
             </div>
 
@@ -510,10 +517,11 @@ export default function MemberStatusTab({ userId, profile, stats, memberLevel, o
             <div className="space-y-6">
               <AthleteStatusBoard
                 targetUserId={userId}
-                memberStats={stats}
                 ownedTitles={ownedTitles}
                 loadingData={loadingOwnedTitles}
                 ledgerRefreshKey={ledgerRefreshKey}
+                level={committedMemberLevel}
+                isMaster={masterExamStatus === 'approved'}
               />
             </div>
 

@@ -4,6 +4,7 @@ import toast from 'react-hot-toast';
 import { supabase } from '../../lib/supabaseClient';
 import LevelUpEpicFX from './LevelUpEpicFX';
 import MasterExamPendingSanctum from './MasterExamPendingSanctum';
+import { getAthleteLevelDescription } from './athleteLevelDescriptions';
 
 const ROADMAP_MAX = 10;
 const DEFAULT_LEVEL_PHASES = [
@@ -19,28 +20,28 @@ const DEFAULT_LEVEL_PHASES = [
     phase_order: 2,
     title: '[ 2계급 ] 수행자',
     level_range: 'Lv.2~4',
-    description: '운동 동작의 목적과 관절의 궤적을 이해하는 단계.',
+    description: '운동 동작의 목적과 관절의 궤적을 머리로 이해하고 몸으로 습득해나가는 상태.',
   },
   {
     id: 'tier-3',
     phase_order: 3,
     title: '[ 3계급 ] 숙련자',
     level_range: 'Lv.5~7',
-    description: '조건: 칭호 1개 이상 / 정확한 타겟 자극, 기본 체력과 절대 근력 장착.',
+    description: '정확한 타겟 근육에 자극을 넣을 수 있으며, 기본 체력과 절대 근력을 장착한 상태.',
   },
   {
     id: 'tier-4',
     phase_order: 4,
     title: '[ 4계급 ] 엘리트',
     level_range: 'Lv.8~9',
-    description: '조건: 칭호 2개 이상 / 스스로 자세 교정 및 타인에게 원리 설명 가능.',
+    description: '근력 운동의 원리를 타인에게 설명할 수 있고, 스스로 자세 교정이 가능한 상급자.',
   },
   {
     id: 'tier-5',
     phase_order: 5,
     title: '[ 5계급 ] 챌린저',
     level_range: 'Lv.10',
-    description: '조건: 칭호 3개 이상 / 고중량 통제 및 완벽한 자립. (마스터 심사 자격)',
+    description: '고중량을 능숙하게 다루며, 모든 신체 부위의 운동루틴을 스스로 구성하는데 어려움이 없는 최상위 상태.',
   },
 ];
 
@@ -142,8 +143,6 @@ export default function AthleteStatus({
   const [loadingTitleDefinitions, setLoadingTitleDefinitions] = useState(false);
   const [localCurrentTitle, setLocalCurrentTitle] = useState(() => String(memberTitle || '').trim());
   const [equippingTitle, setEquippingTitle] = useState('');
-  const [currentLevelGuide, setCurrentLevelGuide] = useState(null);
-  const [loadingCurrentGuide, setLoadingCurrentGuide] = useState(false);
   const [masterExamSubmitting, setMasterExamSubmitting] = useState(false);
   const [examStatus, setExamStatus] = useState('idle');
   const [masterAchieved, setMasterAchieved] = useState(false);
@@ -213,30 +212,6 @@ export default function AthleteStatus({
   useEffect(() => {
     setLocalCurrentTitle(String(memberTitle || '').trim());
   }, [memberTitle]);
-
-  useEffect(() => {
-    if (!memberId || roadmapLevel == null) return;
-    let cancelled = false;
-    (async () => {
-      setLoadingCurrentGuide(true);
-      const { data, error } = await supabase
-        .from('roadmap_guides')
-        .select('level,title,description')
-        .eq('level', roadmapLevel)
-        .maybeSingle();
-      if (cancelled) return;
-      setLoadingCurrentGuide(false);
-      if (error) {
-        console.error('[AthleteStatus] roadmap_guides (level)', error);
-        setCurrentLevelGuide(null);
-        return;
-      }
-      setCurrentLevelGuide(data ?? null);
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [memberId, roadmapLevel]);
 
   const applyExamStatusFromString = (raw) => {
     const status = String(raw ?? '').toLowerCase();
@@ -554,14 +529,10 @@ export default function AthleteStatus({
     </Motion.div>
   );
 
-  const guideBlock = (
-    <>
-      {loadingCurrentGuide ? <p className="text-xs text-white/35">레벨 기준 불러오는 중...</p> : null}
-      {!loadingCurrentGuide && currentLevelGuide?.description ? (
-        <p className="text-xs leading-relaxed text-white/45">{String(currentLevelGuide.description)}</p>
-      ) : null}
-    </>
-  );
+  const currentGuideDescription = getAthleteLevelDescription(roadmapLevel, {
+    isMaster: masterAchieved,
+  });
+  const guideBlock = <p className="text-xs leading-relaxed text-white/45">{currentGuideDescription}</p>;
 
   const masterExamBlock =
     roadmapLevel === 10 && !masterAchieved ? (
