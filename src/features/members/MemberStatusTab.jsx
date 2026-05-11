@@ -491,14 +491,14 @@ export default function MemberStatusTab({ userId, profile, stats, memberLevel, o
       </div>
 
       <div className="shrink-0 xl:sticky xl:top-6 xl:self-start">
-        <MemberPhoneMirror label="아틀리트 상태">
+        <MemberPhoneMirror label="멤버 상태">
           <div className="flex min-h-[min(72vh,640px)] flex-col gap-6 px-1">
             <AthleteStatus
               memberId={userId}
               memberName={displayName}
               memberLevel={committedMemberLevel}
               memberTitle={committedTitle}
-              subtitle="아틀리트 상태"
+              subtitle=""
               epicLevelUpKey={0}
               suppressRoadmapButton
               hideTitleArchive

@@ -4,16 +4,15 @@ import AthleteStatus from './AthleteStatus';
 import MasterExamPendingSanctum from './MasterExamPendingSanctum';
 import AthleteStatusBoard from './AthleteStatusBoard';
 
-export default function MemberAthleteView({ userId, goBack }) {
+export default function MemberAthleteView({ userId }) {
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
   const [entranceKey, setEntranceKey] = useState(0);
-  const [memberStats, setMemberStats] = useState([]);
   const [ownedTitles, setOwnedTitles] = useState([]);
   const [loadingMirrorData, setLoadingMirrorData] = useState(true);
   const [ledgerRefreshKey, setLedgerRefreshKey] = useState(0);
   const [roadmapOpen, setRoadmapOpen] = useState(false);
-  const [isMasterExamPending, setIsMasterExamPending] = useState(false);
+  const [masterExamRequestStatus, setMasterExamRequestStatus] = useState('idle');
 
   useEffect(() => {
     let cancelled = false;
@@ -44,7 +43,6 @@ export default function MemberAthleteView({ userId, goBack }) {
 
   useEffect(() => {
     if (!userId) {
-      setMemberStats([]);
       setOwnedTitles([]);
       setLoadingMirrorData(false);
       return;
@@ -52,22 +50,17 @@ export default function MemberAthleteView({ userId, goBack }) {
     let cancelled = false;
     (async () => {
       setLoadingMirrorData(true);
-      const [statsRes, titlesRes] = await Promise.all([
-        supabase.from('member_stats').select('*').eq('user_id', userId).order('created_at', { ascending: true }),
-        supabase.from('member_titles').select('*').eq('user_id', userId).order('granted_at', { ascending: false }),
-      ]);
+      const { data: titlesData, error: titlesErr } = await supabase
+        .from('member_titles')
+        .select('*')
+        .eq('user_id', userId)
+        .order('granted_at', { ascending: false });
       if (cancelled) return;
-      if (statsRes.error) {
-        console.error('[MemberAthleteView] member_stats', statsRes.error);
-        setMemberStats([]);
-      } else {
-        setMemberStats(statsRes.data || []);
-      }
-      if (titlesRes.error) {
-        console.error('[MemberAthleteView] member_titles', titlesRes.error);
+      if (titlesErr) {
+        console.error('[MemberAthleteView] member_titles', titlesErr);
         setOwnedTitles([]);
       } else {
-        setOwnedTitles(titlesRes.data || []);
+        setOwnedTitles(titlesData || []);
       }
       setLoadingMirrorData(false);
       setLedgerRefreshKey((k) => k + 1);
@@ -79,7 +72,7 @@ export default function MemberAthleteView({ userId, goBack }) {
 
   useEffect(() => {
     if (!userId) {
-      setIsMasterExamPending(false);
+      setMasterExamRequestStatus('idle');
       return;
     }
     let cancelled = false;
@@ -92,7 +85,7 @@ export default function MemberAthleteView({ userId, goBack }) {
         const status = String(typeof rpcData === 'string' ? rpcData : rpcData?.status ?? rpcData?.exam_status ?? '')
           .toLowerCase()
           .trim();
-        setIsMasterExamPending(status === 'pending');
+        setMasterExamRequestStatus(status || 'idle');
         return;
       }
 
@@ -105,11 +98,11 @@ export default function MemberAthleteView({ userId, goBack }) {
       if (cancelled) return;
       if (rowErr) {
         console.error('[MemberAthleteView] master_exam_requests', rowErr);
-        setIsMasterExamPending(false);
+        setMasterExamRequestStatus('idle');
         return;
       }
       const latestStatus = String(Array.isArray(rows) ? rows[0]?.status ?? '' : '').toLowerCase().trim();
-      setIsMasterExamPending(latestStatus === 'pending');
+      setMasterExamRequestStatus(latestStatus || 'idle');
     })();
     return () => {
       cancelled = true;
@@ -141,30 +134,23 @@ export default function MemberAthleteView({ userId, goBack }) {
     );
   }
 
-  if (isMasterExamPending) {
+  const shouldShowMasterSanctum = Number(profile?.member_level) === 10 && masterExamRequestStatus === 'pending';
+  if (shouldShowMasterSanctum) {
     return <MasterExamPendingSanctum fullScreen />;
   }
 
   return (
     <div
       key={entranceKey}
-      className="min-h-screen max-h-[100dvh] w-full overflow-y-auto overflow-x-hidden bg-obsidian px-4 py-6 pb-28 font-sans animate-in fade-in duration-1000 ease-out zoom-in-95 fill-mode-forwards"
+      className="min-h-screen max-h-[100dvh] w-full overflow-y-auto overflow-x-hidden bg-[#050505] px-4 pt-4 pb-20 font-sans animate-in fade-in duration-1000 ease-out zoom-in-95 fill-mode-forwards"
     >
-      <button
-        type="button"
-        onClick={goBack}
-        className="mb-4 text-sm font-semibold tracking-wide text-zinc-400 transition-colors hover:text-white"
-      >
-        {'< 돌아가기'}
-      </button>
-
       <div className="mx-auto flex min-h-[calc(100dvh-6.5rem)] w-full max-w-[420px] flex-col gap-10">
         <AthleteStatus
           memberId={profile.id}
           memberName={profile.name}
           memberLevel={profile.member_level ?? 1}
           memberTitle={profile.current_title ?? ''}
-          subtitle="아틀리트 상태"
+          subtitle=""
           epicLevelUpKey={0}
           viewMode="member"
           masterExamPendingFullBleed
@@ -178,7 +164,6 @@ export default function MemberAthleteView({ userId, goBack }) {
         <div className="space-y-10">
           <AthleteStatusBoard
             targetUserId={profile.id}
-            memberStats={memberStats}
             ownedTitles={ownedTitles}
             loadingData={loadingMirrorData}
             ledgerRefreshKey={ledgerRefreshKey}

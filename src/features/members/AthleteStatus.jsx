@@ -113,7 +113,7 @@ export default function AthleteStatus({
   memberName,
   memberLevel,
   memberTitle = '',
-  subtitle = '아틀리트 상태',
+  subtitle = '',
   epicLevelUpKey = 0,
   viewMode = 'admin',
   masterExamPendingFullBleed = false,
@@ -590,14 +590,16 @@ export default function AthleteStatus({
 
       <div className={`relative z-10 w-full px-3 text-center ${compactMemberHero ? 'pb-2' : 'pb-32'}`}>
         <div
-          className={`flex w-full flex-col items-center ${compactMemberHero ? 'gap-6 py-8' : 'gap-16 py-32'}`}
+          className={`flex w-full flex-col items-center ${compactMemberHero ? 'gap-5 pb-6 pt-3' : 'gap-16 py-32'}`}
         >
           {heroBlock}
 
           {compactMemberHero && isMemberIsolatedView ? (
             <>
               <p className="text-base font-semibold tracking-wide text-zinc-100">{memberName || '회원'}</p>
-              <p className="text-sm font-medium tracking-[0.12em] text-zinc-500">{subtitle}</p>
+              {String(subtitle || '').trim() ? (
+                <p className="text-sm font-medium tracking-[0.12em] text-zinc-500">{subtitle}</p>
+              ) : null}
               {String(localCurrentTitle || '').trim() ? (
                 <p className="text-lg font-bold tracking-tight text-transparent bg-gradient-to-r from-platinum via-white to-platinum bg-clip-text">
                   「{String(localCurrentTitle).trim()}」
@@ -620,14 +622,16 @@ export default function AthleteStatus({
                   onClick={() => setIsTitleModalOpen(true)}
                   className="text-[11px] tracking-[0.12em] text-zinc-500 transition hover:text-zinc-300"
                 >
-                  [ ✦ 칭호 목록 ]
+                  [ ✦ 칭호 아카이브 ]
                 </button>
               ) : null}
 
               {!isMemberIsolatedView || !compactMemberHero ? (
                 <>
                   <p className="text-sm font-light tracking-wide text-zinc-500">{memberName || '회원'}</p>
-                  <p className="text-sm font-medium tracking-[0.12em] text-zinc-500">{subtitle}</p>
+                  {String(subtitle || '').trim() ? (
+                    <p className="text-sm font-medium tracking-[0.12em] text-zinc-500">{subtitle}</p>
+                  ) : null}
                 </>
               ) : null}
 

@@ -16,7 +16,7 @@ export default function MasterExamPendingSanctum({ fullScreen = false }) {
           M A S T E R
         </p>
         <div className="mt-8 text-xs font-semibold tracking-[0.6em] text-purple-400">
-          U N D E R&nbsp;&nbsp;&nbsp;J U D G E M E N T
+          U N D E R&nbsp;J U D G E M E N T
         </div>
       </div>
     </>
