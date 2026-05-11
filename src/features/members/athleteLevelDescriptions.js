@@ -9,12 +9,17 @@ export const LEVEL_TIER_DESCRIPTIONS = {
 
 export const MASTER_DESCRIPTION = '어디서든 운동능력으로 인정 받을 수 있는 자립 가능한 자.';
 
-export function getAthleteLevelDescription(level, { isMaster = false } = {}) {
+export function getAthleteLevelDescription(level, { isMaster = false, status = '' } = {}) {
+  const normalizedStatus = String(status || '').trim().toLowerCase();
+  const explicitMaster =
+    normalizedStatus === 'master' ||
+    normalizedStatus === '마스터';
   const lv = Number(level);
-  if (isMaster) return MASTER_DESCRIPTION;
+  if (explicitMaster || isMaster) return MASTER_DESCRIPTION;
   if (!Number.isFinite(lv) || lv <= 1) return LEVEL_1_DESCRIPTION;
-  if (lv <= 4) return LEVEL_TIER_DESCRIPTIONS.tier2to4;
-  if (lv <= 7) return LEVEL_TIER_DESCRIPTIONS.tier5to7;
-  if (lv <= 9) return LEVEL_TIER_DESCRIPTIONS.tier8to9;
-  return LEVEL_TIER_DESCRIPTIONS.tier10;
+  if (lv === 10) return LEVEL_TIER_DESCRIPTIONS.tier10;
+  if (lv >= 8) return LEVEL_TIER_DESCRIPTIONS.tier8to9;
+  if (lv >= 5) return LEVEL_TIER_DESCRIPTIONS.tier5to7;
+  if (lv >= 2) return LEVEL_TIER_DESCRIPTIONS.tier2to4;
+  return LEVEL_1_DESCRIPTION;
 }

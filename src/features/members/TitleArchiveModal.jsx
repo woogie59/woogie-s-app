@@ -18,12 +18,19 @@ function resolveTitleType(defRow, ownedRow) {
   return parent ? 'sub' : 'main';
 }
 
-export default function TitleArchiveModal({ isOpen, onClose, memberId, acquiredTitles = [] }) {
+export default function TitleArchiveModal({
+  isOpen,
+  onClose,
+  memberId,
+  acquiredTitles = [],
+  onRepresentativeChange,
+}) {
   const [titleDefinitions, setTitleDefinitions] = useState([]);
   const [representativeTitleId, setRepresentativeTitleId] = useState(null);
   const [representativeTitleName, setRepresentativeTitleName] = useState('');
   const [loading, setLoading] = useState(false);
   const [settingId, setSettingId] = useState(null);
+  const [expandedMainTitle, setExpandedMainTitle] = useState('');
 
   useEffect(() => {
     if (!isOpen) return;
@@ -39,6 +46,7 @@ export default function TitleArchiveModal({ isOpen, onClose, memberId, acquiredT
     let cancelled = false;
     (async () => {
       setLoading(true);
+      setExpandedMainTitle('');
       const [defsRes, profileRes] = await Promise.all([
         supabase.from('title_definitions').select('*').order('id', { ascending: true }),
         supabase.from('profiles').select('representative_title_id,current_title').eq('id', memberId).maybeSingle(),
@@ -65,29 +73,46 @@ export default function TitleArchiveModal({ isOpen, onClose, memberId, acquiredT
     };
   }, [isOpen, memberId]);
 
-  const normalizedTitles = useMemo(() => {
+  const ownedTitleNames = useMemo(() => {
+    const rows = Array.isArray(acquiredTitles) ? acquiredTitles : [];
+    return new Set(rows.map((row) => normalizeTitleName(row?.title ?? row?.name)).filter(Boolean));
+  }, [acquiredTitles]);
+
+  const groupedMainTitles = useMemo(() => {
     const defsByName = new Map(
       (titleDefinitions || []).map((d) => [normalizeTitleName(d?.title ?? d?.name), d]).filter(([k]) => Boolean(k))
     );
-    const rows = Array.isArray(acquiredTitles) ? acquiredTitles : [];
-    const dedup = new Map();
-    rows.forEach((row) => {
-      const name = normalizeTitleName(row?.title ?? row?.name);
-      if (!name) return;
-      if (!dedup.has(name)) dedup.set(name, row);
+    const mainDefs = (titleDefinitions || []).filter((d) => resolveTitleType(d, null) === 'main');
+    const subDefs = (titleDefinitions || []).filter((d) => resolveTitleType(d, null) === 'sub');
+    const mains = [];
+    mainDefs.forEach((mainDef) => {
+      const mainName = normalizeTitleName(mainDef?.title ?? mainDef?.name);
+      if (!mainName) return;
+      const subRows = subDefs
+        .filter((sub) => normalizeTitleName(sub?.parent_title) === mainName)
+        .filter((sub) => ownedTitleNames.has(normalizeTitleName(sub?.title ?? sub?.name)))
+        .map((sub) => ({
+          id: sub?.id ?? normalizeTitleName(sub?.title ?? sub?.name),
+          name: normalizeTitleName(sub?.title ?? sub?.name),
+        }));
+      const hasMain = ownedTitleNames.has(mainName);
+      if (!hasMain && subRows.length === 0) return;
+      mains.push({
+        id: mainDef?.id ?? mainName,
+        name: mainName,
+        subTitles: subRows,
+      });
     });
-    return [...dedup.entries()].map(([name, ownedRow]) => {
-      const def = defsByName.get(name);
-      return {
-        id: def?.id ?? ownedRow?.id ?? name,
-        name,
-        type: resolveTitleType(def, ownedRow),
-      };
-    });
-  }, [acquiredTitles, titleDefinitions]);
 
-  const mainTitles = normalizedTitles.filter((t) => t.type === 'main');
-  const subTitles = normalizedTitles.filter((t) => t.type === 'sub');
+    // fallback for titles without definition rows
+    ownedTitleNames.forEach((ownedName) => {
+      if (defsByName.has(ownedName)) return;
+      if (mains.some((m) => m.name === ownedName)) return;
+      mains.push({ id: ownedName, name: ownedName, subTitles: [] });
+    });
+
+    return mains;
+  }, [acquiredTitles, ownedTitleNames, titleDefinitions]);
 
   const isRepresentative = (titleRow) => {
     if (representativeTitleId != null && titleRow.id != null) return String(titleRow.id) === String(representativeTitleId);
@@ -116,6 +141,7 @@ export default function TitleArchiveModal({ isOpen, onClose, memberId, acquiredT
           });
           if (rpcRes.error) throw rpcRes.error;
           setRepresentativeTitleName(titleRow.name);
+          onRepresentativeChange?.({ id: titleRow.id, title: titleRow.name });
           toast.success('대표 칭호가 변경되었습니다.');
           return;
         }
@@ -123,6 +149,7 @@ export default function TitleArchiveModal({ isOpen, onClose, memberId, acquiredT
       }
       setRepresentativeTitleId(titleRow.id);
       setRepresentativeTitleName(titleRow.name);
+      onRepresentativeChange?.({ id: titleRow.id, title: titleRow.name });
       toast.success('대표 칭호가 변경되었습니다.');
     } catch (e) {
       console.error('[TitleArchiveModal] set representative', e);
@@ -134,33 +161,52 @@ export default function TitleArchiveModal({ isOpen, onClose, memberId, acquiredT
 
   if (!isOpen) return null;
 
-  const renderSection = (label, rows) => (
+  const renderMainList = () => (
     <section className="mt-6">
-      <p className="mb-3 mt-6 text-sm font-semibold tracking-[0.2em] text-purple-400/70">{label}</p>
-      {rows.length === 0 ? (
+      {groupedMainTitles.length === 0 ? (
         <p className="rounded-xl border border-white/10 bg-black/50 p-3 text-xs text-zinc-500">획득한 칭호가 없습니다.</p>
       ) : (
-        <div className="space-y-3">
-          {rows.map((titleRow) => {
-            const active = isRepresentative(titleRow);
-            const pending = String(settingId) === String(titleRow.id);
+        <div className="space-y-4">
+          {groupedMainTitles.map((main) => {
+            const active = isRepresentative(main);
+            const pending = String(settingId) === String(main.id);
+            const expanded = expandedMainTitle === main.name;
             return (
-              <div key={titleRow.id} className="flex items-center justify-between rounded-xl bg-black/50 p-3">
-                <span className="rounded-full border border-zinc-400/70 bg-gradient-to-r from-zinc-700/80 to-zinc-500/60 px-3 py-1.5 text-xs font-semibold text-zinc-100">
-                  {titleRow.name}
-                </span>
-                {active ? (
-                  <div className="text-xs font-semibold text-amethyst">대표</div>
-                ) : (
+              <div key={main.id} className="rounded-xl border border-white/10 bg-black/45 p-3">
+                <div className="flex items-center justify-between gap-3">
                   <button
                     type="button"
-                    onClick={() => setRepresentative(titleRow)}
-                    disabled={pending || settingId !== null}
-                    className="text-xs text-zinc-400 transition hover:text-white disabled:opacity-50"
+                    onClick={() => setExpandedMainTitle((prev) => (prev === main.name ? '' : main.name))}
+                    className="rounded-lg border border-amethyst bg-purple-900/20 px-4 py-2 text-left text-sm font-semibold text-amethyst transition hover:bg-purple-800/25"
                   >
-                    {pending ? '설정 중...' : '[ 대표로 설정 ]'}
+                    {main.name}
                   </button>
-                )}
+                  {active ? (
+                    <div className="text-xs font-semibold text-amethyst">대표</div>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => setRepresentative(main)}
+                      disabled={pending || settingId !== null}
+                      className="text-xs text-zinc-400 transition hover:text-white disabled:opacity-50"
+                    >
+                      {pending ? '설정 중...' : '[ 대표로 설정 ]'}
+                    </button>
+                  )}
+                </div>
+                {expanded ? (
+                  <div className="mt-3 space-y-2">
+                    {main.subTitles.length === 0 ? (
+                      <p className="text-xs text-zinc-500">연결된 서브 칭호가 없습니다.</p>
+                    ) : (
+                      main.subTitles.map((sub) => (
+                        <div key={sub.id} className="rounded-md bg-zinc-900 px-3 py-1 text-sm text-zinc-400">
+                          {sub.name}
+                        </div>
+                      ))
+                    )}
+                  </div>
+                ) : null}
               </div>
             );
           })}
@@ -184,12 +230,7 @@ export default function TitleArchiveModal({ isOpen, onClose, memberId, acquiredT
         <p className="text-center text-[11px] font-bold uppercase tracking-[0.28em] text-white/40">획득한 칭호 - 아카이브</p>
         {loading ? (
           <p className="py-10 text-center text-sm text-zinc-500">칭호를 불러오는 중...</p>
-        ) : (
-          <>
-            {renderSection('메인 칭호', mainTitles)}
-            {renderSection('서브 칭호', subTitles)}
-          </>
-        )}
+        ) : renderMainList()}
         <button
           type="button"
           onClick={onClose}

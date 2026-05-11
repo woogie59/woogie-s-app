@@ -520,8 +520,6 @@ export default function MemberStatusTab({ userId, profile, memberLevel, onRefres
                 ownedTitles={ownedTitles}
                 loadingData={loadingOwnedTitles}
                 ledgerRefreshKey={ledgerRefreshKey}
-                level={committedMemberLevel}
-                isMaster={masterExamStatus === 'approved'}
               />
             </div>
 

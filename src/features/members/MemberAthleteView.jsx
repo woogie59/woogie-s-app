@@ -3,8 +3,9 @@ import { supabase } from '../../lib/supabaseClient';
 import AthleteStatus from './AthleteStatus';
 import MasterExamPendingSanctum from './MasterExamPendingSanctum';
 import AthleteStatusBoard from './AthleteStatusBoard';
+import TitleArchiveModal from './TitleArchiveModal';
 
-export default function MemberAthleteView({ userId }) {
+export default function MemberAthleteView({ userId, goBack }) {
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
   const [entranceKey, setEntranceKey] = useState(0);
@@ -13,6 +14,7 @@ export default function MemberAthleteView({ userId }) {
   const [ledgerRefreshKey, setLedgerRefreshKey] = useState(0);
   const [roadmapOpen, setRoadmapOpen] = useState(false);
   const [masterExamRequestStatus, setMasterExamRequestStatus] = useState('idle');
+  const [isTitleModalOpen, setIsTitleModalOpen] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -159,16 +161,13 @@ export default function MemberAthleteView({ userId }) {
           hideTitleArchive
           roadmapOpen={roadmapOpen}
           onRoadmapOpenChange={setRoadmapOpen}
+          onRepresentativeTitleClick={() => setIsTitleModalOpen(true)}
         />
 
         <div className="space-y-10">
           <AthleteStatusBoard
             targetUserId={profile.id}
-            ownedTitles={ownedTitles}
-            loadingData={loadingMirrorData}
             ledgerRefreshKey={ledgerRefreshKey}
-            level={Number(profile.member_level) || 1}
-            isMaster={masterExamRequestStatus === 'approved'}
           />
         </div>
 
@@ -183,6 +182,16 @@ export default function MemberAthleteView({ userId }) {
           </button>
         </div>
       </div>
+
+      <TitleArchiveModal
+        isOpen={isTitleModalOpen}
+        onClose={() => setIsTitleModalOpen(false)}
+        memberId={profile.id}
+        acquiredTitles={ownedTitles}
+        onRepresentativeChange={({ title }) => {
+          setProfile((prev) => (prev ? { ...prev, current_title: String(title || '') } : prev));
+        }}
+      />
     </div>
   );
 }

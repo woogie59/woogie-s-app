@@ -123,6 +123,7 @@ export default function AthleteStatus({
   suppressRoadmapButton = false,
   hideTitleArchive = false,
   compactMemberHero = false,
+  onRepresentativeTitleClick,
 }) {
   const [roadmapInternalOpen, setRoadmapInternalOpen] = useState(false);
   const roadmapControlled = roadmapOpenProp !== undefined && typeof onRoadmapOpenChange === 'function';
@@ -222,7 +223,7 @@ export default function AthleteStatus({
     }
     if (status === 'approved') {
       setExamStatus('approved');
-      setMasterAchieved(true);
+      setMasterAchieved(roadmapLevel === 10);
       return 'approved';
     }
     if (status === 'rejected') {
@@ -533,6 +534,7 @@ export default function AthleteStatus({
     isMaster: masterAchieved,
   });
   const guideBlock = <p className="text-xs leading-relaxed text-white/45">{currentGuideDescription}</p>;
+  const representativeClickable = typeof onRepresentativeTitleClick === 'function';
 
   const masterExamBlock =
     roadmapLevel === 10 && !masterAchieved ? (
@@ -572,9 +574,18 @@ export default function AthleteStatus({
                 <p className="text-sm font-medium tracking-[0.12em] text-zinc-500">{subtitle}</p>
               ) : null}
               {String(localCurrentTitle || '').trim() ? (
-                <p className="text-lg font-bold tracking-tight text-transparent bg-gradient-to-r from-platinum via-white to-platinum bg-clip-text">
-                  「{String(localCurrentTitle).trim()}」
-                </p>
+                <div className="flex flex-col items-center gap-1">
+                  <button
+                    type="button"
+                    onClick={() => onRepresentativeTitleClick?.()}
+                    className={`text-lg font-bold tracking-tight text-transparent bg-gradient-to-r from-platinum via-white to-platinum bg-clip-text transition-transform ${
+                      representativeClickable ? 'cursor-pointer hover:scale-105' : ''
+                    }`}
+                  >
+                    「{String(localCurrentTitle).trim()}」
+                  </button>
+                  {representativeClickable ? <span className="text-[10px] text-zinc-600">칭호 변경</span> : null}
+                </div>
               ) : null}
               {guideBlock}
               {masterExamBlock}
