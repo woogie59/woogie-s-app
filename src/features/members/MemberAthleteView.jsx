@@ -1,40 +1,139 @@
 import React, { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { ChevronLeft } from 'lucide-react';
 import { supabase } from '../../lib/supabaseClient';
 import AthleteStatus from './AthleteStatus';
-import MasterExamPendingSanctum from './MasterExamPendingSanctum';
 import AthleteStatusBoard from './AthleteStatusBoard';
 import TitleArchiveModal from './TitleArchiveModal';
 
+function MasterPendingCinematicView({ onBack }) {
+  return (
+    <div className="relative min-h-screen w-full bg-[#050505] font-sans text-white">
+      <button
+        type="button"
+        aria-label="뒤로 가기"
+        onClick={onBack}
+        className="absolute left-6 top-6 z-50 p-2 text-zinc-600 transition-colors hover:text-zinc-300"
+      >
+        <ChevronLeft className="h-6 w-6" strokeWidth={1.5} />
+      </button>
+      <div className="flex min-h-screen w-full flex-col items-center justify-center">
+        <span
+          className="block w-full whitespace-nowrap bg-gradient-to-b from-purple-400 via-purple-700 to-black bg-clip-text pl-[0.6em] text-center text-[15vw] font-black tracking-[0.6em] text-transparent drop-shadow-[0_0_40px_rgba(168,85,247,0.7)]"
+          aria-hidden
+        >
+          MASTER
+        </span>
+        <div className="mt-6 text-[10px] font-semibold tracking-[0.6em] text-purple-400 opacity-80">
+          U N D E R&nbsp;J U D G E M E N T
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function MemberAthleteView({ userId, goBack }) {
+  const navigate = useNavigate();
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
   const [entranceKey, setEntranceKey] = useState(0);
   const [ownedTitles, setOwnedTitles] = useState([]);
-  const [loadingMirrorData, setLoadingMirrorData] = useState(true);
   const [ledgerRefreshKey, setLedgerRefreshKey] = useState(0);
   const [roadmapOpen, setRoadmapOpen] = useState(false);
   const [masterExamRequestStatus, setMasterExamRequestStatus] = useState('idle');
   const [isTitleModalOpen, setIsTitleModalOpen] = useState(false);
 
+  const handleBack = () => {
+    if (typeof goBack === 'function') {
+      goBack();
+      return;
+    }
+    if (typeof window !== 'undefined' && window.history.length > 1) {
+      window.history.back();
+      return;
+    }
+    navigate(-1);
+  };
+
+  /** Single orchestrated load: pending master → skip member_titles (no leak). */
   useEffect(() => {
+    if (!userId) {
+      setProfile(null);
+      setOwnedTitles([]);
+      setMasterExamRequestStatus('idle');
+      setLoading(false);
+      return;
+    }
     let cancelled = false;
     (async () => {
-      if (!userId) {
-        if (!cancelled) setLoading(false);
-        return;
-      }
-      const { data, error } = await supabase
+      setLoading(true);
+      setOwnedTitles([]);
+      setMasterExamRequestStatus('idle');
+
+      const { data: prof, error: profErr } = await supabase
         .from('profiles')
         .select('id,name,member_level,current_title')
         .eq('id', userId)
         .maybeSingle();
       if (cancelled) return;
-      if (error) {
-        console.error('[MemberAthleteView] profile load', error);
+      if (profErr) {
+        console.error('[MemberAthleteView] profile load', profErr);
         setProfile(null);
-      } else {
-        setProfile(data || null);
+        setLoading(false);
+        return;
       }
+      setProfile(prof || null);
+
+      let masterStatus = 'idle';
+      const { data: rpcData, error: rpcErr } = await supabase.rpc('get_master_exam_status', {
+        p_user_id: userId,
+      });
+      if (!cancelled && !rpcErr && rpcData != null) {
+        masterStatus = String(
+          typeof rpcData === 'string' ? rpcData : rpcData?.status ?? rpcData?.exam_status ?? ''
+        )
+          .toLowerCase()
+          .trim();
+        masterStatus = masterStatus || 'idle';
+      } else if (!cancelled) {
+        const { data: rows, error: rowErr } = await supabase
+          .from('master_exam_requests')
+          .select('status')
+          .eq('user_id', userId)
+          .order('created_at', { ascending: false })
+          .limit(1);
+        if (!rowErr && Array.isArray(rows) && rows[0]) {
+          masterStatus = String(rows[0].status ?? '')
+            .toLowerCase()
+            .trim();
+        } else if (rowErr) {
+          console.error('[MemberAthleteView] master_exam_requests', rowErr);
+        }
+      }
+      if (cancelled) return;
+      setMasterExamRequestStatus(masterStatus);
+
+      const levelNum = Number(prof?.member_level);
+      const isPendingMaster = levelNum === 10 && masterStatus === 'pending';
+
+      if (!isPendingMaster) {
+        const { data: titlesData, error: titlesErr } = await supabase
+          .from('member_titles')
+          .select('*')
+          .eq('user_id', userId)
+          .order('granted_at', { ascending: false });
+        if (cancelled) return;
+        if (titlesErr) {
+          console.error('[MemberAthleteView] member_titles', titlesErr);
+          setOwnedTitles([]);
+        } else {
+          setOwnedTitles(titlesData || []);
+        }
+        setLedgerRefreshKey((k) => k + 1);
+      } else {
+        setOwnedTitles([]);
+      }
+
       setLoading(false);
       setEntranceKey((k) => k + 1);
     })();
@@ -43,110 +142,69 @@ export default function MemberAthleteView({ userId, goBack }) {
     };
   }, [userId]);
 
-  useEffect(() => {
-    if (!userId) {
-      setOwnedTitles([]);
-      setLoadingMirrorData(false);
-      return;
-    }
-    let cancelled = false;
-    (async () => {
-      setLoadingMirrorData(true);
-      const { data: titlesData, error: titlesErr } = await supabase
-        .from('member_titles')
-        .select('*')
-        .eq('user_id', userId)
-        .order('granted_at', { ascending: false });
-      if (cancelled) return;
-      if (titlesErr) {
-        console.error('[MemberAthleteView] member_titles', titlesErr);
-        setOwnedTitles([]);
-      } else {
-        setOwnedTitles(titlesData || []);
-      }
-      setLoadingMirrorData(false);
-      setLedgerRefreshKey((k) => k + 1);
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [userId]);
-
-  useEffect(() => {
-    if (!userId) {
-      setMasterExamRequestStatus('idle');
-      return;
-    }
-    let cancelled = false;
-    (async () => {
-      const { data: rpcData, error: rpcErr } = await supabase.rpc('get_master_exam_status', {
-        p_user_id: userId,
-      });
-      if (cancelled) return;
-      if (!rpcErr && rpcData != null) {
-        const status = String(typeof rpcData === 'string' ? rpcData : rpcData?.status ?? rpcData?.exam_status ?? '')
-          .toLowerCase()
-          .trim();
-        setMasterExamRequestStatus(status || 'idle');
-        return;
-      }
-
-      const { data: rows, error: rowErr } = await supabase
-        .from('master_exam_requests')
-        .select('status')
-        .eq('user_id', userId)
-        .order('created_at', { ascending: false })
-        .limit(1);
-      if (cancelled) return;
-      if (rowErr) {
-        console.error('[MemberAthleteView] master_exam_requests', rowErr);
-        setMasterExamRequestStatus('idle');
-        return;
-      }
-      const latestStatus = String(Array.isArray(rows) ? rows[0]?.status ?? '' : '').toLowerCase().trim();
-      setMasterExamRequestStatus(latestStatus || 'idle');
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [userId]);
-
   if (loading) {
     return (
-      <div className="min-h-screen max-h-[100dvh] w-full overflow-y-auto overflow-x-hidden bg-obsidian text-zinc-400 flex items-center justify-center font-sans">
-        불러오는 중...
+      <div className="relative min-h-screen max-h-[100dvh] w-full overflow-hidden bg-[#050505] font-sans text-zinc-400">
+        <button
+          type="button"
+          aria-label="뒤로 가기"
+          onClick={handleBack}
+          className="absolute left-6 top-6 z-50 p-2 text-zinc-500 transition-colors hover:text-white"
+        >
+          <ChevronLeft className="h-6 w-6" strokeWidth={1.5} />
+        </button>
+        <div className="flex min-h-screen items-center justify-center">불러오는 중...</div>
       </div>
     );
   }
 
   if (!profile || String(profile.name || '').trim() !== '테스트용1') {
     return (
-      <div className="min-h-screen max-h-[100dvh] w-full overflow-y-auto overflow-x-hidden bg-white text-slate-900 flex items-center justify-center px-6">
-        <div className="text-center">
-          <p className="text-sm text-slate-500">명예의 전당 테스트 권한이 없습니다.</p>
-          <button
-            type="button"
-            onClick={goBack}
-            className="mt-4 rounded-lg border border-gray-200 px-4 py-2 text-sm text-slate-700"
-          >
-            돌아가기
-          </button>
+      <div className="relative min-h-screen max-h-[100dvh] w-full overflow-y-auto overflow-x-hidden bg-white px-6 text-slate-900">
+        <button
+          type="button"
+          aria-label="뒤로 가기"
+          onClick={handleBack}
+          className="absolute left-6 top-6 z-50 p-2 text-zinc-500 transition-colors hover:text-zinc-800"
+        >
+          <ChevronLeft className="h-6 w-6" strokeWidth={1.5} />
+        </button>
+        <div className="flex min-h-screen items-center justify-center">
+          <div className="text-center">
+            <p className="text-sm text-slate-500">명예의 전당 테스트 권한이 없습니다.</p>
+            <button
+              type="button"
+              onClick={handleBack}
+              className="mt-4 rounded-lg border border-gray-200 px-4 py-2 text-sm text-slate-700"
+            >
+              돌아가기
+            </button>
+          </div>
         </div>
       </div>
     );
   }
 
-  const shouldShowMasterSanctum = Number(profile?.member_level) === 10 && masterExamRequestStatus === 'pending';
+  const shouldShowMasterSanctum = Number(profile.member_level) === 10 && masterExamRequestStatus === 'pending';
   if (shouldShowMasterSanctum) {
-    return <MasterExamPendingSanctum fullScreen />;
+    return <MasterPendingCinematicView onBack={handleBack} />;
   }
 
   return (
     <div
       key={entranceKey}
-      className="min-h-screen max-h-[100dvh] w-full overflow-y-auto overflow-x-hidden bg-[#050505] px-4 pt-4 pb-20 font-sans animate-in fade-in duration-1000 ease-out zoom-in-95 fill-mode-forwards"
+      className="relative min-h-screen max-h-[100dvh] w-full overflow-y-auto overflow-x-hidden bg-[#050505] px-4 pb-20 pt-4 font-sans animate-in fade-in duration-1000 ease-out zoom-in-95 fill-mode-forwards"
     >
-      <div className="mx-auto flex min-h-[calc(100dvh-6.5rem)] w-full max-w-[420px] flex-col gap-10">
+      <button
+        type="button"
+        aria-label="뒤로 가기"
+        onClick={handleBack}
+        className="absolute left-6 top-6 z-50 p-2 text-zinc-500 transition-colors hover:text-white"
+      >
+        <ChevronLeft className="h-6 w-6" strokeWidth={1.5} />
+      </button>
+
+      <div className="mx-auto flex min-h-[calc(100dvh-6.5rem)] w-full max-w-[420px] flex-col gap-10 pt-10">
         <AthleteStatus
           memberId={profile.id}
           memberName={profile.name}
@@ -165,10 +223,7 @@ export default function MemberAthleteView({ userId, goBack }) {
         />
 
         <div className="space-y-10">
-          <AthleteStatusBoard
-            targetUserId={profile.id}
-            ledgerRefreshKey={ledgerRefreshKey}
-          />
+          <AthleteStatusBoard targetUserId={profile.id} ledgerRefreshKey={ledgerRefreshKey} />
         </div>
 
         <div className="mt-auto flex justify-center pb-6 pt-2">
