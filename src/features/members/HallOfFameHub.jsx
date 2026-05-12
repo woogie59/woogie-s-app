@@ -33,43 +33,67 @@ export default function HallOfFameHub({ setView, setSelectedMemberId, goBack }) 
   const fetchPendingExams = useCallback(async () => {
     setLoadingPendingExams(true);
     try {
-      // Step 1: fetch requests without any JOIN to avoid FK misconfiguration errors
+      // Step 1: fetch all columns so we can inspect the actual schema
       const { data: requests, error: reqErr } = await supabase
         .from('master_exam_requests')
-        .select('id, user_id, status, created_at')
+        .select('*')
         .eq('status', 'pending')
         .order('created_at', { ascending: false });
+
+      // Always log raw data so admin can verify columns in console
+      console.log('[HallOfFameHub] RAW REQUESTS:', requests, 'ERROR:', reqErr);
+
       if (reqErr) throw reqErr;
 
       const list = Array.isArray(requests) ? requests : [];
-      if (list.length === 0) {
-        setPendingExams([]);
-        return;
-      }
 
-      // Step 2: separately fetch profile names for the collected user_ids
-      const userIds = [...new Set(list.map((r) => r.user_id).filter(Boolean))];
-      const { data: profiles } = await supabase
-        .from('profiles')
-        .select('id, name')
-        .in('id', userIds);
-      const nameById = Object.fromEntries(
-        (Array.isArray(profiles) ? profiles : []).map((p) => [p.id, p.name])
-      );
+      // Step 2: immediately populate list with whatever we have so rows always show
+      // Detect the actual user ID column name (user_id / member_id / applicant_id)
+      const resolveUserId = (r) =>
+        r.user_id ?? r.member_id ?? r.applicant_id ?? r.uid ?? null;
 
-      // Step 3: merge — missing name falls back gracefully, never crashes the list
+      // Render rows immediately without names so the list is never empty
       setPendingExams(
         list.map((r) => ({
           request_id: r.id,
           id: r.id,
-          user_id: r.user_id,
-          name: nameById[r.user_id] || '알 수 없는 회원',
+          user_id: resolveUserId(r),
+          name: resolveUserId(r) ?? 'ID 매칭 실패',
           created_at: r.created_at,
         }))
       );
+
+      if (list.length === 0) return;
+
+      // Step 3: enrich with real names via separate profiles query
+      const userIds = [...new Set(list.map(resolveUserId).filter(Boolean))];
+      const { data: profiles } = await supabase
+        .from('profiles')
+        .select('id, name')
+        .in('id', userIds);
+
+      console.log('[HallOfFameHub] PROFILES:', profiles);
+
+      const nameById = Object.fromEntries(
+        (Array.isArray(profiles) ? profiles : []).map((p) => [p.id, p.name])
+      );
+
+      // Update list with real names — rows were already rendered above
+      setPendingExams(
+        list.map((r) => {
+          const uid = resolveUserId(r);
+          return {
+            request_id: r.id,
+            id: r.id,
+            user_id: uid,
+            name: (uid && nameById[uid]) ? nameById[uid] : (uid ?? 'ID 매칭 실패'),
+            created_at: r.created_at,
+          };
+        })
+      );
     } catch (e) {
-      console.error('[HallOfFameHub] master_exam_requests', e);
-      setPendingExams([]);
+      console.error('[HallOfFameHub] fetchPendingExams FAILED:', e);
+      // Do NOT wipe list here — show whatever was already set
     } finally {
       setLoadingPendingExams(false);
     }
