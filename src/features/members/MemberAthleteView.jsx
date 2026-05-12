@@ -236,24 +236,13 @@ export default function MemberAthleteView({ userId, goBack }) {
           viewMode="member"
           masterExamPendingFullBleed
           compactMemberHero
-          suppressRoadmapButton
+          suppressRoadmapButton={false}
           hideTitleArchive
           roadmapOpen={roadmapOpen}
           onRoadmapOpenChange={setRoadmapOpen}
           onRepresentativeTitleClick={() => setIsTitleModalOpen(true)}
           representativeTitleDescription={representativeTitleDescription}
         />
-
-        <div className="flex justify-center pt-2">
-          <button
-            type="button"
-            aria-label="계급표 열기"
-            onClick={() => setRoadmapOpen(true)}
-            className="inline-flex items-center justify-center rounded-full border border-white/10 bg-white/5 px-6 py-3 text-xs tracking-[0.16em] text-white/85 backdrop-blur-md transition-all hover:bg-white/10"
-          >
-            [ ✦ 계급표 ]
-          </button>
-        </div>
 
         <div className="space-y-10">
           <AthleteStatusBoard targetUserId={profile.id} ledgerRefreshKey={ledgerRefreshKey} />

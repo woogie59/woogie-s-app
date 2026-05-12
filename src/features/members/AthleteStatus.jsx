@@ -546,10 +546,10 @@ export default function AthleteStatus({
           MASTER
         </span>
       ) : (
-        <div className="py-8 w-full flex justify-center overflow-visible">
+        <div className="w-full flex justify-center overflow-visible" style={{ paddingTop: '2rem', paddingBottom: '2.5rem' }}>
           <span
             className={prestige.levelClassName}
-            style={{ fontSize: 'clamp(4rem, 25vw, 10rem)', lineHeight: '1.5', overflow: 'visible' }}
+            style={{ fontSize: 'clamp(4rem, 25vw, 10rem)', lineHeight: '1.1', overflow: 'visible', paddingBottom: '1rem', display: 'block' }}
           >
             {prestige.levelText}
           </span>
@@ -662,6 +662,17 @@ export default function AthleteStatus({
           className={`flex w-full flex-col items-center ${compactMemberHero ? 'gap-5 pb-6 pt-0' : 'gap-16 py-32'}`}
         >
           {heroBlock}
+
+          {compactMemberHero && isMemberIsolatedView ? (
+            <button
+              type="button"
+              aria-label="레벨 가이드 열기"
+              onClick={openRoadmap}
+              className="inline-flex items-center justify-center rounded-full border border-white/10 bg-white/5 px-6 py-3 text-xs tracking-[0.16em] text-white/85 backdrop-blur-md transition-all hover:bg-white/10"
+            >
+              [ ✦ 계급표 ]
+            </button>
+          ) : null}
 
           {compactMemberHero && isMemberIsolatedView ? (
             <>

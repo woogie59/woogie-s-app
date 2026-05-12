@@ -32,46 +32,28 @@ export default function HallOfFameHub({ setView, setSelectedMemberId, goBack }) 
 
   const fetchPendingExams = useCallback(async () => {
     setLoadingPendingExams(true);
-    const { data: rpcData, error: rpcError } = await supabase.rpc('get_pending_master_exams');
-    if (!rpcError && Array.isArray(rpcData) && rpcData.length > 0) {
-      setPendingExams(rpcData);
-      setLoadingPendingExams(false);
-      return;
-    }
-    if (rpcError) {
-      console.error('[HallOfFameHub] get_pending_master_exams', rpcError);
-    }
-
-    const { data: rows, error: qerr } = await supabase
-      .from('master_exam_requests')
-      .select('id, user_id, status, created_at')
-      .eq('status', 'pending')
-      .order('created_at', { ascending: false });
-    if (qerr) {
-      console.error('[HallOfFameHub] master_exam_requests', qerr);
+    try {
+      const { data: rows, error } = await supabase
+        .from('master_exam_requests')
+        .select('id, user_id, status, created_at, profiles(id, name)')
+        .eq('status', 'pending')
+        .order('created_at', { ascending: false });
+      if (error) throw error;
+      setPendingExams(
+        (Array.isArray(rows) ? rows : []).map((r) => ({
+          request_id: r.id,
+          id: r.id,
+          user_id: r.user_id,
+          name: r.profiles?.name || '이름 없음',
+          created_at: r.created_at,
+        }))
+      );
+    } catch (e) {
+      console.error('[HallOfFameHub] master_exam_requests', e);
       setPendingExams([]);
+    } finally {
       setLoadingPendingExams(false);
-      return;
     }
-    const list = Array.isArray(rows) ? rows : [];
-    if (list.length === 0) {
-      setPendingExams([]);
-      setLoadingPendingExams(false);
-      return;
-    }
-    const userIds = [...new Set(list.map((r) => r.user_id).filter(Boolean))];
-    const { data: profs } = await supabase.from('profiles').select('id,name').in('id', userIds);
-    const nameById = Object.fromEntries((profs || []).map((p) => [p.id, p.name]));
-    setPendingExams(
-      list.map((r) => ({
-        request_id: r.id,
-        id: r.id,
-        user_id: r.user_id,
-        name: nameById[r.user_id] || '회원',
-        created_at: r.created_at,
-      }))
-    );
-    setLoadingPendingExams(false);
   }, []);
 
   useEffect(() => {
