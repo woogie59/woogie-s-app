@@ -4,6 +4,7 @@ import { supabase } from '../../lib/supabaseClient';
 import AthleteStatus from './AthleteStatus';
 import AthleteStatusBoard from './AthleteStatusBoard';
 import TitleArchiveModal from './TitleArchiveModal';
+import HallOfFameLeaderboard from './HallOfFameLeaderboard';
 
 function MasterPendingCinematicView({ onBack }) {
   return (
@@ -42,6 +43,7 @@ export default function MemberAthleteView({ userId, goBack }) {
   const [roadmapOpen, setRoadmapOpen] = useState(false);
   const [masterExamRequestStatus, setMasterExamRequestStatus] = useState('idle');
   const [isTitleModalOpen, setIsTitleModalOpen] = useState(false);
+  const [hofOpen, setHofOpen] = useState(false);
 
   const handleBack = () => {
     if (typeof goBack === 'function') {
@@ -256,7 +258,20 @@ export default function MemberAthleteView({ userId, goBack }) {
         <div className="space-y-10">
           <AthleteStatusBoard targetUserId={profile.id} ledgerRefreshKey={ledgerRefreshKey} />
         </div>
+
+        <div className="flex justify-center pt-4 pb-2">
+          <button
+            type="button"
+            aria-label="명예의 전당 열기"
+            onClick={() => setHofOpen(true)}
+            className="inline-flex items-center justify-center rounded-full border border-purple-500/20 bg-purple-900/10 px-6 py-3 text-xs tracking-[0.16em] text-purple-300/80 backdrop-blur-md transition-all hover:border-purple-500/40 hover:text-purple-200"
+          >
+            [ ✦ 명예의 전당 (Hall of Fame) ]
+          </button>
+        </div>
       </div>
+
+      <HallOfFameLeaderboard isOpen={hofOpen} onClose={() => setHofOpen(false)} />
 
       <TitleArchiveModal
         isOpen={isTitleModalOpen}

@@ -46,6 +46,8 @@ export default function MemberStatusTab({ userId, profile, memberLevel, onRefres
   const [committedTitle, setCommittedTitle] = useState(() => String(profile?.current_title ?? ''));
   const [ledgerRefreshKey, setLedgerRefreshKey] = useState(0);
   const [roadmapOpen, setRoadmapOpen] = useState(false);
+  const [isAthleteEnabled, setIsAthleteEnabled] = useState(() => !!profile?.is_athlete_system_enabled);
+  const [togglingAthleteSystem, setTogglingAthleteSystem] = useState(false);
 
   if (!profile || !userId) {
     return (
@@ -375,6 +377,27 @@ export default function MemberStatusTab({ userId, profile, memberLevel, onRefres
     }
   };
 
+  const toggleAthleteSystem = async () => {
+    if (!userId) return;
+    const next = !isAthleteEnabled;
+    setTogglingAthleteSystem(true);
+    try {
+      const { error } = await supabase
+        .from('profiles')
+        .update({ is_athlete_system_enabled: next })
+        .eq('id', userId);
+      if (error) throw error;
+      setIsAthleteEnabled(next);
+      await onRefresh?.();
+      toast.success(next ? '아틀리트 시스템이 활성화되었습니다.' : '아틀리트 시스템이 비활성화되었습니다.');
+    } catch (e) {
+      console.error('[MemberStatusTab] toggleAthleteSystem', e);
+      toast.error(`변경 실패: ${supabaseErrorMessage(e)}`);
+    } finally {
+      setTogglingAthleteSystem(false);
+    }
+  };
+
   const saveMainTitleDescription = async (mainTitleName) => {
     const mainTitle = String(mainTitleName || '').trim();
     if (!mainTitle) return;
@@ -420,6 +443,34 @@ export default function MemberStatusTab({ userId, profile, memberLevel, onRefres
           </div>
 
           <div className="mt-8 space-y-10">
+            <div className="border-t border-white/10 pt-6">
+              <h3 className="text-zinc-400 text-xs font-bold uppercase tracking-widest">아틀리트 시스템 접근</h3>
+              <p className="mt-2 text-sm leading-relaxed text-zinc-500">
+                활성화 시 회원 앱에 "나의 상태" 화면이 표시됩니다. 비활성화하면 카드 자체가 숨겨집니다.
+              </p>
+              <div className="mt-4 flex items-center justify-between rounded-xl border border-white/10 bg-black/30 px-4 py-3">
+                <span className="text-sm font-medium text-zinc-200">
+                  {isAthleteEnabled ? '활성화됨' : '비활성화됨'}
+                </span>
+                <button
+                  type="button"
+                  disabled={togglingAthleteSystem}
+                  onClick={toggleAthleteSystem}
+                  className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none disabled:opacity-50 ${
+                    isAthleteEnabled ? 'bg-purple-600' : 'bg-zinc-700'
+                  }`}
+                  aria-checked={isAthleteEnabled}
+                  role="switch"
+                >
+                  <span
+                    className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                      isAthleteEnabled ? 'translate-x-5' : 'translate-x-0'
+                    }`}
+                  />
+                </button>
+              </div>
+            </div>
+
             <div className="border-t border-white/10 pt-6">
               <h3 className="text-zinc-400 text-xs font-bold uppercase tracking-widest">레벨 부여</h3>
               <p className="mt-2 text-sm text-zinc-500">회원의 목표 레벨(1~10)을 선택하세요.</p>

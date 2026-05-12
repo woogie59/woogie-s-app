@@ -575,14 +575,14 @@ const ClientHome = ({ user, logout, setView }) => {
 
         {/* 2. Open schedule flow */}
         <div className="flex flex-col gap-5 pb-2">
-          {String(profile?.name || '').trim() === '테스트용1' ? (
+          {profile?.is_athlete_system_enabled ? (
             <button
               type="button"
               onClick={() => setShowHallEntryModal(true)}
-              className="w-full rounded-2xl border border-amber-300/35 bg-gradient-to-r from-zinc-900 to-black px-4 py-4 text-left text-white shadow-[0_0_24px_rgba(0,0,0,0.45)] transition-all duration-200 hover:border-amber-300/50 active:scale-[0.99]"
+              className="w-full rounded-2xl border border-purple-500/30 bg-gradient-to-r from-zinc-900 to-black px-4 py-4 text-left text-white shadow-[0_0_24px_rgba(0,0,0,0.45)] transition-all duration-200 hover:border-purple-500/50 active:scale-[0.99]"
             >
-              <p className="text-[11px] uppercase tracking-[0.16em] text-zinc-400">Hall of Fame</p>
-              <p className="mt-1 text-sm font-semibold tracking-tight">명예의 전당 입장</p>
+              <p className="text-[11px] uppercase tracking-[0.16em] text-zinc-400">MY STATUS</p>
+              <p className="mt-1 text-sm font-semibold tracking-tight">나의 상태 보기</p>
             </button>
           ) : null}
 
@@ -754,7 +754,7 @@ const ClientHome = ({ user, logout, setView }) => {
               className="w-full max-w-sm rounded-2xl border border-white/10 bg-[#0a0a0a] p-6 shadow-[0_20px_70px_rgba(0,0,0,0.7)]"
               onClick={(e) => e.stopPropagation()}
             >
-              <p className="text-center text-sm tracking-[0.14em] text-zinc-300">명예의 전당에 입장하시겠습니까?</p>
+              <p className="text-center text-sm tracking-[0.14em] text-zinc-300">나의 아틀리트 상태 화면으로 이동합니다.</p>
               <div className="mt-5 grid grid-cols-2 gap-2">
                 <button
                   type="button"
@@ -762,7 +762,7 @@ const ClientHome = ({ user, logout, setView }) => {
                     setShowHallEntryModal(false);
                     setView('hall_of_fame_member_self');
                   }}
-                  className="rounded-xl border border-amber-300/40 bg-amber-200/10 px-3 py-2.5 text-sm font-semibold text-amber-200 transition hover:bg-amber-200/20"
+                  className="rounded-xl border border-purple-500/40 bg-purple-500/10 px-3 py-2.5 text-sm font-semibold text-purple-300 transition hover:bg-purple-500/20"
                 >
                   입장
                 </button>
