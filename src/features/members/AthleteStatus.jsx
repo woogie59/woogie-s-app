@@ -556,7 +556,7 @@ export default function AthleteStatus({
   });
   const guideBlock = <p className="text-xs leading-relaxed text-white/45">{currentGuideDescription}</p>;
   const representativeClickable = typeof onRepresentativeTitleClick === 'function';
-  const hasRepresentativeDescription = String(representativeTitleDescription || '').trim() !== '';
+  const hasRepresentativeDescription = true;
   const openTitleInfoModal = async () => {
     setIsTitleInfoOpen(true);
     const currentTitle = String(localCurrentTitle || memberTitle || '').trim();
@@ -566,34 +566,57 @@ export default function AthleteStatus({
     }
     setLoadingTitleInfo(true);
     try {
-      const { data: exactRows, error: exactErr } = await supabase
-        .from('title_definitions')
-        .select('title,parent_title,description')
-        .eq('title', currentTitle)
-        .limit(1);
-      if (exactErr) throw exactErr;
-      const exact = Array.isArray(exactRows) ? exactRows[0] : null;
-      const exactDesc = String(exact?.description || '').trim();
+      const readFrom = async (tableName) => {
+        const byTitle = await supabase
+          .from(tableName)
+          .select('*')
+          .or(`title.eq.${currentTitle},name.eq.${currentTitle}`)
+          .limit(1);
+        if (byTitle.error) {
+          const msg = String(byTitle.error.message || '').toLowerCase();
+          if (msg.includes('relation') || msg.includes('does not exist')) return { row: null, missing: true };
+          throw byTitle.error;
+        }
+        return { row: Array.isArray(byTitle.data) ? byTitle.data[0] || null : null, missing: false };
+      };
+
+      const sources = ['title_definitions', 'titles', 'title_sets'];
+      let matchedRow = null;
+      for (const src of sources) {
+        const { row } = await readFrom(src);
+        if (row) {
+          matchedRow = row;
+          break;
+        }
+      }
+
+      const exactDesc = String(matchedRow?.description || '').trim();
       if (exactDesc) {
         setTitleInfoDescription(exactDesc);
         return;
       }
-      const parentTitle = String(exact?.parent_title || '').trim();
+
+      const parentTitle = String(matchedRow?.parent_title || '').trim();
       if (parentTitle) {
-        const { data: parentRows, error: parentErr } = await supabase
+        const parentByTitle = await supabase
           .from('title_definitions')
-          .select('description')
-          .eq('title', parentTitle)
+          .select('*')
+          .or(`title.eq.${parentTitle},name.eq.${parentTitle}`)
           .limit(1);
-        if (parentErr) throw parentErr;
-        const parentDesc = String((Array.isArray(parentRows) ? parentRows[0]?.description : '') || '').trim();
-        setTitleInfoDescription(parentDesc);
-        return;
+        if (!parentByTitle.error) {
+          const parentDesc = String(
+            (Array.isArray(parentByTitle.data) ? parentByTitle.data[0]?.description : '') || ''
+          ).trim();
+          if (parentDesc) {
+            setTitleInfoDescription(parentDesc);
+            return;
+          }
+        }
       }
-      setTitleInfoDescription(String(representativeTitleDescription || '').trim());
+      setTitleInfoDescription('');
     } catch (e) {
       console.error('[AthleteStatus] title info', e);
-      setTitleInfoDescription(String(representativeTitleDescription || '').trim());
+      setTitleInfoDescription('');
     } finally {
       setLoadingTitleInfo(false);
     }

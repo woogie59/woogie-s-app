@@ -100,7 +100,7 @@ export default function TitleArchiveModal({
       const hasMain = ownedTitleNames.has(mainName);
       if (!hasMain && subRows.length === 0) return;
       mains.push({
-        id: mainDef?.id ?? mainName,
+        id: mainDef?.id ?? mainDef?.uid ?? mainName,
         name: mainName,
         description: String(mainDef?.description || '').trim(),
         subTitles: subRows,

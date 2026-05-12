@@ -259,23 +259,40 @@ export default function MemberStatusTab({ userId, profile, memberLevel, onRefres
       if (error) throw error;
       const descVal = newMainTitleDescription.trim();
       if (descVal) {
-        const { data: updatedRows, error: updErr } = await supabase
+        let targetRow = null;
+        const byTitle = await supabase
           .from('title_definitions')
-          .update({ description: descVal })
+          .select('*')
           .eq('title', mainVal)
-          .select('id')
           .limit(1);
-        if (updErr) {
-          console.warn('[MemberStatusTab] title description update skipped', updErr);
-        } else if (!Array.isArray(updatedRows) || updatedRows.length === 0) {
-          const { error: insErr } = await supabase.from('title_definitions').insert({
-            title: mainVal,
+        if (byTitle.error) {
+          const msg = String(byTitle.error.message || '').toLowerCase();
+          if (!msg.includes('column') && !msg.includes('does not exist')) throw byTitle.error;
+        }
+        if (Array.isArray(byTitle.data) && byTitle.data[0]) {
+          targetRow = byTitle.data[0];
+        } else {
+          const byName = await supabase
+            .from('title_definitions')
+            .select('*')
+            .eq('name', mainVal)
+            .limit(1);
+          if (byName.error) throw byName.error;
+          if (Array.isArray(byName.data) && byName.data[0]) targetRow = byName.data[0];
+        }
+
+        const targetPk = targetRow?.id ?? targetRow?.uid ?? null;
+        if (targetPk != null) {
+          const pkCol = targetRow?.id != null ? 'id' : 'uid';
+          const { error: updErr } = await supabase.from('title_definitions').update({ description: descVal }).eq(pkCol, targetPk);
+          if (updErr) throw updErr;
+        } else {
+          const insName = await supabase.from('title_definitions').insert({
+            name: mainVal,
             parent_title: null,
             description: descVal,
           });
-          if (insErr) {
-            console.warn('[MemberStatusTab] title description insert skipped', insErr);
-          }
+          if (insName.error) throw insName.error;
         }
       }
       setNewMainTitle('');
