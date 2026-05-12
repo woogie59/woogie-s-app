@@ -205,7 +205,7 @@ const MemberCancelBookingModals = ({
                       onClick={resetDeleteFlow}
                       className="px-5 py-3 rounded-xl text-gray-600 hover:text-emerald-700 hover:bg-gray-100 transition-all font-medium min-w-[80px]"
                     >
-                      취소
+                      돌아가기
                     </button>
                     <button
                       type="button"
