@@ -91,27 +91,27 @@ function tierLabelFromLevel(level) {
 const TIER_VISUAL = {
   초심자: {
     levelClassName:
-      'block text-[8rem] font-black leading-none tracking-tighter tabular-nums bg-gradient-to-br from-white to-gray-300 bg-clip-text text-transparent drop-shadow-[0_0_24px_rgba(255,255,255,0.2)]',
+      'block text-[8rem] font-black leading-tight tracking-tighter tabular-nums bg-gradient-to-br from-white to-gray-300 bg-clip-text text-transparent drop-shadow-[0_0_24px_rgba(255,255,255,0.2)]',
     halo: 'radial-gradient(circle_at_center,rgba(255,255,255,0.16)_0%,#050505_58%,#050505_100%)',
   },
   수행자: {
     levelClassName:
-      'block text-[8rem] font-black leading-none tracking-tighter tabular-nums bg-gradient-to-br from-orange-400 to-amber-700 bg-clip-text text-transparent drop-shadow-[0_0_26px_rgba(245,158,11,0.35)]',
+      'block text-[8rem] font-black leading-tight tracking-tighter tabular-nums bg-gradient-to-br from-orange-400 to-amber-700 bg-clip-text text-transparent drop-shadow-[0_0_26px_rgba(245,158,11,0.35)]',
     halo: 'radial-gradient(circle_at_center,rgba(251,146,60,0.2)_0%,#050505_60%,#050505_100%)',
   },
   숙련자: {
     levelClassName:
-      'block text-[8rem] font-black leading-none tracking-tighter tabular-nums bg-gradient-to-br from-gray-300 to-gray-500 bg-clip-text text-transparent drop-shadow-[0_0_24px_rgba(209,213,219,0.28)]',
+      'block text-[8rem] font-black leading-tight tracking-tighter tabular-nums bg-gradient-to-br from-gray-300 to-gray-500 bg-clip-text text-transparent drop-shadow-[0_0_24px_rgba(209,213,219,0.28)]',
     halo: 'radial-gradient(circle_at_center,rgba(209,213,219,0.16)_0%,#050505_62%,#050505_100%)',
   },
   엘리트: {
     levelClassName:
-      'block text-[8rem] font-black leading-none tracking-tighter tabular-nums bg-gradient-to-br from-yellow-300 to-yellow-600 bg-clip-text text-transparent drop-shadow-[0_0_30px_rgba(234,179,8,0.32)]',
+      'block text-[8rem] font-black leading-tight tracking-tighter tabular-nums bg-gradient-to-br from-yellow-300 to-yellow-600 bg-clip-text text-transparent drop-shadow-[0_0_30px_rgba(234,179,8,0.32)]',
     halo: 'radial-gradient(circle_at_center,rgba(253,224,71,0.15)_0%,#050505_66%,#050505_100%)',
   },
   챌린저: {
     levelClassName:
-      'block text-[8rem] font-black leading-none tracking-tighter tabular-nums bg-gradient-to-br from-red-500 to-red-800 bg-clip-text text-transparent drop-shadow-[0_0_20px_rgba(220,38,38,0.5)]',
+      'block text-[8rem] font-black leading-tight tracking-tighter tabular-nums bg-gradient-to-br from-red-500 to-red-800 bg-clip-text text-transparent drop-shadow-[0_0_20px_rgba(220,38,38,0.5)]',
     halo: 'radial-gradient(circle_at_center,rgba(220,38,38,0.22)_0%,#050505_65%,#050505_100%)',
   },
 };
@@ -753,8 +753,18 @@ export default function AthleteStatus({
                 const parsed = parseLevelRange(phase.level_range);
                 const tierMin = parsed?.min ?? null;
                 const tierMax = parsed?.max ?? null;
-                const isLevel10Tier = tierMax === 10;
                 const isMasterTier = phase.id === 'tier-6';
+                const rankColorClass = isMasterTier
+                  ? 'text-purple-500 drop-shadow-[0_0_24px_rgba(147,51,234,0.45)]'
+                  : phase.id === 'tier-5'
+                    ? 'text-red-500'
+                    : phase.id === 'tier-4'
+                      ? 'text-yellow-400'
+                      : phase.id === 'tier-3'
+                        ? 'text-slate-400'
+                        : phase.id === 'tier-2'
+                          ? 'text-amber-600'
+                          : 'text-zinc-200';
                 return (
                   <div
                     key={phase.id}
@@ -766,11 +776,7 @@ export default function AthleteStatus({
                   >
                     <div className="flex items-center justify-between gap-3 py-0.5">
                       <p
-                        className={`text-xs font-semibold tracking-widest ${
-                          isLevel10Tier || isMasterTier
-                            ? 'text-purple-400 drop-shadow-[0_0_24px_rgba(147,51,234,0.45)]'
-                            : 'text-zinc-100'
-                        }`}
+                        className={`text-xs font-semibold tracking-widest ${rankColorClass}`}
                       >
                         {phase.title}
                       </p>

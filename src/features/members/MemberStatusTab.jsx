@@ -259,12 +259,23 @@ export default function MemberStatusTab({ userId, profile, memberLevel, onRefres
       if (error) throw error;
       const descVal = newMainTitleDescription.trim();
       if (descVal) {
-        const { error: updErr } = await supabase
+        const { data: updatedRows, error: updErr } = await supabase
           .from('title_definitions')
           .update({ description: descVal })
-          .eq('title', mainVal);
+          .eq('title', mainVal)
+          .select('id')
+          .limit(1);
         if (updErr) {
           console.warn('[MemberStatusTab] title description update skipped', updErr);
+        } else if (!Array.isArray(updatedRows) || updatedRows.length === 0) {
+          const { error: insErr } = await supabase.from('title_definitions').insert({
+            title: mainVal,
+            parent_title: null,
+            description: descVal,
+          });
+          if (insErr) {
+            console.warn('[MemberStatusTab] title description insert skipped', insErr);
+          }
         }
       }
       setNewMainTitle('');
