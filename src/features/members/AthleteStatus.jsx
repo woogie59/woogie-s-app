@@ -124,6 +124,7 @@ export default function AthleteStatus({
   hideTitleArchive = false,
   compactMemberHero = false,
   onRepresentativeTitleClick,
+  representativeTitleDescription = '',
 }) {
   const [roadmapInternalOpen, setRoadmapInternalOpen] = useState(false);
   const roadmapControlled = roadmapOpenProp !== undefined && typeof onRoadmapOpenChange === 'function';
@@ -147,6 +148,7 @@ export default function AthleteStatus({
   const [masterExamSubmitting, setMasterExamSubmitting] = useState(false);
   const [examStatus, setExamStatus] = useState('idle');
   const [masterAchieved, setMasterAchieved] = useState(false);
+  const [isTitleInfoOpen, setIsTitleInfoOpen] = useState(false);
   const touchStartYRef = useRef(null);
   const titleTouchStartYRef = useRef(null);
   const rawLv = Number(memberLevel) || 1;
@@ -397,6 +399,15 @@ export default function AthleteStatus({
   }, [hideTitleArchive, isTitleModalOpen]);
 
   useEffect(() => {
+    if (!isTitleInfoOpen) return;
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = prevOverflow;
+    };
+  }, [isTitleInfoOpen]);
+
+  useEffect(() => {
     if (hideTitleArchive || !isTitleModalOpen || !memberId) return;
     let cancelled = false;
     (async () => {
@@ -575,15 +586,25 @@ export default function AthleteStatus({
               ) : null}
               {String(localCurrentTitle || '').trim() ? (
                 <div className="flex flex-col items-center gap-1">
-                  <button
-                    type="button"
-                    onClick={() => onRepresentativeTitleClick?.()}
-                    className={`text-lg font-bold tracking-tight text-transparent bg-gradient-to-r from-platinum via-white to-platinum bg-clip-text transition-transform ${
-                      representativeClickable ? 'cursor-pointer hover:scale-105' : ''
-                    }`}
-                  >
-                    「{String(localCurrentTitle).trim()}」
-                  </button>
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => onRepresentativeTitleClick?.()}
+                      className={`text-lg font-bold tracking-tight text-transparent bg-gradient-to-r from-platinum via-white to-platinum bg-clip-text transition-transform ${
+                        representativeClickable ? 'cursor-pointer hover:scale-105' : ''
+                      }`}
+                    >
+                      「{String(localCurrentTitle).trim()}」
+                    </button>
+                    <button
+                      type="button"
+                      aria-label="칭호 설명 보기"
+                      onClick={() => setIsTitleInfoOpen(true)}
+                      className="inline-flex h-4 w-4 items-center justify-center rounded-full border border-zinc-600 text-[10px] font-semibold text-zinc-500 transition hover:border-zinc-400 hover:text-zinc-300"
+                    >
+                      i
+                    </button>
+                  </div>
                   {representativeClickable ? <span className="text-[10px] text-zinc-600">칭호 변경</span> : null}
                 </div>
               ) : null}
@@ -820,6 +841,33 @@ export default function AthleteStatus({
                 ))
               )}
             </div>
+          </div>
+        </div>
+      ) : null}
+
+      {isTitleInfoOpen ? (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4 backdrop-blur-md"
+          role="dialog"
+          aria-modal="true"
+          aria-label="칭호 설명"
+          onClick={() => setIsTitleInfoOpen(false)}
+        >
+          <div
+            className="w-full max-w-[320px] rounded-2xl border border-white/10 bg-[#050505] p-5 shadow-[0_20px_60px_-12px_rgba(0,0,0,0.8)]"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-zinc-500">칭호 설명</p>
+            <p className="mt-3 text-sm leading-relaxed text-zinc-200">
+              {String(representativeTitleDescription || '').trim() || '아직 등록된 칭호 설명이 없습니다.'}
+            </p>
+            <button
+              type="button"
+              onClick={() => setIsTitleInfoOpen(false)}
+              className="mt-6 w-full rounded-lg border border-white/15 bg-white/5 py-2.5 text-sm font-semibold text-zinc-200 transition hover:border-white/25 hover:bg-white/10"
+            >
+              닫기
+            </button>
           </div>
         </div>
       ) : null}

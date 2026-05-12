@@ -31,6 +31,7 @@ export default function MemberStatusTab({ userId, profile, memberLevel, onRefres
   const [titleDefinitions, setTitleDefinitions] = useState([]);
   const [loadingTitleDefinitions, setLoadingTitleDefinitions] = useState(false);
   const [newMainTitle, setNewMainTitle] = useState('');
+  const [newMainTitleDescription, setNewMainTitleDescription] = useState('');
   const [newSubTitlesRaw, setNewSubTitlesRaw] = useState('');
   const [creatingTitleSet, setCreatingTitleSet] = useState(false);
   const [togglingTitleName, setTogglingTitleName] = useState('');
@@ -256,7 +257,18 @@ export default function MemberStatusTab({ userId, profile, memberLevel, onRefres
         p_sub_titles: subArray,
       });
       if (error) throw error;
+      const descVal = newMainTitleDescription.trim();
+      if (descVal) {
+        const { error: updErr } = await supabase
+          .from('title_definitions')
+          .update({ description: descVal })
+          .eq('title', mainVal);
+        if (updErr) {
+          console.warn('[MemberStatusTab] title description update skipped', updErr);
+        }
+      }
       setNewMainTitle('');
+      setNewMainTitleDescription('');
       setNewSubTitlesRaw('');
       // 생성 직후 보드 즉시 동기화 (정의 + 보유 현황)
       await fetchTitleDefinitions();
@@ -398,6 +410,14 @@ export default function MemberStatusTab({ userId, profile, memberLevel, onRefres
                   value={newMainTitle}
                   onChange={(e) => setNewMainTitle(e.target.value)}
                   className="mt-1.5 w-full rounded-lg border border-white/10 bg-black/50 px-3 py-2.5 text-sm text-white outline-none transition-all focus:ring-1 focus:ring-zinc-500"
+                />
+                <label className="mt-3 block text-sm text-zinc-500">메인 칭호 설명</label>
+                <textarea
+                  value={newMainTitleDescription}
+                  onChange={(e) => setNewMainTitleDescription(e.target.value)}
+                  rows={3}
+                  placeholder="예: 어떤 환경에서도 자세 교정과 운동 수행을 이끄는 상급 칭호."
+                  className="mt-1.5 w-full resize-none rounded-lg border border-white/10 bg-black/50 px-3 py-2 text-sm text-white outline-none transition-all placeholder:text-zinc-500 focus:ring-1 focus:ring-zinc-500"
                 />
                 <label className="mt-3 block text-sm text-zinc-500">
                   서브 칭호 목록 (쉼표로 구분. 예: 가슴, 등, 하체, 어깨)

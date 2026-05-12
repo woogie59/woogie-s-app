@@ -36,6 +36,7 @@ export default function MemberAthleteView({ userId, goBack }) {
   const [loading, setLoading] = useState(true);
   const [entranceKey, setEntranceKey] = useState(0);
   const [ownedTitles, setOwnedTitles] = useState([]);
+  const [titleDefinitions, setTitleDefinitions] = useState([]);
   const [ledgerRefreshKey, setLedgerRefreshKey] = useState(0);
   const [roadmapOpen, setRoadmapOpen] = useState(false);
   const [masterExamRequestStatus, setMasterExamRequestStatus] = useState('idle');
@@ -117,21 +118,31 @@ export default function MemberAthleteView({ userId, goBack }) {
       const isPendingMaster = levelNum === 10 && masterStatus === 'pending';
 
       if (!isPendingMaster) {
-        const { data: titlesData, error: titlesErr } = await supabase
-          .from('member_titles')
-          .select('*')
-          .eq('user_id', userId)
-          .order('granted_at', { ascending: false });
+        const [titlesRes, defsRes] = await Promise.all([
+          supabase
+            .from('member_titles')
+            .select('*')
+            .eq('user_id', userId)
+            .order('granted_at', { ascending: false }),
+          supabase.from('title_definitions').select('*').order('id', { ascending: true }),
+        ]);
         if (cancelled) return;
-        if (titlesErr) {
-          console.error('[MemberAthleteView] member_titles', titlesErr);
+        if (titlesRes.error) {
+          console.error('[MemberAthleteView] member_titles', titlesRes.error);
           setOwnedTitles([]);
         } else {
-          setOwnedTitles(titlesData || []);
+          setOwnedTitles(titlesRes.data || []);
+        }
+        if (defsRes.error) {
+          console.error('[MemberAthleteView] title_definitions', defsRes.error);
+          setTitleDefinitions([]);
+        } else {
+          setTitleDefinitions(defsRes.data || []);
         }
         setLedgerRefreshKey((k) => k + 1);
       } else {
         setOwnedTitles([]);
+        setTitleDefinitions([]);
       }
 
       setLoading(false);
@@ -190,6 +201,13 @@ export default function MemberAthleteView({ userId, goBack }) {
     return <MasterPendingCinematicView onBack={handleBack} />;
   }
 
+  const representativeTitleDescription = (() => {
+    const currentTitle = String(profile?.current_title || '').trim();
+    if (!currentTitle) return '';
+    const def = (titleDefinitions || []).find((row) => String(row?.title || row?.name || '').trim() === currentTitle);
+    return String(def?.description || '').trim();
+  })();
+
   return (
     <div
       key={entranceKey}
@@ -220,21 +238,22 @@ export default function MemberAthleteView({ userId, goBack }) {
           roadmapOpen={roadmapOpen}
           onRoadmapOpenChange={setRoadmapOpen}
           onRepresentativeTitleClick={() => setIsTitleModalOpen(true)}
+          representativeTitleDescription={representativeTitleDescription}
         />
 
-        <div className="space-y-10">
-          <AthleteStatusBoard targetUserId={profile.id} ledgerRefreshKey={ledgerRefreshKey} />
-        </div>
-
-        <div className="mt-auto flex justify-center pb-6 pt-2">
+        <div className="flex justify-center pt-2">
           <button
             type="button"
-            aria-label="레벨 가이드 열기"
+            aria-label="계급표 열기"
             onClick={() => setRoadmapOpen(true)}
             className="inline-flex items-center justify-center rounded-full border border-white/10 bg-white/5 px-6 py-3 text-xs tracking-[0.16em] text-white/85 backdrop-blur-md transition-all hover:bg-white/10"
           >
-            [ ✦ 아틀리트 계급 로드맵 ]
+            [ ✦ 계급표 ]
           </button>
+        </div>
+
+        <div className="space-y-10">
+          <AthleteStatusBoard targetUserId={profile.id} ledgerRefreshKey={ledgerRefreshKey} />
         </div>
       </div>
 
