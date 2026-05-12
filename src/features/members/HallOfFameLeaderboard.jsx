@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import { X, Trophy, Crown, ChevronUp } from 'lucide-react';
+import { X, Trophy, Crown, Sparkles } from 'lucide-react';
 import { supabase } from '../../lib/supabaseClient';
 
 function tierLabel(level) {
@@ -13,17 +13,16 @@ function tierLabel(level) {
 
 function maskName(name) {
   const trimmed = String(name || '?').trim();
-  if (!trimmed) return '?**';
+  if (!trimmed || trimmed === '?') return '?**';
   return trimmed.charAt(0) + '**';
 }
 
-const TIER_COLOR = {
-  초심자: 'text-zinc-300',
+const TIER_BADGE_COLOR = {
+  초심자: 'text-zinc-400',
   수행자: 'text-amber-400',
   숙련자: 'text-slate-300',
   엘리트: 'text-yellow-300',
   챌린저: 'text-red-400',
-  MASTER: 'text-purple-400',
 };
 
 const RANK_BADGE = {
@@ -54,8 +53,12 @@ export default function HallOfFameLeaderboard({ isOpen, onClose }) {
 
       if (profilesRes.error) throw profilesRes.error;
 
+      // mastersRes 실패 시 빈 Set으로 graceful fallback (마스터를 챌린저로 오표시 방지)
+      if (mastersRes.error) {
+        console.warn('[HallOfFameLeaderboard] master_exam_requests query failed:', mastersRes.error);
+      }
       const approvedMasterIds = new Set(
-        (mastersRes.data || []).map((r) => r.user_id)
+        (mastersRes.data || []).map((r) => r.user_id).filter(Boolean)
       );
 
       const sorted = (profilesRes.data || [])
@@ -64,6 +67,7 @@ export default function HallOfFameLeaderboard({ isOpen, onClose }) {
           isMaster: approvedMasterIds.has(p.id),
           level: Number(p.member_level) || 1,
         }))
+        // Masters always first, then by level descending
         .sort((a, b) => {
           if (a.isMaster !== b.isMaster) return a.isMaster ? -1 : 1;
           return b.level - a.level;
@@ -146,59 +150,86 @@ export default function HallOfFameLeaderboard({ isOpen, onClose }) {
           <ol className="space-y-2">
             {entries.map((entry, idx) => {
               const rank = idx + 1;
-              const tier = entry.isMaster ? 'MASTER' : tierLabel(entry.level);
-              const colorClass = TIER_COLOR[tier] ?? 'text-zinc-300';
-              const badgeClass = RANK_BADGE[rank] ?? 'bg-white/5 text-zinc-500 border-white/10';
+              const { isMaster } = entry;
+              const tier = isMaster ? 'MASTER' : tierLabel(entry.level);
+              const rankBadgeClass = RANK_BADGE[rank] ?? 'bg-white/5 text-zinc-500 border-white/10';
+
+              // Master rank badge overrides to amethyst
+              const masterBadgeClass = 'bg-purple-600/25 text-purple-300 border-purple-500/50';
 
               return (
                 <li
                   key={entry.id}
-                  className={`flex items-center gap-4 rounded-2xl border px-4 py-3.5 transition ${
-                    entry.isMaster
-                      ? 'border-purple-500/25 bg-purple-900/10'
+                  className={`relative flex items-center gap-4 rounded-2xl border px-4 py-4 transition ${
+                    isMaster
+                      ? 'border-purple-500/50 bg-gradient-to-r from-purple-950/60 to-purple-900/20 shadow-[0_0_20px_rgba(147,51,234,0.18)]'
                       : rank <= 3
                         ? 'border-white/10 bg-white/[0.03]'
                         : 'border-white/5 bg-white/[0.015]'
                   }`}
                 >
+                  {/* Purple glow shimmer for master rows */}
+                  {isMaster && (
+                    <div className="pointer-events-none absolute inset-0 rounded-2xl ring-1 ring-purple-500/30" />
+                  )}
+
                   {/* Rank badge */}
                   <span
-                    className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full border text-[11px] font-bold ${badgeClass}`}
+                    className={`relative flex h-7 w-7 shrink-0 items-center justify-center rounded-full border text-[11px] font-bold ${
+                      isMaster ? masterBadgeClass : rankBadgeClass
+                    }`}
                   >
-                    {rank <= 3 ? (
-                      rank === 1 ? <Crown className="h-3.5 w-3.5" strokeWidth={2} /> : rank
+                    {isMaster ? (
+                      <Crown className="h-3.5 w-3.5 text-purple-300" strokeWidth={2} />
+                    ) : rank === 1 ? (
+                      <Crown className="h-3.5 w-3.5" strokeWidth={2} />
                     ) : (
                       rank
                     )}
                   </span>
 
                   {/* Name + tier + title */}
-                  <div className="min-w-0 flex-1">
+                  <div className="relative min-w-0 flex-1">
                     <div className="flex items-center gap-2">
-                      <span className="text-sm font-semibold tracking-wide text-white">
+                      <span className={`text-sm font-semibold tracking-wide ${isMaster ? 'text-purple-100' : 'text-white'}`}>
                         {maskName(entry.name)}
                       </span>
-                      <span className={`text-[11px] font-bold tracking-widest uppercase ${colorClass}`}>
-                        {entry.isMaster ? 'MASTER' : `LV.${entry.level}`}
-                      </span>
+
+                      {/* Level/rank label */}
+                      {isMaster ? (
+                        <span className="text-[11px] font-black tracking-widest uppercase text-purple-400 drop-shadow-[0_0_8px_rgba(167,139,250,0.6)]">
+                          MASTER
+                        </span>
+                      ) : (
+                        <span className="text-[11px] font-bold tracking-widest text-zinc-400">
+                          LV.{entry.level}
+                        </span>
+                      )}
                     </div>
+
+                    {/* Sub-label row */}
                     <div className="mt-0.5 flex items-center gap-1.5">
-                      <span className="text-[11px] text-zinc-500">{tier}</span>
+                      {isMaster ? (
+                        <span className="flex items-center gap-1 text-[11px] font-semibold text-purple-400/80">
+                          <Sparkles className="h-2.5 w-2.5" strokeWidth={1.5} />
+                          6계급 MASTER
+                        </span>
+                      ) : (
+                        <span className={`text-[11px] font-medium ${TIER_BADGE_COLOR[tier] ?? 'text-zinc-500'}`}>
+                          {tier}
+                        </span>
+                      )}
+
                       {String(entry.current_title || '').trim() ? (
                         <>
                           <span className="text-zinc-700">·</span>
-                          <span className="truncate text-[11px] text-zinc-400">
+                          <span className={`truncate text-[11px] ${isMaster ? 'text-purple-300/70' : 'text-zinc-400'}`}>
                             「{String(entry.current_title).trim()}」
                           </span>
                         </>
                       ) : null}
                     </div>
                   </div>
-
-                  {/* Master crown indicator */}
-                  {entry.isMaster && (
-                    <ChevronUp className="h-4 w-4 shrink-0 text-purple-400 opacity-70" strokeWidth={2} />
-                  )}
                 </li>
               );
             })}
