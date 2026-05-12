@@ -1,5 +1,4 @@
 import React, { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { ChevronLeft } from 'lucide-react';
 import { supabase } from '../../lib/supabaseClient';
 import AthleteStatus from './AthleteStatus';
@@ -33,7 +32,6 @@ function MasterPendingCinematicView({ onBack }) {
 }
 
 export default function MemberAthleteView({ userId, goBack }) {
-  const navigate = useNavigate();
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
   const [entranceKey, setEntranceKey] = useState(0);
@@ -52,7 +50,9 @@ export default function MemberAthleteView({ userId, goBack }) {
       window.history.back();
       return;
     }
-    navigate(-1);
+    if (typeof window !== 'undefined') {
+      window.location.reload();
+    }
   };
 
   /** Single orchestrated load: pending master → skip member_titles (no leak). */
