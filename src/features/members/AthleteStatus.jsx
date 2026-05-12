@@ -149,6 +149,8 @@ export default function AthleteStatus({
   const [examStatus, setExamStatus] = useState('idle');
   const [masterAchieved, setMasterAchieved] = useState(false);
   const [isTitleInfoOpen, setIsTitleInfoOpen] = useState(false);
+  const [titleInfoDescription, setTitleInfoDescription] = useState('');
+  const [loadingTitleInfo, setLoadingTitleInfo] = useState(false);
   const touchStartYRef = useRef(null);
   const titleTouchStartYRef = useRef(null);
   const rawLv = Number(memberLevel) || 1;
@@ -546,6 +548,47 @@ export default function AthleteStatus({
   });
   const guideBlock = <p className="text-xs leading-relaxed text-white/45">{currentGuideDescription}</p>;
   const representativeClickable = typeof onRepresentativeTitleClick === 'function';
+  const openTitleInfoModal = async () => {
+    setIsTitleInfoOpen(true);
+    const currentTitle = String(localCurrentTitle || memberTitle || '').trim();
+    if (!currentTitle) {
+      setTitleInfoDescription('');
+      return;
+    }
+    setLoadingTitleInfo(true);
+    try {
+      const { data: exactRows, error: exactErr } = await supabase
+        .from('title_definitions')
+        .select('title,parent_title,description')
+        .eq('title', currentTitle)
+        .limit(1);
+      if (exactErr) throw exactErr;
+      const exact = Array.isArray(exactRows) ? exactRows[0] : null;
+      const exactDesc = String(exact?.description || '').trim();
+      if (exactDesc) {
+        setTitleInfoDescription(exactDesc);
+        return;
+      }
+      const parentTitle = String(exact?.parent_title || '').trim();
+      if (parentTitle) {
+        const { data: parentRows, error: parentErr } = await supabase
+          .from('title_definitions')
+          .select('description')
+          .eq('title', parentTitle)
+          .limit(1);
+        if (parentErr) throw parentErr;
+        const parentDesc = String((Array.isArray(parentRows) ? parentRows[0]?.description : '') || '').trim();
+        setTitleInfoDescription(parentDesc);
+        return;
+      }
+      setTitleInfoDescription(String(representativeTitleDescription || '').trim());
+    } catch (e) {
+      console.error('[AthleteStatus] title info', e);
+      setTitleInfoDescription(String(representativeTitleDescription || '').trim());
+    } finally {
+      setLoadingTitleInfo(false);
+    }
+  };
 
   const masterExamBlock =
     roadmapLevel === 10 && !masterAchieved ? (
@@ -599,7 +642,7 @@ export default function AthleteStatus({
                     <button
                       type="button"
                       aria-label="칭호 설명 보기"
-                      onClick={() => setIsTitleInfoOpen(true)}
+                      onClick={openTitleInfoModal}
                       className="inline-flex h-4 w-4 items-center justify-center rounded-full border border-zinc-600 text-[10px] font-semibold text-zinc-500 transition hover:border-zinc-400 hover:text-zinc-300"
                     >
                       i
@@ -859,7 +902,9 @@ export default function AthleteStatus({
           >
             <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-zinc-500">칭호 설명</p>
             <p className="mt-3 text-sm leading-relaxed text-zinc-200">
-              {String(representativeTitleDescription || '').trim() || '아직 등록된 칭호 설명이 없습니다.'}
+              {loadingTitleInfo
+                ? '설명을 불러오는 중...'
+                : String(titleInfoDescription || representativeTitleDescription || '').trim() || '아직 등록된 칭호 설명이 없습니다.'}
             </p>
             <button
               type="button"
