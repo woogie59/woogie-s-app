@@ -34,6 +34,8 @@ export default function MemberStatusTab({ userId, profile, memberLevel, onRefres
   const [newMainTitleDescription, setNewMainTitleDescription] = useState('');
   const [newSubTitlesRaw, setNewSubTitlesRaw] = useState('');
   const [creatingTitleSet, setCreatingTitleSet] = useState(false);
+  const [savingMainDescription, setSavingMainDescription] = useState('');
+  const [mainTitleDescriptions, setMainTitleDescriptions] = useState({});
   const [togglingTitleName, setTogglingTitleName] = useState('');
   const [ownedTitles, setOwnedTitles] = useState([]);
   const [loadingOwnedTitles, setLoadingOwnedTitles] = useState(false);
@@ -193,6 +195,14 @@ export default function MemberStatusTab({ userId, profile, memberLevel, onRefres
       return { mainTitle, main, subs };
     });
   }, [titleDefinitions]);
+
+  useEffect(() => {
+    const draft = {};
+    titleHierarchy.forEach(({ mainTitle, main }) => {
+      draft[mainTitle] = String(main?.description || '').trim();
+    });
+    setMainTitleDescriptions(draft);
+  }, [titleHierarchy]);
 
   const ownedTitleSet = useMemo(
     () => new Set((ownedTitles || []).map((row) => String(row.title || '').trim()).filter(Boolean)),
@@ -365,6 +375,53 @@ export default function MemberStatusTab({ userId, profile, memberLevel, onRefres
     }
   };
 
+  const saveMainTitleDescription = async (mainTitleName) => {
+    const mainTitle = String(mainTitleName || '').trim();
+    if (!mainTitle) return;
+    const descVal = String(mainTitleDescriptions[mainTitle] || '').trim();
+    setSavingMainDescription(mainTitle);
+    try {
+      const rowByTitle = await supabase
+        .from('title_definitions')
+        .select('*')
+        .eq('title', mainTitle)
+        .limit(1);
+      let target = Array.isArray(rowByTitle.data) ? rowByTitle.data[0] : null;
+      if (!target) {
+        const rowByName = await supabase
+          .from('title_definitions')
+          .select('*')
+          .eq('name', mainTitle)
+          .limit(1);
+        target = Array.isArray(rowByName.data) ? rowByName.data[0] : null;
+      }
+      if (target) {
+        const pkCol = target.id != null ? 'id' : 'uid';
+        const pkVal = target.id ?? target.uid;
+        const { error } = await supabase
+          .from('title_definitions')
+          .update({ description: descVal })
+          .eq(pkCol, pkVal);
+        if (error) throw error;
+      } else {
+        const insName = await supabase.from('title_definitions').insert({
+          name: mainTitle,
+          parent_title: null,
+          type: 'MAIN',
+          description: descVal,
+        });
+        if (insName.error) throw insName.error;
+      }
+      await fetchTitleDefinitions();
+      toast.success('칭호 설명이 저장되었습니다.');
+    } catch (e) {
+      console.error('[MemberStatusTab] saveMainTitleDescription', e);
+      toast.error(`칭호 설명 저장 실패: ${supabaseErrorMessage(e)}`);
+    } finally {
+      setSavingMainDescription('');
+    }
+  };
+
   return (
     <div className="animate-in fade-in zoom-in-95 duration-1000 ease-out fill-mode-forwards [font-family:Urbanist,sans-serif]">
       <div className="sticky top-0 z-20 mb-4 flex items-center justify-between border-b border-white/10 bg-[#050505]/85 px-2 py-3 backdrop-blur-xl">
@@ -516,6 +573,29 @@ export default function MemberStatusTab({ userId, profile, memberLevel, onRefres
                                 </button>
                               );
                             })}
+                          </div>
+                          <div className="mt-3">
+                            <label className="block text-[11px] text-zinc-500">메인 칭호 설명</label>
+                            <textarea
+                              rows={2}
+                              value={mainTitleDescriptions[mainTitle] ?? ''}
+                              onChange={(e) =>
+                                setMainTitleDescriptions((prev) => ({
+                                  ...prev,
+                                  [mainTitle]: e.target.value,
+                                }))
+                              }
+                              className="mt-1.5 w-full resize-none rounded-lg border border-white/10 bg-black/50 px-2.5 py-2 text-xs text-white outline-none transition-all placeholder:text-zinc-500 focus:ring-1 focus:ring-zinc-500"
+                              placeholder="메인 칭호 설명을 입력하세요"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => saveMainTitleDescription(mainTitle)}
+                              disabled={savingMainDescription !== '' && savingMainDescription !== mainTitle}
+                              className="mt-2 rounded-md border border-white/10 bg-black/50 px-2.5 py-1.5 text-xs font-semibold text-zinc-200 transition hover:border-zinc-500 disabled:opacity-40"
+                            >
+                              {savingMainDescription === mainTitle ? '저장 중…' : '설명 저장'}
+                            </button>
                           </div>
                         </div>
                       );

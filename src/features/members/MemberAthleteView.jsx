@@ -17,12 +17,13 @@ function MasterPendingCinematicView({ onBack }) {
         <ChevronLeft className="h-6 w-6" strokeWidth={1.5} />
       </button>
       <div className="flex min-h-screen w-full flex-col items-center justify-center">
-        <span
-          className="block whitespace-nowrap bg-gradient-to-b from-purple-400 via-purple-700 to-black bg-clip-text text-center text-[15vw] font-black tracking-normal text-transparent drop-shadow-[0_0_40px_rgba(168,85,247,0.7)]"
+        <h1
+          className="font-black bg-gradient-to-b from-purple-400 via-purple-700 to-black bg-clip-text text-transparent text-center drop-shadow-[0_0_40px_rgba(168,85,247,0.7)]"
+          style={{ fontSize: '13vw', letterSpacing: '0.15em', whiteSpace: 'nowrap', display: 'block', margin: '0 auto', width: '100%' }}
           aria-hidden
         >
           MASTER
-        </span>
+        </h1>
         <div className="mt-6 text-sm font-semibold tracking-[0.3em] text-purple-400 opacity-80">
           U N D E R&nbsp;J U D G E M E N T
         </div>
