@@ -546,12 +546,14 @@ export default function AthleteStatus({
           MASTER
         </span>
       ) : (
-        <span
-          className={prestige.levelClassName}
-          style={{ fontSize: 'clamp(4rem, 22vw, 8rem)', lineHeight: '1.15', padding: '0.3em 0', overflow: 'visible' }}
-        >
-          {prestige.levelText}
-        </span>
+        <div className="py-8 w-full flex justify-center overflow-visible">
+          <span
+            className={prestige.levelClassName}
+            style={{ fontSize: 'clamp(4rem, 25vw, 10rem)', lineHeight: '1.5', overflow: 'visible' }}
+          >
+            {prestige.levelText}
+          </span>
+        </div>
       )}
       {prestige.mode !== 'master' && prestige.classLine ? (
         <p className="max-w-[95vw] text-xs font-semibold tracking-[0.4em] text-zinc-500">{prestige.classLine}</p>
@@ -657,7 +659,7 @@ export default function AthleteStatus({
 
       <div className={`relative z-10 w-full px-3 text-center ${compactMemberHero ? 'pb-2' : 'pb-32'}`}>
         <div
-          className={`flex w-full flex-col items-center ${compactMemberHero ? 'gap-5 pb-6 pt-3' : 'gap-16 py-32'}`}
+          className={`flex w-full flex-col items-center ${compactMemberHero ? 'gap-5 pb-6 pt-0' : 'gap-16 py-32'}`}
         >
           {heroBlock}
 

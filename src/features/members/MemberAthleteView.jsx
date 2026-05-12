@@ -214,7 +214,7 @@ export default function MemberAthleteView({ userId, goBack }) {
   return (
     <div
       key={entranceKey}
-      className="relative min-h-screen max-h-[100dvh] w-full overflow-y-auto overflow-x-hidden bg-[#050505] px-4 pb-20 pt-4 font-sans animate-in fade-in duration-1000 ease-out zoom-in-95 fill-mode-forwards"
+      className="relative min-h-screen max-h-[100dvh] w-full overflow-y-auto bg-[#050505] px-4 pb-20 pt-4 font-sans animate-in fade-in duration-1000 ease-out zoom-in-95 fill-mode-forwards"
     >
       <button
         type="button"
