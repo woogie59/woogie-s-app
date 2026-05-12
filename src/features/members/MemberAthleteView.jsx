@@ -18,12 +18,12 @@ function MasterPendingCinematicView({ onBack }) {
       </button>
       <div className="flex min-h-screen w-full flex-col items-center justify-center">
         <span
-          className="block w-full whitespace-nowrap bg-gradient-to-b from-purple-400 via-purple-700 to-black bg-clip-text pl-[0.6em] text-center text-[15vw] font-black tracking-[0.6em] text-transparent drop-shadow-[0_0_40px_rgba(168,85,247,0.7)]"
+          className="block w-full whitespace-nowrap bg-gradient-to-b from-purple-400 via-purple-700 to-black bg-clip-text pl-[0.6em] text-center text-[15vw] font-black tracking-[0.1em] text-transparent drop-shadow-[0_0_40px_rgba(168,85,247,0.7)]"
           aria-hidden
         >
           MASTER
         </span>
-        <div className="mt-6 text-[10px] font-semibold tracking-[0.6em] text-purple-400 opacity-80">
+        <div className="mt-6 text-sm font-semibold tracking-[0.3em] text-purple-400 opacity-80">
           U N D E R&nbsp;J U D G E M E N T
         </div>
       </div>

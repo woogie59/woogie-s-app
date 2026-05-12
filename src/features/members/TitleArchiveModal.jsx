@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import toast from 'react-hot-toast';
+import { Info } from 'lucide-react';
 import { supabase } from '../../lib/supabaseClient';
 
 function normalizeTitleName(v) {
@@ -31,6 +32,7 @@ export default function TitleArchiveModal({
   const [loading, setLoading] = useState(false);
   const [settingId, setSettingId] = useState(null);
   const [expandedMainTitle, setExpandedMainTitle] = useState('');
+  const [infoTitle, setInfoTitle] = useState(null);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -100,6 +102,7 @@ export default function TitleArchiveModal({
       mains.push({
         id: mainDef?.id ?? mainName,
         name: mainName,
+        description: String(mainDef?.description || '').trim(),
         subTitles: subRows,
       });
     });
@@ -108,7 +111,7 @@ export default function TitleArchiveModal({
     ownedTitleNames.forEach((ownedName) => {
       if (defsByName.has(ownedName)) return;
       if (mains.some((m) => m.name === ownedName)) return;
-      mains.push({ id: ownedName, name: ownedName, subTitles: [] });
+      mains.push({ id: ownedName, name: ownedName, description: '', subTitles: [] });
     });
 
     return mains;
@@ -174,13 +177,23 @@ export default function TitleArchiveModal({
             return (
               <div key={main.id} className="rounded-xl border border-white/10 bg-black/45 p-3">
                 <div className="flex items-center justify-between gap-3">
-                  <button
-                    type="button"
-                    onClick={() => setExpandedMainTitle((prev) => (prev === main.name ? '' : main.name))}
-                    className="rounded-lg border border-amethyst bg-purple-900/20 px-4 py-2 text-left text-sm font-semibold text-amethyst transition hover:bg-purple-800/25"
-                  >
-                    {main.name}
-                  </button>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setExpandedMainTitle((prev) => (prev === main.name ? '' : main.name))}
+                      className="rounded-lg border border-amethyst bg-purple-900/20 px-4 py-2 text-left text-sm font-semibold text-amethyst transition hover:bg-purple-800/25"
+                    >
+                      {main.name}
+                    </button>
+                    <button
+                      type="button"
+                      aria-label={`${main.name} 설명`}
+                      onClick={() => setInfoTitle({ name: main.name, description: String(main.description || '').trim() })}
+                      className="rounded-full p-1 transition hover:bg-white/5"
+                    >
+                      <Info size={14} className="ml-0 text-zinc-500" />
+                    </button>
+                  </div>
                   {active ? (
                     <div className="text-xs font-semibold text-amethyst">대표</div>
                   ) : (
@@ -239,6 +252,32 @@ export default function TitleArchiveModal({
           [ 닫기 ]
         </button>
       </div>
+      {infoTitle ? (
+        <div
+          className="fixed inset-0 z-[60] flex items-center justify-center bg-black/65 px-4 backdrop-blur-sm"
+          role="dialog"
+          aria-modal="true"
+          aria-label="칭호 설명"
+          onClick={() => setInfoTitle(null)}
+        >
+          <div
+            className="w-full max-w-[320px] rounded-xl border border-white/10 bg-[#050505] p-4 shadow-[0_20px_60px_-12px_rgba(0,0,0,0.85)]"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <p className="text-xs font-semibold tracking-wide text-amethyst">{infoTitle.name}</p>
+            <p className="mt-2 text-sm leading-relaxed text-zinc-300">
+              {String(infoTitle.description || '').trim() || '설명이 없습니다.'}
+            </p>
+            <button
+              type="button"
+              onClick={() => setInfoTitle(null)}
+              className="mt-4 w-full rounded-lg border border-white/15 bg-white/5 py-2 text-sm font-semibold text-zinc-200 transition hover:border-white/25 hover:bg-white/10"
+            >
+              닫기
+            </button>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

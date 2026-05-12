@@ -43,6 +43,13 @@ const DEFAULT_LEVEL_PHASES = [
     level_range: 'Lv.10',
     description: '고중량을 능숙하게 다루며, 모든 신체 부위의 운동루틴을 스스로 구성하는데 어려움이 없는 최상위 상태.',
   },
+  {
+    id: 'tier-6',
+    phase_order: 6,
+    title: '[ 6계급 ] MASTER',
+    level_range: 'MASTER',
+    description: '어디서든 운동능력으로 인정 받을 수 있는 자립 가능한 자.',
+  },
 ];
 
 function parseLevelRange(levelRangeText) {
@@ -177,13 +184,14 @@ export default function AthleteStatus({
     };
   }, [roadmapLevel, masterAchieved]);
   const currentPhaseKey = useMemo(() => {
+    if (masterAchieved) return 'tier-6';
     const found = DEFAULT_LEVEL_PHASES.find((phase) => {
       const parsed = parseLevelRange(phase.level_range);
       if (!parsed) return false;
       return roadmapLevel >= parsed.min && roadmapLevel <= parsed.max;
     });
     return found?.id ?? null;
-  }, [roadmapLevel]);
+  }, [roadmapLevel, masterAchieved]);
 
 
   const normalizeMasterExamError = (error) => {
@@ -548,6 +556,7 @@ export default function AthleteStatus({
   });
   const guideBlock = <p className="text-xs leading-relaxed text-white/45">{currentGuideDescription}</p>;
   const representativeClickable = typeof onRepresentativeTitleClick === 'function';
+  const hasRepresentativeDescription = String(representativeTitleDescription || '').trim() !== '';
   const openTitleInfoModal = async () => {
     setIsTitleInfoOpen(true);
     const currentTitle = String(localCurrentTitle || memberTitle || '').trim();
@@ -639,14 +648,16 @@ export default function AthleteStatus({
                     >
                       「{String(localCurrentTitle).trim()}」
                     </button>
-                    <button
-                      type="button"
-                      aria-label="칭호 설명 보기"
-                      onClick={openTitleInfoModal}
-                      className="inline-flex h-4 w-4 items-center justify-center rounded-full border border-zinc-600 text-[10px] font-semibold text-zinc-500 transition hover:border-zinc-400 hover:text-zinc-300"
-                    >
-                      i
-                    </button>
+                    {hasRepresentativeDescription ? (
+                      <button
+                        type="button"
+                        aria-label="칭호 설명 보기"
+                        onClick={openTitleInfoModal}
+                        className="inline-flex h-4 w-4 items-center justify-center rounded-full border border-zinc-600 text-[10px] font-semibold text-zinc-500 transition hover:border-zinc-400 hover:text-zinc-300"
+                      >
+                        i
+                      </button>
+                    ) : null}
                   </div>
                   {representativeClickable ? <span className="text-[10px] text-zinc-600">칭호 변경</span> : null}
                 </div>
@@ -743,6 +754,7 @@ export default function AthleteStatus({
                 const tierMin = parsed?.min ?? null;
                 const tierMax = parsed?.max ?? null;
                 const isLevel10Tier = tierMax === 10;
+                const isMasterTier = phase.id === 'tier-6';
                 return (
                   <div
                     key={phase.id}
@@ -755,14 +767,14 @@ export default function AthleteStatus({
                     <div className="flex items-center justify-between gap-3 py-0.5">
                       <p
                         className={`text-xs font-semibold tracking-widest ${
-                          isLevel10Tier
+                          isLevel10Tier || isMasterTier
                             ? 'text-purple-400 drop-shadow-[0_0_24px_rgba(147,51,234,0.45)]'
                             : 'text-zinc-100'
                         }`}
                       >
                         {phase.title}
                       </p>
-                      <LevelFacetBadge text={renderLevelRangeText(tierMin, tierMax)} />
+                      <LevelFacetBadge text={isMasterTier ? 'MASTER' : renderLevelRangeText(tierMin, tierMax)} />
                     </div>
                     <p className="mt-1.5 text-xs font-light leading-6 text-zinc-400">{phase.description}</p>
                     {isCurrent ? (
