@@ -378,40 +378,14 @@ export default function MemberStatusTab({ userId, profile, memberLevel, onRefres
   const saveMainTitleDescription = async (mainTitleName) => {
     const mainTitle = String(mainTitleName || '').trim();
     if (!mainTitle) return;
-    const descVal = String(mainTitleDescriptions[mainTitle] || '').trim();
+    const descVal = String(mainTitleDescriptions[mainTitle] ?? '').trim();
     setSavingMainDescription(mainTitle);
     try {
-      const rowByTitle = await supabase
-        .from('title_definitions')
-        .select('*')
-        .eq('title', mainTitle)
-        .limit(1);
-      let target = Array.isArray(rowByTitle.data) ? rowByTitle.data[0] : null;
-      if (!target) {
-        const rowByName = await supabase
-          .from('title_definitions')
-          .select('*')
-          .eq('name', mainTitle)
-          .limit(1);
-        target = Array.isArray(rowByName.data) ? rowByName.data[0] : null;
-      }
-      if (target) {
-        const pkCol = target.id != null ? 'id' : 'uid';
-        const pkVal = target.id ?? target.uid;
-        const { error } = await supabase
-          .from('title_definitions')
-          .update({ description: descVal })
-          .eq(pkCol, pkVal);
-        if (error) throw error;
-      } else {
-        const insName = await supabase.from('title_definitions').insert({
-          name: mainTitle,
-          parent_title: null,
-          type: 'MAIN',
-          description: descVal,
-        });
-        if (insName.error) throw insName.error;
-      }
+      const { error } = await supabase.rpc('admin_upsert_title_description', {
+        p_title_name: mainTitle,
+        p_description: descVal,
+      });
+      if (error) throw error;
       await fetchTitleDefinitions();
       toast.success('칭호 설명이 저장되었습니다.');
     } catch (e) {

@@ -91,27 +91,27 @@ function tierLabelFromLevel(level) {
 const TIER_VISUAL = {
   초심자: {
     levelClassName:
-      'block text-[28vw] sm:text-[8rem] font-bold leading-normal py-4 tracking-tighter tabular-nums bg-gradient-to-br from-white to-gray-300 bg-clip-text text-transparent drop-shadow-[0_0_24px_rgba(255,255,255,0.2)]',
+      'block font-black tracking-tighter tabular-nums bg-gradient-to-br from-white to-gray-300 bg-clip-text text-transparent drop-shadow-[0_0_24px_rgba(255,255,255,0.2)]',
     halo: 'radial-gradient(circle_at_center,rgba(255,255,255,0.16)_0%,#050505_58%,#050505_100%)',
   },
   수행자: {
     levelClassName:
-      'block text-[28vw] sm:text-[8rem] font-bold leading-normal py-4 tracking-tighter tabular-nums bg-gradient-to-br from-orange-400 to-amber-700 bg-clip-text text-transparent drop-shadow-[0_0_26px_rgba(245,158,11,0.35)]',
+      'block font-black tracking-tighter tabular-nums bg-gradient-to-br from-orange-400 to-amber-700 bg-clip-text text-transparent drop-shadow-[0_0_26px_rgba(245,158,11,0.35)]',
     halo: 'radial-gradient(circle_at_center,rgba(251,146,60,0.2)_0%,#050505_60%,#050505_100%)',
   },
   숙련자: {
     levelClassName:
-      'block text-[28vw] sm:text-[8rem] font-bold leading-normal py-4 tracking-tighter tabular-nums bg-gradient-to-br from-gray-300 to-gray-500 bg-clip-text text-transparent drop-shadow-[0_0_24px_rgba(209,213,219,0.28)]',
+      'block font-black tracking-tighter tabular-nums bg-gradient-to-br from-gray-300 to-gray-500 bg-clip-text text-transparent drop-shadow-[0_0_24px_rgba(209,213,219,0.28)]',
     halo: 'radial-gradient(circle_at_center,rgba(209,213,219,0.16)_0%,#050505_62%,#050505_100%)',
   },
   엘리트: {
     levelClassName:
-      'block text-[28vw] sm:text-[8rem] font-bold leading-normal py-4 tracking-tighter tabular-nums bg-gradient-to-br from-yellow-300 to-yellow-600 bg-clip-text text-transparent drop-shadow-[0_0_30px_rgba(234,179,8,0.32)]',
+      'block font-black tracking-tighter tabular-nums bg-gradient-to-br from-yellow-300 to-yellow-600 bg-clip-text text-transparent drop-shadow-[0_0_30px_rgba(234,179,8,0.32)]',
     halo: 'radial-gradient(circle_at_center,rgba(253,224,71,0.15)_0%,#050505_66%,#050505_100%)',
   },
   챌린저: {
     levelClassName:
-      'block text-[28vw] sm:text-[8rem] font-bold leading-normal py-4 tracking-tighter tabular-nums bg-gradient-to-br from-red-500 to-red-800 bg-clip-text text-transparent drop-shadow-[0_0_20px_rgba(220,38,38,0.5)]',
+      'block font-black tracking-tighter tabular-nums bg-gradient-to-br from-red-500 to-red-800 bg-clip-text text-transparent drop-shadow-[0_0_20px_rgba(220,38,38,0.5)]',
     halo: 'radial-gradient(circle_at_center,rgba(220,38,38,0.22)_0%,#050505_65%,#050505_100%)',
   },
 };
@@ -539,11 +539,19 @@ export default function AthleteStatus({
       transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
     >
       {prestige.mode === 'master' ? (
-        <span className="max-w-[100vw] px-2 text-center text-[clamp(3.25rem,11vw,8rem)] font-black leading-none tracking-[0.14em] bg-gradient-to-br from-purple-400 to-purple-700 bg-clip-text text-transparent drop-shadow-[0_0_40px_rgba(147,51,234,0.5)]">
-          {'MASTER'.split('').join(' ')}
+        <span
+          className="text-center font-black leading-none bg-gradient-to-br from-purple-400 to-purple-700 bg-clip-text text-transparent drop-shadow-[0_0_40px_rgba(147,51,234,0.5)]"
+          style={{ fontSize: 'clamp(2.5rem,15vw,7rem)', letterSpacing: '0.22em', paddingLeft: '0.22em', whiteSpace: 'nowrap', display: 'block' }}
+        >
+          MASTER
         </span>
       ) : (
-        <span className={prestige.levelClassName}>{prestige.levelText}</span>
+        <span
+          className={prestige.levelClassName}
+          style={{ fontSize: 'clamp(4rem, 22vw, 8rem)', lineHeight: '1.15', padding: '0.3em 0', overflow: 'visible' }}
+        >
+          {prestige.levelText}
+        </span>
       )}
       {prestige.mode !== 'master' && prestige.classLine ? (
         <p className="max-w-[95vw] text-xs font-semibold tracking-[0.4em] text-zinc-500">{prestige.classLine}</p>
@@ -639,7 +647,7 @@ export default function AthleteStatus({
     ) : null;
 
   return (
-    <div className="relative w-full min-h-min overflow-x-hidden overflow-y-visible bg-obsidian font-sans text-white">
+    <div className="relative w-full min-h-min bg-obsidian font-sans text-white">
       <LevelUpEpicFX triggerKey={epicLevelUpKey} />
 
       <div

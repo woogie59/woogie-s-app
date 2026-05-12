@@ -19,7 +19,7 @@ function MasterPendingCinematicView({ onBack }) {
       <div className="flex min-h-screen w-full flex-col items-center justify-center">
         <h1
           className="font-black bg-gradient-to-b from-purple-400 via-purple-700 to-black bg-clip-text text-transparent text-center drop-shadow-[0_0_40px_rgba(168,85,247,0.7)]"
-          style={{ fontSize: '13vw', letterSpacing: '0.15em', whiteSpace: 'nowrap', display: 'block', margin: '0 auto', width: '100%' }}
+          style={{ fontSize: 'clamp(3rem, 18vw, 9rem)', letterSpacing: '0.05em', whiteSpace: 'nowrap', display: 'block' }}
           aria-hidden
         >
           MASTER
