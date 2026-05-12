@@ -33,18 +33,37 @@ export default function HallOfFameHub({ setView, setSelectedMemberId, goBack }) 
   const fetchPendingExams = useCallback(async () => {
     setLoadingPendingExams(true);
     try {
-      const { data: rows, error } = await supabase
+      // Step 1: fetch requests without any JOIN to avoid FK misconfiguration errors
+      const { data: requests, error: reqErr } = await supabase
         .from('master_exam_requests')
-        .select('id, user_id, status, created_at, profiles(id, name)')
+        .select('id, user_id, status, created_at')
         .eq('status', 'pending')
         .order('created_at', { ascending: false });
-      if (error) throw error;
+      if (reqErr) throw reqErr;
+
+      const list = Array.isArray(requests) ? requests : [];
+      if (list.length === 0) {
+        setPendingExams([]);
+        return;
+      }
+
+      // Step 2: separately fetch profile names for the collected user_ids
+      const userIds = [...new Set(list.map((r) => r.user_id).filter(Boolean))];
+      const { data: profiles } = await supabase
+        .from('profiles')
+        .select('id, name')
+        .in('id', userIds);
+      const nameById = Object.fromEntries(
+        (Array.isArray(profiles) ? profiles : []).map((p) => [p.id, p.name])
+      );
+
+      // Step 3: merge — missing name falls back gracefully, never crashes the list
       setPendingExams(
-        (Array.isArray(rows) ? rows : []).map((r) => ({
+        list.map((r) => ({
           request_id: r.id,
           id: r.id,
           user_id: r.user_id,
-          name: r.profiles?.name || '이름 없음',
+          name: nameById[r.user_id] || '알 수 없는 회원',
           created_at: r.created_at,
         }))
       );

@@ -546,10 +546,17 @@ export default function AthleteStatus({
           MASTER
         </span>
       ) : (
-        <div className="w-full flex justify-center overflow-visible" style={{ paddingTop: '2rem', paddingBottom: '2.5rem' }}>
+        <div className="w-full flex justify-center overflow-visible" style={{ paddingTop: '1.5rem', paddingBottom: '1.5rem' }}>
           <span
             className={prestige.levelClassName}
-            style={{ fontSize: 'clamp(4rem, 25vw, 10rem)', lineHeight: '1.1', overflow: 'visible', paddingBottom: '1rem', display: 'block' }}
+            style={{
+              fontSize: 'clamp(4rem, 25vw, 10rem)',
+              lineHeight: '1.2',
+              paddingBottom: '0.15em',
+              paddingTop: '0.05em',
+              display: 'inline-block',
+              overflow: 'visible',
+            }}
           >
             {prestige.levelText}
           </span>
