@@ -671,17 +671,6 @@ export default function AthleteStatus({
           {heroBlock}
 
           {compactMemberHero && isMemberIsolatedView ? (
-            <button
-              type="button"
-              aria-label="레벨 가이드 열기"
-              onClick={openRoadmap}
-              className="inline-flex items-center justify-center rounded-full border border-white/10 bg-white/5 px-6 py-3 text-xs tracking-[0.16em] text-white/85 backdrop-blur-md transition-all hover:bg-white/10"
-            >
-              [ ✦ 계급표 ]
-            </button>
-          ) : null}
-
-          {compactMemberHero && isMemberIsolatedView ? (
             <>
               <p className="text-base font-semibold tracking-wide text-zinc-100">{memberName || '회원'}</p>
               {String(subtitle || '').trim() ? (
@@ -700,7 +689,7 @@ export default function AthleteStatus({
                     ? 'bg-gradient-to-r from-amber-200 via-yellow-400 to-amber-500 drop-shadow-[0_0_10px_rgba(251,191,36,0.55)]'
                     : 'bg-gradient-to-r from-slate-200 via-slate-100 to-slate-300 drop-shadow-[0_0_8px_rgba(203,213,225,0.4)]';
                   return (
-                    <div className="flex flex-col items-center gap-1">
+                    <div className="flex flex-col items-center gap-1.5">
                       <div className="flex items-center gap-2">
                         <button
                           type="button"
@@ -722,12 +711,24 @@ export default function AthleteStatus({
                           </button>
                         ) : null}
                       </div>
-                      {representativeClickable ? <span className="text-[10px] text-zinc-600">칭호 변경</span> : null}
+                      {representativeClickable ? (
+                        <button
+                          type="button"
+                          onClick={() => onRepresentativeTitleClick?.()}
+                          className="text-[10px] text-zinc-500 underline underline-offset-2 transition hover:text-zinc-300"
+                        >
+                          칭호 변경
+                        </button>
+                      ) : null}
                     </div>
                   );
                 })()
               ) : null}
-              {guideBlock}
+              {currentGuideDescription ? (
+                <div className="w-full max-w-sm mx-auto mt-2 p-4 rounded-xl bg-[#111111] border border-zinc-800/50 shadow-inner text-center">
+                  <p className="text-xs leading-relaxed text-zinc-400">{currentGuideDescription}</p>
+                </div>
+              ) : null}
               {masterExamBlock}
             </>
           ) : (

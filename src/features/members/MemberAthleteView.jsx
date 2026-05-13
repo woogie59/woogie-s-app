@@ -222,18 +222,30 @@ export default function MemberAthleteView({ userId, goBack }) {
   return (
     <div
       key={entranceKey}
-      className="relative min-h-screen max-h-[100dvh] w-full overflow-y-auto bg-[#050505] px-4 pb-20 pt-4 font-sans animate-in fade-in duration-1000 ease-out zoom-in-95 fill-mode-forwards"
+      className="relative min-h-screen w-full overflow-y-auto bg-[#050505] px-4 pt-4 font-sans flex flex-col animate-in fade-in duration-1000 ease-out zoom-in-95 fill-mode-forwards"
     >
+      {/* Back button — absolute left */}
       <button
         type="button"
         aria-label="뒤로 가기"
         onClick={handleBack}
-        className="absolute left-6 top-6 z-50 p-2 text-zinc-500 transition-colors hover:text-white"
+        className="absolute left-4 top-4 z-50 p-2 text-zinc-500 transition-colors hover:text-white"
       >
         <ChevronLeft className="h-6 w-6" strokeWidth={1.5} />
       </button>
 
-      <div className="mx-auto flex min-h-[calc(100dvh-6.5rem)] w-full max-w-[420px] flex-col gap-6 pt-6">
+      {/* Rank guide — absolute top-right (subtle pill) */}
+      <button
+        type="button"
+        aria-label="계급표 열기"
+        onClick={() => setRoadmapOpen(true)}
+        className="absolute top-4 right-4 z-10 inline-flex items-center rounded-full border border-zinc-800 bg-zinc-900/80 px-3 py-1.5 text-[11px] tracking-[0.12em] text-zinc-400 backdrop-blur-md transition hover:border-zinc-600 hover:text-zinc-200"
+      >
+        ✦ 계급표
+      </button>
+
+      {/* Hero section — grows to fill, centered */}
+      <div className="flex-1 flex flex-col items-center w-full max-w-[420px] mx-auto pt-10">
         <AthleteStatus
           memberId={profile.id}
           memberName={profile.name}
@@ -244,29 +256,35 @@ export default function MemberAthleteView({ userId, goBack }) {
           viewMode="member"
           masterExamPendingFullBleed
           compactMemberHero
-          suppressRoadmapButton={false}
+          suppressRoadmapButton
           hideTitleArchive
           roadmapOpen={roadmapOpen}
           onRoadmapOpenChange={setRoadmapOpen}
           onRepresentativeTitleClick={() => setIsTitleModalOpen(true)}
           representativeTitleDescription={representativeTitleDescription}
         />
+      </div>
 
-        {/* Action group: Growth Record + Hall of Fame — tightly stacked */}
-        <div className="flex flex-col gap-y-4 mt-2">
-          <AthleteStatusBoard targetUserId={profile.id} ledgerRefreshKey={ledgerRefreshKey} />
+      {/* Action buttons — pushed to bottom */}
+      <div className="mt-auto pt-4 pb-8 w-full max-w-[420px] mx-auto flex flex-col gap-3">
+        <button
+          type="button"
+          onClick={() => setIsTitleModalOpen(true)}
+          className="w-full rounded-xl border border-white/8 bg-white/[0.02] px-3 py-3 text-sm font-semibold text-white/60 transition hover:border-white/15 hover:text-white/80"
+        >
+          [ ✦ 칭호 아카이브 ]
+        </button>
 
-          <div className="flex justify-center">
-            <button
-              type="button"
-              aria-label="명예의 전당 열기"
-              onClick={() => setHofOpen(true)}
-              className="inline-flex items-center justify-center rounded-full border border-purple-500/20 bg-purple-900/10 px-6 py-3 text-xs tracking-[0.16em] text-purple-300/80 backdrop-blur-md transition-all hover:border-purple-500/40 hover:text-purple-200"
-            >
-              [ ✦ 명예의 전당 (Hall of Fame) ]
-            </button>
-          </div>
-        </div>
+        <AthleteStatusBoard targetUserId={profile.id} ledgerRefreshKey={ledgerRefreshKey} />
+
+        <button
+          type="button"
+          aria-label="명예의 전당 열기"
+          onClick={() => setHofOpen(true)}
+          className="w-full rounded-xl border border-purple-500/15 bg-purple-900/8 px-3 py-3 text-sm font-semibold tracking-[0.08em] text-purple-300/70 transition hover:border-purple-500/30 hover:text-purple-200"
+        >
+          [ ✦ 명예의 전당 ]
+        </button>
       </div>
 
       <HallOfFameLeaderboard isOpen={hofOpen} onClose={() => setHofOpen(false)} />
