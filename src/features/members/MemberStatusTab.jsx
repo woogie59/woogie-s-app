@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import toast from 'react-hot-toast';
 import { motion as Motion } from 'framer-motion';
 import { Trash2 } from 'lucide-react';
@@ -9,6 +9,24 @@ import AthleteStatusBoard from './AthleteStatusBoard';
 import { getAthleteLevelDescription } from './athleteLevelDescriptions';
 
 const PHYSICAL_AUTONOMY_MAX = 10;
+
+function tierLabelFromLevel(lv) {
+  if (lv <= 1) return '초심자';
+  if (lv <= 4) return '수행자';
+  if (lv <= 7) return '숙련자';
+  if (lv <= 9) return '엘리트';
+  return '챌린저';
+}
+
+const LEVEL_OPTIONS = Array.from({ length: PHYSICAL_AUTONOMY_MAX }, (_, i) => {
+  const lv = i + 1;
+  return {
+    value: String(lv),
+    label: `LV. ${lv}`,
+    className: tierLabelFromLevel(lv),
+    description: getAthleteLevelDescription(lv),
+  };
+});
 
 function supabaseErrorMessage(error) {
   if (!error) return '';
@@ -26,6 +44,8 @@ function getTitleName(row) {
 export default function MemberStatusTab({ userId, profile, memberLevel, onRefresh, onMemberLevelSynced, onExitAthlete }) {
   const [saving, setSaving] = useState(false);
   const [selectedLevel, setSelectedLevel] = useState('');
+  const [isLevelDropdownOpen, setIsLevelDropdownOpen] = useState(false);
+  const levelDropdownRef = useRef(null);
   const [customComment, setCustomComment] = useState('');
   const [masterExamStatus, setMasterExamStatus] = useState('idle');
   const [titleDefinitions, setTitleDefinitions] = useState([]);
@@ -464,19 +484,65 @@ export default function MemberStatusTab({ userId, profile, memberLevel, onRefres
             <div className="border-t border-white/10 pt-6">
               <h3 className="text-zinc-400 text-xs font-bold uppercase tracking-widest">레벨 부여</h3>
               <p className="mt-2 text-sm text-zinc-500">회원의 목표 레벨(1~10)을 선택하세요.</p>
-              <div className="mt-3">
-                <select
-                  value={selectedLevel}
-                  onChange={(e) => setSelectedLevel(e.target.value)}
-                  className="w-full rounded-lg border border-white/10 bg-black/50 px-3 py-2.5 text-sm text-white outline-none transition-all focus:ring-1 focus:ring-zinc-500"
+              <div className="relative mt-3" ref={levelDropdownRef}>
+                {/* Trigger button */}
+                <button
+                  type="button"
+                  onClick={() => setIsLevelDropdownOpen((o) => !o)}
+                  className="w-full flex items-center justify-between rounded-lg border border-white/10 bg-black/50 px-3 py-2.5 text-sm text-white outline-none transition-all hover:border-zinc-600 focus:ring-1 focus:ring-zinc-500"
                 >
-                  <option value="">레벨 선택</option>
-                  {Array.from({ length: PHYSICAL_AUTONOMY_MAX }, (_, i) => i + 1).map((lv) => (
-                    <option key={lv} value={String(lv)}>
-                      LV. {lv}
-                    </option>
-                  ))}
-                </select>
+                  <span className={selectedLevel ? 'text-white' : 'text-zinc-500'}>
+                    {selectedLevel
+                      ? `LV. ${selectedLevel} — ${tierLabelFromLevel(Number(selectedLevel))}`
+                      : '레벨 선택'}
+                  </span>
+                  <svg
+                    className={`h-4 w-4 text-zinc-500 transition-transform duration-200 ${isLevelDropdownOpen ? 'rotate-180' : ''}`}
+                    fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}
+                  >
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+                  </svg>
+                </button>
+
+                {/* Dropdown panel */}
+                {isLevelDropdownOpen && (
+                  <>
+                    {/* Outside-click overlay */}
+                    <div
+                      className="fixed inset-0 z-40"
+                      onClick={() => setIsLevelDropdownOpen(false)}
+                    />
+                    <div className="absolute left-0 right-0 z-50 mt-1 max-h-80 overflow-y-auto rounded-lg border border-zinc-800 bg-[#111] shadow-2xl">
+                      {LEVEL_OPTIONS.map((opt) => {
+                        const isSelected = selectedLevel === opt.value;
+                        return (
+                          <div
+                            key={opt.value}
+                            onClick={() => {
+                              setSelectedLevel(opt.value);
+                              setIsLevelDropdownOpen(false);
+                            }}
+                            className={`cursor-pointer border-b border-zinc-800/50 p-3 transition-colors last:border-b-0 ${
+                              isSelected
+                                ? 'bg-zinc-700/60'
+                                : 'hover:bg-zinc-800'
+                            }`}
+                          >
+                            <div className="font-bold text-zinc-200">
+                              {opt.label}
+                              <span className="ml-2 text-xs font-semibold text-zinc-400">
+                                — {opt.className}
+                              </span>
+                            </div>
+                            <div className="mt-1 text-xs leading-relaxed text-zinc-500 line-clamp-2">
+                              {opt.description}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </>
+                )}
               </div>
             </div>
 
