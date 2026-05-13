@@ -172,29 +172,33 @@ export default function MemberAthleteView({ userId, goBack }) {
     );
   }
 
-  if (!profile || String(profile.name || '').trim() !== '테스트용1') {
+  if (!profile) {
     return (
-      <div className="relative min-h-screen max-h-[100dvh] w-full overflow-y-auto overflow-x-hidden bg-white px-6 text-slate-900">
+      <div className="min-h-screen bg-[#050505] flex flex-col items-center justify-center text-zinc-500 px-6 text-center">
+        <p className="text-sm">회원 정보를 불러오지 못했습니다.</p>
         <button
           type="button"
-          aria-label="뒤로 가기"
           onClick={handleBack}
-          className="absolute left-6 top-6 z-50 p-2 text-zinc-500 transition-colors hover:text-zinc-800"
+          className="mt-6 px-4 py-2 border border-zinc-700 rounded-md text-zinc-300 text-sm transition hover:border-zinc-500"
         >
-          <ChevronLeft className="h-6 w-6" strokeWidth={1.5} />
+          돌아가기
         </button>
-        <div className="flex min-h-screen items-center justify-center">
-          <div className="text-center">
-            <p className="text-sm text-slate-500">명예의 전당 테스트 권한이 없습니다.</p>
-            <button
-              type="button"
-              onClick={handleBack}
-              className="mt-4 rounded-lg border border-gray-200 px-4 py-2 text-sm text-slate-700"
-            >
-              돌아가기
-            </button>
-          </div>
-        </div>
+      </div>
+    );
+  }
+
+  if (!profile.is_athlete_system_enabled) {
+    return (
+      <div className="min-h-screen bg-[#050505] flex flex-col items-center justify-center text-zinc-500 px-6 text-center">
+        <p>아틀리트 시스템 접근 권한이 없습니다.</p>
+        <p className="text-sm mt-2">담당 트레이너에게 문의해주세요.</p>
+        <button
+          type="button"
+          onClick={handleBack}
+          className="mt-6 px-4 py-2 border border-zinc-700 rounded-md text-zinc-300 text-sm transition hover:border-zinc-500"
+        >
+          돌아가기
+        </button>
       </div>
     );
   }
