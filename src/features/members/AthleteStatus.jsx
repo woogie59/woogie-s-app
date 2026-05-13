@@ -542,7 +542,7 @@ export default function AthleteStatus({
       {prestige.mode === 'master' ? (
         <div className="relative flex flex-col items-center justify-center py-12 mb-6 w-full">
           {/* Breathing ambient aura */}
-          <div className="absolute inset-0 bg-fuchsia-900/20 blur-[80px] animate-pulse rounded-full z-0 pointer-events-none" style={{ animationDuration: '4s', animationTimingFunction: 'ease-in-out' }} />
+          <div className="absolute inset-0 bg-purple-900/30 blur-[70px] animate-pulse rounded-full z-0 pointer-events-none" style={{ animationDuration: '4s' }} />
 
           {/* Geometric sovereign crest */}
           <div className="absolute opacity-20 z-0">
