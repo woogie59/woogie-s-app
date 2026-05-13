@@ -265,8 +265,8 @@ export default function MemberAthleteView({ userId, goBack }) {
         />
       </div>
 
-      {/* Action buttons — pushed to bottom */}
-      <div className="mt-auto pt-4 pb-8 w-full max-w-[420px] mx-auto flex flex-col gap-3">
+      {/* Action buttons — pushed to absolute bottom */}
+      <div className="mt-auto pt-6 pb-8 w-full max-w-[420px] mx-auto flex flex-col gap-3 z-10">
         <button
           type="button"
           onClick={() => setIsTitleModalOpen(true)}

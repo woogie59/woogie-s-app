@@ -546,7 +546,7 @@ export default function AthleteStatus({
           MASTER
         </span>
       ) : (
-        <div className="w-full flex justify-center overflow-visible py-4">
+        <div className="relative w-full flex justify-center overflow-visible pb-[0.2em] pt-[0.1em] z-0">
           <span
             className={prestige.levelClassName}
             style={{
@@ -656,7 +656,7 @@ export default function AthleteStatus({
     ) : null;
 
   return (
-    <div className="relative w-full min-h-min bg-obsidian font-sans text-white">
+    <div className="relative w-full bg-obsidian font-sans text-white">
       <LevelUpEpicFX triggerKey={epicLevelUpKey} />
 
       <div
@@ -666,16 +666,21 @@ export default function AthleteStatus({
 
       <div className={`relative z-10 w-full px-3 text-center ${compactMemberHero ? 'pb-2' : 'pb-32'}`}>
         <div
-          className={`flex w-full flex-col items-center ${compactMemberHero ? 'gap-3 pb-4 pt-0' : 'gap-16 py-32'}`}
+          className={`flex w-full flex-col items-center ${compactMemberHero ? 'gap-0 pb-4 pt-0' : 'gap-16 py-32'}`}
         >
           {heroBlock}
 
           {compactMemberHero && isMemberIsolatedView ? (
             <>
-              <p className="text-base font-semibold tracking-wide text-zinc-100">{memberName ? `${memberName}님` : '회원'}</p>
+              {/* Member name */}
+              <p className="text-xl font-medium text-zinc-300 mt-2">
+                {memberName ? `${memberName}님` : '회원'}
+              </p>
               {String(subtitle || '').trim() ? (
-                <p className="text-sm font-medium tracking-[0.12em] text-zinc-500">{subtitle}</p>
+                <p className="mt-1 text-sm font-medium tracking-[0.12em] text-zinc-500">{subtitle}</p>
               ) : null}
+
+              {/* Title area — explicit gap-4 separates title row from change button */}
               {String(localCurrentTitle || '').trim() ? (
                 (() => {
                   const _titleName = String(localCurrentTitle).trim();
@@ -689,25 +694,24 @@ export default function AthleteStatus({
                     ? 'bg-gradient-to-r from-amber-200 via-yellow-400 to-amber-500 drop-shadow-[0_0_10px_rgba(251,191,36,0.55)]'
                     : 'bg-gradient-to-r from-slate-200 via-slate-100 to-slate-300 drop-shadow-[0_0_8px_rgba(203,213,225,0.4)]';
                   return (
-                    <div className="flex flex-col items-center gap-1.5">
+                    <div className="flex flex-col items-center gap-4 mt-6 z-10">
                       <div className="flex items-center gap-2">
-                        <button
-                          type="button"
-                          onClick={() => onRepresentativeTitleClick?.()}
-                          className={`text-xl sm:text-2xl font-black tracking-wider text-transparent bg-clip-text transition-transform ${_gradientClass} ${
-                            representativeClickable ? 'cursor-pointer hover:scale-105' : 'cursor-default'
+                        <h2
+                          className={`text-2xl sm:text-3xl font-black text-transparent bg-clip-text whitespace-nowrap ${_gradientClass} ${
+                            representativeClickable ? 'cursor-pointer transition-transform hover:scale-105' : ''
                           }`}
+                          onClick={() => representativeClickable && onRepresentativeTitleClick?.()}
                         >
                           「{_titleName}」
-                        </button>
+                        </h2>
                         {hasRepresentativeDescription ? (
                           <button
                             type="button"
                             aria-label="칭호 설명 보기"
                             onClick={openTitleInfoModal}
-                            className="self-center inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-full border border-zinc-700 text-[9px] font-semibold text-zinc-600 transition hover:border-zinc-500 hover:text-zinc-400"
+                            className="text-zinc-500 hover:text-zinc-300 cursor-pointer text-base mt-1 transition-colors leading-none"
                           >
-                            i
+                            (i)
                           </button>
                         ) : null}
                       </div>
@@ -715,7 +719,7 @@ export default function AthleteStatus({
                         <button
                           type="button"
                           onClick={() => onRepresentativeTitleClick?.()}
-                          className="text-[10px] text-zinc-500 underline underline-offset-2 transition hover:text-zinc-300"
+                          className="text-xs text-zinc-500 underline underline-offset-2 hover:text-zinc-300 transition-colors"
                         >
                           칭호 변경
                         </button>
@@ -724,11 +728,14 @@ export default function AthleteStatus({
                   );
                 })()
               ) : null}
+
+              {/* Description card */}
               {currentGuideDescription ? (
-                <div className="w-full max-w-sm mx-auto mt-2 p-4 rounded-xl bg-[#111111] border border-zinc-800/50 shadow-inner text-center">
-                  <p className="text-xs leading-relaxed text-zinc-400">{currentGuideDescription}</p>
+                <div className="w-full max-w-sm mx-auto mt-12 p-5 rounded-xl bg-[#0F0F0F] border border-zinc-800 text-zinc-400 text-sm leading-relaxed text-center shadow-inner">
+                  {currentGuideDescription}
                 </div>
               ) : null}
+
               {masterExamBlock}
             </>
           ) : (
