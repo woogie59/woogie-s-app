@@ -688,30 +688,44 @@ export default function AthleteStatus({
                 <p className="text-sm font-medium tracking-[0.12em] text-zinc-500">{subtitle}</p>
               ) : null}
               {String(localCurrentTitle || '').trim() ? (
-                <div className="flex flex-col items-center gap-1">
-                  <div className="flex items-center gap-1.5">
-                    <button
-                      type="button"
-                      onClick={() => onRepresentativeTitleClick?.()}
-                      className={`text-lg font-bold tracking-tight text-transparent bg-gradient-to-r from-platinum via-white to-platinum bg-clip-text transition-transform ${
-                        representativeClickable ? 'cursor-pointer hover:scale-105' : ''
-                      }`}
-                    >
-                      「{String(localCurrentTitle).trim()}」
-                    </button>
-                    {hasRepresentativeDescription ? (
-                      <button
-                        type="button"
-                        aria-label="칭호 설명 보기"
-                        onClick={openTitleInfoModal}
-                        className="inline-flex h-4 w-4 items-center justify-center rounded-full border border-zinc-600 text-[10px] font-semibold text-zinc-500 transition hover:border-zinc-400 hover:text-zinc-300"
-                      >
-                        i
-                      </button>
-                    ) : null}
-                  </div>
-                  {representativeClickable ? <span className="text-[10px] text-zinc-600">칭호 변경</span> : null}
-                </div>
+                (() => {
+                  const _titleName = String(localCurrentTitle).trim();
+                  const _def = titleDefinitions.find(
+                    (d) => String(d?.name || d?.title || '').trim() === _titleName
+                  );
+                  const _isMain = _def
+                    ? !String(_def.parent_title || '').trim()
+                    : false;
+                  const _gradientClass = _isMain
+                    ? 'bg-gradient-to-r from-amber-200 via-yellow-400 to-amber-500 drop-shadow-[0_0_10px_rgba(251,191,36,0.55)]'
+                    : 'bg-gradient-to-r from-slate-200 via-slate-100 to-slate-300 drop-shadow-[0_0_8px_rgba(203,213,225,0.4)]';
+                  return (
+                    <div className="flex flex-col items-center gap-1">
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => onRepresentativeTitleClick?.()}
+                          className={`text-xl sm:text-2xl font-black tracking-wider text-transparent bg-clip-text transition-transform ${_gradientClass} ${
+                            representativeClickable ? 'cursor-pointer hover:scale-105' : 'cursor-default'
+                          }`}
+                        >
+                          「{_titleName}」
+                        </button>
+                        {hasRepresentativeDescription ? (
+                          <button
+                            type="button"
+                            aria-label="칭호 설명 보기"
+                            onClick={openTitleInfoModal}
+                            className="self-center inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-full border border-zinc-700 text-[9px] font-semibold text-zinc-600 transition hover:border-zinc-500 hover:text-zinc-400"
+                          >
+                            i
+                          </button>
+                        ) : null}
+                      </div>
+                      {representativeClickable ? <span className="text-[10px] text-zinc-600">칭호 변경</span> : null}
+                    </div>
+                  );
+                })()
               ) : null}
               {guideBlock}
               {masterExamBlock}
@@ -719,9 +733,23 @@ export default function AthleteStatus({
           ) : (
             <>
               {String(localCurrentTitle || '').trim() ? (
-                <p className="text-2xl font-bold tracking-tight text-transparent bg-gradient-to-r from-platinum via-white to-platinum bg-clip-text">
-                  「{String(localCurrentTitle).trim()}」
-                </p>
+                (() => {
+                  const _titleName = String(localCurrentTitle).trim();
+                  const _def = titleDefinitions.find(
+                    (d) => String(d?.name || d?.title || '').trim() === _titleName
+                  );
+                  const _isMain = _def
+                    ? !String(_def.parent_title || '').trim()
+                    : false;
+                  const _gradientClass = _isMain
+                    ? 'bg-gradient-to-r from-amber-200 via-yellow-400 to-amber-500 drop-shadow-[0_0_10px_rgba(251,191,36,0.55)]'
+                    : 'bg-gradient-to-r from-slate-200 via-slate-100 to-slate-300 drop-shadow-[0_0_8px_rgba(203,213,225,0.4)]';
+                  return (
+                    <p className={`text-2xl font-black tracking-wider text-transparent bg-clip-text ${_gradientClass}`}>
+                      「{_titleName}」
+                    </p>
+                  );
+                })()
               ) : null}
 
               {!isMemberIsolatedView && !hideTitleArchive ? (
