@@ -32,71 +32,50 @@ export default function HallOfFameHub({ setView, setSelectedMemberId, goBack }) 
 
   const fetchPendingExams = useCallback(async () => {
     setLoadingPendingExams(true);
-    try {
-      // Step 1: fetch all columns so we can inspect the actual schema
-      const { data: requests, error: reqErr } = await supabase
-        .from('master_exam_requests')
-        .select('*')
-        .eq('status', 'pending')
-        .order('created_at', { ascending: false });
 
-      // Always log raw data so admin can verify columns in console
-      console.log('[HallOfFameHub] RAW REQUESTS:', requests, 'ERROR:', reqErr);
+    // Step 1: fetch all pending requests
+    const { data: requests, error: reqError } = await supabase
+      .from('master_exam_requests')
+      .select('*')
+      .eq('status', 'pending');
 
-      if (reqErr) throw reqErr;
+    console.log('[MasterQueue] RAW REQUESTS:', requests, '| ERROR:', reqError);
 
-      const list = Array.isArray(requests) ? requests : [];
-
-      // Step 2: immediately populate list with whatever we have so rows always show
-      // Detect the actual user ID column name (user_id / member_id / applicant_id)
-      const resolveUserId = (r) =>
-        r.user_id ?? r.member_id ?? r.applicant_id ?? r.uid ?? null;
-
-      // Render rows immediately without names so the list is never empty
-      setPendingExams(
-        list.map((r) => ({
-          request_id: r.id,
-          id: r.id,
-          user_id: resolveUserId(r),
-          name: resolveUserId(r) ?? 'ID 매칭 실패',
-          created_at: r.created_at,
-        }))
-      );
-
-      if (list.length === 0) return;
-
-      // Step 3: enrich with real names via separate profiles query
-      const userIds = [...new Set(list.map(resolveUserId).filter(Boolean))];
-      const { data: profiles } = await supabase
-        .from('profiles')
-        .select('id, name')
-        .in('id', userIds);
-
-      console.log('[HallOfFameHub] PROFILES:', profiles);
-
-      const nameById = Object.fromEntries(
-        (Array.isArray(profiles) ? profiles : []).map((p) => [p.id, p.name])
-      );
-
-      // Update list with real names — rows were already rendered above
-      setPendingExams(
-        list.map((r) => {
-          const uid = resolveUserId(r);
-          return {
-            request_id: r.id,
-            id: r.id,
-            user_id: uid,
-            name: (uid && nameById[uid]) ? nameById[uid] : (uid ?? 'ID 매칭 실패'),
-            created_at: r.created_at,
-          };
-        })
-      );
-    } catch (e) {
-      console.error('[HallOfFameHub] fetchPendingExams FAILED:', e);
-      // Do NOT wipe list here — show whatever was already set
-    } finally {
+    if (reqError) {
+      console.error('[MasterQueue] Request Fetch Error:', reqError);
       setLoadingPendingExams(false);
+      return;
     }
+    if (!requests || requests.length === 0) {
+      setPendingExams([]);
+      setLoadingPendingExams(false);
+      return;
+    }
+
+    // Step 2: fetch names using user_id (confirmed schema column)
+    const userIds = requests.map((r) => r.user_id).filter(Boolean);
+    const { data: profiles, error: profError } = await supabase
+      .from('profiles')
+      .select('id, name')
+      .in('id', userIds);
+
+    if (profError) {
+      console.error('[MasterQueue] Profile Fetch Error:', profError);
+    }
+
+    // Step 3: map names onto each request
+    const mappedRequests = requests.map((req) => {
+      const profile = (profiles || []).find((p) => p.id === req.user_id);
+      return {
+        ...req,
+        request_id: req.id,
+        member_name: profile?.name || '알 수 없는 회원',
+      };
+    });
+
+    // Step 4: update state
+    setPendingExams(mappedRequests);
+    setLoadingPendingExams(false);
   }, []);
 
   useEffect(() => {
@@ -179,7 +158,7 @@ export default function HallOfFameHub({ setView, setSelectedMemberId, goBack }) 
               const pending = examActionBusyId === requestId;
               return (
                 <div key={requestId} className="rounded-xl border border-white/10 bg-black/35 p-3">
-                  <p className="text-sm font-semibold text-zinc-100">{req?.name || req?.member_name || '회원'}</p>
+                  <p className="text-sm font-semibold text-zinc-100">{req?.member_name || req?.name || '알 수 없는 회원'}</p>
                   <p className="mt-0.5 text-xs text-zinc-500">
                     {req?.created_at ? new Date(req.created_at).toLocaleString('ko-KR') : ''}
                   </p>

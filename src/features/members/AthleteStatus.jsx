@@ -549,7 +549,11 @@ export default function AthleteStatus({
         <div className="w-full flex justify-center overflow-visible py-8">
           <span
             className={prestige.levelClassName}
-            style={{ fontSize: 'clamp(4rem, 25vw, 10rem)' }}
+            style={{
+              fontSize: 'clamp(4rem, 25vw, 10rem)',
+              lineHeight: 'normal',
+              paddingBottom: '0.15em',
+            }}
           >
             {prestige.levelText}
           </span>
