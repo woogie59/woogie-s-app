@@ -83,8 +83,13 @@ export default function GrowthLedgerTimeline({ entries, loading = false }) {
           {standard || '표준 기준 코멘트 없음'}
         </p>
         {custom ? (
-          <div className={`mt-3 rounded-lg border px-3 py-2 ${isHero ? 'border-emerald-500/25 bg-emerald-950/20' : 'border-emerald-500/15 bg-emerald-950/10'}`}>
-            <p className={`font-semibold leading-relaxed ${isHero ? 'text-emerald-200' : 'text-emerald-300'}`}>{custom}</p>
+          <div className={`mt-3 rounded-lg border px-3 py-2.5 ${isHero ? 'border-emerald-500/25 bg-emerald-950/20' : 'border-zinc-800 bg-[#0A0A0A]'}`}>
+            <p className="mb-1.5 text-[10px] font-bold uppercase tracking-widest text-emerald-500/90">
+              Woogie&apos;s Comment
+            </p>
+            <p className={`leading-relaxed ${isHero ? 'text-emerald-200 text-sm font-semibold' : 'text-zinc-300 text-sm'}`}>
+              {custom}
+            </p>
           </div>
         ) : null}
       </div>
