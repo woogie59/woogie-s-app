@@ -672,7 +672,7 @@ export default function AthleteStatus({
 
           {compactMemberHero && isMemberIsolatedView ? (
             <>
-              <p className="text-base font-semibold tracking-wide text-zinc-100">{memberName || '회원'}</p>
+              <p className="text-base font-semibold tracking-wide text-zinc-100">{memberName ? `${memberName}님` : '회원'}</p>
               {String(subtitle || '').trim() ? (
                 <p className="text-sm font-medium tracking-[0.12em] text-zinc-500">{subtitle}</p>
               ) : null}
