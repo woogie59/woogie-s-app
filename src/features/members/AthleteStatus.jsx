@@ -540,12 +540,40 @@ export default function AthleteStatus({
       transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
     >
       {prestige.mode === 'master' ? (
-        <span
-          className="text-center font-black leading-none bg-gradient-to-br from-purple-400 to-purple-700 bg-clip-text text-transparent drop-shadow-[0_0_40px_rgba(147,51,234,0.5)]"
-          style={{ fontSize: 'clamp(2.5rem,15vw,7rem)', letterSpacing: '0.22em', paddingLeft: '0.22em', whiteSpace: 'nowrap', display: 'block' }}
-        >
-          MASTER
-        </span>
+        <div className="relative flex flex-col items-center justify-center py-12 mb-6 w-full">
+          {/* Breathing ambient aura */}
+          <div className="absolute inset-0 bg-fuchsia-900/20 blur-[80px] animate-pulse rounded-full z-0 pointer-events-none" style={{ animationDuration: '4s', animationTimingFunction: 'ease-in-out' }} />
+
+          {/* Geometric sovereign crest */}
+          <div className="absolute opacity-20 z-0">
+            <svg width="180" height="180" viewBox="0 0 24 24" fill="none" stroke="url(#masterGradient)" strokeWidth="0.5" strokeLinecap="round" strokeLinejoin="round">
+              <defs>
+                <linearGradient id="masterGradient" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="#d8b4fe" />
+                  <stop offset="100%" stopColor="#4c1d95" />
+                </linearGradient>
+              </defs>
+              <path d="M12 2L2 7l10 5 10-5-10-5z" />
+              <path d="M2 17l10 5 10-5" />
+              <path d="M2 12l10 5 10-5" />
+            </svg>
+          </div>
+
+          {/* The monolith typography */}
+          <div className="z-10 flex flex-col items-center">
+            <h1
+              className="font-black text-transparent bg-clip-text bg-gradient-to-b from-slate-100 via-purple-300 to-indigo-900 drop-shadow-[0_15px_15px_rgba(0,0,0,0.9)]"
+              style={{ fontSize: 'clamp(2.8rem, 14vw, 6rem)', letterSpacing: '0.25em', paddingLeft: '0.25em', whiteSpace: 'nowrap' }}
+            >
+              MASTER
+            </h1>
+
+            {/* Sub-title engraving */}
+            <div className="mt-3 text-[0.65rem] font-light text-purple-300/60 tracking-[0.6em] pl-[0.6em] uppercase border-t border-purple-900/30 pt-2 w-3/4 text-center">
+              Hall of Fame
+            </div>
+          </div>
+        </div>
       ) : (
         <div className="relative w-full flex justify-center overflow-visible pb-[0.2em] pt-[0.1em] z-0">
           <span
