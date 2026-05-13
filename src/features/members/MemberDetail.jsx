@@ -178,7 +178,11 @@ const MemberDetail = ({ selectedMemberId, goBack, startInStatusMode = false, onE
             setU((prev) => (prev ? { ...prev, member_level: nextLevel } : prev));
           }}
           onExitAthlete={() => {
-            onExitAthleteView?.();
+            if (typeof onExitAthleteView === 'function') {
+              onExitAthleteView();
+            } else if (typeof goBack === 'function') {
+              goBack();
+            }
           }}
           onRefresh={async () => {
             await fetchMemberStats();

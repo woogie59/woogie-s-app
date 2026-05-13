@@ -424,7 +424,13 @@ export default function MemberStatusTab({ userId, profile, memberLevel, onRefres
       <div className="sticky top-0 z-20 mb-4 flex items-center justify-between border-b border-white/10 bg-[#050505]/85 px-2 py-3 backdrop-blur-xl">
         <button
           type="button"
-          onClick={() => onExitAthlete?.()}
+          onClick={() => {
+            if (typeof onExitAthlete === 'function') {
+              onExitAthlete();
+            } else {
+              console.warn('[MemberStatusTab] onExitAthlete is not defined — navigation skipped');
+            }
+          }}
           className="text-sm font-semibold tracking-wide text-zinc-400 transition-colors hover:text-white"
         >
           {'< 돌아가기'}

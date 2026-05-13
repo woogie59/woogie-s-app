@@ -390,8 +390,8 @@ const AdminHome = ({ setView, logout, onOpenTrainingLog }) => {
             onClick={() => goMenu({ view: 'hall_of_fame_hub' })}
             className="w-full rounded-2xl border border-amber-300/35 bg-gradient-to-r from-zinc-900 to-black p-5 text-left text-white shadow-[0_0_24px_rgba(0,0,0,0.45)] transition-all duration-200 hover:border-amber-300/50 active:scale-[0.99]"
           >
-            <p className="text-[11px] uppercase tracking-[0.16em] text-zinc-400">Hall of Fame</p>
-            <p className="mt-1 text-sm font-semibold tracking-tight">아틀리트 명예의 전당</p>
+            <p className="text-[11px] uppercase tracking-[0.16em] text-zinc-400">Athlete System</p>
+            <p className="mt-1 text-sm font-semibold tracking-tight">상태창 관리</p>
           </button>
         </div>
       </section>
