@@ -551,8 +551,10 @@ export default function AthleteStatus({
             className={prestige.levelClassName}
             style={{
               fontSize: 'clamp(4rem, 25vw, 10rem)',
-              lineHeight: 'normal',
-              paddingBottom: '0.15em',
+              lineHeight: '1.2',
+              paddingBottom: '0.2em',
+              paddingRight: '0.2em',
+              overflow: 'visible',
             }}
           >
             {prestige.levelText}

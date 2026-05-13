@@ -2,13 +2,21 @@ import React, { useEffect, useState, useCallback } from 'react';
 import { X, Trophy, Crown, Sparkles } from 'lucide-react';
 import { supabase } from '../../lib/supabaseClient';
 
-function tierLabel(level) {
-  const lv = Number(level) || 1;
-  if (lv <= 1) return '초심자';
-  if (lv <= 4) return '수행자';
-  if (lv <= 7) return '숙련자';
-  if (lv <= 9) return '엘리트';
-  return '챌린저';
+/**
+ * Rank label for a leaderboard entry.
+ * isMaster MUST be checked first — a Master is stored as level 10
+ * but is a completely distinct rank above Challenger.
+ */
+function getRankInfo(entry) {
+  if (entry.isMaster) {
+    return { label: 'MASTER', sublabel: '6계급 MASTER', color: 'text-purple-400', isMasterTier: true };
+  }
+  const lv = Number(entry.level) || 1;
+  if (lv === 10) return { label: `LV.${lv}`, sublabel: '[ 5계급 ] 챌린저', color: 'text-red-400', isMasterTier: false };
+  if (lv >= 8)   return { label: `LV.${lv}`, sublabel: '엘리트', color: 'text-yellow-300', isMasterTier: false };
+  if (lv >= 5)   return { label: `LV.${lv}`, sublabel: '숙련자', color: 'text-slate-300', isMasterTier: false };
+  if (lv >= 2)   return { label: `LV.${lv}`, sublabel: '수행자', color: 'text-amber-400', isMasterTier: false };
+  return { label: `LV.${lv}`, sublabel: '초심자', color: 'text-zinc-400', isMasterTier: false };
 }
 
 function maskName(name) {
@@ -17,13 +25,6 @@ function maskName(name) {
   return trimmed.charAt(0) + '**';
 }
 
-const TIER_BADGE_COLOR = {
-  초심자: 'text-zinc-400',
-  수행자: 'text-amber-400',
-  숙련자: 'text-slate-300',
-  엘리트: 'text-yellow-300',
-  챌린저: 'text-red-400',
-};
 
 const RANK_BADGE = {
   1: 'bg-yellow-400/20 text-yellow-300 border-yellow-400/40',
@@ -53,10 +54,12 @@ export default function HallOfFameLeaderboard({ isOpen, onClose }) {
 
       if (profilesRes.error) throw profilesRes.error;
 
-      // mastersRes 실패 시 빈 Set으로 graceful fallback (마스터를 챌린저로 오표시 방지)
       if (mastersRes.error) {
-        console.warn('[HallOfFameLeaderboard] master_exam_requests query failed:', mastersRes.error);
+        // RLS policy likely missing — run 20260513140000_master_exam_rls_policies.sql
+        console.error('[HallOfFameLeaderboard] master_exam_requests SELECT failed (check RLS):', mastersRes.error);
       }
+
+      // Build Set of approved master user IDs
       const approvedMasterIds = new Set(
         (mastersRes.data || []).map((r) => r.user_id).filter(Boolean)
       );
@@ -64,10 +67,11 @@ export default function HallOfFameLeaderboard({ isOpen, onClose }) {
       const sorted = (profilesRes.data || [])
         .map((p) => ({
           ...p,
+          // isMaster MUST be checked before any level-based rank logic
           isMaster: approvedMasterIds.has(p.id),
           level: Number(p.member_level) || 1,
         }))
-        // Masters always first, then by level descending
+        // Masters always first (regardless of stored level value), then by level descending
         .sort((a, b) => {
           if (a.isMaster !== b.isMaster) return a.isMaster ? -1 : 1;
           return b.level - a.level;
@@ -151,10 +155,9 @@ export default function HallOfFameLeaderboard({ isOpen, onClose }) {
             {entries.map((entry, idx) => {
               const rank = idx + 1;
               const { isMaster } = entry;
-              const tier = isMaster ? 'MASTER' : tierLabel(entry.level);
+              // getRankInfo checks isMaster FIRST — level 10 non-master = Challenger, not Master
+              const rankInfo = getRankInfo(entry);
               const rankBadgeClass = RANK_BADGE[rank] ?? 'bg-white/5 text-zinc-500 border-white/10';
-
-              // Master rank badge overrides to amethyst
               const masterBadgeClass = 'bg-purple-600/25 text-purple-300 border-purple-500/50';
 
               return (
@@ -168,7 +171,6 @@ export default function HallOfFameLeaderboard({ isOpen, onClose }) {
                         : 'border-white/5 bg-white/[0.015]'
                   }`}
                 >
-                  {/* Purple glow shimmer for master rows */}
                   {isMaster && (
                     <div className="pointer-events-none absolute inset-0 rounded-2xl ring-1 ring-purple-500/30" />
                   )}
@@ -188,23 +190,19 @@ export default function HallOfFameLeaderboard({ isOpen, onClose }) {
                     )}
                   </span>
 
-                  {/* Name + tier + title */}
+                  {/* Name + rank label */}
                   <div className="relative min-w-0 flex-1">
                     <div className="flex items-center gap-2">
                       <span className={`text-sm font-semibold tracking-wide ${isMaster ? 'text-purple-100' : 'text-white'}`}>
                         {maskName(entry.name)}
                       </span>
-
-                      {/* Level/rank label */}
-                      {isMaster ? (
-                        <span className="text-[11px] font-black tracking-widest uppercase text-purple-400 drop-shadow-[0_0_8px_rgba(167,139,250,0.6)]">
-                          MASTER
-                        </span>
-                      ) : (
-                        <span className="text-[11px] font-bold tracking-widest text-zinc-400">
-                          LV.{entry.level}
-                        </span>
-                      )}
+                      <span
+                        className={`text-[11px] font-black tracking-widest uppercase ${rankInfo.color} ${
+                          isMaster ? 'drop-shadow-[0_0_8px_rgba(167,139,250,0.6)]' : ''
+                        }`}
+                      >
+                        {rankInfo.label}
+                      </span>
                     </div>
 
                     {/* Sub-label row */}
@@ -215,8 +213,8 @@ export default function HallOfFameLeaderboard({ isOpen, onClose }) {
                           6계급 MASTER
                         </span>
                       ) : (
-                        <span className={`text-[11px] font-medium ${TIER_BADGE_COLOR[tier] ?? 'text-zinc-500'}`}>
-                          {tier}
+                        <span className={`text-[11px] font-medium ${rankInfo.color}`}>
+                          {rankInfo.sublabel}
                         </span>
                       )}
 
