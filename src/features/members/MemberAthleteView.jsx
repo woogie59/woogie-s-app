@@ -225,7 +225,7 @@ export default function MemberAthleteView({ userId, goBack }) {
         <ChevronLeft className="h-6 w-6" strokeWidth={1.5} />
       </button>
 
-      <div className="mx-auto flex min-h-[calc(100dvh-6.5rem)] w-full max-w-[420px] flex-col gap-10 pt-10">
+      <div className="mx-auto flex min-h-[calc(100dvh-6.5rem)] w-full max-w-[420px] flex-col gap-6 pt-6">
         <AthleteStatus
           memberId={profile.id}
           memberName={profile.name}
@@ -244,19 +244,20 @@ export default function MemberAthleteView({ userId, goBack }) {
           representativeTitleDescription={representativeTitleDescription}
         />
 
-        <div className="space-y-10">
+        {/* Action group: Growth Record + Hall of Fame — tightly stacked */}
+        <div className="flex flex-col gap-y-4 mt-2">
           <AthleteStatusBoard targetUserId={profile.id} ledgerRefreshKey={ledgerRefreshKey} />
-        </div>
 
-        <div className="flex justify-center pt-4 pb-2">
-          <button
-            type="button"
-            aria-label="명예의 전당 열기"
-            onClick={() => setHofOpen(true)}
-            className="inline-flex items-center justify-center rounded-full border border-purple-500/20 bg-purple-900/10 px-6 py-3 text-xs tracking-[0.16em] text-purple-300/80 backdrop-blur-md transition-all hover:border-purple-500/40 hover:text-purple-200"
-          >
-            [ ✦ 명예의 전당 (Hall of Fame) ]
-          </button>
+          <div className="flex justify-center">
+            <button
+              type="button"
+              aria-label="명예의 전당 열기"
+              onClick={() => setHofOpen(true)}
+              className="inline-flex items-center justify-center rounded-full border border-purple-500/20 bg-purple-900/10 px-6 py-3 text-xs tracking-[0.16em] text-purple-300/80 backdrop-blur-md transition-all hover:border-purple-500/40 hover:text-purple-200"
+            >
+              [ ✦ 명예의 전당 (Hall of Fame) ]
+            </button>
+          </div>
         </div>
       </div>
 

@@ -546,7 +546,7 @@ export default function AthleteStatus({
           MASTER
         </span>
       ) : (
-        <div className="w-full flex justify-center overflow-visible py-20">
+        <div className="w-full flex justify-center overflow-visible py-4">
           <span
             className={prestige.levelClassName}
             style={{
@@ -571,7 +571,7 @@ export default function AthleteStatus({
   const currentGuideDescription = getAthleteLevelDescription(roadmapLevel, {
     isMaster: masterAchieved,
   });
-  const guideBlock = <p className="text-xs leading-relaxed text-white/45">{currentGuideDescription}</p>;
+  const guideBlock = <p className="max-w-[280px] text-xs leading-relaxed text-white/45 text-center">{currentGuideDescription}</p>;
   const representativeClickable = typeof onRepresentativeTitleClick === 'function';
   const hasRepresentativeDescription = true;
   const openTitleInfoModal = async () => {
@@ -666,7 +666,7 @@ export default function AthleteStatus({
 
       <div className={`relative z-10 w-full px-3 text-center ${compactMemberHero ? 'pb-2' : 'pb-32'}`}>
         <div
-          className={`flex w-full flex-col items-center ${compactMemberHero ? 'gap-5 pb-6 pt-0' : 'gap-16 py-32'}`}
+          className={`flex w-full flex-col items-center ${compactMemberHero ? 'gap-3 pb-4 pt-0' : 'gap-16 py-32'}`}
         >
           {heroBlock}
 
