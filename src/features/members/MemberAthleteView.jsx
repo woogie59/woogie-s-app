@@ -76,7 +76,7 @@ export default function MemberAthleteView({ userId, goBack }) {
 
       const { data: prof, error: profErr } = await supabase
         .from('profiles')
-        .select('id,name,member_level,current_title')
+        .select('id,name,member_level,current_title,is_athlete_system_enabled')
         .eq('id', userId)
         .maybeSingle();
       if (cancelled) return;
@@ -187,7 +187,11 @@ export default function MemberAthleteView({ userId, goBack }) {
     );
   }
 
-  if (!profile.is_athlete_system_enabled) {
+  const hasAthleteAccess =
+    profile.is_athlete_system_enabled === true ||
+    profile.is_athlete_system_enabled === 'true';
+
+  if (!hasAthleteAccess) {
     return (
       <div className="min-h-screen bg-[#050505] flex flex-col items-center justify-center text-zinc-500 px-6 text-center">
         <p>아틀리트 시스템 접근 권한이 없습니다.</p>
