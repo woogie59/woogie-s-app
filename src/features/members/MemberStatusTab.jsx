@@ -421,22 +421,6 @@ export default function MemberStatusTab({ userId, profile, memberLevel, onRefres
 
   return (
     <div className="animate-in fade-in zoom-in-95 duration-1000 ease-out fill-mode-forwards [font-family:Urbanist,sans-serif]">
-      <div className="sticky top-0 z-20 mb-4 flex items-center justify-between border-b border-white/10 bg-[#050505]/85 px-2 py-3 backdrop-blur-xl">
-        <button
-          type="button"
-          onClick={() => {
-            if (typeof onExitAthlete === 'function') {
-              onExitAthlete();
-            } else {
-              console.warn('[MemberStatusTab] onExitAthlete is not defined — navigation skipped');
-            }
-          }}
-          className="text-sm font-semibold tracking-wide text-zinc-400 transition-colors hover:text-white"
-        >
-          {'< 돌아가기'}
-        </button>
-        <p className="text-xs font-bold uppercase tracking-widest text-zinc-500">아틀리트 시스템</p>
-      </div>
 
       <div className="flex flex-col gap-12 xl:flex-row xl:items-start xl:gap-12">
       <div className="min-w-0 flex-1 rounded-3xl bg-[#050505] p-4">
