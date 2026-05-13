@@ -68,6 +68,7 @@ export default function MemberStatusTab({ userId, profile, memberLevel, onRefres
   const [roadmapOpen, setRoadmapOpen] = useState(false);
   const [isAthleteEnabled, setIsAthleteEnabled] = useState(() => !!profile?.is_athlete_system_enabled);
   const [togglingAthleteSystem, setTogglingAthleteSystem] = useState(false);
+  const [unequippingTitle, setUnequippingTitle] = useState(false);
 
   if (!profile || !userId) {
     return (
@@ -390,6 +391,41 @@ export default function MemberStatusTab({ userId, profile, memberLevel, onRefres
     }
   };
 
+  const handleUnequipTitle = async () => {
+    if (!userId) return;
+    setUnequippingTitle(true);
+    try {
+      const updatePayload = { current_title: null };
+      // representative_title_id column may or may not exist — attempt to clear it too
+      const { error } = await supabase
+        .from('profiles')
+        .update({ ...updatePayload, representative_title_id: null })
+        .eq('id', userId);
+      if (error) {
+        // If representative_title_id column missing, fall back to current_title only
+        const code = String(error.code || '');
+        const msg = String(error.message || '').toLowerCase();
+        if (code === '42703' || msg.includes('representative_title_id')) {
+          const { error: fallbackErr } = await supabase
+            .from('profiles')
+            .update({ current_title: null })
+            .eq('id', userId);
+          if (fallbackErr) throw fallbackErr;
+        } else {
+          throw error;
+        }
+      }
+      setCommittedTitle('');
+      await onRefresh?.();
+      toast.success('대표 칭호가 해제되었습니다.');
+    } catch (e) {
+      console.error('[MemberStatusTab] handleUnequipTitle', e);
+      toast.error(`칭호 해제 실패: ${supabaseErrorMessage(e)}`);
+    } finally {
+      setUnequippingTitle(false);
+    }
+  };
+
   const saveMainTitleDescription = async (mainTitleName) => {
     const mainTitle = String(mainTitleName || '').trim();
     if (!mainTitle) return;
@@ -514,6 +550,31 @@ export default function MemberStatusTab({ userId, profile, memberLevel, onRefres
                       })}
                     </div>
                   </>
+                )}
+              </div>
+            </div>
+
+            <div className="border-t border-white/10 pt-6">
+              <h3 className="text-zinc-400 text-xs font-bold uppercase tracking-widest">대표 칭호 관리</h3>
+              <p className="mt-2 text-sm text-zinc-500">현재 장착된 대표 칭호를 확인하고 해제할 수 있습니다.</p>
+              <div className="mt-3 flex items-center justify-between rounded-lg border border-white/10 bg-black/40 px-4 py-3">
+                {committedTitle ? (
+                  <>
+                    <div>
+                      <p className="text-xs text-zinc-500 uppercase tracking-widest mb-0.5">장착 중</p>
+                      <p className="text-sm font-semibold text-zinc-100">「{committedTitle}」</p>
+                    </div>
+                    <button
+                      type="button"
+                      disabled={unequippingTitle}
+                      onClick={handleUnequipTitle}
+                      className="shrink-0 rounded border border-red-900 px-3 py-1.5 text-xs font-semibold text-red-500 transition hover:bg-red-900/20 disabled:opacity-40"
+                    >
+                      {unequippingTitle ? '해제 중…' : '해제'}
+                    </button>
+                  </>
+                ) : (
+                  <p className="text-sm text-zinc-600">장착된 칭호가 없습니다.</p>
                 )}
               </div>
             </div>
