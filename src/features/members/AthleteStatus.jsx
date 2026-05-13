@@ -715,15 +715,6 @@ export default function AthleteStatus({
                           </button>
                         ) : null}
                       </div>
-                      {representativeClickable ? (
-                        <button
-                          type="button"
-                          onClick={() => onRepresentativeTitleClick?.()}
-                          className="text-xs text-zinc-500 underline underline-offset-2 hover:text-zinc-300 transition-colors"
-                        >
-                          칭호 변경
-                        </button>
-                      ) : null}
                     </div>
                   );
                 })()

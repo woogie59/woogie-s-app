@@ -222,7 +222,7 @@ export default function MemberAthleteView({ userId, goBack }) {
   return (
     <div
       key={entranceKey}
-      className="relative min-h-screen w-full overflow-y-auto bg-[#050505] px-4 pt-4 font-sans flex flex-col animate-in fade-in duration-1000 ease-out zoom-in-95 fill-mode-forwards"
+      className="relative min-h-[100dvh] w-full overflow-y-auto bg-[#050505] px-4 pt-4 font-sans flex flex-col animate-in fade-in duration-1000 ease-out zoom-in-95 fill-mode-forwards"
     >
       {/* Back button — absolute left */}
       <button
@@ -266,13 +266,13 @@ export default function MemberAthleteView({ userId, goBack }) {
       </div>
 
       {/* Action buttons — pushed to absolute bottom */}
-      <div className="mt-auto pt-6 pb-8 w-full max-w-[420px] mx-auto flex flex-col gap-3 z-10">
+      <div className="mt-auto pt-6 pb-12 w-full max-w-[420px] mx-auto flex flex-col gap-3 z-10">
         <button
           type="button"
           onClick={() => setIsTitleModalOpen(true)}
           className="w-full rounded-xl border border-white/8 bg-white/[0.02] px-3 py-3 text-sm font-semibold text-white/60 transition hover:border-white/15 hover:text-white/80"
         >
-          [ ✦ 칭호 아카이브 ]
+          [ ✦ 나의 칭호 목록 ]
         </button>
 
         <AthleteStatusBoard targetUserId={profile.id} ledgerRefreshKey={ledgerRefreshKey} />
