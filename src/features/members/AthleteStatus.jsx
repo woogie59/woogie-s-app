@@ -181,6 +181,7 @@ export default function AthleteStatus({
       levelText: `LV. ${roadmapLevel}`,
       levelClassName: visual.levelClassName,
       classLine: `CLASS : ${tierKey}`,
+      tierKey,
     };
   }, [roadmapLevel, masterAchieved]);
   const currentPhaseKey = useMemo(() => {
@@ -562,8 +563,20 @@ export default function AthleteStatus({
           </span>
         </div>
       )}
-      {prestige.mode !== 'master' && prestige.classLine ? (
-        <p className="max-w-[95vw] text-xs font-semibold tracking-[0.4em] text-zinc-500">{prestige.classLine}</p>
+      {prestige.mode !== 'master' && prestige.tierKey ? (
+        <div className="inline-flex items-center justify-center px-4 py-1.5 mt-[-5px] mb-6 rounded-full border border-zinc-800 bg-[#151515] shadow-sm z-10">
+          <span className="text-[0.65rem] tracking-[0.3em] text-zinc-500 mr-3">CLASS</span>
+          <span className={`text-sm font-bold ${
+            prestige.tierKey === '초심자' ? 'text-zinc-300' :
+            prestige.tierKey === '수행자' ? 'text-orange-400' :
+            prestige.tierKey === '숙련자' ? 'text-slate-300' :
+            prestige.tierKey === '엘리트' ? 'text-yellow-400' :
+            prestige.tierKey === '챌린저' ? 'text-red-400' :
+            'text-zinc-200'
+          }`}>
+            {prestige.tierKey}
+          </span>
+        </div>
       ) : null}
     </Motion.div>
   );
