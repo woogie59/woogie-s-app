@@ -183,6 +183,7 @@ export default function App() {
   const [loading, setLoading] = useState(true);
   /** From `profiles.role` — used for library back nav & admin-only UI */
   const [userProfileRole, setUserProfileRole] = useState(null);
+  const [userProfileName, setUserProfileName] = useState(null);
 
   /** Previous views for historical back navigation (custom router) */
   const viewHistoryRef = useRef([]);
@@ -299,6 +300,7 @@ export default function App() {
             await new Promise((r) => setTimeout(r, 350));
           }
           setUserProfileRole(profile?.role ?? null);
+          setUserProfileName(profile?.name ?? null);
         } catch {
           setUserProfileRole(null);
         } finally {
@@ -311,19 +313,20 @@ export default function App() {
     try {
       let { data } = await supabase
         .from('profiles')
-        .select('role')
+        .select('role, name')
         .eq('id', sessionData.user.id)
         .maybeSingle();
       if (!data && sessionData?.user) {
         await new Promise((r) => setTimeout(r, 600));
         const { data: retry } = await supabase
           .from('profiles')
-          .select('role')
+          .select('role, name')
           .eq('id', sessionData.user.id)
           .maybeSingle();
         data = retry;
       }
       setUserProfileRole(data?.role ?? null);
+      setUserProfileName(data?.name ?? null);
       const role = data?.role ?? null;
       const def = role === 'admin' ? 'admin_home' : 'client_home';
       // SIGNED_IN: 방금 로그인 → 항상 홈. INITIAL_SESSION(새로고침/PWA 복귀) → 저장된 view 복원.
@@ -403,6 +406,7 @@ export default function App() {
     }
     pushPromptForSessionRef.current = null;
     setUserProfileRole(null);
+    setUserProfileName(null);
     await supabase.auth.signOut();
     replaceView('login');
   };
@@ -873,7 +877,7 @@ export default function App() {
           {/* 관리자 화면 (admin role 필수) */}
           {view === 'admin_home' && (
             <AdminRoute session={session} replaceView={replaceView}>
-              <AdminHome setView={navigate} logout={handleLogout} onOpenTrainingLog={() => setShowAdminTrainingReport(true)} />
+              <AdminHome setView={navigate} logout={handleLogout} onOpenTrainingLog={() => setShowAdminTrainingReport(true)} adminName={userProfileName} />
             </AdminRoute>
           )}
 

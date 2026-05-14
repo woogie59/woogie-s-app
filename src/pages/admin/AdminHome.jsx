@@ -44,7 +44,7 @@ const VISIBLE_UNCONFIRMED = 1;
 /** MVP: 지식창고(라이브러리)·트레이닝 일지 메뉴 비표시 — 라우트/컴포넌트는 유지 */
 const MVP_HIDE_LIBRARY_AND_TRAINING_NAV = true;
 
-const AdminHome = ({ setView, logout, onOpenTrainingLog }) => {
+const AdminHome = ({ setView, logout, onOpenTrainingLog, adminName }) => {
   const [unscheduledVips, setUnscheduledVips] = useState([]);
   const [radarLoading, setRadarLoading] = useState(true);
   const [unconfirmedExpanded, setUnconfirmedExpanded] = useState(false);
@@ -385,18 +385,20 @@ const AdminHome = ({ setView, logout, onOpenTrainingLog }) => {
           </button>
         </div>
 
-        <div className="mt-4">
-          <button
-            type="button"
-            onClick={() => goMenu({ view: 'exercise_library' })}
-            className="w-full bg-white rounded-2xl border border-gray-100 shadow-sm p-5 flex items-center justify-between transition-all duration-200 hover:bg-gray-50 active:bg-gray-100 active:scale-[0.99] cursor-pointer text-left"
-          >
-            <div className="flex items-center gap-3">
-              <Dumbbell size={24} strokeWidth={ICON_STROKE} className="text-[#064e3b] shrink-0" aria-hidden />
-              <span className="text-sm font-medium text-slate-900 tracking-tight">운동 라이브러리</span>
-            </div>
-          </button>
-        </div>
+        {adminName === '테스트용1' && (
+          <div className="mt-4">
+            <button
+              type="button"
+              onClick={() => goMenu({ view: 'exercise_library' })}
+              className="w-full bg-white rounded-2xl border border-gray-100 shadow-sm p-5 flex items-center justify-between transition-all duration-200 hover:bg-gray-50 active:bg-gray-100 active:scale-[0.99] cursor-pointer text-left"
+            >
+              <div className="flex items-center gap-3">
+                <Dumbbell size={24} strokeWidth={ICON_STROKE} className="text-[#064e3b] shrink-0" aria-hidden />
+                <span className="text-sm font-medium text-slate-900 tracking-tight">운동 라이브러리</span>
+              </div>
+            </button>
+          </div>
+        )}
         <div className="mt-4">
           <button
             type="button"
