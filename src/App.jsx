@@ -91,7 +91,7 @@ export default function App() {
   const [libraryPosts, setLibraryPosts] = useState([]);
   const [isLibraryLoading, setIsLibraryLoading] = useState(false);
   const [showWriteModal, setShowWriteModal] = useState(false);
-  const [newPost, setNewPost] = useState({ title: '', content: '', category: 'Tip', image_url: '' });
+  const [newPost, setNewPost] = useState({ title: '', content: '', category: 'Tip', image_url: '', video_url: '' });
   
   // [Library Enhanced State]
   const [selectedCategory, setSelectedCategory] = useState('All');
@@ -443,11 +443,13 @@ export default function App() {
       }
 
       const imageUrl = newPost.image_url?.trim();
+      const videoUrl = newPost.video_url?.trim();
       const payload = {
         title: newPost.title.trim(),
         content: newPost.content.trim(),
         category: newPost.category || 'Tip',
-        image_url: imageUrl ? imageUrl : null,
+        image_url: imageUrl || null,
+        video_url: videoUrl || null,
         created_at: new Date().toISOString(),
       };
 
@@ -457,7 +459,7 @@ export default function App() {
 
       showToast('게시글이 저장되었습니다');
       setShowWriteModal(false);
-      setNewPost({ title: '', content: '', category: 'Tip', image_url: '' });
+      setNewPost({ title: '', content: '', category: 'Tip', image_url: '', video_url: '' });
       await fetchLibraryPosts();
     } catch (err) {
       console.error('[handleSavePost]', err);
@@ -1313,14 +1315,38 @@ export default function App() {
                       <option value="Tip">Tip</option>
                     </select>
 
-                    <input 
+                    <input
                       className="w-full bg-gray-50 p-3 rounded mb-4 text-slate-900 border border-gray-200 focus:border-emerald-600 outline-none"
                       placeholder="Image URL (Optional)"
                       value={newPost.image_url}
                       onChange={(e) => setNewPost({...newPost, image_url: e.target.value})}
                     />
 
-                    <textarea 
+                    <div className="mb-4">
+                      <input
+                        className="w-full bg-gray-50 p-3 rounded text-slate-900 border border-gray-200 focus:border-emerald-600 outline-none"
+                        placeholder="동영상 URL (선택사항)"
+                        value={newPost.video_url}
+                        onChange={(e) => setNewPost({...newPost, video_url: e.target.value})}
+                      />
+                      <p className="mt-1 text-xs text-gray-400">
+                        짧은 길이의 MP4 직접 링크를 권장합니다. (소리 없이 자동 반복됩니다)
+                      </p>
+                      {newPost.video_url?.trim() && (
+                        <div className="mt-3 rounded-xl overflow-hidden border border-zinc-200 bg-black max-w-sm">
+                          <video
+                            src={newPost.video_url.trim()}
+                            autoPlay
+                            loop
+                            muted
+                            playsInline
+                            className="w-full h-auto object-cover opacity-90"
+                          />
+                        </div>
+                      )}
+                    </div>
+
+                    <textarea
                       className="w-full bg-gray-50 p-3 rounded mb-6 text-slate-900 border border-gray-200 focus:border-emerald-600 outline-none h-32 resize-none"
                       placeholder="Content..."
                       value={newPost.content}
