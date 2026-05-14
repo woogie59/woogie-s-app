@@ -26,6 +26,7 @@ import RegisterView from './pages/auth/RegisterView';
 import ResetPasswordView from './pages/auth/ResetPasswordView';
 
 import ClientHome from './pages/client/ClientHome';
+import MemberExerciseLibrary from './pages/client/MemberExerciseLibrary';
 
 import AdminHome from './pages/admin/AdminHome';
 import AdminSettings from './pages/admin/AdminSettings';
@@ -872,6 +873,10 @@ export default function App() {
               {session && view === 'client_home' && <ClientHome user={session.user} logout={handleLogout} setView={navigate} goBack={goBack} />}
           {session && view === 'hall_of_fame_member_self' && (
             <MemberAthleteView userId={session.user.id} goBack={goBack} />
+          )}
+
+          {session && view === 'member_exercise_library' && (
+            <MemberExerciseLibrary goBack={() => navigate('client_home')} />
           )}
 
           {/* 관리자 화면 (admin role 필수) */}
