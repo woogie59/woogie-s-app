@@ -31,6 +31,7 @@ import AdminHome from './pages/admin/AdminHome';
 import AdminSettings from './pages/admin/AdminSettings';
 import AdminRoute from './pages/admin/AdminRoute';
 import AdminPayrollDashboard from './pages/admin/AdminPayrollDashboard';
+import AdminExerciseLibrary from './pages/admin/AdminExerciseLibrary';
 import AdminBookingSettingsPanel from './features/admin/AdminBookingSettingsPanel';
 import AdminScheduleFullCalendar from './features/admin/AdminScheduleFullCalendar';
 import { buildAdminCalendarEvents } from './utils/adminScheduleCalendarEvents';
@@ -902,6 +903,12 @@ export default function App() {
           {view === 'admin_payroll' && (
             <AdminRoute session={session} replaceView={replaceView}>
               <AdminPayrollDashboard goBack={goBack} />
+            </AdminRoute>
+          )}
+
+          {view === 'exercise_library' && (
+            <AdminRoute session={session} replaceView={replaceView}>
+              <AdminExerciseLibrary goBack={() => navigate('admin_home')} />
             </AdminRoute>
           )}
 
