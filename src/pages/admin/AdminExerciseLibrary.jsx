@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { ArrowLeft, Plus, Dumbbell, Play, Image as ImageIcon, X } from 'lucide-react';
+import { ArrowLeft, Plus, Dumbbell, Play, PlayCircle, X } from 'lucide-react';
 import { supabase } from '../../lib/supabaseClient';
 import toast from 'react-hot-toast';
 
@@ -143,33 +143,26 @@ const AdminExerciseLibrary = ({ goBack }) => {
                 onClick={() => setSelectedPost(post)}
                 className="w-full bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden text-left transition hover:border-emerald-500/30 active:scale-[0.99]"
               >
-                {post.video_url ? (
-                  <div className="relative bg-black">
-                    <video
-                      src={post.video_url}
-                      autoPlay
-                      loop
-                      muted
-                      playsInline
-                      className="w-full h-40 object-cover opacity-80"
-                    />
-                    <div className="absolute bottom-2 right-2 rounded-full bg-black/60 p-1.5">
-                      <Play size={12} className="text-white fill-white" />
-                    </div>
-                  </div>
-                ) : post.image_url ? (
-                  <img src={post.image_url} alt={post.title} className="w-full h-40 object-cover" />
-                ) : (
-                  <div className="w-full h-24 bg-gray-50 flex items-center justify-center border-b border-gray-100">
-                    <ImageIcon size={28} className="text-gray-300" strokeWidth={1} />
-                  </div>
+                {post.image_url && !post.video_url && (
+                  <img src={post.image_url} alt={post.title} className="w-full h-36 object-cover" />
                 )}
-                <div className="p-4">
-                  <span className="text-[10px] font-semibold uppercase tracking-widest text-emerald-700">
-                    {CATEGORY_LABEL[post.category] ?? post.category}
-                  </span>
-                  <h3 className="mt-1 text-sm font-semibold text-slate-900 line-clamp-1">{post.title}</h3>
-                  <p className="mt-1 text-xs text-gray-500 line-clamp-2 leading-relaxed">{post.content}</p>
+                <div className="px-4 py-3 flex items-start justify-between gap-3">
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="text-[10px] font-semibold uppercase tracking-widest text-emerald-700">
+                        {CATEGORY_LABEL[post.category] ?? post.category}
+                      </span>
+                      {post.video_url && (
+                        <span className="inline-flex items-center gap-1 rounded-full bg-zinc-100 px-2 py-0.5 text-[10px] font-medium text-zinc-500">
+                          <PlayCircle size={10} />
+                          Video
+                        </span>
+                      )}
+                    </div>
+                    <h3 className="text-sm font-semibold text-slate-900 line-clamp-1">{post.title}</h3>
+                    <p className="mt-0.5 text-xs text-gray-500 line-clamp-2 leading-relaxed">{post.content}</p>
+                  </div>
+                  <Play size={16} strokeWidth={1.5} className="shrink-0 mt-1 text-gray-300" />
                 </div>
               </button>
             ))}
