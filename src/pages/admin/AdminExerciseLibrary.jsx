@@ -5,6 +5,7 @@ import toast from 'react-hot-toast';
 
 const EXERCISE_CATEGORIES = ['Exercise', 'Routine'];
 const ALL_CATEGORIES = ['All', 'Exercise', 'Routine'];
+const BODY_PARTS = ['가슴', '등', '하체', '어깨', '팔', '코어', '전신'];
 
 const CATEGORY_LABEL = { Exercise: '운동', Routine: '루틴' };
 
@@ -14,7 +15,7 @@ const AdminExerciseLibrary = ({ goBack }) => {
   const [filter, setFilter] = useState('All');
   const [showModal, setShowModal] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [form, setForm] = useState({ title: '', content: '', category: 'Exercise', image_url: '', video_url: '' });
+  const [form, setForm] = useState({ title: '', content: '', category: 'Exercise', body_part: '', image_url: '', video_url: '' });
   const [selectedPost, setSelectedPost] = useState(null);
 
   const fetchPosts = useCallback(async () => {
@@ -41,7 +42,7 @@ const AdminExerciseLibrary = ({ goBack }) => {
 
   const filtered = filter === 'All' ? posts : posts.filter((p) => p.category === filter);
 
-  const resetForm = () => setForm({ title: '', content: '', category: 'Exercise', image_url: '', video_url: '' });
+  const resetForm = () => setForm({ title: '', content: '', category: 'Exercise', body_part: '', image_url: '', video_url: '' });
 
   const handleSave = async () => {
     if (!form.title.trim() || !form.content.trim()) {
@@ -54,6 +55,7 @@ const AdminExerciseLibrary = ({ goBack }) => {
         title: form.title.trim(),
         content: form.content.trim(),
         category: form.category,
+        body_part: form.body_part || null,
         image_url: form.image_url.trim() || null,
         video_url: form.video_url.trim() || null,
         created_at: new Date().toISOString(),
@@ -152,6 +154,11 @@ const AdminExerciseLibrary = ({ goBack }) => {
                       <span className="text-[10px] font-semibold uppercase tracking-widest text-emerald-700">
                         {CATEGORY_LABEL[post.category] ?? post.category}
                       </span>
+                      {post.body_part && (
+                        <span className="text-[10px] text-gray-500 border border-gray-200 rounded-full px-1.5 py-0.5">
+                          {post.body_part}
+                        </span>
+                      )}
                       {post.video_url && (
                         <span className="inline-flex items-center gap-1 rounded-full bg-zinc-100 px-2 py-0.5 text-[10px] font-medium text-zinc-500">
                           <PlayCircle size={10} />
@@ -194,6 +201,16 @@ const AdminExerciseLibrary = ({ goBack }) => {
               >
                 <option value="Exercise">운동 (Exercise)</option>
                 <option value="Routine">루틴 (Routine)</option>
+              </select>
+              <select
+                className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-slate-900 outline-none"
+                value={form.body_part}
+                onChange={(e) => setForm({ ...form, body_part: e.target.value })}
+              >
+                <option value="">부위 선택 (선택사항)</option>
+                {BODY_PARTS.map((p) => (
+                  <option key={p} value={p}>{p}</option>
+                ))}
               </select>
               <textarea
                 className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-slate-900 outline-none focus:border-emerald-500 transition resize-none h-28"

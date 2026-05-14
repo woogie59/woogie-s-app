@@ -3,14 +3,14 @@ import { ArrowLeft, X, Dumbbell } from 'lucide-react';
 import { supabase } from '../../lib/supabaseClient';
 
 const EXERCISE_CATEGORIES = ['Exercise', 'Routine'];
-const ALL_FILTERS = ['전체', '운동', '루틴'];
-const FILTER_TO_CATEGORY = { '운동': 'Exercise', '루틴': 'Routine' };
 const CATEGORY_LABEL = { Exercise: '운동', Routine: '루틴' };
+
+const BODY_PARTS = ['전체', '가슴', '등', '하체', '어깨', '팔', '코어', '전신'];
 
 const MemberExerciseLibrary = ({ goBack }) => {
   const [posts, setPosts] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState('전체');
+  const [activeCategory, setActiveCategory] = useState('전체');
   const [selectedPost, setSelectedPost] = useState(null);
 
   const fetchPosts = useCallback(async () => {
@@ -34,10 +34,9 @@ const MemberExerciseLibrary = ({ goBack }) => {
     fetchPosts();
   }, [fetchPosts]);
 
-  const filtered =
-    filter === '전체'
-      ? posts
-      : posts.filter((p) => p.category === FILTER_TO_CATEGORY[filter]);
+  const filteredExercises = posts.filter((ex) =>
+    activeCategory === '전체' ? true : ex.body_part === activeCategory
+  );
 
   return (
     <div className="min-h-[100dvh] bg-[#050505] text-zinc-200 flex flex-col font-sans">
@@ -57,22 +56,24 @@ const MemberExerciseLibrary = ({ goBack }) => {
         </div>
       </header>
 
-      {/* Filter pills */}
-      <div className="px-5 pt-4 pb-2 flex gap-2">
-        {ALL_FILTERS.map((f) => (
-          <button
-            key={f}
-            type="button"
-            onClick={() => setFilter(f)}
-            className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${
-              filter === f
-                ? 'bg-zinc-200 text-zinc-900'
-                : 'border border-zinc-800 text-zinc-500 hover:border-zinc-600'
-            }`}
-          >
-            {f}
-          </button>
-        ))}
+      {/* Horizontal filter tabs — scrollable, no scrollbar */}
+      <div className="w-full overflow-x-auto no-scrollbar py-4 px-4 border-b border-zinc-800/50">
+        <div className="flex gap-2 w-max">
+          {BODY_PARTS.map((part) => (
+            <button
+              key={part}
+              type="button"
+              onClick={() => setActiveCategory(part)}
+              className={`px-4 py-1.5 rounded-full text-sm font-medium transition-colors whitespace-nowrap ${
+                activeCategory === part
+                  ? 'bg-zinc-200 text-black'
+                  : 'bg-zinc-900 border border-zinc-700 text-zinc-400 hover:text-zinc-200'
+              }`}
+            >
+              {part}
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* List */}
@@ -81,14 +82,18 @@ const MemberExerciseLibrary = ({ goBack }) => {
           <div className="flex justify-center pt-16">
             <p className="text-sm text-zinc-600 tracking-wide">Loading…</p>
           </div>
-        ) : filtered.length === 0 ? (
+        ) : filteredExercises.length === 0 ? (
           <div className="flex flex-col items-center justify-center pt-16 gap-3 text-zinc-600">
             <Dumbbell size={36} strokeWidth={1} />
-            <p className="text-sm">등록된 운동이 없습니다.</p>
+            <p className="text-sm">
+              {activeCategory === '전체'
+                ? '등록된 운동이 없습니다.'
+                : `${activeCategory} 부위의 운동이 아직 없습니다.`}
+            </p>
           </div>
         ) : (
           <ul className="divide-y divide-zinc-900">
-            {filtered.map((post) => (
+            {filteredExercises.map((post) => (
               <li key={post.id}>
                 <button
                   type="button"
@@ -121,9 +126,16 @@ const MemberExerciseLibrary = ({ goBack }) => {
 
                   {/* Text */}
                   <div className="flex flex-col min-w-0 flex-1">
-                    <span className="text-[10px] font-semibold uppercase tracking-widest text-zinc-500 mb-0.5">
-                      {CATEGORY_LABEL[post.category] ?? post.category}
-                    </span>
+                    <div className="flex items-center gap-2 mb-0.5">
+                      <span className="text-[10px] font-semibold uppercase tracking-widest text-zinc-500">
+                        {CATEGORY_LABEL[post.category] ?? post.category}
+                      </span>
+                      {post.body_part && (
+                        <span className="text-[10px] text-zinc-600 border border-zinc-800 rounded-full px-1.5 py-0.5">
+                          {post.body_part}
+                        </span>
+                      )}
+                    </div>
                     <span className="text-sm font-bold text-zinc-200 line-clamp-1">{post.title}</span>
                     <span className="text-xs text-zinc-500 mt-1 line-clamp-2 leading-relaxed">{post.content}</span>
                   </div>
@@ -139,9 +151,16 @@ const MemberExerciseLibrary = ({ goBack }) => {
         <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/70 backdrop-blur-sm p-4">
           <div className="w-full max-w-lg bg-[#0d0d0d] rounded-2xl border border-zinc-800 shadow-2xl overflow-hidden max-h-[85vh] flex flex-col">
             <div className="flex items-center justify-between px-5 pt-4 pb-3 border-b border-zinc-900 shrink-0">
-              <span className="text-[10px] font-semibold uppercase tracking-widest text-zinc-500">
-                {CATEGORY_LABEL[selectedPost.category] ?? selectedPost.category}
-              </span>
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] font-semibold uppercase tracking-widest text-zinc-500">
+                  {CATEGORY_LABEL[selectedPost.category] ?? selectedPost.category}
+                </span>
+                {selectedPost.body_part && (
+                  <span className="text-[10px] text-zinc-500 border border-zinc-800 rounded-full px-2 py-0.5">
+                    {selectedPost.body_part}
+                  </span>
+                )}
+              </div>
               <button
                 type="button"
                 onClick={() => setSelectedPost(null)}
