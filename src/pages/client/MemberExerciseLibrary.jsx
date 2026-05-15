@@ -1,13 +1,14 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { ArrowLeft, X, Dumbbell } from 'lucide-react';
+import { ArrowLeft, Dumbbell } from 'lucide-react';
 import Body from 'react-muscle-highlighter';
 import { supabase } from '../../lib/supabaseClient';
+import SideBodyView from '../../components/SideBodyView';
 
 // ── Constants ──────────────────────────────────────────────────────────────────
 
 const EXERCISE_CATEGORIES = ['Exercise', 'Routine'];
 const CATEGORY_LABEL = { Exercise: '운동', Routine: '루틴' };
-const DEFAULT_BODY_PARTS = ['가슴', '등', '하체', '어깨', '팔', '코어', '전신']; // fallback
+const DEFAULT_BODY_PARTS = ['가슴', '등', '하체', '어깨', '팔', '코어', '전신'];
 
 const BODY_PART_META = {
   '가슴': { slug: 'chest',      side: 'front' },
@@ -19,24 +20,70 @@ const BODY_PART_META = {
   '전신': { slug: null,         side: 'front' },
 };
 
-const SLUG_KO = {
-  chest: '가슴', abs: '복근', obliques: '옆구리',
-  biceps: '이두', triceps: '삼두', forearm: '전완',
-  deltoids: '어깨', 'upper-back': '등 상부', 'lower-back': '등 하부',
-  trapezius: '승모근', quadriceps: '대퇴사두', hamstring: '햄스트링',
-  gluteal: '둔근', calves: '종아리', adductors: '내전근',
+// Micro-segment ID → library slug mapping (mirrors AdminExerciseLibrary)
+const MUSCLE_ID_TO_SLUG = {
+  chest: 'chest', chest_upper: 'chest', chest_mid: 'chest', chest_lower: 'chest',
+  lats: 'upper-back', rhomboids: 'upper-back',
+  traps_upper: 'trapezius', traps_mid: 'trapezius', traps_lower: 'trapezius',
+  erector_spinae: 'lower-back', lower_back: 'lower-back',
+  front_delts: 'deltoids', side_delts: 'deltoids', rear_delts: 'deltoids',
+  biceps: 'biceps', triceps: 'triceps', forearm: 'forearm',
+  abs: 'abs', obliques: 'obliques',
+  quads: 'quadriceps', quads_vastus: 'quadriceps', quads_rectus: 'quadriceps',
+  hams: 'hamstring', hams_inner: 'hamstring', hams_outer: 'hamstring',
+  gluteal: 'gluteal', adductors: 'adductors', calves: 'calves', tibialis: 'tibialis',
 };
 
-// ── Mini muscle map ────────────────────────────────────────────────────────────
-// Uses scale prop directly (no CSS transform) — prevents head cropping.
-// scale=0.3 renders the body at ~60×120px which fits the 76×120 container.
+// Micro-segment ID → Korean label
+const MUSCLE_ID_LABEL = {
+  chest: '가슴', chest_upper: '상부 가슴', chest_mid: '중부 가슴', chest_lower: '하부 가슴',
+  lats: '광배근', rhomboids: '능형근',
+  traps_upper: '승모근 상부', traps_mid: '승모근 중부', traps_lower: '승모근 하부',
+  erector_spinae: '척추기립근', lower_back: '요방형근',
+  front_delts: '전면 삼각근', side_delts: '측면 삼각근', rear_delts: '후면 삼각근',
+  biceps: '이두근', triceps: '삼두근', forearm: '전완근',
+  abs: '복직근', obliques: '외복사근',
+  quads: '대퇴사두', quads_vastus: 'Vastus Lateralis', quads_rectus: '대퇴직근',
+  hams: '햄스트링', hams_inner: '햄스트링 내측', hams_outer: '햄스트링 외측',
+  gluteal: '둔근', adductors: '내전근', calves: '종아리', tibialis: '전경골근',
+  // library slugs (legacy)
+  'upper-back': '등 상부', 'lower-back': '등 하부', trapezius: '승모근',
+  deltoids: '어깨', quadriceps: '대퇴사두', hamstring: '햄스트링',
+};
 
-const MiniMuscleMap = ({ slug, side, scale = 0.3 }) => {
+const toLibrarySlug = (id) => MUSCLE_ID_TO_SLUG[id] ?? id;
+const toLabel       = (id) => MUSCLE_ID_LABEL[id] ?? id;
+
+// Resolve which muscles an exercise has (handles new array + legacy single)
+const resolveMuscles = (post) => {
+  if (Array.isArray(post.target_muscles) && post.target_muscles.length > 0)
+    return post.target_muscles;
+  if (post.target_muscle) return [post.target_muscle];
+  return [];
+};
+
+// Preferred display side for a muscle list
+const preferredSide = (muscles, bodyPart) => {
+  const backSlugs = ['upper-back', 'lower-back', 'trapezius', 'gluteal', 'hamstring',
+    'triceps', 'lats', 'rhomboids', 'traps_upper', 'traps_mid', 'traps_lower',
+    'erector_spinae', 'lower_back', 'rear_delts', 'hams', 'hams_inner', 'hams_outer', 'calves'];
+  if (muscles.length > 0 && backSlugs.includes(muscles[0])) return 'back';
+  return BODY_PART_META[bodyPart]?.side ?? 'front';
+};
+
+// ── Mini muscle map (list card) ───────────────────────────────────────────────
+
+const MiniMuscleMap = ({ muscles, bodyPart, scale = 0.3 }) => {
+  const side = preferredSide(muscles, bodyPart);
   const data = useMemo(
-    () => (slug ? [{ slug, color: '#16a34a' }] : []),
-    [slug]
+    () => muscles.slice(0, 3).map((id, idx) => ({
+      slug: toLibrarySlug(id),
+      color: idx === 0 ? '#16a34a' : '#86efac',
+    })),
+    [muscles]
   );
-  if (!slug) {
+
+  if (muscles.length === 0) {
     return (
       <div className="w-full h-full flex items-center justify-center">
         <Dumbbell size={18} strokeWidth={1} className="text-zinc-300" />
@@ -47,12 +94,12 @@ const MiniMuscleMap = ({ slug, side, scale = 0.3 }) => {
     <div className="w-full h-full flex items-start justify-center overflow-hidden">
       <Body
         data={data}
-        side={side || 'front'}
+        side={side}
         gender="male"
         scale={scale}
         border="none"
         defaultFill="#e5e7eb"
-        colors={['#16a34a']}
+        colors={['#16a34a', '#86efac']}
       />
     </div>
   );
@@ -61,14 +108,24 @@ const MiniMuscleMap = ({ slug, side, scale = 0.3 }) => {
 // ── Full-screen detail view ────────────────────────────────────────────────────
 
 const ExerciseDetail = ({ post, onClose }) => {
-  const meta = BODY_PART_META[post.body_part];
-  const primarySlug = post.target_muscle || meta?.slug || null;
-  const mapSide = meta?.side || 'front';
+  const muscles = resolveMuscles(post);
+  const views = Array.isArray(post.active_views) && post.active_views.length > 0
+    ? post.active_views
+    : [preferredSide(muscles, post.body_part)];
 
-  const muscleData = useMemo(
-    () => (primarySlug ? [{ slug: primarySlug, color: '#16a34a' }] : []),
-    [primarySlug]
+  const [activeView, setActiveView] = useState(views[0]);
+
+  const bodyData = useMemo(
+    () => muscles.map((id, idx) => ({
+      slug: toLibrarySlug(id),
+      color: idx === 0 ? '#16a34a' : '#86efac',
+    })),
+    [muscles]
   );
+
+  const activeSlugsForSide = useMemo(() => muscles.map(toLibrarySlug), [muscles]);
+
+  const viewLabel = (v) => v === 'front' ? '전면' : v === 'back' ? '후면' : '측면';
 
   return (
     <div className="fixed inset-0 z-[100] bg-white flex flex-col animate-in slide-in-from-bottom duration-200">
@@ -96,14 +153,9 @@ const ExerciseDetail = ({ post, onClose }) => {
 
       {/* Scrollable body */}
       <div className="flex-1 overflow-y-auto">
-        {/* Full-width video — preserves intrinsic ratio, no cropping */}
         {post.video_url ? (
           <div className="w-full bg-black mb-8">
-            <video
-              src={post.video_url}
-              autoPlay loop muted playsInline
-              className="w-full h-auto object-contain"
-            />
+            <video src={post.video_url} autoPlay loop muted playsInline className="w-full h-auto object-contain" />
           </div>
         ) : post.image_url ? (
           <div className="w-full bg-zinc-100 mb-8">
@@ -111,42 +163,82 @@ const ExerciseDetail = ({ post, onClose }) => {
           </div>
         ) : null}
 
-        {/* Content */}
         <div className="px-6 py-8 flex flex-col">
           <h1 className="text-3xl font-black text-zinc-900 mb-3 leading-tight">{post.title}</h1>
           <p className="text-sm text-zinc-600 leading-relaxed mb-10 whitespace-pre-wrap">{post.content}</p>
 
-          {/* Enlarged anatomy display — multi-view */}
-          {primarySlug ? (
-            <div className="flex flex-col items-center p-6 bg-zinc-50 rounded-2xl border border-zinc-100">
-              <p className="text-[10px] font-bold text-emerald-600 tracking-[0.2em] mb-4 uppercase">Target Muscle</p>
-              {/* Render each active_view side */}
-              <div className="flex gap-6 justify-center flex-wrap">
-                {(Array.isArray(post.active_views) && post.active_views.length > 0
-                  ? post.active_views
-                  : [mapSide]
-                ).map((viewSide) => (
-                  <div key={viewSide} className="flex flex-col items-center gap-2">
-                    <div className="w-48 h-[300px] flex items-start justify-center overflow-hidden">
-                      <Body
-                        data={[{ slug: primarySlug, color: '#16a34a' }]}
-                        side={viewSide}
-                        gender="male"
-                        scale={0.9}
-                        border="none"
-                        defaultFill="#e5e7eb"
-                        colors={['#16a34a']}
-                      />
-                    </div>
-                    <span className="text-[10px] text-zinc-400 font-medium uppercase tracking-wider">
-                      {viewSide === 'front' ? '전면' : '후면'}
-                    </span>
+          {/* ── Anatomy display ── */}
+          {muscles.length > 0 ? (
+            <div className="flex flex-col items-center p-6 bg-[#F8F9FA] rounded-2xl border border-zinc-100">
+              <p className="text-[10px] font-bold text-emerald-600 tracking-[0.22em] mb-4 uppercase">
+                Target Muscle Map
+              </p>
+
+              {/* View switcher (only shown when multiple views) */}
+              {views.length > 1 && (
+                <div className="flex gap-1 mb-5 w-full max-w-xs">
+                  {views.map((v) => (
+                    <button
+                      key={v}
+                      type="button"
+                      onClick={() => setActiveView(v)}
+                      className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition-all ${
+                        activeView === v
+                          ? 'bg-[#064e3b] text-white shadow-sm'
+                          : 'bg-white border border-zinc-200 text-zinc-500 hover:border-emerald-400'
+                      }`}
+                    >
+                      {viewLabel(v)}
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              {/* Body visualization */}
+              <div className="flex items-start justify-center">
+                {activeView !== 'side' ? (
+                  <div className="h-[300px] flex items-start justify-center overflow-hidden">
+                    <Body
+                      data={bodyData}
+                      side={activeView}
+                      gender="male"
+                      scale={0.9}
+                      border="none"
+                      defaultFill="#e5e7eb"
+                      defaultStroke="#d1d5db"
+                      defaultStrokeWidth={0.5}
+                      colors={['#16a34a', '#86efac']}
+                    />
                   </div>
+                ) : (
+                  <SideBodyView
+                    activeSlugs={activeSlugsForSide}
+                    scale={0.9}
+                  />
+                )}
+              </div>
+
+              {/* Muscle legend */}
+              <div className="mt-5 flex flex-wrap gap-2 justify-center">
+                {muscles.map((id, idx) => (
+                  <span
+                    key={id}
+                    className={`rounded-full px-3 py-1 text-xs font-bold flex items-center gap-1.5 ${
+                      idx === 0
+                        ? 'bg-emerald-600 text-white shadow-sm'
+                        : 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                    }`}
+                  >
+                    {idx === 0 && (
+                      <span className="text-[8px] opacity-80">주동근</span>
+                    )}
+                    {idx > 0 && (
+                      <span className="text-[8px] opacity-60">보조</span>
+                    )}
+                    {toLabel(id)}
+                  </span>
                 ))}
               </div>
-              <p className="mt-4 text-lg font-bold text-zinc-800">
-                {SLUG_KO[primarySlug] || primarySlug}
-              </p>
             </div>
           ) : (
             <div className="flex flex-col items-center justify-center p-6 bg-zinc-50 rounded-2xl border border-zinc-100">
@@ -155,7 +247,6 @@ const ExerciseDetail = ({ post, onClose }) => {
             </div>
           )}
 
-          {/* Bottom safe area */}
           <div className="h-12" />
         </div>
       </div>
@@ -205,12 +296,7 @@ const MemberExerciseLibrary = ({ goBack }) => {
       <div className="min-h-[100dvh] bg-[#F8F9FA] text-slate-900 flex flex-col font-sans">
         {/* Header */}
         <header className="sticky top-0 z-20 bg-white/95 backdrop-blur-sm border-b border-zinc-100 px-4 py-3 flex items-center gap-3 shadow-sm">
-          <button
-            type="button"
-            onClick={goBack}
-            className="rounded-lg p-1.5 hover:bg-zinc-100 transition-colors"
-            aria-label="뒤로"
-          >
+          <button type="button" onClick={goBack} className="rounded-lg p-1.5 hover:bg-zinc-100 transition-colors" aria-label="뒤로">
             <ArrowLeft size={20} strokeWidth={1.5} className="text-zinc-500" />
           </button>
           <div className="flex-1">
@@ -221,8 +307,8 @@ const MemberExerciseLibrary = ({ goBack }) => {
 
         {/* Horizontal pill filter */}
         <div className="w-full overflow-x-auto no-scrollbar py-3 px-4 bg-white border-b border-zinc-100">
-        <div className="flex gap-2 w-max">
-          {['전체', ...bodyPartOptions].map((part) => (
+          <div className="flex gap-2 w-max">
+            {['전체', ...bodyPartOptions].map((part) => (
               <button
                 key={part}
                 type="button"
@@ -255,9 +341,7 @@ const MemberExerciseLibrary = ({ goBack }) => {
           ) : (
             <div className="flex flex-col gap-4">
               {filteredExercises.map((post) => {
-                const meta = BODY_PART_META[post.body_part];
-                const primarySlug = post.target_muscle || meta?.slug || null;
-                const mapSide = meta?.side || 'front';
+                const muscles = resolveMuscles(post);
 
                 return (
                   <button
@@ -267,15 +351,11 @@ const MemberExerciseLibrary = ({ goBack }) => {
                     className="bg-white border border-zinc-100 rounded-2xl p-5 shadow-sm text-left w-full transition-all hover:border-zinc-300 hover:shadow-md active:scale-[0.99]"
                   >
                     <div className="flex items-center gap-4 w-full">
-                      {/* 1. Left — video/image thumbnail */}
+                      {/* Thumbnail */}
                       <div className="w-24 h-24 rounded-xl overflow-hidden bg-zinc-100 border border-zinc-200 flex-shrink-0 relative">
                         {post.video_url ? (
                           <>
-                            <video
-                              src={`${post.video_url}#t=0.001`}
-                              preload="metadata"
-                              className="w-full h-full object-cover"
-                            />
+                            <video src={`${post.video_url}#t=0.001`} preload="metadata" className="w-full h-full object-cover" />
                             <div className="absolute inset-0 flex items-center justify-center">
                               <div className="w-8 h-8 rounded-full bg-black/50 border border-white/30 flex items-center justify-center backdrop-blur-sm">
                                 <span className="text-xs ml-0.5 text-white">▶</span>
@@ -291,7 +371,7 @@ const MemberExerciseLibrary = ({ goBack }) => {
                         )}
                       </div>
 
-                      {/* 2. Middle text — flex-1 min-w-0 prevents overflow */}
+                      {/* Text */}
                       <div className="flex flex-col flex-1 min-w-0">
                         <div className="flex items-center gap-1 mb-1.5 flex-wrap">
                           <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded shrink-0">
@@ -304,12 +384,31 @@ const MemberExerciseLibrary = ({ goBack }) => {
                           )}
                         </div>
                         <span className="text-base font-bold text-zinc-900 truncate">{post.title}</span>
+                        {muscles.length > 0 && (
+                          <div className="mt-1 flex gap-1 flex-wrap">
+                            {muscles.slice(0, 2).map((id, idx) => (
+                              <span
+                                key={id}
+                                className={`text-[10px] rounded-full px-1.5 py-0.5 font-medium ${
+                                  idx === 0
+                                    ? 'bg-emerald-50 text-emerald-700 border border-emerald-100'
+                                    : 'bg-zinc-50 text-zinc-500 border border-zinc-100'
+                                }`}
+                              >
+                                {toLabel(id)}
+                              </span>
+                            ))}
+                            {muscles.length > 2 && (
+                              <span className="text-[10px] text-zinc-400">+{muscles.length - 2}</span>
+                            )}
+                          </div>
+                        )}
                         <span className="text-xs text-zinc-500 truncate mt-1">{post.content}</span>
                       </div>
 
-                      {/* 3. Right — mini muscle map (tall rect, no CSS transform) */}
-                      <div className="w-[76px] h-[120px] rounded-md bg-zinc-50 border border-zinc-100 flex-shrink-0 overflow-hidden">
-                        <MiniMuscleMap slug={primarySlug} side={mapSide} scale={0.3} />
+                      {/* Mini muscle map */}
+                      <div className="w-[76px] h-[120px] rounded-md bg-[#F8F9FA] border border-zinc-100 flex-shrink-0 overflow-hidden">
+                        <MiniMuscleMap muscles={muscles} bodyPart={post.body_part} scale={0.3} />
                       </div>
                     </div>
                   </button>
@@ -320,7 +419,6 @@ const MemberExerciseLibrary = ({ goBack }) => {
         </main>
       </div>
 
-      {/* Full-screen detail view — rendered outside main flow */}
       {selectedPost && (
         <ExerciseDetail post={selectedPost} onClose={() => setSelectedPost(null)} />
       )}

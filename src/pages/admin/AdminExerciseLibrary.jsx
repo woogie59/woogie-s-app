@@ -1,41 +1,245 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { ArrowLeft, Plus, Dumbbell, PlayCircle, X, Pencil, Trash2, Tag } from 'lucide-react';
+import Body from 'react-muscle-highlighter';
 import { supabase } from '../../lib/supabaseClient';
 import toast from 'react-hot-toast';
+import SideBodyView from '../../components/SideBodyView';
 
 // ── Constants ──────────────────────────────────────────────────────────────────
 
 const EXERCISE_CATEGORIES = ['Exercise', 'Routine'];
 const CATEGORY_LABEL = { Exercise: '운동', Routine: '루틴' };
 
-const MUSCLE_SLUGS = [
-  { slug: 'chest',      label: '가슴 (Chest)' },
-  { slug: 'abs',        label: '복근 (Abs)' },
-  { slug: 'obliques',   label: '옆구리 (Obliques)' },
-  { slug: 'biceps',     label: '이두 (Biceps)' },
-  { slug: 'triceps',    label: '삼두 (Triceps)' },
-  { slug: 'forearm',    label: '전완 (Forearm)' },
-  { slug: 'deltoids',   label: '어깨 (Deltoids)' },
-  { slug: 'trapezius',  label: '승모근 (Trapezius)' },
-  { slug: 'upper-back', label: '등 상부 (Upper Back)' },
-  { slug: 'lower-back', label: '등 하부 (Lower Back)' },
-  { slug: 'quadriceps', label: '대퇴사두 (Quadriceps)' },
-  { slug: 'hamstring',  label: '햄스트링 (Hamstring)' },
-  { slug: 'gluteal',    label: '둔근 (Glutes)' },
-  { slug: 'calves',     label: '종아리 (Calves)' },
-  { slug: 'adductors',  label: '내전근 (Adductors)' },
+// Scientific micro-segmentation: each entry has a unique id (stored in DB),
+// a library slug (for react-muscle-highlighter visualisation), and display info.
+const MUSCLE_GROUPS = [
+  {
+    group: '가슴',
+    muscles: [
+      { id: 'chest',       slug: 'chest', label: '가슴 전체',    preferredView: 'front' },
+      { id: 'chest_upper', slug: 'chest', label: '상부 가슴',    preferredView: 'front' },
+      { id: 'chest_mid',   slug: 'chest', label: '중부 가슴',    preferredView: 'front' },
+      { id: 'chest_lower', slug: 'chest', label: '하부 가슴',    preferredView: 'front' },
+    ],
+  },
+  {
+    group: '등',
+    muscles: [
+      { id: 'lats',           slug: 'upper-back', label: '광배근',       preferredView: 'back' },
+      { id: 'rhomboids',      slug: 'upper-back', label: '능형근',       preferredView: 'back' },
+      { id: 'traps_upper',    slug: 'trapezius',  label: '승모근 상부',  preferredView: 'back' },
+      { id: 'traps_mid',      slug: 'trapezius',  label: '승모근 중부',  preferredView: 'back' },
+      { id: 'traps_lower',    slug: 'trapezius',  label: '승모근 하부',  preferredView: 'back' },
+      { id: 'erector_spinae', slug: 'lower-back', label: '척추기립근',  preferredView: 'back' },
+      { id: 'lower_back',     slug: 'lower-back', label: '요방형근',    preferredView: 'back' },
+    ],
+  },
+  {
+    group: '어깨',
+    muscles: [
+      { id: 'front_delts', slug: 'deltoids', label: '전면 삼각근', preferredView: 'front' },
+      { id: 'side_delts',  slug: 'deltoids', label: '측면 삼각근', preferredView: 'front' },
+      { id: 'rear_delts',  slug: 'deltoids', label: '후면 삼각근', preferredView: 'back'  },
+    ],
+  },
+  {
+    group: '팔',
+    muscles: [
+      { id: 'biceps',  slug: 'biceps',  label: '이두근', preferredView: 'front' },
+      { id: 'triceps', slug: 'triceps', label: '삼두근', preferredView: 'back'  },
+      { id: 'forearm', slug: 'forearm', label: '전완근', preferredView: 'front' },
+    ],
+  },
+  {
+    group: '코어',
+    muscles: [
+      { id: 'abs',      slug: 'abs',      label: '복직근',   preferredView: 'front' },
+      { id: 'obliques', slug: 'obliques', label: '외복사근', preferredView: 'front' },
+    ],
+  },
+  {
+    group: '하체',
+    muscles: [
+      { id: 'quads',         slug: 'quadriceps', label: '대퇴사두 전체',  preferredView: 'front' },
+      { id: 'quads_vastus',  slug: 'quadriceps', label: 'Vastus Lateralis', preferredView: 'front' },
+      { id: 'quads_rectus',  slug: 'quadriceps', label: '대퇴직근',       preferredView: 'front' },
+      { id: 'hams',          slug: 'hamstring',  label: '햄스트링 전체',  preferredView: 'back'  },
+      { id: 'hams_inner',    slug: 'hamstring',  label: '햄스트링 내측',  preferredView: 'back'  },
+      { id: 'hams_outer',    slug: 'hamstring',  label: '햄스트링 외측',  preferredView: 'back'  },
+      { id: 'gluteal',       slug: 'gluteal',    label: '둔근',           preferredView: 'back'  },
+      { id: 'adductors',     slug: 'adductors',  label: '내전근',         preferredView: 'front' },
+      { id: 'calves',        slug: 'calves',     label: '종아리',         preferredView: 'back'  },
+      { id: 'tibialis',      slug: 'tibialis',   label: '전경골근',       preferredView: 'front' },
+    ],
+  },
 ];
+
+// Flat lookup: id → muscle definition
+const MUSCLE_BY_ID = {};
+MUSCLE_GROUPS.forEach(({ muscles }) => muscles.forEach((m) => { MUSCLE_BY_ID[m.id] = m; }));
+
+const toLibrarySlug = (id) => MUSCLE_BY_ID[id]?.slug ?? id;
+const toLabel       = (id) => MUSCLE_BY_ID[id]?.label ?? id;
 
 const ANATOMY_VIEWS = [
   { val: 'front', label: '전면' },
   { val: 'back',  label: '후면' },
+  { val: 'side',  label: '측면' },
 ];
 
 const EMPTY_FORM = {
   title: '', content: '', category: 'Exercise',
-  body_part: '', target_muscle: '',
+  body_part: '', target_muscles: [],
   active_views: ['front'],
   image_url: '', video_url: '',
+};
+
+// ── Muscle Picker Panel ───────────────────────────────────────────────────────
+
+const MusclePickerPanel = ({ selectedMuscles, onChange }) => {
+  const [pickerView, setPickerView] = useState('front');
+
+  const bodyData = useMemo(
+    () => selectedMuscles.map((id, idx) => ({
+      slug: toLibrarySlug(id),
+      color: idx === 0 ? '#16a34a' : '#86efac',
+    })),
+    [selectedMuscles]
+  );
+
+  const activeSlugs = useMemo(
+    () => selectedMuscles.map(toLibrarySlug),
+    [selectedMuscles]
+  );
+
+  const toggleMuscle = (id) => {
+    if (selectedMuscles.includes(id)) {
+      onChange(selectedMuscles.filter((m) => m !== id));
+    } else {
+      onChange([...selectedMuscles, id]);
+    }
+  };
+
+  const handleBodyPress = (part) => {
+    if (part?.slug) toggleMuscle(part.slug);
+  };
+
+  const handleSideRegionPress = (region) => {
+    if (region?.slugs?.[0]) toggleMuscle(region.slugs[0]);
+  };
+
+  return (
+    <div className="rounded-xl bg-[#F8F9FA] border border-gray-200 overflow-hidden">
+      {/* Header */}
+      <div className="flex items-center justify-between px-4 py-2.5 border-b border-gray-200 bg-white">
+        <div>
+          <p className="text-[11px] font-bold text-gray-500 uppercase tracking-wider">주 타겟 근육</p>
+          <p className="text-[10px] text-gray-400 mt-0.5">인체 맵 클릭 또는 아래 칩 선택</p>
+        </div>
+        {selectedMuscles.length > 0 && (
+          <button
+            type="button"
+            onClick={() => onChange([])}
+            className="text-[10px] text-gray-400 hover:text-red-500 transition-colors px-2 py-1 rounded-lg hover:bg-red-50"
+          >
+            전체 초기화
+          </button>
+        )}
+      </div>
+
+      {/* View switcher tabs */}
+      <div className="flex gap-1 px-3 pt-3 pb-1">
+        {ANATOMY_VIEWS.map(({ val, label }) => (
+          <button
+            key={val}
+            type="button"
+            onClick={() => setPickerView(val)}
+            className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition-all ${
+              pickerView === val
+                ? 'bg-[#064e3b] text-white shadow-sm'
+                : 'bg-white border border-gray-200 text-gray-500 hover:border-emerald-400 hover:text-emerald-700'
+            }`}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {/* Interactive body map */}
+      <div className="flex justify-center py-3 bg-white mx-3 rounded-xl border border-gray-100 my-2">
+        {pickerView !== 'side' ? (
+          <Body
+            data={bodyData}
+            side={pickerView}
+            gender="male"
+            scale={0.72}
+            border="none"
+            defaultFill="#e5e7eb"
+            defaultStroke="#d1d5db"
+            defaultStrokeWidth={0.5}
+            colors={['#16a34a', '#86efac']}
+            onBodyPartPress={handleBodyPress}
+          />
+        ) : (
+          <SideBodyView
+            activeSlugs={activeSlugs}
+            scale={0.72}
+            onRegionPress={handleSideRegionPress}
+          />
+        )}
+      </div>
+
+      {/* Selected muscle chips */}
+      {selectedMuscles.length > 0 && (
+        <div className="px-3 pb-2 flex flex-wrap gap-1.5">
+          {selectedMuscles.map((id, idx) => (
+            <button
+              key={id}
+              type="button"
+              onClick={() => toggleMuscle(id)}
+              className={`flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-bold transition-all active:scale-95 ${
+                idx === 0
+                  ? 'bg-emerald-600 text-white shadow-sm'
+                  : 'bg-emerald-100 text-emerald-800 border border-emerald-200'
+              }`}
+            >
+              {idx === 0 && <span className="text-[9px] opacity-70 mr-0.5">●</span>}
+              {toLabel(id)}
+              <X size={9} strokeWidth={2.5} />
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* Muscle group chips */}
+      <div className="border-t border-gray-100 px-3 py-3 space-y-3 max-h-52 overflow-y-auto">
+        {MUSCLE_GROUPS.map(({ group, muscles }) => (
+          <div key={group}>
+            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1.5">{group}</p>
+            <div className="flex flex-wrap gap-1.5">
+              {muscles.map(({ id, label }) => {
+                const selected = selectedMuscles.includes(id);
+                return (
+                  <button
+                    key={id}
+                    type="button"
+                    onClick={() => toggleMuscle(id)}
+                    className={`rounded-full px-2.5 py-1 text-[11px] font-medium transition-all active:scale-95 ${
+                      selected
+                        ? 'bg-emerald-600 text-white shadow-sm'
+                        : 'bg-white border border-gray-200 text-gray-600 hover:border-emerald-400 hover:text-emerald-700'
+                    }`}
+                  >
+                    {label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
 };
 
 // ── Shared form fields ─────────────────────────────────────────────────────────
@@ -65,7 +269,6 @@ const FormFields = ({ form, setForm, dynamicCategories }) => {
         <option value="Routine">루틴 (Routine)</option>
       </select>
 
-      {/* Dynamic body-part categories */}
       <select
         className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-slate-900 outline-none"
         value={form.body_part}
@@ -77,20 +280,17 @@ const FormFields = ({ form, setForm, dynamicCategories }) => {
         ))}
       </select>
 
-      <select
-        className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-slate-900 outline-none"
-        value={form.target_muscle}
-        onChange={(e) => setForm({ ...form, target_muscle: e.target.value })}
-      >
-        <option value="">주 타겟 근육 (선택사항)</option>
-        {MUSCLE_SLUGS.map(({ slug, label }) => (
-          <option key={slug} value={slug}>{label}</option>
-        ))}
-      </select>
+      {/* ── Scientific Multi-Select Muscle Picker ── */}
+      <MusclePickerPanel
+        selectedMuscles={form.target_muscles}
+        onChange={(muscles) => setForm({ ...form, target_muscles: muscles })}
+      />
 
-      {/* Multi-view anatomy checkboxes */}
+      {/* ── Active anatomy views for member detail ── */}
       <div className="rounded-xl bg-gray-50 border border-gray-200 px-4 py-3">
-        <p className="text-[11px] font-semibold text-gray-500 uppercase tracking-wider mb-2.5">해부학 뷰 선택</p>
+        <p className="text-[11px] font-semibold text-gray-500 uppercase tracking-wider mb-2.5">
+          회원에게 표시할 해부학 뷰
+        </p>
         <div className="flex gap-5">
           {ANATOMY_VIEWS.map(({ val, label }) => (
             <label key={val} className="flex items-center gap-2 cursor-pointer select-none">
@@ -103,11 +303,6 @@ const FormFields = ({ form, setForm, dynamicCategories }) => {
               <span className="text-sm text-slate-700 font-medium">{label}</span>
             </label>
           ))}
-          {/* Side view — library doesn't support it yet */}
-          <label className="flex items-center gap-2 cursor-not-allowed opacity-40 select-none">
-            <input type="checkbox" disabled className="w-4 h-4 rounded" />
-            <span className="text-sm text-slate-400">측면 <span className="text-[10px]">(준비중)</span></span>
-          </label>
         </div>
       </div>
 
@@ -148,7 +343,6 @@ const AdminExerciseLibrary = ({ goBack }) => {
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('All');
 
-  // Dynamic categories
   const [categories, setCategories] = useState([]);
   const [showCategoryManager, setShowCategoryManager] = useState(false);
   const [newCategoryLabel, setNewCategoryLabel] = useState('');
@@ -156,7 +350,6 @@ const AdminExerciseLibrary = ({ goBack }) => {
   const [deletingCategory, setDeletingCategory] = useState(null);
   const [deletingCategoryBusy, setDeletingCategoryBusy] = useState(false);
 
-  // Post CRUD
   const [showModal, setShowModal] = useState(false);
   const [editingPost, setEditingPost] = useState(null);
   const [deletingPost, setDeletingPost] = useState(null);
@@ -250,16 +443,21 @@ const AdminExerciseLibrary = ({ goBack }) => {
 
   // ── Post CRUD ──────────────────────────────────────────────────────────────
 
-  const buildPayload = () => ({
-    title: form.title.trim(),
-    content: form.content.trim(),
-    category: form.category,
-    body_part: form.body_part || null,
-    target_muscle: form.target_muscle || null,
-    active_views: form.active_views.length > 0 ? form.active_views : ['front'],
-    image_url: form.image_url.trim() || null,
-    video_url: form.video_url.trim() || null,
-  });
+  const buildPayload = () => {
+    const muscles = form.target_muscles ?? [];
+    const primarySlug = muscles.length > 0 ? toLibrarySlug(muscles[0]) : null;
+    return {
+      title: form.title.trim(),
+      content: form.content.trim(),
+      category: form.category,
+      body_part: form.body_part || null,
+      target_muscles: muscles.length > 0 ? muscles : null,
+      target_muscle: primarySlug, // backward-compat for member display
+      active_views: form.active_views.length > 0 ? form.active_views : ['front'],
+      image_url: form.image_url.trim() || null,
+      video_url: form.video_url.trim() || null,
+    };
+  };
 
   const handleSave = async () => {
     if (!form.title.trim() || !form.content.trim()) {
@@ -268,7 +466,9 @@ const AdminExerciseLibrary = ({ goBack }) => {
     }
     setSaving(true);
     try {
-      const { error } = await supabase.from('posts').insert([{ ...buildPayload(), created_at: new Date().toISOString() }]);
+      const { error } = await supabase
+        .from('posts')
+        .insert([{ ...buildPayload(), created_at: new Date().toISOString() }]);
       if (error) throw error;
       toast.success('저장되었습니다.');
       setShowModal(false);
@@ -282,15 +482,22 @@ const AdminExerciseLibrary = ({ goBack }) => {
   };
 
   const openEdit = (post) => {
+    const muscles =
+      Array.isArray(post.target_muscles) && post.target_muscles.length > 0
+        ? post.target_muscles
+        : post.target_muscle
+        ? [post.target_muscle]
+        : [];
     setForm({
       title: post.title || '',
       content: post.content || '',
       category: post.category || 'Exercise',
       body_part: post.body_part || '',
-      target_muscle: post.target_muscle || '',
-      active_views: Array.isArray(post.active_views) && post.active_views.length > 0
-        ? post.active_views
-        : ['front'],
+      target_muscles: muscles,
+      active_views:
+        Array.isArray(post.active_views) && post.active_views.length > 0
+          ? post.active_views
+          : ['front'],
       image_url: post.image_url || '',
       video_url: post.video_url || '',
     });
@@ -307,7 +514,7 @@ const AdminExerciseLibrary = ({ goBack }) => {
       const payload = buildPayload();
       const { error } = await supabase.from('posts').update(payload).eq('id', editingPost.id);
       if (error) throw error;
-      setPosts((prev) => prev.map((p) => p.id === editingPost.id ? { ...p, ...payload } : p));
+      setPosts((prev) => prev.map((p) => (p.id === editingPost.id ? { ...p, ...payload } : p)));
       toast.success('수정 완료.');
       setEditingPost(null);
       setForm(EMPTY_FORM);
@@ -334,7 +541,7 @@ const AdminExerciseLibrary = ({ goBack }) => {
     }
   };
 
-  // ── Filter ─────────────────────────────────────────────────────────────────
+  const viewLabel = (v) => (v === 'front' ? '전면' : v === 'back' ? '후면' : '측면');
 
   const filtered = filter === 'All' ? posts : posts.filter((p) => p.category === filter);
 
@@ -398,52 +605,84 @@ const AdminExerciseLibrary = ({ goBack }) => {
           <div className="flex flex-col items-center justify-center pt-16 gap-3 text-zinc-400">
             <Dumbbell size={36} strokeWidth={1} />
             <p className="text-sm">등록된 콘텐츠가 없습니다.</p>
-            <button type="button" onClick={() => { setForm(EMPTY_FORM); setShowModal(true); }} className="mt-2 rounded-xl border border-gray-200 px-4 py-2 text-xs text-gray-600 hover:bg-gray-100 transition">
+            <button
+              type="button"
+              onClick={() => { setForm(EMPTY_FORM); setShowModal(true); }}
+              className="mt-2 rounded-xl border border-gray-200 px-4 py-2 text-xs text-gray-600 hover:bg-gray-100 transition"
+            >
               첫 번째 콘텐츠 추가하기
             </button>
           </div>
         ) : (
           <div className="grid grid-cols-1 gap-3">
-            {filtered.map((post) => (
-              <div key={post.id} className="bg-white rounded-2xl border border-zinc-100 shadow-sm overflow-hidden transition hover:border-emerald-500/30">
-                {post.image_url && !post.video_url && (
-                  <img src={post.image_url} alt={post.title} className="w-full h-36 object-cover" />
-                )}
-                <div className="px-4 py-3 flex items-start justify-between gap-3">
-                  <button type="button" onClick={() => setSelectedPost(post)} className="min-w-0 flex-1 text-left">
-                    <div className="flex flex-wrap items-center gap-1.5 mb-1">
-                      <span className="text-[10px] font-semibold uppercase tracking-widest text-emerald-700">
-                        {CATEGORY_LABEL[post.category] ?? post.category}
-                      </span>
-                      {post.body_part && (
-                        <span className="text-[10px] text-zinc-500 border border-zinc-200 rounded-full px-1.5 py-0.5">{post.body_part}</span>
-                      )}
-                      {/* active_views badges */}
-                      {Array.isArray(post.active_views) && post.active_views.map((v) => (
-                        <span key={v} className="text-[10px] text-blue-500 bg-blue-50 border border-blue-100 rounded-full px-1.5 py-0.5">
-                          {v === 'front' ? '전면' : '후면'}
+            {filtered.map((post) => {
+              const muscles =
+                Array.isArray(post.target_muscles) && post.target_muscles.length > 0
+                  ? post.target_muscles
+                  : post.target_muscle
+                  ? [post.target_muscle]
+                  : [];
+              return (
+                <div key={post.id} className="bg-white rounded-2xl border border-zinc-100 shadow-sm overflow-hidden transition hover:border-emerald-500/30">
+                  {post.image_url && !post.video_url && (
+                    <img src={post.image_url} alt={post.title} className="w-full h-36 object-cover" />
+                  )}
+                  <div className="px-4 py-3 flex items-start justify-between gap-3">
+                    <button type="button" onClick={() => setSelectedPost(post)} className="min-w-0 flex-1 text-left">
+                      <div className="flex flex-wrap items-center gap-1.5 mb-1">
+                        <span className="text-[10px] font-semibold uppercase tracking-widest text-emerald-700">
+                          {CATEGORY_LABEL[post.category] ?? post.category}
                         </span>
-                      ))}
-                      {post.video_url && (
-                        <span className="inline-flex items-center gap-1 rounded-full bg-zinc-100 px-2 py-0.5 text-[10px] font-medium text-zinc-500">
-                          <PlayCircle size={10} /> Video
-                        </span>
+                        {post.body_part && (
+                          <span className="text-[10px] text-zinc-500 border border-zinc-200 rounded-full px-1.5 py-0.5">{post.body_part}</span>
+                        )}
+                        {/* active_views badges */}
+                        {Array.isArray(post.active_views) && post.active_views.map((v) => (
+                          <span key={v} className="text-[10px] text-blue-500 bg-blue-50 border border-blue-100 rounded-full px-1.5 py-0.5">
+                            {viewLabel(v)}
+                          </span>
+                        ))}
+                        {post.video_url && (
+                          <span className="inline-flex items-center gap-1 rounded-full bg-zinc-100 px-2 py-0.5 text-[10px] font-medium text-zinc-500">
+                            <PlayCircle size={10} /> Video
+                          </span>
+                        )}
+                      </div>
+                      <h3 className="text-sm font-semibold text-slate-900 line-clamp-1">{post.title}</h3>
+                      {/* Muscle tags */}
+                      {muscles.length > 0 && (
+                        <div className="mt-1 flex flex-wrap gap-1">
+                          {muscles.slice(0, 3).map((id, idx) => (
+                            <span
+                              key={id}
+                              className={`text-[10px] rounded-full px-1.5 py-0.5 font-medium ${
+                                idx === 0
+                                  ? 'bg-emerald-50 text-emerald-700 border border-emerald-100'
+                                  : 'bg-zinc-50 text-zinc-500 border border-zinc-100'
+                              }`}
+                            >
+                              {toLabel(id)}
+                            </span>
+                          ))}
+                          {muscles.length > 3 && (
+                            <span className="text-[10px] text-zinc-400">+{muscles.length - 3}</span>
+                          )}
+                        </div>
                       )}
+                      <p className="mt-0.5 text-xs text-zinc-500 line-clamp-1 leading-relaxed">{post.content}</p>
+                    </button>
+                    <div className="flex items-center gap-1 shrink-0 mt-0.5">
+                      <button type="button" onClick={() => openEdit(post)} className="rounded-lg p-1.5 text-zinc-400 hover:bg-emerald-50 hover:text-emerald-600 transition-colors" aria-label="수정">
+                        <Pencil size={14} strokeWidth={1.5} />
+                      </button>
+                      <button type="button" onClick={() => setDeletingPost(post)} className="rounded-lg p-1.5 text-zinc-400 hover:bg-red-50 hover:text-red-500 transition-colors" aria-label="삭제">
+                        <Trash2 size={14} strokeWidth={1.5} />
+                      </button>
                     </div>
-                    <h3 className="text-sm font-semibold text-slate-900 line-clamp-1">{post.title}</h3>
-                    <p className="mt-0.5 text-xs text-zinc-500 line-clamp-2 leading-relaxed">{post.content}</p>
-                  </button>
-                  <div className="flex items-center gap-1 shrink-0 mt-0.5">
-                    <button type="button" onClick={() => openEdit(post)} className="rounded-lg p-1.5 text-zinc-400 hover:bg-emerald-50 hover:text-emerald-600 transition-colors" aria-label="수정">
-                      <Pencil size={14} strokeWidth={1.5} />
-                    </button>
-                    <button type="button" onClick={() => setDeletingPost(post)} className="rounded-lg p-1.5 text-zinc-400 hover:bg-red-50 hover:text-red-500 transition-colors" aria-label="삭제">
-                      <Trash2 size={14} strokeWidth={1.5} />
-                    </button>
                   </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </main>
@@ -461,9 +700,7 @@ const AdminExerciseLibrary = ({ goBack }) => {
                 <X size={18} className="text-zinc-500" />
               </button>
             </div>
-
             <div className="px-5 py-4 max-h-[60vh] overflow-y-auto">
-              {/* Existing categories */}
               <div className="space-y-2 mb-4">
                 {categories.length === 0 ? (
                   <p className="text-sm text-zinc-400 text-center py-4">카테고리가 없습니다.</p>
@@ -506,8 +743,6 @@ const AdminExerciseLibrary = ({ goBack }) => {
                   );
                 })}
               </div>
-
-              {/* Add new category */}
               <div className="flex gap-2">
                 <input
                   className="flex-1 bg-zinc-50 border border-zinc-200 rounded-xl px-3 py-2 text-sm text-slate-900 outline-none focus:border-emerald-500 transition"
@@ -540,7 +775,7 @@ const AdminExerciseLibrary = ({ goBack }) => {
                 <X size={18} className="text-zinc-500" />
               </button>
             </div>
-            <div className="px-5 py-4 max-h-[70vh] overflow-y-auto">
+            <div className="px-5 py-4 max-h-[75vh] overflow-y-auto">
               <FormFields form={form} setForm={setForm} dynamicCategories={categories} />
             </div>
             <div className="px-5 py-4 flex justify-end gap-2 border-t border-zinc-100">
@@ -566,7 +801,7 @@ const AdminExerciseLibrary = ({ goBack }) => {
                 <X size={18} className="text-zinc-500" />
               </button>
             </div>
-            <div className="px-5 py-4 max-h-[70vh] overflow-y-auto">
+            <div className="px-5 py-4 max-h-[75vh] overflow-y-auto">
               <FormFields form={form} setForm={setForm} dynamicCategories={categories} />
             </div>
             <div className="px-5 py-4 flex justify-end gap-2 border-t border-zinc-100">
@@ -632,14 +867,39 @@ const AdminExerciseLibrary = ({ goBack }) => {
                 <h2 className="text-base font-semibold text-slate-900">{selectedPost.title}</h2>
                 <p className="mt-3 text-sm text-zinc-500 leading-relaxed whitespace-pre-wrap">{selectedPost.content}</p>
                 {Array.isArray(selectedPost.active_views) && selectedPost.active_views.length > 0 && (
-                  <div className="mt-3 flex gap-2">
+                  <div className="mt-3 flex gap-2 flex-wrap">
                     {selectedPost.active_views.map((v) => (
                       <span key={v} className="text-[10px] text-blue-600 bg-blue-50 border border-blue-100 rounded-full px-2 py-0.5">
-                        {v === 'front' ? '전면 뷰' : '후면 뷰'}
+                        {viewLabel(v)} 뷰
                       </span>
                     ))}
                   </div>
                 )}
+                {(() => {
+                  const muscles =
+                    Array.isArray(selectedPost.target_muscles) && selectedPost.target_muscles.length > 0
+                      ? selectedPost.target_muscles
+                      : selectedPost.target_muscle
+                      ? [selectedPost.target_muscle]
+                      : [];
+                  if (muscles.length === 0) return null;
+                  return (
+                    <div className="mt-3 flex flex-wrap gap-1.5">
+                      {muscles.map((id, idx) => (
+                        <span
+                          key={id}
+                          className={`text-[10px] rounded-full px-2 py-0.5 font-semibold ${
+                            idx === 0
+                              ? 'bg-emerald-600 text-white'
+                              : 'bg-emerald-50 text-emerald-700 border border-emerald-100'
+                          }`}
+                        >
+                          {toLabel(id)}
+                        </span>
+                      ))}
+                    </div>
+                  );
+                })()}
               </div>
             </div>
           </div>
