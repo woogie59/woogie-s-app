@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { ArrowLeft, Plus, Dumbbell, Play, PlayCircle, X, Pencil } from 'lucide-react';
+import { ArrowLeft, Plus, Dumbbell, Play, PlayCircle, X, Pencil, Trash2 } from 'lucide-react';
 import { supabase } from '../../lib/supabaseClient';
 import toast from 'react-hot-toast';
 
@@ -33,6 +33,8 @@ const AdminExerciseLibrary = ({ goBack }) => {
   const [filter, setFilter] = useState('All');
   const [showModal, setShowModal] = useState(false);
   const [editingPost, setEditingPost] = useState(null);
+  const [deletingPost, setDeletingPost] = useState(null);
+  const [deleting, setDeleting] = useState(false);
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState({ title: '', content: '', category: 'Exercise', body_part: '', target_muscle: '', image_url: '', video_url: '' });
   const [selectedPost, setSelectedPost] = useState(null);
@@ -108,6 +110,23 @@ const AdminExerciseLibrary = ({ goBack }) => {
       toast.error('수정 실패: ' + (e.message || String(e)));
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!deletingPost) return;
+    setDeleting(true);
+    try {
+      const { error } = await supabase.from('posts').delete().eq('id', deletingPost.id);
+      if (error) throw error;
+      setPosts((prev) => prev.filter((p) => p.id !== deletingPost.id));
+      toast.success('삭제되었습니다.');
+      setDeletingPost(null);
+    } catch (e) {
+      console.error('[AdminExerciseLibrary] delete:', e);
+      toast.error('삭제 실패: ' + (e.message || String(e)));
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -251,7 +270,14 @@ const AdminExerciseLibrary = ({ goBack }) => {
                     >
                       <Pencil size={14} strokeWidth={1.5} />
                     </button>
-                    <Play size={14} strokeWidth={1.5} className="text-gray-200 ml-1" />
+                    <button
+                      type="button"
+                      onClick={() => setDeletingPost(post)}
+                      className="rounded-lg p-1.5 text-gray-400 hover:bg-red-50 hover:text-red-500 transition-colors"
+                      aria-label="삭제"
+                    >
+                      <Trash2 size={14} strokeWidth={1.5} />
+                    </button>
                   </div>
                 </div>
               </div>
@@ -354,6 +380,42 @@ const AdminExerciseLibrary = ({ goBack }) => {
                 className="rounded-xl bg-[#064e3b] px-5 py-2 text-sm font-semibold text-white hover:bg-emerald-700 transition disabled:opacity-50"
               >
                 {saving ? '저장 중…' : '저장'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Confirm Modal */}
+      {deletingPost && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-6">
+          <div className="w-full max-w-sm bg-white rounded-2xl shadow-2xl overflow-hidden">
+            <div className="px-6 pt-6 pb-4">
+              <div className="w-10 h-10 rounded-full bg-red-50 flex items-center justify-center mb-4">
+                <Trash2 size={20} className="text-red-500" strokeWidth={1.5} />
+              </div>
+              <h2 className="text-base font-semibold text-slate-900 mb-1">게시물 삭제</h2>
+              <p className="text-sm text-gray-500 leading-relaxed">
+                <span className="font-semibold text-slate-700">"{deletingPost.title}"</span>을(를) 삭제합니다.
+                이 작업은 되돌릴 수 없습니다.
+              </p>
+            </div>
+            <div className="px-6 pb-6 flex gap-2">
+              <button
+                type="button"
+                onClick={() => setDeletingPost(null)}
+                disabled={deleting}
+                className="flex-1 rounded-xl border border-gray-200 py-2.5 text-sm font-medium text-gray-600 hover:bg-gray-50 transition disabled:opacity-50"
+              >
+                취소
+              </button>
+              <button
+                type="button"
+                onClick={handleDelete}
+                disabled={deleting}
+                className="flex-1 rounded-xl bg-red-500 py-2.5 text-sm font-semibold text-white hover:bg-red-600 transition disabled:opacity-50"
+              >
+                {deleting ? '삭제 중…' : '삭제'}
               </button>
             </div>
           </div>
