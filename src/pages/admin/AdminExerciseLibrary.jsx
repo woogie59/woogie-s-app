@@ -1,11 +1,12 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { ArrowLeft, Plus, Dumbbell, Play, PlayCircle, X, Pencil, Trash2 } from 'lucide-react';
+import { ArrowLeft, Plus, Dumbbell, PlayCircle, X, Pencil, Trash2, Tag } from 'lucide-react';
 import { supabase } from '../../lib/supabaseClient';
 import toast from 'react-hot-toast';
 
+// ── Constants ──────────────────────────────────────────────────────────────────
+
 const EXERCISE_CATEGORIES = ['Exercise', 'Routine'];
-const ALL_CATEGORIES = ['All', 'Exercise', 'Routine'];
-const BODY_PARTS = ['가슴', '등', '하체', '어깨', '팔', '코어', '전신'];
+const CATEGORY_LABEL = { Exercise: '운동', Routine: '루틴' };
 
 const MUSCLE_SLUGS = [
   { slug: 'chest',      label: '가슴 (Chest)' },
@@ -25,19 +26,154 @@ const MUSCLE_SLUGS = [
   { slug: 'adductors',  label: '내전근 (Adductors)' },
 ];
 
-const CATEGORY_LABEL = { Exercise: '운동', Routine: '루틴' };
+const ANATOMY_VIEWS = [
+  { val: 'front', label: '전면' },
+  { val: 'back',  label: '후면' },
+];
+
+const EMPTY_FORM = {
+  title: '', content: '', category: 'Exercise',
+  body_part: '', target_muscle: '',
+  active_views: ['front'],
+  image_url: '', video_url: '',
+};
+
+// ── Shared form fields ─────────────────────────────────────────────────────────
+
+const FormFields = ({ form, setForm, dynamicCategories }) => {
+  const toggleView = (val) => {
+    const next = form.active_views.includes(val)
+      ? form.active_views.filter((v) => v !== val)
+      : [...form.active_views, val];
+    setForm({ ...form, active_views: next.length > 0 ? next : ['front'] });
+  };
+
+  return (
+    <div className="space-y-3">
+      <input
+        className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-slate-900 outline-none focus:border-emerald-500 transition"
+        placeholder="제목"
+        value={form.title}
+        onChange={(e) => setForm({ ...form, title: e.target.value })}
+      />
+      <select
+        className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-slate-900 outline-none"
+        value={form.category}
+        onChange={(e) => setForm({ ...form, category: e.target.value })}
+      >
+        <option value="Exercise">운동 (Exercise)</option>
+        <option value="Routine">루틴 (Routine)</option>
+      </select>
+
+      {/* Dynamic body-part categories */}
+      <select
+        className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-slate-900 outline-none"
+        value={form.body_part}
+        onChange={(e) => setForm({ ...form, body_part: e.target.value })}
+      >
+        <option value="">부위 선택 (선택사항)</option>
+        {dynamicCategories.map((c) => (
+          <option key={c.id} value={c.label}>{c.label}</option>
+        ))}
+      </select>
+
+      <select
+        className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-slate-900 outline-none"
+        value={form.target_muscle}
+        onChange={(e) => setForm({ ...form, target_muscle: e.target.value })}
+      >
+        <option value="">주 타겟 근육 (선택사항)</option>
+        {MUSCLE_SLUGS.map(({ slug, label }) => (
+          <option key={slug} value={slug}>{label}</option>
+        ))}
+      </select>
+
+      {/* Multi-view anatomy checkboxes */}
+      <div className="rounded-xl bg-gray-50 border border-gray-200 px-4 py-3">
+        <p className="text-[11px] font-semibold text-gray-500 uppercase tracking-wider mb-2.5">해부학 뷰 선택</p>
+        <div className="flex gap-5">
+          {ANATOMY_VIEWS.map(({ val, label }) => (
+            <label key={val} className="flex items-center gap-2 cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={form.active_views.includes(val)}
+                onChange={() => toggleView(val)}
+                className="w-4 h-4 rounded accent-emerald-600 cursor-pointer"
+              />
+              <span className="text-sm text-slate-700 font-medium">{label}</span>
+            </label>
+          ))}
+          {/* Side view — library doesn't support it yet */}
+          <label className="flex items-center gap-2 cursor-not-allowed opacity-40 select-none">
+            <input type="checkbox" disabled className="w-4 h-4 rounded" />
+            <span className="text-sm text-slate-400">측면 <span className="text-[10px]">(준비중)</span></span>
+          </label>
+        </div>
+      </div>
+
+      <textarea
+        className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-slate-900 outline-none focus:border-emerald-500 transition resize-none h-28"
+        placeholder="내용 / 설명"
+        value={form.content}
+        onChange={(e) => setForm({ ...form, content: e.target.value })}
+      />
+      <input
+        className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-slate-900 outline-none focus:border-emerald-500 transition"
+        placeholder="이미지 URL (선택사항)"
+        value={form.image_url}
+        onChange={(e) => setForm({ ...form, image_url: e.target.value })}
+      />
+      <div>
+        <input
+          className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-slate-900 outline-none focus:border-emerald-500 transition"
+          placeholder="동영상 URL (선택사항)"
+          value={form.video_url}
+          onChange={(e) => setForm({ ...form, video_url: e.target.value })}
+        />
+        <p className="mt-1 text-[11px] text-gray-400">짧은 길이의 MP4 직접 링크를 권장합니다. (소리 없이 자동 반복됩니다)</p>
+        {form.video_url.trim() && (
+          <div className="mt-3 rounded-xl overflow-hidden border border-gray-200 bg-black max-w-sm">
+            <video src={form.video_url.trim()} autoPlay loop muted playsInline className="w-full h-auto opacity-90" />
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
+// ── Main component ─────────────────────────────────────────────────────────────
 
 const AdminExerciseLibrary = ({ goBack }) => {
   const [posts, setPosts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('All');
+
+  // Dynamic categories
+  const [categories, setCategories] = useState([]);
+  const [showCategoryManager, setShowCategoryManager] = useState(false);
+  const [newCategoryLabel, setNewCategoryLabel] = useState('');
+  const [addingCategory, setAddingCategory] = useState(false);
+  const [deletingCategory, setDeletingCategory] = useState(null);
+  const [deletingCategoryBusy, setDeletingCategoryBusy] = useState(false);
+
+  // Post CRUD
   const [showModal, setShowModal] = useState(false);
   const [editingPost, setEditingPost] = useState(null);
   const [deletingPost, setDeletingPost] = useState(null);
   const [deleting, setDeleting] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [form, setForm] = useState({ title: '', content: '', category: 'Exercise', body_part: '', target_muscle: '', image_url: '', video_url: '' });
+  const [form, setForm] = useState(EMPTY_FORM);
   const [selectedPost, setSelectedPost] = useState(null);
+
+  // ── Fetch ──────────────────────────────────────────────────────────────────
+
+  const fetchCategories = useCallback(async () => {
+    const { data, error } = await supabase
+      .from('exercise_categories')
+      .select('*')
+      .order('created_at', { ascending: true });
+    if (!error) setCategories(data || []);
+  }, []);
 
   const fetchPosts = useCallback(async () => {
     setLoading(true);
@@ -58,12 +194,92 @@ const AdminExerciseLibrary = ({ goBack }) => {
   }, []);
 
   useEffect(() => {
+    fetchCategories();
     fetchPosts();
-  }, [fetchPosts]);
+  }, [fetchCategories, fetchPosts]);
 
-  const filtered = filter === 'All' ? posts : posts.filter((p) => p.category === filter);
+  // ── Category CRUD ──────────────────────────────────────────────────────────
 
-  const resetForm = () => setForm({ title: '', content: '', category: 'Exercise', body_part: '', target_muscle: '', image_url: '', video_url: '' });
+  const handleAddCategory = async () => {
+    const label = newCategoryLabel.trim();
+    if (!label) return;
+    if (categories.some((c) => c.label === label)) {
+      toast.error('이미 존재하는 카테고리입니다.');
+      return;
+    }
+    setAddingCategory(true);
+    try {
+      const { data, error } = await supabase
+        .from('exercise_categories')
+        .insert([{ label }])
+        .select()
+        .single();
+      if (error) throw error;
+      setCategories((prev) => [...prev, data]);
+      setNewCategoryLabel('');
+      toast.success(`"${label}" 카테고리가 추가되었습니다.`);
+    } catch (e) {
+      toast.error('추가 실패: ' + (e.message || String(e)));
+    } finally {
+      setAddingCategory(false);
+    }
+  };
+
+  const handleDeleteCategory = async (cat) => {
+    const usedCount = posts.filter((p) => p.body_part === cat.label).length;
+    if (usedCount > 0) {
+      toast.error(`"${cat.label}"에 운동이 ${usedCount}개 있어 삭제할 수 없습니다.`);
+      return;
+    }
+    setDeletingCategoryBusy(true);
+    try {
+      const { error } = await supabase
+        .from('exercise_categories')
+        .delete()
+        .eq('id', cat.id);
+      if (error) throw error;
+      setCategories((prev) => prev.filter((c) => c.id !== cat.id));
+      setDeletingCategory(null);
+      toast.success(`"${cat.label}" 삭제 완료.`);
+    } catch (e) {
+      toast.error('삭제 실패: ' + (e.message || String(e)));
+    } finally {
+      setDeletingCategoryBusy(false);
+    }
+  };
+
+  // ── Post CRUD ──────────────────────────────────────────────────────────────
+
+  const buildPayload = () => ({
+    title: form.title.trim(),
+    content: form.content.trim(),
+    category: form.category,
+    body_part: form.body_part || null,
+    target_muscle: form.target_muscle || null,
+    active_views: form.active_views.length > 0 ? form.active_views : ['front'],
+    image_url: form.image_url.trim() || null,
+    video_url: form.video_url.trim() || null,
+  });
+
+  const handleSave = async () => {
+    if (!form.title.trim() || !form.content.trim()) {
+      toast.error('제목과 내용을 입력해 주세요.');
+      return;
+    }
+    setSaving(true);
+    try {
+      const { error } = await supabase.from('posts').insert([{ ...buildPayload(), created_at: new Date().toISOString() }]);
+      if (error) throw error;
+      toast.success('저장되었습니다.');
+      setShowModal(false);
+      setForm(EMPTY_FORM);
+      await fetchPosts();
+    } catch (e) {
+      toast.error('저장 실패: ' + (e.message || String(e)));
+    } finally {
+      setSaving(false);
+    }
+  };
 
   const openEdit = (post) => {
     setForm({
@@ -72,15 +288,13 @@ const AdminExerciseLibrary = ({ goBack }) => {
       category: post.category || 'Exercise',
       body_part: post.body_part || '',
       target_muscle: post.target_muscle || '',
+      active_views: Array.isArray(post.active_views) && post.active_views.length > 0
+        ? post.active_views
+        : ['front'],
       image_url: post.image_url || '',
       video_url: post.video_url || '',
     });
     setEditingPost(post);
-  };
-
-  const closeEdit = () => {
-    setEditingPost(null);
-    resetForm();
   };
 
   const handleUpdate = async () => {
@@ -90,23 +304,14 @@ const AdminExerciseLibrary = ({ goBack }) => {
     }
     setSaving(true);
     try {
-      const payload = {
-        title: form.title.trim(),
-        content: form.content.trim(),
-        category: form.category,
-        body_part: form.body_part || null,
-        target_muscle: form.target_muscle || null,
-        image_url: form.image_url.trim() || null,
-        video_url: form.video_url.trim() || null,
-      };
+      const payload = buildPayload();
       const { error } = await supabase.from('posts').update(payload).eq('id', editingPost.id);
       if (error) throw error;
-      // Update local state immediately — no refetch needed
       setPosts((prev) => prev.map((p) => p.id === editingPost.id ? { ...p, ...payload } : p));
       toast.success('수정 완료.');
-      closeEdit();
+      setEditingPost(null);
+      setForm(EMPTY_FORM);
     } catch (e) {
-      console.error('[AdminExerciseLibrary] update:', e);
       toast.error('수정 실패: ' + (e.message || String(e)));
     } finally {
       setSaving(false);
@@ -123,63 +328,41 @@ const AdminExerciseLibrary = ({ goBack }) => {
       toast.success('삭제되었습니다.');
       setDeletingPost(null);
     } catch (e) {
-      console.error('[AdminExerciseLibrary] delete:', e);
       toast.error('삭제 실패: ' + (e.message || String(e)));
     } finally {
       setDeleting(false);
     }
   };
 
-  const handleSave = async () => {
-    if (!form.title.trim() || !form.content.trim()) {
-      toast.error('제목과 내용을 입력해 주세요.');
-      return;
-    }
-    setSaving(true);
-    try {
-      const payload = {
-        title: form.title.trim(),
-        content: form.content.trim(),
-        category: form.category,
-        body_part: form.body_part || null,
-        target_muscle: form.target_muscle || null,
-        image_url: form.image_url.trim() || null,
-        video_url: form.video_url.trim() || null,
-        created_at: new Date().toISOString(),
-      };
-      const { error } = await supabase.from('posts').insert([payload]);
-      if (error) throw error;
-      toast.success('저장되었습니다.');
-      setShowModal(false);
-      resetForm();
-      await fetchPosts();
-    } catch (e) {
-      console.error('[AdminExerciseLibrary] save:', e);
-      toast.error('저장 실패: ' + (e.message || String(e)));
-    } finally {
-      setSaving(false);
-    }
-  };
+  // ── Filter ─────────────────────────────────────────────────────────────────
+
+  const filtered = filter === 'All' ? posts : posts.filter((p) => p.category === filter);
+
+  // ── Render ─────────────────────────────────────────────────────────────────
 
   return (
-    <div className="min-h-[100dvh] bg-gray-50 text-slate-900 flex flex-col font-sans">
+    <div className="min-h-[100dvh] bg-[#F8F9FA] text-slate-900 flex flex-col font-sans">
+
       {/* Header */}
-      <header className="sticky top-0 z-20 bg-gray-50/95 backdrop-blur-sm border-b border-gray-100 px-4 py-3 flex items-center gap-3">
-        <button
-          type="button"
-          onClick={goBack}
-          className="rounded-lg p-1.5 hover:bg-gray-100 transition-colors"
-          aria-label="뒤로"
-        >
-          <ArrowLeft size={20} strokeWidth={1.5} className="text-gray-600" />
+      <header className="sticky top-0 z-20 bg-white/95 backdrop-blur-sm border-b border-zinc-100 px-4 py-3 flex items-center gap-2 shadow-sm">
+        <button type="button" onClick={goBack} className="rounded-lg p-1.5 hover:bg-zinc-100 transition-colors" aria-label="뒤로">
+          <ArrowLeft size={20} strokeWidth={1.5} className="text-zinc-500" />
         </button>
-        <div className="flex-1">
+        <div className="flex-1 min-w-0">
           <h1 className="text-base font-semibold text-slate-900 tracking-tight">운동 라이브러리</h1>
-          <p className="text-[10px] text-gray-400 uppercase tracking-[0.15em]">Exercise Library</p>
+          <p className="text-[10px] text-zinc-400 uppercase tracking-[0.15em]">Exercise Library</p>
         </div>
         <button
           type="button"
-          onClick={() => { resetForm(); setShowModal(true); }}
+          onClick={() => setShowCategoryManager(true)}
+          className="flex items-center gap-1.5 rounded-xl border border-zinc-200 bg-white px-3 py-1.5 text-xs font-medium text-zinc-600 transition hover:bg-zinc-50 active:scale-95"
+        >
+          <Tag size={13} strokeWidth={1.5} />
+          카테고리
+        </button>
+        <button
+          type="button"
+          onClick={() => { setForm(EMPTY_FORM); setShowModal(true); }}
           className="flex items-center gap-1.5 rounded-xl bg-[#064e3b] px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-emerald-700 active:scale-95"
         >
           <Plus size={14} strokeWidth={2} />
@@ -188,19 +371,19 @@ const AdminExerciseLibrary = ({ goBack }) => {
       </header>
 
       {/* Filter pills */}
-      <div className="px-5 pt-4 pb-2 flex gap-2">
-        {ALL_CATEGORIES.map((cat) => (
+      <div className="px-5 pt-4 pb-2 flex gap-2 overflow-x-auto no-scrollbar">
+        {[{ val: 'All', label: '전체' }, { val: 'Exercise', label: '운동' }, { val: 'Routine', label: '루틴' }].map(({ val, label }) => (
           <button
-            key={cat}
+            key={val}
             type="button"
-            onClick={() => setFilter(cat)}
-            className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${
-              filter === cat
+            onClick={() => setFilter(val)}
+            className={`rounded-full px-3 py-1 text-xs font-medium whitespace-nowrap transition-colors ${
+              filter === val
                 ? 'bg-[#064e3b] text-white'
                 : 'bg-white border border-gray-200 text-gray-500 hover:border-emerald-500/40'
             }`}
           >
-            {cat === 'All' ? '전체' : CATEGORY_LABEL[cat] ?? cat}
+            {label}
           </button>
         ))}
       </div>
@@ -209,73 +392,52 @@ const AdminExerciseLibrary = ({ goBack }) => {
       <main className="flex-1 px-5 pt-3 pb-24">
         {loading ? (
           <div className="flex justify-center pt-16">
-            <p className="text-sm text-gray-400 tracking-wide">Loading…</p>
+            <p className="text-sm text-zinc-400 tracking-wide">Loading…</p>
           </div>
         ) : filtered.length === 0 ? (
-          <div className="flex flex-col items-center justify-center pt-16 gap-3 text-gray-400">
+          <div className="flex flex-col items-center justify-center pt-16 gap-3 text-zinc-400">
             <Dumbbell size={36} strokeWidth={1} />
             <p className="text-sm">등록된 콘텐츠가 없습니다.</p>
-            <button
-              type="button"
-              onClick={() => { resetForm(); setShowModal(true); }}
-              className="mt-2 rounded-xl border border-gray-200 px-4 py-2 text-xs text-gray-600 hover:bg-gray-100 transition"
-            >
+            <button type="button" onClick={() => { setForm(EMPTY_FORM); setShowModal(true); }} className="mt-2 rounded-xl border border-gray-200 px-4 py-2 text-xs text-gray-600 hover:bg-gray-100 transition">
               첫 번째 콘텐츠 추가하기
             </button>
           </div>
         ) : (
-          <div className="grid grid-cols-1 gap-4">
+          <div className="grid grid-cols-1 gap-3">
             {filtered.map((post) => (
-              <div
-                key={post.id}
-                className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden transition hover:border-emerald-500/30"
-              >
+              <div key={post.id} className="bg-white rounded-2xl border border-zinc-100 shadow-sm overflow-hidden transition hover:border-emerald-500/30">
                 {post.image_url && !post.video_url && (
                   <img src={post.image_url} alt={post.title} className="w-full h-36 object-cover" />
                 )}
                 <div className="px-4 py-3 flex items-start justify-between gap-3">
-                  {/* Clickable text area → detail modal */}
-                  <button
-                    type="button"
-                    onClick={() => setSelectedPost(post)}
-                    className="min-w-0 flex-1 text-left"
-                  >
-                    <div className="flex items-center gap-2 mb-1">
+                  <button type="button" onClick={() => setSelectedPost(post)} className="min-w-0 flex-1 text-left">
+                    <div className="flex flex-wrap items-center gap-1.5 mb-1">
                       <span className="text-[10px] font-semibold uppercase tracking-widest text-emerald-700">
                         {CATEGORY_LABEL[post.category] ?? post.category}
                       </span>
                       {post.body_part && (
-                        <span className="text-[10px] text-gray-500 border border-gray-200 rounded-full px-1.5 py-0.5">
-                          {post.body_part}
-                        </span>
+                        <span className="text-[10px] text-zinc-500 border border-zinc-200 rounded-full px-1.5 py-0.5">{post.body_part}</span>
                       )}
+                      {/* active_views badges */}
+                      {Array.isArray(post.active_views) && post.active_views.map((v) => (
+                        <span key={v} className="text-[10px] text-blue-500 bg-blue-50 border border-blue-100 rounded-full px-1.5 py-0.5">
+                          {v === 'front' ? '전면' : '후면'}
+                        </span>
+                      ))}
                       {post.video_url && (
                         <span className="inline-flex items-center gap-1 rounded-full bg-zinc-100 px-2 py-0.5 text-[10px] font-medium text-zinc-500">
-                          <PlayCircle size={10} />
-                          Video
+                          <PlayCircle size={10} /> Video
                         </span>
                       )}
                     </div>
                     <h3 className="text-sm font-semibold text-slate-900 line-clamp-1">{post.title}</h3>
-                    <p className="mt-0.5 text-xs text-gray-500 line-clamp-2 leading-relaxed">{post.content}</p>
+                    <p className="mt-0.5 text-xs text-zinc-500 line-clamp-2 leading-relaxed">{post.content}</p>
                   </button>
-
-                  {/* Action buttons */}
                   <div className="flex items-center gap-1 shrink-0 mt-0.5">
-                    <button
-                      type="button"
-                      onClick={() => openEdit(post)}
-                      className="rounded-lg p-1.5 text-gray-400 hover:bg-emerald-50 hover:text-emerald-600 transition-colors"
-                      aria-label="수정"
-                    >
+                    <button type="button" onClick={() => openEdit(post)} className="rounded-lg p-1.5 text-zinc-400 hover:bg-emerald-50 hover:text-emerald-600 transition-colors" aria-label="수정">
                       <Pencil size={14} strokeWidth={1.5} />
                     </button>
-                    <button
-                      type="button"
-                      onClick={() => setDeletingPost(post)}
-                      className="rounded-lg p-1.5 text-gray-400 hover:bg-red-50 hover:text-red-500 transition-colors"
-                      aria-label="삭제"
-                    >
+                    <button type="button" onClick={() => setDeletingPost(post)} className="rounded-lg p-1.5 text-zinc-400 hover:bg-red-50 hover:text-red-500 transition-colors" aria-label="삭제">
                       <Trash2 size={14} strokeWidth={1.5} />
                     </button>
                   </div>
@@ -286,99 +448,104 @@ const AdminExerciseLibrary = ({ goBack }) => {
         )}
       </main>
 
-      {/* Write Modal */}
+      {/* ── Category Manager Modal ── */}
+      {showCategoryManager && (
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+          <div className="w-full max-w-sm bg-white rounded-2xl shadow-2xl overflow-hidden">
+            <div className="flex items-center justify-between px-5 pt-5 pb-3 border-b border-zinc-100">
+              <div>
+                <h2 className="text-base font-semibold text-slate-900">카테고리 관리</h2>
+                <p className="text-[10px] text-zinc-400 mt-0.5">운동 부위 카테고리를 추가하거나 삭제합니다.</p>
+              </div>
+              <button type="button" onClick={() => setShowCategoryManager(false)} className="rounded-lg p-1 hover:bg-zinc-100">
+                <X size={18} className="text-zinc-500" />
+              </button>
+            </div>
+
+            <div className="px-5 py-4 max-h-[60vh] overflow-y-auto">
+              {/* Existing categories */}
+              <div className="space-y-2 mb-4">
+                {categories.length === 0 ? (
+                  <p className="text-sm text-zinc-400 text-center py-4">카테고리가 없습니다.</p>
+                ) : categories.map((cat) => {
+                  const usedCount = posts.filter((p) => p.body_part === cat.label).length;
+                  return (
+                    <div key={cat.id} className="flex items-center justify-between px-4 py-2.5 bg-zinc-50 rounded-xl border border-zinc-100">
+                      <div>
+                        <span className="text-sm font-medium text-slate-900">{cat.label}</span>
+                        {usedCount > 0 && (
+                          <span className="ml-2 text-[10px] text-zinc-400">{usedCount}개 운동 사용 중</span>
+                        )}
+                      </div>
+                      {deletingCategory?.id === cat.id ? (
+                        <div className="flex gap-1">
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteCategory(cat)}
+                            disabled={deletingCategoryBusy}
+                            className="rounded-lg px-2.5 py-1 text-xs font-semibold text-white bg-red-500 hover:bg-red-600 transition disabled:opacity-50"
+                          >
+                            {deletingCategoryBusy ? '…' : '확인'}
+                          </button>
+                          <button type="button" onClick={() => setDeletingCategory(null)} className="rounded-lg px-2 py-1 text-xs text-zinc-500 hover:bg-zinc-100 transition">
+                            취소
+                          </button>
+                        </div>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => setDeletingCategory(cat)}
+                          disabled={usedCount > 0}
+                          className="rounded-lg p-1.5 text-zinc-300 hover:text-red-400 hover:bg-red-50 transition disabled:cursor-not-allowed disabled:opacity-40"
+                          title={usedCount > 0 ? '운동이 있어 삭제 불가' : '삭제'}
+                        >
+                          <Trash2 size={13} strokeWidth={1.5} />
+                        </button>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Add new category */}
+              <div className="flex gap-2">
+                <input
+                  className="flex-1 bg-zinc-50 border border-zinc-200 rounded-xl px-3 py-2 text-sm text-slate-900 outline-none focus:border-emerald-500 transition"
+                  placeholder="새 카테고리 이름"
+                  value={newCategoryLabel}
+                  onChange={(e) => setNewCategoryLabel(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && handleAddCategory()}
+                />
+                <button
+                  type="button"
+                  onClick={handleAddCategory}
+                  disabled={addingCategory || !newCategoryLabel.trim()}
+                  className="rounded-xl bg-[#064e3b] px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700 transition disabled:opacity-40"
+                >
+                  {addingCategory ? '…' : '추가'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Write Modal ── */}
       {showModal && (
         <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40 backdrop-blur-sm p-4">
           <div className="w-full max-w-lg bg-white rounded-2xl shadow-2xl overflow-hidden">
-            <div className="flex items-center justify-between px-5 pt-5 pb-3 border-b border-gray-100">
+            <div className="flex items-center justify-between px-5 pt-5 pb-3 border-b border-zinc-100">
               <h2 className="text-base font-semibold text-slate-900">새 운동 콘텐츠</h2>
-              <button type="button" onClick={() => setShowModal(false)} className="rounded-lg p-1 hover:bg-gray-100">
-                <X size={18} className="text-gray-500" />
+              <button type="button" onClick={() => setShowModal(false)} className="rounded-lg p-1 hover:bg-zinc-100">
+                <X size={18} className="text-zinc-500" />
               </button>
             </div>
-            <div className="px-5 py-4 space-y-3 max-h-[70vh] overflow-y-auto">
-              <input
-                className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-slate-900 outline-none focus:border-emerald-500 transition"
-                placeholder="제목"
-                value={form.title}
-                onChange={(e) => setForm({ ...form, title: e.target.value })}
-              />
-              <select
-                className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-slate-900 outline-none"
-                value={form.category}
-                onChange={(e) => setForm({ ...form, category: e.target.value })}
-              >
-                <option value="Exercise">운동 (Exercise)</option>
-                <option value="Routine">루틴 (Routine)</option>
-              </select>
-              <select
-                className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-slate-900 outline-none"
-                value={form.body_part}
-                onChange={(e) => setForm({ ...form, body_part: e.target.value })}
-              >
-                <option value="">부위 선택 (선택사항)</option>
-                {BODY_PARTS.map((p) => (
-                  <option key={p} value={p}>{p}</option>
-                ))}
-              </select>
-              <select
-                className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-slate-900 outline-none"
-                value={form.target_muscle}
-                onChange={(e) => setForm({ ...form, target_muscle: e.target.value })}
-              >
-                <option value="">주 타겟 근육 (선택사항)</option>
-                {MUSCLE_SLUGS.map(({ slug, label }) => (
-                  <option key={slug} value={slug}>{label}</option>
-                ))}
-              </select>
-              <textarea
-                className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-slate-900 outline-none focus:border-emerald-500 transition resize-none h-28"
-                placeholder="내용 / 설명"
-                value={form.content}
-                onChange={(e) => setForm({ ...form, content: e.target.value })}
-              />
-              <input
-                className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-slate-900 outline-none focus:border-emerald-500 transition"
-                placeholder="이미지 URL (선택사항)"
-                value={form.image_url}
-                onChange={(e) => setForm({ ...form, image_url: e.target.value })}
-              />
-              <div>
-                <input
-                  className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-slate-900 outline-none focus:border-emerald-500 transition"
-                  placeholder="동영상 URL (선택사항)"
-                  value={form.video_url}
-                  onChange={(e) => setForm({ ...form, video_url: e.target.value })}
-                />
-                <p className="mt-1 text-[11px] text-gray-400">짧은 길이의 MP4 직접 링크를 권장합니다. (소리 없이 자동 반복됩니다)</p>
-                {form.video_url.trim() && (
-                  <div className="mt-3 rounded-xl overflow-hidden border border-gray-200 bg-black max-w-sm">
-                    <video
-                      src={form.video_url.trim()}
-                      autoPlay
-                      loop
-                      muted
-                      playsInline
-                      className="w-full h-auto object-cover opacity-90"
-                    />
-                  </div>
-                )}
-              </div>
+            <div className="px-5 py-4 max-h-[70vh] overflow-y-auto">
+              <FormFields form={form} setForm={setForm} dynamicCategories={categories} />
             </div>
-            <div className="px-5 py-4 flex justify-end gap-2 border-t border-gray-100">
-              <button
-                type="button"
-                onClick={() => setShowModal(false)}
-                className="rounded-xl border border-gray-200 px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 transition"
-              >
-                취소
-              </button>
-              <button
-                type="button"
-                onClick={handleSave}
-                disabled={saving}
-                className="rounded-xl bg-[#064e3b] px-5 py-2 text-sm font-semibold text-white hover:bg-emerald-700 transition disabled:opacity-50"
-              >
+            <div className="px-5 py-4 flex justify-end gap-2 border-t border-zinc-100">
+              <button type="button" onClick={() => setShowModal(false)} className="rounded-xl border border-zinc-200 px-4 py-2 text-sm text-zinc-600 hover:bg-zinc-50 transition">취소</button>
+              <button type="button" onClick={handleSave} disabled={saving} className="rounded-xl bg-[#064e3b] px-5 py-2 text-sm font-semibold text-white hover:bg-emerald-700 transition disabled:opacity-50">
                 {saving ? '저장 중…' : '저장'}
               </button>
             </div>
@@ -386,138 +553,25 @@ const AdminExerciseLibrary = ({ goBack }) => {
         </div>
       )}
 
-      {/* Delete Confirm Modal */}
-      {deletingPost && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-6">
-          <div className="w-full max-w-sm bg-white rounded-2xl shadow-2xl overflow-hidden">
-            <div className="px-6 pt-6 pb-4">
-              <div className="w-10 h-10 rounded-full bg-red-50 flex items-center justify-center mb-4">
-                <Trash2 size={20} className="text-red-500" strokeWidth={1.5} />
-              </div>
-              <h2 className="text-base font-semibold text-slate-900 mb-1">게시물 삭제</h2>
-              <p className="text-sm text-gray-500 leading-relaxed">
-                <span className="font-semibold text-slate-700">"{deletingPost.title}"</span>을(를) 삭제합니다.
-                이 작업은 되돌릴 수 없습니다.
-              </p>
-            </div>
-            <div className="px-6 pb-6 flex gap-2">
-              <button
-                type="button"
-                onClick={() => setDeletingPost(null)}
-                disabled={deleting}
-                className="flex-1 rounded-xl border border-gray-200 py-2.5 text-sm font-medium text-gray-600 hover:bg-gray-50 transition disabled:opacity-50"
-              >
-                취소
-              </button>
-              <button
-                type="button"
-                onClick={handleDelete}
-                disabled={deleting}
-                className="flex-1 rounded-xl bg-red-500 py-2.5 text-sm font-semibold text-white hover:bg-red-600 transition disabled:opacity-50"
-              >
-                {deleting ? '삭제 중…' : '삭제'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Edit Modal */}
+      {/* ── Edit Modal ── */}
       {editingPost && (
         <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40 backdrop-blur-sm p-4">
           <div className="w-full max-w-lg bg-white rounded-2xl shadow-2xl overflow-hidden">
-            <div className="flex items-center justify-between px-5 pt-5 pb-3 border-b border-gray-100">
+            <div className="flex items-center justify-between px-5 pt-5 pb-3 border-b border-zinc-100">
               <div>
                 <h2 className="text-base font-semibold text-slate-900">운동 수정</h2>
-                <p className="text-[10px] text-gray-400 mt-0.5 line-clamp-1">{editingPost.title}</p>
+                <p className="text-[10px] text-zinc-400 mt-0.5 line-clamp-1">{editingPost.title}</p>
               </div>
-              <button type="button" onClick={closeEdit} className="rounded-lg p-1 hover:bg-gray-100">
-                <X size={18} className="text-gray-500" />
+              <button type="button" onClick={() => { setEditingPost(null); setForm(EMPTY_FORM); }} className="rounded-lg p-1 hover:bg-zinc-100">
+                <X size={18} className="text-zinc-500" />
               </button>
             </div>
-            <div className="px-5 py-4 space-y-3 max-h-[70vh] overflow-y-auto">
-              <input
-                className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-slate-900 outline-none focus:border-emerald-500 transition"
-                placeholder="제목"
-                value={form.title}
-                onChange={(e) => setForm({ ...form, title: e.target.value })}
-              />
-              <select
-                className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-slate-900 outline-none"
-                value={form.category}
-                onChange={(e) => setForm({ ...form, category: e.target.value })}
-              >
-                <option value="Exercise">운동 (Exercise)</option>
-                <option value="Routine">루틴 (Routine)</option>
-              </select>
-              <select
-                className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-slate-900 outline-none"
-                value={form.body_part}
-                onChange={(e) => setForm({ ...form, body_part: e.target.value })}
-              >
-                <option value="">부위 선택 (선택사항)</option>
-                {BODY_PARTS.map((p) => (
-                  <option key={p} value={p}>{p}</option>
-                ))}
-              </select>
-              <select
-                className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-slate-900 outline-none"
-                value={form.target_muscle}
-                onChange={(e) => setForm({ ...form, target_muscle: e.target.value })}
-              >
-                <option value="">주 타겟 근육 (선택사항)</option>
-                {MUSCLE_SLUGS.map(({ slug, label }) => (
-                  <option key={slug} value={slug}>{label}</option>
-                ))}
-              </select>
-              <textarea
-                className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-slate-900 outline-none focus:border-emerald-500 transition resize-none h-28"
-                placeholder="내용 / 설명"
-                value={form.content}
-                onChange={(e) => setForm({ ...form, content: e.target.value })}
-              />
-              <input
-                className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-slate-900 outline-none focus:border-emerald-500 transition"
-                placeholder="이미지 URL (선택사항)"
-                value={form.image_url}
-                onChange={(e) => setForm({ ...form, image_url: e.target.value })}
-              />
-              <div>
-                <input
-                  className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-slate-900 outline-none focus:border-emerald-500 transition"
-                  placeholder="동영상 URL (선택사항)"
-                  value={form.video_url}
-                  onChange={(e) => setForm({ ...form, video_url: e.target.value })}
-                />
-                <p className="mt-1 text-[11px] text-gray-400">짧은 길이의 MP4 직접 링크를 권장합니다. (소리 없이 자동 반복됩니다)</p>
-                {form.video_url.trim() && (
-                  <div className="mt-3 rounded-xl overflow-hidden border border-gray-200 bg-black max-w-sm">
-                    <video
-                      src={form.video_url.trim()}
-                      autoPlay
-                      loop
-                      muted
-                      playsInline
-                      className="w-full h-auto object-cover opacity-90"
-                    />
-                  </div>
-                )}
-              </div>
+            <div className="px-5 py-4 max-h-[70vh] overflow-y-auto">
+              <FormFields form={form} setForm={setForm} dynamicCategories={categories} />
             </div>
-            <div className="px-5 py-4 flex justify-end gap-2 border-t border-gray-100">
-              <button
-                type="button"
-                onClick={closeEdit}
-                className="rounded-xl border border-gray-200 px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 transition"
-              >
-                취소
-              </button>
-              <button
-                type="button"
-                onClick={handleUpdate}
-                disabled={saving}
-                className="rounded-xl bg-[#064e3b] px-5 py-2 text-sm font-semibold text-white hover:bg-emerald-700 transition disabled:opacity-50"
-              >
+            <div className="px-5 py-4 flex justify-end gap-2 border-t border-zinc-100">
+              <button type="button" onClick={() => { setEditingPost(null); setForm(EMPTY_FORM); }} className="rounded-xl border border-zinc-200 px-4 py-2 text-sm text-zinc-600 hover:bg-zinc-50 transition">취소</button>
+              <button type="button" onClick={handleUpdate} disabled={saving} className="rounded-xl bg-[#064e3b] px-5 py-2 text-sm font-semibold text-white hover:bg-emerald-700 transition disabled:opacity-50">
                 {saving ? '저장 중…' : '수정 완료'}
               </button>
             </div>
@@ -525,35 +579,67 @@ const AdminExerciseLibrary = ({ goBack }) => {
         </div>
       )}
 
-      {/* Post Detail Modal */}
+      {/* ── Delete Confirm Modal ── */}
+      {deletingPost && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-6">
+          <div className="w-full max-w-sm bg-white rounded-2xl shadow-2xl">
+            <div className="px-6 pt-6 pb-4">
+              <div className="w-10 h-10 rounded-full bg-red-50 flex items-center justify-center mb-4">
+                <Trash2 size={20} className="text-red-500" strokeWidth={1.5} />
+              </div>
+              <h2 className="text-base font-semibold text-slate-900 mb-1">게시물 삭제</h2>
+              <p className="text-sm text-zinc-500 leading-relaxed">
+                <span className="font-semibold text-slate-700">"{deletingPost.title}"</span>을(를) 삭제합니다. 이 작업은 되돌릴 수 없습니다.
+              </p>
+            </div>
+            <div className="px-6 pb-6 flex gap-2">
+              <button type="button" onClick={() => setDeletingPost(null)} disabled={deleting} className="flex-1 rounded-xl border border-zinc-200 py-2.5 text-sm font-medium text-zinc-600 hover:bg-zinc-50 transition disabled:opacity-50">취소</button>
+              <button type="button" onClick={handleDelete} disabled={deleting} className="flex-1 rounded-xl bg-red-500 py-2.5 text-sm font-semibold text-white hover:bg-red-600 transition disabled:opacity-50">
+                {deleting ? '삭제 중…' : '삭제'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Post Detail Modal ── */}
       {selectedPost && (
         <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40 backdrop-blur-sm p-4">
           <div className="w-full max-w-lg bg-white rounded-2xl shadow-2xl overflow-hidden max-h-[85vh] flex flex-col">
-            <div className="flex items-center justify-between px-5 pt-4 pb-3 border-b border-gray-100 shrink-0">
-              <span className="text-[10px] font-semibold uppercase tracking-widest text-emerald-700">
-                {CATEGORY_LABEL[selectedPost.category] ?? selectedPost.category}
-              </span>
-              <button type="button" onClick={() => setSelectedPost(null)} className="rounded-lg p-1 hover:bg-gray-100">
-                <X size={18} className="text-gray-500" />
+            <div className="flex items-center justify-between px-5 pt-4 pb-3 border-b border-zinc-100 shrink-0">
+              <div className="flex flex-wrap items-center gap-1.5">
+                <span className="text-[10px] font-semibold uppercase tracking-widest text-emerald-700">
+                  {CATEGORY_LABEL[selectedPost.category] ?? selectedPost.category}
+                </span>
+                {selectedPost.body_part && (
+                  <span className="text-[10px] text-zinc-500 border border-zinc-200 rounded-full px-2 py-0.5">{selectedPost.body_part}</span>
+                )}
+              </div>
+              <button type="button" onClick={() => setSelectedPost(null)} className="rounded-lg p-1 hover:bg-zinc-100">
+                <X size={18} className="text-zinc-400" />
               </button>
             </div>
             <div className="overflow-y-auto flex-1">
               {selectedPost.video_url && (
-                <video
-                  src={selectedPost.video_url}
-                  autoPlay
-                  loop
-                  muted
-                  playsInline
-                  className="w-full h-52 object-cover bg-black"
-                />
+                <div className="w-full bg-black">
+                  <video src={selectedPost.video_url} autoPlay loop muted playsInline className="w-full h-auto object-contain" />
+                </div>
               )}
               {!selectedPost.video_url && selectedPost.image_url && (
-                <img src={selectedPost.image_url} alt={selectedPost.title} className="w-full h-52 object-cover" />
+                <img src={selectedPost.image_url} alt={selectedPost.title} className="w-full h-auto object-cover" />
               )}
               <div className="p-5">
                 <h2 className="text-base font-semibold text-slate-900">{selectedPost.title}</h2>
-                <p className="mt-3 text-sm text-gray-600 leading-relaxed whitespace-pre-wrap">{selectedPost.content}</p>
+                <p className="mt-3 text-sm text-zinc-500 leading-relaxed whitespace-pre-wrap">{selectedPost.content}</p>
+                {Array.isArray(selectedPost.active_views) && selectedPost.active_views.length > 0 && (
+                  <div className="mt-3 flex gap-2">
+                    {selectedPost.active_views.map((v) => (
+                      <span key={v} className="text-[10px] text-blue-600 bg-blue-50 border border-blue-100 rounded-full px-2 py-0.5">
+                        {v === 'front' ? '전면 뷰' : '후면 뷰'}
+                      </span>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
           </div>

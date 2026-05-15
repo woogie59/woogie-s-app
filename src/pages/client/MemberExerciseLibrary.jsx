@@ -7,7 +7,7 @@ import { supabase } from '../../lib/supabaseClient';
 
 const EXERCISE_CATEGORIES = ['Exercise', 'Routine'];
 const CATEGORY_LABEL = { Exercise: '운동', Routine: '루틴' };
-const BODY_PARTS = ['전체', '가슴', '등', '하체', '어깨', '팔', '코어', '전신'];
+const DEFAULT_BODY_PARTS = ['가슴', '등', '하체', '어깨', '팔', '코어', '전신']; // fallback
 
 const BODY_PART_META = {
   '가슴': { slug: 'chest',      side: 'front' },
@@ -116,20 +116,33 @@ const ExerciseDetail = ({ post, onClose }) => {
           <h1 className="text-3xl font-black text-zinc-900 mb-3 leading-tight">{post.title}</h1>
           <p className="text-sm text-zinc-600 leading-relaxed mb-10 whitespace-pre-wrap">{post.content}</p>
 
-          {/* Enlarged anatomy display */}
+          {/* Enlarged anatomy display — multi-view */}
           {primarySlug ? (
-            <div className="flex flex-col items-center justify-center p-6 bg-zinc-50 rounded-2xl border border-zinc-100">
+            <div className="flex flex-col items-center p-6 bg-zinc-50 rounded-2xl border border-zinc-100">
               <p className="text-[10px] font-bold text-emerald-600 tracking-[0.2em] mb-4 uppercase">Target Muscle</p>
-              <div className="w-48 h-[300px] flex items-start justify-center overflow-hidden">
-                <Body
-                  data={muscleData}
-                  side={mapSide}
-                  gender="male"
-                  scale={0.9}
-                  border="none"
-                  defaultFill="#e5e7eb"
-                  colors={['#16a34a']}
-                />
+              {/* Render each active_view side */}
+              <div className="flex gap-6 justify-center flex-wrap">
+                {(Array.isArray(post.active_views) && post.active_views.length > 0
+                  ? post.active_views
+                  : [mapSide]
+                ).map((viewSide) => (
+                  <div key={viewSide} className="flex flex-col items-center gap-2">
+                    <div className="w-48 h-[300px] flex items-start justify-center overflow-hidden">
+                      <Body
+                        data={[{ slug: primarySlug, color: '#16a34a' }]}
+                        side={viewSide}
+                        gender="male"
+                        scale={0.9}
+                        border="none"
+                        defaultFill="#e5e7eb"
+                        colors={['#16a34a']}
+                      />
+                    </div>
+                    <span className="text-[10px] text-zinc-400 font-medium uppercase tracking-wider">
+                      {viewSide === 'front' ? '전면' : '후면'}
+                    </span>
+                  </div>
+                ))}
               </div>
               <p className="mt-4 text-lg font-bold text-zinc-800">
                 {SLUG_KO[primarySlug] || primarySlug}
@@ -154,20 +167,22 @@ const ExerciseDetail = ({ post, onClose }) => {
 
 const MemberExerciseLibrary = ({ goBack }) => {
   const [posts, setPosts] = useState([]);
+  const [bodyPartOptions, setBodyPartOptions] = useState(DEFAULT_BODY_PARTS);
   const [loading, setLoading] = useState(true);
   const [activeCategory, setActiveCategory] = useState('전체');
   const [selectedPost, setSelectedPost] = useState(null);
 
-  const fetchPosts = useCallback(async () => {
+  const fetchAll = useCallback(async () => {
     setLoading(true);
     try {
-      const { data, error } = await supabase
-        .from('posts')
-        .select('*')
-        .in('category', EXERCISE_CATEGORIES)
-        .order('created_at', { ascending: false });
-      if (error) throw error;
-      setPosts(data || []);
+      const [postsRes, catsRes] = await Promise.all([
+        supabase.from('posts').select('*').in('category', EXERCISE_CATEGORIES).order('created_at', { ascending: false }),
+        supabase.from('exercise_categories').select('label').order('created_at', { ascending: true }),
+      ]);
+      if (!postsRes.error) setPosts(postsRes.data || []);
+      if (!catsRes.error && catsRes.data?.length > 0) {
+        setBodyPartOptions(catsRes.data.map((c) => c.label));
+      }
     } catch (e) {
       console.error('[MemberExerciseLibrary] fetch:', e);
     } finally {
@@ -175,7 +190,7 @@ const MemberExerciseLibrary = ({ goBack }) => {
     }
   }, []);
 
-  useEffect(() => { fetchPosts(); }, [fetchPosts]);
+  useEffect(() => { fetchAll(); }, [fetchAll]);
 
   const filteredExercises = useMemo(
     () =>
@@ -206,8 +221,8 @@ const MemberExerciseLibrary = ({ goBack }) => {
 
         {/* Horizontal pill filter */}
         <div className="w-full overflow-x-auto no-scrollbar py-3 px-4 bg-white border-b border-zinc-100">
-          <div className="flex gap-2 w-max">
-            {BODY_PARTS.map((part) => (
+        <div className="flex gap-2 w-max">
+          {['전체', ...bodyPartOptions].map((part) => (
               <button
                 key={part}
                 type="button"
