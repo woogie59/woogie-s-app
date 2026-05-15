@@ -7,6 +7,24 @@ const EXERCISE_CATEGORIES = ['Exercise', 'Routine'];
 const ALL_CATEGORIES = ['All', 'Exercise', 'Routine'];
 const BODY_PARTS = ['가슴', '등', '하체', '어깨', '팔', '코어', '전신'];
 
+const MUSCLE_SLUGS = [
+  { slug: 'chest',      label: '가슴 (Chest)' },
+  { slug: 'abs',        label: '복근 (Abs)' },
+  { slug: 'obliques',   label: '옆구리 (Obliques)' },
+  { slug: 'biceps',     label: '이두 (Biceps)' },
+  { slug: 'triceps',    label: '삼두 (Triceps)' },
+  { slug: 'forearm',    label: '전완 (Forearm)' },
+  { slug: 'deltoids',   label: '어깨 (Deltoids)' },
+  { slug: 'trapezius',  label: '승모근 (Trapezius)' },
+  { slug: 'upper-back', label: '등 상부 (Upper Back)' },
+  { slug: 'lower-back', label: '등 하부 (Lower Back)' },
+  { slug: 'quadriceps', label: '대퇴사두 (Quadriceps)' },
+  { slug: 'hamstring',  label: '햄스트링 (Hamstring)' },
+  { slug: 'gluteal',    label: '둔근 (Glutes)' },
+  { slug: 'calves',     label: '종아리 (Calves)' },
+  { slug: 'adductors',  label: '내전근 (Adductors)' },
+];
+
 const CATEGORY_LABEL = { Exercise: '운동', Routine: '루틴' };
 
 const AdminExerciseLibrary = ({ goBack }) => {
@@ -15,7 +33,7 @@ const AdminExerciseLibrary = ({ goBack }) => {
   const [filter, setFilter] = useState('All');
   const [showModal, setShowModal] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [form, setForm] = useState({ title: '', content: '', category: 'Exercise', body_part: '', image_url: '', video_url: '' });
+  const [form, setForm] = useState({ title: '', content: '', category: 'Exercise', body_part: '', target_muscle: '', image_url: '', video_url: '' });
   const [selectedPost, setSelectedPost] = useState(null);
 
   const fetchPosts = useCallback(async () => {
@@ -42,7 +60,7 @@ const AdminExerciseLibrary = ({ goBack }) => {
 
   const filtered = filter === 'All' ? posts : posts.filter((p) => p.category === filter);
 
-  const resetForm = () => setForm({ title: '', content: '', category: 'Exercise', body_part: '', image_url: '', video_url: '' });
+  const resetForm = () => setForm({ title: '', content: '', category: 'Exercise', body_part: '', target_muscle: '', image_url: '', video_url: '' });
 
   const handleSave = async () => {
     if (!form.title.trim() || !form.content.trim()) {
@@ -56,6 +74,7 @@ const AdminExerciseLibrary = ({ goBack }) => {
         content: form.content.trim(),
         category: form.category,
         body_part: form.body_part || null,
+        target_muscle: form.target_muscle || null,
         image_url: form.image_url.trim() || null,
         video_url: form.video_url.trim() || null,
         created_at: new Date().toISOString(),
@@ -210,6 +229,16 @@ const AdminExerciseLibrary = ({ goBack }) => {
                 <option value="">부위 선택 (선택사항)</option>
                 {BODY_PARTS.map((p) => (
                   <option key={p} value={p}>{p}</option>
+                ))}
+              </select>
+              <select
+                className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-slate-900 outline-none"
+                value={form.target_muscle}
+                onChange={(e) => setForm({ ...form, target_muscle: e.target.value })}
+              >
+                <option value="">주 타겟 근육 (선택사항)</option>
+                {MUSCLE_SLUGS.map(({ slug, label }) => (
+                  <option key={slug} value={slug}>{label}</option>
                 ))}
               </select>
               <textarea
