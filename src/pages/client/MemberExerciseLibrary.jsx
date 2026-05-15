@@ -96,33 +96,30 @@ const ExerciseDetail = ({ post, onClose }) => {
 
       {/* Scrollable body */}
       <div className="flex-1 overflow-y-auto">
-        {/* Full-width video / image */}
+        {/* Full-width video — preserves intrinsic ratio, no cropping */}
         {post.video_url ? (
-          <div className="w-full bg-black aspect-video">
+          <div className="w-full bg-black mb-8">
             <video
               src={post.video_url}
               autoPlay loop muted playsInline
-              className="w-full h-full object-cover"
+              className="w-full h-auto object-contain"
             />
           </div>
         ) : post.image_url ? (
-          <img src={post.image_url} alt={post.title} className="w-full aspect-video object-cover bg-zinc-100" />
-        ) : (
-          <div className="w-full aspect-video bg-zinc-50 flex items-center justify-center">
-            <Dumbbell size={48} strokeWidth={0.75} className="text-zinc-200" />
+          <div className="w-full bg-zinc-100 mb-8">
+            <img src={post.image_url} alt={post.title} className="w-full h-auto object-contain" />
           </div>
-        )}
+        ) : null}
 
         {/* Content */}
-        <div className="p-6 flex flex-col">
-          <h1 className="text-2xl font-black text-zinc-900 mb-2 leading-tight">{post.title}</h1>
-          <p className="text-base text-zinc-600 leading-relaxed mb-8 whitespace-pre-wrap">{post.content}</p>
+        <div className="px-6 py-8 flex flex-col">
+          <h1 className="text-3xl font-black text-zinc-900 mb-3 leading-tight">{post.title}</h1>
+          <p className="text-sm text-zinc-600 leading-relaxed mb-10 whitespace-pre-wrap">{post.content}</p>
 
           {/* Enlarged anatomy display */}
           {primarySlug ? (
             <div className="flex flex-col items-center justify-center p-6 bg-zinc-50 rounded-2xl border border-zinc-100">
-              <p className="text-xs font-bold text-emerald-600 tracking-widest mb-4 uppercase">Target Muscle</p>
-              {/* Container sized to body's natural aspect ratio at scale=0.9 */}
+              <p className="text-[10px] font-bold text-emerald-600 tracking-[0.2em] mb-4 uppercase">Target Muscle</p>
               <div className="w-48 h-[300px] flex items-start justify-center overflow-hidden">
                 <Body
                   data={muscleData}
@@ -144,6 +141,9 @@ const ExerciseDetail = ({ post, onClose }) => {
               <p className="text-sm text-zinc-400">타겟 근육 정보 없음</p>
             </div>
           )}
+
+          {/* Bottom safe area */}
+          <div className="h-12" />
         </div>
       </div>
     </div>
