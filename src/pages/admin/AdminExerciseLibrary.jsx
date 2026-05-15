@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { ArrowLeft, Plus, Dumbbell, Play, PlayCircle, X } from 'lucide-react';
+import { ArrowLeft, Plus, Dumbbell, Play, PlayCircle, X, Pencil } from 'lucide-react';
 import { supabase } from '../../lib/supabaseClient';
 import toast from 'react-hot-toast';
 
@@ -32,6 +32,7 @@ const AdminExerciseLibrary = ({ goBack }) => {
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('All');
   const [showModal, setShowModal] = useState(false);
+  const [editingPost, setEditingPost] = useState(null);
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState({ title: '', content: '', category: 'Exercise', body_part: '', target_muscle: '', image_url: '', video_url: '' });
   const [selectedPost, setSelectedPost] = useState(null);
@@ -61,6 +62,54 @@ const AdminExerciseLibrary = ({ goBack }) => {
   const filtered = filter === 'All' ? posts : posts.filter((p) => p.category === filter);
 
   const resetForm = () => setForm({ title: '', content: '', category: 'Exercise', body_part: '', target_muscle: '', image_url: '', video_url: '' });
+
+  const openEdit = (post) => {
+    setForm({
+      title: post.title || '',
+      content: post.content || '',
+      category: post.category || 'Exercise',
+      body_part: post.body_part || '',
+      target_muscle: post.target_muscle || '',
+      image_url: post.image_url || '',
+      video_url: post.video_url || '',
+    });
+    setEditingPost(post);
+  };
+
+  const closeEdit = () => {
+    setEditingPost(null);
+    resetForm();
+  };
+
+  const handleUpdate = async () => {
+    if (!form.title.trim() || !form.content.trim()) {
+      toast.error('제목과 내용을 입력해 주세요.');
+      return;
+    }
+    setSaving(true);
+    try {
+      const payload = {
+        title: form.title.trim(),
+        content: form.content.trim(),
+        category: form.category,
+        body_part: form.body_part || null,
+        target_muscle: form.target_muscle || null,
+        image_url: form.image_url.trim() || null,
+        video_url: form.video_url.trim() || null,
+      };
+      const { error } = await supabase.from('posts').update(payload).eq('id', editingPost.id);
+      if (error) throw error;
+      // Update local state immediately — no refetch needed
+      setPosts((prev) => prev.map((p) => p.id === editingPost.id ? { ...p, ...payload } : p));
+      toast.success('수정 완료.');
+      closeEdit();
+    } catch (e) {
+      console.error('[AdminExerciseLibrary] update:', e);
+      toast.error('수정 실패: ' + (e.message || String(e)));
+    } finally {
+      setSaving(false);
+    }
+  };
 
   const handleSave = async () => {
     if (!form.title.trim() || !form.content.trim()) {
@@ -158,17 +207,20 @@ const AdminExerciseLibrary = ({ goBack }) => {
         ) : (
           <div className="grid grid-cols-1 gap-4">
             {filtered.map((post) => (
-              <button
+              <div
                 key={post.id}
-                type="button"
-                onClick={() => setSelectedPost(post)}
-                className="w-full bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden text-left transition hover:border-emerald-500/30 active:scale-[0.99]"
+                className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden transition hover:border-emerald-500/30"
               >
                 {post.image_url && !post.video_url && (
                   <img src={post.image_url} alt={post.title} className="w-full h-36 object-cover" />
                 )}
                 <div className="px-4 py-3 flex items-start justify-between gap-3">
-                  <div className="min-w-0 flex-1">
+                  {/* Clickable text area → detail modal */}
+                  <button
+                    type="button"
+                    onClick={() => setSelectedPost(post)}
+                    className="min-w-0 flex-1 text-left"
+                  >
                     <div className="flex items-center gap-2 mb-1">
                       <span className="text-[10px] font-semibold uppercase tracking-widest text-emerald-700">
                         {CATEGORY_LABEL[post.category] ?? post.category}
@@ -187,10 +239,22 @@ const AdminExerciseLibrary = ({ goBack }) => {
                     </div>
                     <h3 className="text-sm font-semibold text-slate-900 line-clamp-1">{post.title}</h3>
                     <p className="mt-0.5 text-xs text-gray-500 line-clamp-2 leading-relaxed">{post.content}</p>
+                  </button>
+
+                  {/* Action buttons */}
+                  <div className="flex items-center gap-1 shrink-0 mt-0.5">
+                    <button
+                      type="button"
+                      onClick={() => openEdit(post)}
+                      className="rounded-lg p-1.5 text-gray-400 hover:bg-emerald-50 hover:text-emerald-600 transition-colors"
+                      aria-label="수정"
+                    >
+                      <Pencil size={14} strokeWidth={1.5} />
+                    </button>
+                    <Play size={14} strokeWidth={1.5} className="text-gray-200 ml-1" />
                   </div>
-                  <Play size={16} strokeWidth={1.5} className="shrink-0 mt-1 text-gray-300" />
                 </div>
-              </button>
+              </div>
             ))}
           </div>
         )}
@@ -290,6 +354,109 @@ const AdminExerciseLibrary = ({ goBack }) => {
                 className="rounded-xl bg-[#064e3b] px-5 py-2 text-sm font-semibold text-white hover:bg-emerald-700 transition disabled:opacity-50"
               >
                 {saving ? '저장 중…' : '저장'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Modal */}
+      {editingPost && (
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+          <div className="w-full max-w-lg bg-white rounded-2xl shadow-2xl overflow-hidden">
+            <div className="flex items-center justify-between px-5 pt-5 pb-3 border-b border-gray-100">
+              <div>
+                <h2 className="text-base font-semibold text-slate-900">운동 수정</h2>
+                <p className="text-[10px] text-gray-400 mt-0.5 line-clamp-1">{editingPost.title}</p>
+              </div>
+              <button type="button" onClick={closeEdit} className="rounded-lg p-1 hover:bg-gray-100">
+                <X size={18} className="text-gray-500" />
+              </button>
+            </div>
+            <div className="px-5 py-4 space-y-3 max-h-[70vh] overflow-y-auto">
+              <input
+                className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-slate-900 outline-none focus:border-emerald-500 transition"
+                placeholder="제목"
+                value={form.title}
+                onChange={(e) => setForm({ ...form, title: e.target.value })}
+              />
+              <select
+                className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-slate-900 outline-none"
+                value={form.category}
+                onChange={(e) => setForm({ ...form, category: e.target.value })}
+              >
+                <option value="Exercise">운동 (Exercise)</option>
+                <option value="Routine">루틴 (Routine)</option>
+              </select>
+              <select
+                className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-slate-900 outline-none"
+                value={form.body_part}
+                onChange={(e) => setForm({ ...form, body_part: e.target.value })}
+              >
+                <option value="">부위 선택 (선택사항)</option>
+                {BODY_PARTS.map((p) => (
+                  <option key={p} value={p}>{p}</option>
+                ))}
+              </select>
+              <select
+                className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-slate-900 outline-none"
+                value={form.target_muscle}
+                onChange={(e) => setForm({ ...form, target_muscle: e.target.value })}
+              >
+                <option value="">주 타겟 근육 (선택사항)</option>
+                {MUSCLE_SLUGS.map(({ slug, label }) => (
+                  <option key={slug} value={slug}>{label}</option>
+                ))}
+              </select>
+              <textarea
+                className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-slate-900 outline-none focus:border-emerald-500 transition resize-none h-28"
+                placeholder="내용 / 설명"
+                value={form.content}
+                onChange={(e) => setForm({ ...form, content: e.target.value })}
+              />
+              <input
+                className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-slate-900 outline-none focus:border-emerald-500 transition"
+                placeholder="이미지 URL (선택사항)"
+                value={form.image_url}
+                onChange={(e) => setForm({ ...form, image_url: e.target.value })}
+              />
+              <div>
+                <input
+                  className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-slate-900 outline-none focus:border-emerald-500 transition"
+                  placeholder="동영상 URL (선택사항)"
+                  value={form.video_url}
+                  onChange={(e) => setForm({ ...form, video_url: e.target.value })}
+                />
+                <p className="mt-1 text-[11px] text-gray-400">짧은 길이의 MP4 직접 링크를 권장합니다. (소리 없이 자동 반복됩니다)</p>
+                {form.video_url.trim() && (
+                  <div className="mt-3 rounded-xl overflow-hidden border border-gray-200 bg-black max-w-sm">
+                    <video
+                      src={form.video_url.trim()}
+                      autoPlay
+                      loop
+                      muted
+                      playsInline
+                      className="w-full h-auto object-cover opacity-90"
+                    />
+                  </div>
+                )}
+              </div>
+            </div>
+            <div className="px-5 py-4 flex justify-end gap-2 border-t border-gray-100">
+              <button
+                type="button"
+                onClick={closeEdit}
+                className="rounded-xl border border-gray-200 px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 transition"
+              >
+                취소
+              </button>
+              <button
+                type="button"
+                onClick={handleUpdate}
+                disabled={saving}
+                className="rounded-xl bg-[#064e3b] px-5 py-2 text-sm font-semibold text-white hover:bg-emerald-700 transition disabled:opacity-50"
+              >
+                {saving ? '저장 중…' : '수정 완료'}
               </button>
             </div>
           </div>
