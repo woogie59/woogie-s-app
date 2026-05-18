@@ -28,10 +28,12 @@ const MUSCLE_ID_TO_SLUG = {
   erector_spinae: 'lower-back', lower_back: 'lower-back',
   front_delts: 'deltoids', side_delts: 'deltoids', rear_delts: 'deltoids',
   biceps: 'biceps', triceps: 'triceps', forearm: 'forearm',
-  abs: 'abs', obliques: 'obliques',
+  abs: 'abs', obliques: 'obliques', serratus: 'obliques',
   quads: 'quadriceps', quads_vastus: 'quadriceps', quads_rectus: 'quadriceps',
+  tfl: 'quadriceps',
   hams: 'hamstring', hams_inner: 'hamstring', hams_outer: 'hamstring',
-  gluteal: 'gluteal', adductors: 'adductors', calves: 'calves', tibialis: 'tibialis',
+  gluteal: 'gluteal', gluteus_medius: 'gluteal',
+  adductors: 'adductors', calves: 'calves', fibularis: 'calves', tibialis: 'tibialis',
 };
 
 // Micro-segment ID → Korean label
@@ -42,10 +44,12 @@ const MUSCLE_ID_LABEL = {
   erector_spinae: '척추기립근', lower_back: '요방형근',
   front_delts: '전면 삼각근', side_delts: '측면 삼각근', rear_delts: '후면 삼각근',
   biceps: '이두근', triceps: '삼두근', forearm: '전완근',
-  abs: '복직근', obliques: '외복사근',
+  abs: '복직근', obliques: '외복사근', serratus: '전거근',
   quads: '대퇴사두', quads_vastus: 'Vastus Lateralis', quads_rectus: '대퇴직근',
+  tfl: 'TFL',
   hams: '햄스트링', hams_inner: '햄스트링 내측', hams_outer: '햄스트링 외측',
-  gluteal: '둔근', adductors: '내전근', calves: '종아리', tibialis: '전경골근',
+  gluteal: '둔근', gluteus_medius: '중둔근',
+  adductors: '내전근', calves: '종아리', fibularis: '비골근', tibialis: '전경골근',
   // library slugs (legacy)
   'upper-back': '등 상부', 'lower-back': '등 하부', trapezius: '승모근',
   deltoids: '어깨', quadriceps: '대퇴사두', hamstring: '햄스트링',
@@ -123,8 +127,6 @@ const ExerciseDetail = ({ post, onClose }) => {
     [muscles]
   );
 
-  const activeSlugsForSide = useMemo(() => muscles.map(toLibrarySlug), [muscles]);
-
   const viewLabel = (v) => v === 'front' ? '전면' : v === 'back' ? '후면' : '측면';
 
   return (
@@ -169,40 +171,43 @@ const ExerciseDetail = ({ post, onClose }) => {
 
           {/* ── Anatomy display ── */}
           {muscles.length > 0 ? (
-            <div className="flex flex-col items-center p-6 bg-[#F8F9FA] rounded-2xl border border-zinc-100">
-              <p className="text-[10px] font-bold text-emerald-600 tracking-[0.22em] mb-4 uppercase">
-                Target Muscle Map
-              </p>
-
-              {/* View switcher (only shown when multiple views) */}
-              {views.length > 1 && (
-                <div className="flex gap-1 mb-5 w-full max-w-xs">
-                  {views.map((v) => (
-                    <button
-                      key={v}
-                      type="button"
-                      onClick={() => setActiveView(v)}
-                      className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition-all ${
-                        activeView === v
-                          ? 'bg-[#064e3b] text-white shadow-sm'
-                          : 'bg-white border border-zinc-200 text-zinc-500 hover:border-emerald-400'
-                      }`}
-                    >
-                      {viewLabel(v)}
-                    </button>
-                  ))}
+            <div className="flex flex-col items-center rounded-2xl border border-zinc-100 shadow-sm overflow-hidden bg-white">
+              {/* Panel header — clinical chart style */}
+              <div className="w-full flex items-center justify-between px-5 py-3 border-b border-zinc-100 bg-[#F8F9FA]">
+                <div>
+                  <p className="text-[9px] font-bold text-zinc-400 uppercase tracking-[0.22em]">Anatomy · Target Muscle</p>
+                  <p className="text-xs font-semibold text-zinc-700 mt-0.5">근육 분석 차트</p>
                 </div>
-              )}
+                {/* View switcher pills */}
+                {views.length > 1 && (
+                  <div className="flex gap-1">
+                    {views.map((v) => (
+                      <button
+                        key={v}
+                        type="button"
+                        onClick={() => setActiveView(v)}
+                        className={`px-3 py-1 text-[10px] font-bold uppercase tracking-wider rounded-lg transition-all ${
+                          activeView === v
+                            ? 'bg-[#064e3b] text-white shadow-sm'
+                            : 'bg-white border border-zinc-200 text-zinc-500'
+                        }`}
+                      >
+                        {viewLabel(v)}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
 
-              {/* Body visualization */}
-              <div className="flex items-start justify-center">
+              {/* Body visualization — centered, generous padding */}
+              <div className="w-full flex justify-center items-start py-6 bg-[#F8F9FA]">
                 {activeView !== 'side' ? (
-                  <div className="h-[300px] flex items-start justify-center overflow-hidden">
+                  <div className="flex items-start justify-center overflow-hidden">
                     <Body
                       data={bodyData}
                       side={activeView}
                       gender="male"
-                      scale={0.9}
+                      scale={0.95}
                       border="none"
                       defaultFill="#e5e7eb"
                       defaultStroke="#d1d5db"
@@ -212,38 +217,38 @@ const ExerciseDetail = ({ post, onClose }) => {
                   </div>
                 ) : (
                   <SideBodyView
-                    activeSlugs={activeSlugsForSide}
-                    scale={0.9}
+                    activeMuscleIds={muscles}
+                    scale={0.95}
                   />
                 )}
               </div>
 
-              {/* Muscle legend */}
-              <div className="mt-5 flex flex-wrap gap-2 justify-center">
-                {muscles.map((id, idx) => (
-                  <span
-                    key={id}
-                    className={`rounded-full px-3 py-1 text-xs font-bold flex items-center gap-1.5 ${
-                      idx === 0
-                        ? 'bg-emerald-600 text-white shadow-sm'
-                        : 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                    }`}
-                  >
-                    {idx === 0 && (
-                      <span className="text-[8px] opacity-80">주동근</span>
-                    )}
-                    {idx > 0 && (
-                      <span className="text-[8px] opacity-60">보조</span>
-                    )}
-                    {toLabel(id)}
-                  </span>
-                ))}
+              {/* Muscle legend — clinical tag style */}
+              <div className="w-full px-5 py-4 border-t border-zinc-100 bg-white">
+                <p className="text-[9px] font-bold text-zinc-400 uppercase tracking-[0.2em] mb-2.5">근육 분류</p>
+                <div className="flex flex-wrap gap-2">
+                  {muscles.map((id, idx) => (
+                    <span
+                      key={id}
+                      className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[11px] font-bold tracking-wide ${
+                        idx === 0
+                          ? 'bg-[#064e3b] text-white shadow-sm'
+                          : 'bg-emerald-50 text-emerald-800 border border-emerald-100'
+                      }`}
+                    >
+                      <span className={`text-[8px] font-black uppercase tracking-wider opacity-70 ${idx === 0 ? 'text-emerald-300' : 'text-emerald-500'}`}>
+                        {idx === 0 ? '주동' : '보조'}
+                      </span>
+                      {toLabel(id)}
+                    </span>
+                  ))}
+                </div>
               </div>
             </div>
           ) : (
-            <div className="flex flex-col items-center justify-center p-6 bg-zinc-50 rounded-2xl border border-zinc-100">
-              <Dumbbell size={36} strokeWidth={1} className="text-zinc-300 mb-3" />
-              <p className="text-sm text-zinc-400">타겟 근육 정보 없음</p>
+            <div className="flex flex-col items-center justify-center p-8 bg-zinc-50 rounded-2xl border border-zinc-100">
+              <Dumbbell size={32} strokeWidth={1} className="text-zinc-300 mb-3" />
+              <p className="text-xs text-zinc-400 uppercase tracking-widest">타겟 근육 정보 없음</p>
             </div>
           )}
 

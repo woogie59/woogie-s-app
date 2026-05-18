@@ -51,25 +51,29 @@ const MUSCLE_GROUPS = [
     ],
   },
   {
-    group: '코어',
+    group: '코어 / 측면',
     muscles: [
-      { id: 'abs',      slug: 'abs',      label: '복직근',   preferredView: 'front' },
-      { id: 'obliques', slug: 'obliques', label: '외복사근', preferredView: 'front' },
+      { id: 'abs',      slug: 'abs',      label: '복직근',               preferredView: 'front' },
+      { id: 'obliques', slug: 'obliques', label: '외복사근',             preferredView: 'front' },
+      { id: 'serratus', slug: 'obliques', label: '전거근 (Serratus)',     preferredView: 'side'  },
     ],
   },
   {
     group: '하체',
     muscles: [
-      { id: 'quads',         slug: 'quadriceps', label: '대퇴사두 전체',  preferredView: 'front' },
-      { id: 'quads_vastus',  slug: 'quadriceps', label: 'Vastus Lateralis', preferredView: 'front' },
-      { id: 'quads_rectus',  slug: 'quadriceps', label: '대퇴직근',       preferredView: 'front' },
-      { id: 'hams',          slug: 'hamstring',  label: '햄스트링 전체',  preferredView: 'back'  },
-      { id: 'hams_inner',    slug: 'hamstring',  label: '햄스트링 내측',  preferredView: 'back'  },
-      { id: 'hams_outer',    slug: 'hamstring',  label: '햄스트링 외측',  preferredView: 'back'  },
-      { id: 'gluteal',       slug: 'gluteal',    label: '둔근',           preferredView: 'back'  },
-      { id: 'adductors',     slug: 'adductors',  label: '내전근',         preferredView: 'front' },
-      { id: 'calves',        slug: 'calves',     label: '종아리',         preferredView: 'back'  },
-      { id: 'tibialis',      slug: 'tibialis',   label: '전경골근',       preferredView: 'front' },
+      { id: 'quads',          slug: 'quadriceps', label: '대퇴사두 전체',          preferredView: 'front' },
+      { id: 'quads_vastus',   slug: 'quadriceps', label: 'Vastus Lateralis',      preferredView: 'side'  },
+      { id: 'quads_rectus',   slug: 'quadriceps', label: '대퇴직근',              preferredView: 'front' },
+      { id: 'tfl',            slug: 'quadriceps', label: 'TFL (Tensor Fasciae)',  preferredView: 'side'  },
+      { id: 'hams',           slug: 'hamstring',  label: '햄스트링 전체',          preferredView: 'back'  },
+      { id: 'hams_inner',     slug: 'hamstring',  label: '햄스트링 내측',          preferredView: 'back'  },
+      { id: 'hams_outer',     slug: 'hamstring',  label: '햄스트링 외측',          preferredView: 'back'  },
+      { id: 'gluteal',        slug: 'gluteal',    label: '둔근 (대둔근)',           preferredView: 'back'  },
+      { id: 'gluteus_medius', slug: 'gluteal',    label: '중둔근 (Gluteus Medius)', preferredView: 'side'  },
+      { id: 'adductors',      slug: 'adductors',  label: '내전근',                 preferredView: 'front' },
+      { id: 'calves',         slug: 'calves',     label: '종아리 (Gastrocnemius)', preferredView: 'back'  },
+      { id: 'fibularis',      slug: 'calves',     label: '비골근 (Fibularis)',     preferredView: 'side'  },
+      { id: 'tibialis',       slug: 'tibialis',   label: '전경골근',               preferredView: 'front' },
     ],
   },
 ];
@@ -107,11 +111,6 @@ const MusclePickerPanel = ({ selectedMuscles, onChange }) => {
     [selectedMuscles]
   );
 
-  const activeSlugs = useMemo(
-    () => selectedMuscles.map(toLibrarySlug),
-    [selectedMuscles]
-  );
-
   const toggleMuscle = (id) => {
     if (selectedMuscles.includes(id)) {
       onChange(selectedMuscles.filter((m) => m !== id));
@@ -124,40 +123,36 @@ const MusclePickerPanel = ({ selectedMuscles, onChange }) => {
     if (part?.slug) toggleMuscle(part.slug);
   };
 
-  const handleSideRegionPress = (region) => {
-    if (region?.slugs?.[0]) toggleMuscle(region.slugs[0]);
-  };
-
   return (
-    <div className="rounded-xl bg-[#F8F9FA] border border-gray-200 overflow-hidden">
+    <div className="rounded-xl overflow-hidden border border-zinc-200 shadow-sm">
       {/* Header */}
-      <div className="flex items-center justify-between px-4 py-2.5 border-b border-gray-200 bg-white">
+      <div className="flex items-center justify-between px-4 py-2.5 border-b border-zinc-100 bg-white">
         <div>
-          <p className="text-[11px] font-bold text-gray-500 uppercase tracking-wider">주 타겟 근육</p>
-          <p className="text-[10px] text-gray-400 mt-0.5">인체 맵 클릭 또는 아래 칩 선택</p>
+          <p className="text-[10px] font-bold text-zinc-400 uppercase tracking-[0.18em]">Target Muscle</p>
+          <p className="text-xs font-semibold text-zinc-800 mt-0.5">인체 맵 클릭 또는 아래 칩으로 선택</p>
         </div>
         {selectedMuscles.length > 0 && (
           <button
             type="button"
             onClick={() => onChange([])}
-            className="text-[10px] text-gray-400 hover:text-red-500 transition-colors px-2 py-1 rounded-lg hover:bg-red-50"
+            className="text-[10px] text-zinc-400 hover:text-red-500 transition-colors px-2 py-1 rounded-lg hover:bg-red-50"
           >
-            전체 초기화
+            초기화
           </button>
         )}
       </div>
 
-      {/* View switcher tabs */}
-      <div className="flex gap-1 px-3 pt-3 pb-1">
+      {/* View switcher */}
+      <div className="flex gap-1 px-3 pt-3 pb-1 bg-[#F8F9FA]">
         {ANATOMY_VIEWS.map(({ val, label }) => (
           <button
             key={val}
             type="button"
             onClick={() => setPickerView(val)}
-            className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition-all ${
+            className={`flex-1 py-1.5 text-[11px] font-bold uppercase tracking-wider rounded-lg transition-all ${
               pickerView === val
                 ? 'bg-[#064e3b] text-white shadow-sm'
-                : 'bg-white border border-gray-200 text-gray-500 hover:border-emerald-400 hover:text-emerald-700'
+                : 'bg-white border border-zinc-200 text-zinc-500 hover:border-emerald-400'
             }`}
           >
             {label}
@@ -165,45 +160,47 @@ const MusclePickerPanel = ({ selectedMuscles, onChange }) => {
         ))}
       </div>
 
-      {/* Interactive body map */}
-      <div className="flex justify-center py-3 bg-white mx-3 rounded-xl border border-gray-100 my-2">
-        {pickerView !== 'side' ? (
-          <Body
-            data={bodyData}
-            side={pickerView}
-            gender="male"
-            scale={0.72}
-            border="none"
-            defaultFill="#e5e7eb"
-            defaultStroke="#d1d5db"
-            defaultStrokeWidth={0.5}
-            colors={['#16a34a', '#86efac']}
-            onBodyPartPress={handleBodyPress}
-          />
-        ) : (
-          <SideBodyView
-            activeSlugs={activeSlugs}
-            scale={0.72}
-            onRegionPress={handleSideRegionPress}
-          />
-        )}
+      {/* Interactive body map — clinical panel */}
+      <div className="flex justify-center py-4 bg-[#F8F9FA] border-b border-zinc-100">
+        <div className="rounded-2xl bg-white border border-zinc-100 shadow-inner p-2">
+          {pickerView !== 'side' ? (
+            <Body
+              data={bodyData}
+              side={pickerView}
+              gender="male"
+              scale={0.75}
+              border="none"
+              defaultFill="#e5e7eb"
+              defaultStroke="#d1d5db"
+              defaultStrokeWidth={0.5}
+              colors={['#16a34a', '#86efac']}
+              onBodyPartPress={handleBodyPress}
+            />
+          ) : (
+            <SideBodyView
+              activeMuscleIds={selectedMuscles}
+              scale={0.75}
+              onRegionPress={(region) => toggleMuscle(region.id)}
+            />
+          )}
+        </div>
       </div>
 
       {/* Selected muscle chips */}
       {selectedMuscles.length > 0 && (
-        <div className="px-3 pb-2 flex flex-wrap gap-1.5">
+        <div className="px-3 py-2.5 flex flex-wrap gap-1.5 bg-white border-b border-zinc-100">
           {selectedMuscles.map((id, idx) => (
             <button
               key={id}
               type="button"
               onClick={() => toggleMuscle(id)}
-              className={`flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-bold transition-all active:scale-95 ${
+              className={`flex items-center gap-1 rounded-full px-2.5 py-1 transition-all active:scale-95 ${
                 idx === 0
-                  ? 'bg-emerald-600 text-white shadow-sm'
-                  : 'bg-emerald-100 text-emerald-800 border border-emerald-200'
+                  ? 'bg-[#064e3b] text-white text-[10px] font-bold uppercase tracking-wider shadow-sm'
+                  : 'bg-emerald-50 text-emerald-800 border border-emerald-200 text-[10px] font-semibold'
               }`}
             >
-              {idx === 0 && <span className="text-[9px] opacity-70 mr-0.5">●</span>}
+              {idx === 0 && <span className="text-[7px] opacity-60 mr-0.5">◉ 주동</span>}
               {toLabel(id)}
               <X size={9} strokeWidth={2.5} />
             </button>
@@ -212,10 +209,10 @@ const MusclePickerPanel = ({ selectedMuscles, onChange }) => {
       )}
 
       {/* Muscle group chips */}
-      <div className="border-t border-gray-100 px-3 py-3 space-y-3 max-h-52 overflow-y-auto">
+      <div className="bg-white px-3 py-3 space-y-3 max-h-52 overflow-y-auto">
         {MUSCLE_GROUPS.map(({ group, muscles }) => (
           <div key={group}>
-            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1.5">{group}</p>
+            <p className="text-[9px] font-bold text-zinc-400 uppercase tracking-[0.2em] mb-1.5">{group}</p>
             <div className="flex flex-wrap gap-1.5">
               {muscles.map(({ id, label }) => {
                 const selected = selectedMuscles.includes(id);
@@ -224,10 +221,10 @@ const MusclePickerPanel = ({ selectedMuscles, onChange }) => {
                     key={id}
                     type="button"
                     onClick={() => toggleMuscle(id)}
-                    className={`rounded-full px-2.5 py-1 text-[11px] font-medium transition-all active:scale-95 ${
+                    className={`rounded-full px-2.5 py-1 text-[10px] font-medium transition-all active:scale-95 ${
                       selected
-                        ? 'bg-emerald-600 text-white shadow-sm'
-                        : 'bg-white border border-gray-200 text-gray-600 hover:border-emerald-400 hover:text-emerald-700'
+                        ? 'bg-[#064e3b] text-white shadow-sm'
+                        : 'bg-zinc-50 border border-zinc-200 text-zinc-600 hover:border-emerald-400 hover:text-emerald-700 hover:bg-emerald-50'
                     }`}
                   >
                     {label}
@@ -459,6 +456,23 @@ const AdminExerciseLibrary = ({ goBack }) => {
     };
   };
 
+  // Strip target_muscles from payload and retry when the DB column hasn't been
+  // migrated yet (PostgREST returns "could not find the 'target_muscles' column").
+  const saveWithFallback = async (operation) => {
+    const { error } = await operation(buildPayload());
+    if (!error) return null;
+    if (error.message?.toLowerCase().includes('target_muscles')) {
+      const { target_muscles, ...fallback } = buildPayload();
+      const { error: err2 } = await operation(fallback);
+      if (!err2) {
+        toast('target_muscles 컬럼이 없어 기본 저장했습니다. Supabase 대시보드에서 마이그레이션을 실행해 주세요.', { icon: '⚠️' });
+        return null;
+      }
+      return err2;
+    }
+    return error;
+  };
+
   const handleSave = async () => {
     if (!form.title.trim() || !form.content.trim()) {
       toast.error('제목과 내용을 입력해 주세요.');
@@ -466,10 +480,10 @@ const AdminExerciseLibrary = ({ goBack }) => {
     }
     setSaving(true);
     try {
-      const { error } = await supabase
-        .from('posts')
-        .insert([{ ...buildPayload(), created_at: new Date().toISOString() }]);
-      if (error) throw error;
+      const err = await saveWithFallback((payload) =>
+        supabase.from('posts').insert([{ ...payload, created_at: new Date().toISOString() }])
+      );
+      if (err) throw err;
       toast.success('저장되었습니다.');
       setShowModal(false);
       setForm(EMPTY_FORM);
@@ -511,10 +525,12 @@ const AdminExerciseLibrary = ({ goBack }) => {
     }
     setSaving(true);
     try {
-      const payload = buildPayload();
-      const { error } = await supabase.from('posts').update(payload).eq('id', editingPost.id);
-      if (error) throw error;
-      setPosts((prev) => prev.map((p) => (p.id === editingPost.id ? { ...p, ...payload } : p)));
+      const err = await saveWithFallback((payload) =>
+        supabase.from('posts').update(payload).eq('id', editingPost.id)
+      );
+      if (err) throw err;
+      const saved = buildPayload();
+      setPosts((prev) => prev.map((p) => (p.id === editingPost.id ? { ...p, ...saved } : p)));
       toast.success('수정 완료.');
       setEditingPost(null);
       setForm(EMPTY_FORM);
