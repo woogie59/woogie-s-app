@@ -102,7 +102,7 @@ const MUSCLE_GROUPS = [
     group: '팔',
     muscles: [
       { id: 'biceps',     slug: 'biceps',  label: '이두근',               preferredView: 'front' },
-      { id: 'brachialis', slug: 'biceps',  label: '상완근 (Brachialis)',  preferredView: 'front' },
+      { id: 'brachialis', slug: 'biceps',  label: '상완이두근',           preferredView: 'front' },
       { id: 'triceps',    slug: 'triceps', label: '삼두근',               preferredView: 'back'  },
       { id: 'forearm',    slug: 'forearm', label: '전완근',               preferredView: 'front' },
     ],
@@ -112,24 +112,24 @@ const MUSCLE_GROUPS = [
     muscles: [
       { id: 'abs',      slug: 'abs',      label: '복직근',               preferredView: 'front' },
       { id: 'obliques', slug: 'obliques', label: '외복사근',             preferredView: 'front' },
-      { id: 'serratus', slug: 'obliques', label: '전거근 (Serratus)',     preferredView: 'front' },
+      { id: 'serratus', slug: 'obliques', label: '전거근',                preferredView: 'front' },
     ],
   },
   {
     group: '하체',
     muscles: [
       { id: 'quads',          slug: 'quadriceps', label: '대퇴사두 전체',          preferredView: 'front' },
-      { id: 'quads_vastus',   slug: 'quadriceps', label: 'Vastus Lateralis',      preferredView: 'front' },
+      { id: 'quads_vastus',   slug: 'quadriceps', label: '대퇴외측광근',          preferredView: 'front' },
       { id: 'quads_rectus',   slug: 'quadriceps', label: '대퇴직근',              preferredView: 'front' },
-      { id: 'tfl',            slug: 'quadriceps', label: 'TFL (Tensor Fasciae)',  preferredView: 'front' },
-      { id: 'hams',           slug: 'hamstring',  label: '햄스트링 전체',          preferredView: 'back'  },
-      { id: 'hams_inner',     slug: 'hamstring',  label: '햄스트링 내측',          preferredView: 'back'  },
-      { id: 'hams_outer',     slug: 'hamstring',  label: '햄스트링 외측',          preferredView: 'back'  },
-      { id: 'gluteal',        slug: 'gluteal',    label: '둔근 (대둔근)',           preferredView: 'back'  },
-      { id: 'gluteus_medius', slug: 'gluteal',    label: '중둔근 (Gluteus Medius)', preferredView: 'back'  },
+      { id: 'tfl',            slug: 'quadriceps', label: '대퇴근막장근',          preferredView: 'front' },
+      { id: 'hams',           slug: 'hamstring',  label: '뒷허벅지근 전체',       preferredView: 'back'  },
+      { id: 'hams_inner',     slug: 'hamstring',  label: '뒷허벅지 내측',         preferredView: 'back'  },
+      { id: 'hams_outer',     slug: 'hamstring',  label: '뒷허벅지 외측',         preferredView: 'back'  },
+      { id: 'gluteal',        slug: 'gluteal',    label: '대둔근',                  preferredView: 'back'  },
+      { id: 'gluteus_medius', slug: 'gluteal',    label: '중둔근',                  preferredView: 'back'  },
       { id: 'adductors',      slug: 'adductors',  label: '내전근',                 preferredView: 'front' },
-      { id: 'calves',         slug: 'calves',     label: '종아리 (Gastrocnemius)', preferredView: 'back'  },
-      { id: 'fibularis',      slug: 'calves',     label: '비골근 (Fibularis)',     preferredView: 'back'  },
+      { id: 'calves',         slug: 'calves',     label: '복사두근(종아리)',        preferredView: 'back'  },
+      { id: 'fibularis',      slug: 'calves',     label: '비골근',                 preferredView: 'back'  },
       { id: 'tibialis',       slug: 'tibialis',   label: '전경골근',               preferredView: 'front' },
     ],
   },
@@ -143,8 +143,8 @@ const toLibrarySlug = (id) => MUSCLE_BY_ID[id]?.slug ?? id;
 const toLabel       = (id) => MUSCLE_BY_ID[id]?.label ?? id;
 
 const PLANE_VIEWS = [
-  { val: 'front', labelEn: 'FRONT', labelKo: '전면' },
-  { val: 'back',  labelEn: 'BACK',  labelKo: '후면' },
+  { val: 'front', label: '전면' },
+  { val: 'back',  label: '후면' },
 ];
 
 const EMPTY_FORM = {
@@ -195,8 +195,8 @@ const MusclePickerPanel = ({ selectedMuscles, onChange }) => {
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-2.5 border-b border-zinc-100 bg-white">
         <div>
-          <p className="text-[10px] font-bold text-zinc-400 uppercase tracking-[0.18em]">Target Muscle</p>
-          <p className="text-xs font-semibold text-zinc-800 mt-0.5">인체 맵 클릭 또는 아래 칩으로 선택</p>
+          <p className="text-[10px] font-bold text-zinc-400 uppercase tracking-[0.18em]">타깃 근육</p>
+          <p className="text-xs font-semibold text-zinc-800 mt-0.5">인체 도를 누르거나 아래에서 근육을 선택하세요</p>
         </div>
         {selectedMuscles.length > 0 && (
           <button
@@ -211,21 +211,18 @@ const MusclePickerPanel = ({ selectedMuscles, onChange }) => {
 
       {/* View switcher — front / back only (library SVGs) */}
       <div className="flex gap-1 px-3 pt-3 pb-1 bg-[#F8F9FA]">
-        {PLANE_VIEWS.map(({ val, labelEn, labelKo }) => (
+        {PLANE_VIEWS.map(({ val, label }) => (
           <button
             key={val}
             type="button"
             onClick={() => setPickerView(val)}
-            className={`flex-1 py-2 text-[11px] font-bold uppercase tracking-widest rounded-lg transition-all leading-tight ${
+            className={`flex-1 py-2.5 text-sm font-bold tracking-wide rounded-lg transition-all leading-tight ${
               pickerView === val
                 ? 'bg-[#064e3b] text-white shadow-sm'
-                : 'bg-white border border-zinc-200 text-zinc-500 hover:border-emerald-400'
+                : 'bg-white border border-zinc-200 text-zinc-600 hover:border-emerald-400'
             }`}
           >
-            <span className="block">{labelEn}</span>
-            <span className={`block text-[9px] font-semibold tracking-wide mt-0.5 ${pickerView === val ? 'text-emerald-200' : 'text-zinc-400'}`}>
-              {labelKo}
-            </span>
+            {label}
           </button>
         ))}
       </div>
@@ -258,7 +255,7 @@ const MusclePickerPanel = ({ selectedMuscles, onChange }) => {
               onClick={() => toggleMuscle(id)}
               className={`flex items-center gap-1 rounded-full px-2.5 py-1 transition-all active:scale-95 ${
                 idx === 0
-                  ? 'bg-red-700 text-white text-[10px] font-bold uppercase tracking-wider shadow-sm'
+                  ? 'bg-red-700 text-white text-[10px] font-bold tracking-wide shadow-sm'
                   : 'bg-emerald-50 text-emerald-800 border border-emerald-200 text-[10px] font-semibold'
               }`}
             >
@@ -274,7 +271,7 @@ const MusclePickerPanel = ({ selectedMuscles, onChange }) => {
       <div className="bg-white px-3 py-3 space-y-3 max-h-52 overflow-y-auto">
         {MUSCLE_GROUPS.map(({ group, muscles }) => (
           <div key={group}>
-            <p className="text-[9px] font-bold text-zinc-400 uppercase tracking-[0.2em] mb-1.5">{group}</p>
+            <p className="text-[9px] font-bold text-zinc-500 tracking-wide mb-1.5">{group}</p>
             <div className="flex flex-wrap gap-1.5">
               {muscles.map(({ id, label }) => {
                 const selected = selectedMuscles.includes(id);
@@ -324,8 +321,8 @@ const FormFields = ({ form, setForm, dynamicCategories }) => {
         value={form.category}
         onChange={(e) => setForm({ ...form, category: e.target.value })}
       >
-        <option value="Exercise">운동 (Exercise)</option>
-        <option value="Routine">루틴 (Routine)</option>
+        <option value="Exercise">운동</option>
+        <option value="Routine">루틴</option>
       </select>
 
       <select
@@ -347,11 +344,11 @@ const FormFields = ({ form, setForm, dynamicCategories }) => {
 
       {/* ── Active anatomy views for member detail ── */}
       <div className="rounded-xl bg-gray-50 border border-gray-200 px-4 py-3">
-        <p className="text-[11px] font-semibold text-gray-500 uppercase tracking-wider mb-2.5">
-          회원에게 표시할 해부학 뷰
+        <p className="text-[11px] font-semibold text-gray-600 mb-2.5">
+          회원 화면에 표시할 해부도
         </p>
         <div className="flex gap-5">
-          {PLANE_VIEWS.map(({ val, labelEn, labelKo }) => (
+          {PLANE_VIEWS.map(({ val, label }) => (
             <label key={val} className="flex items-center gap-2 cursor-pointer select-none">
               <input
                 type="checkbox"
@@ -359,11 +356,7 @@ const FormFields = ({ form, setForm, dynamicCategories }) => {
                 onChange={() => toggleView(val)}
                 className="w-4 h-4 rounded accent-emerald-600 cursor-pointer"
               />
-              <span className="text-sm text-slate-700 font-medium">
-                <span className="font-bold tracking-wider text-xs text-zinc-500">{labelEn}</span>
-                {' · '}
-                {labelKo}
-              </span>
+              <span className="text-sm text-slate-700 font-medium">{label}</span>
             </label>
           ))}
         </div>
@@ -377,18 +370,18 @@ const FormFields = ({ form, setForm, dynamicCategories }) => {
       />
       <input
         className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-slate-900 outline-none focus:border-emerald-500 transition"
-        placeholder="이미지 URL (선택사항)"
+        placeholder="이미지 주소 (선택)"
         value={form.image_url}
         onChange={(e) => setForm({ ...form, image_url: e.target.value })}
       />
       <div>
         <input
           className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-slate-900 outline-none focus:border-emerald-500 transition"
-          placeholder="동영상 URL (선택사항)"
+          placeholder="동영상 주소 (선택)"
           value={form.video_url}
           onChange={(e) => setForm({ ...form, video_url: e.target.value })}
         />
-        <p className="mt-1 text-[11px] text-gray-400">짧은 길이의 MP4 직접 링크를 권장합니다. (소리 없이 자동 반복됩니다)</p>
+        <p className="mt-1 text-[11px] text-gray-400">짧은 동영상의 직접 링크를 넣어 주세요. 재생 시 소리는 나지 않고 자동으로 반복됩니다.</p>
         {form.video_url.trim() && (
           <div className="mt-3 rounded-xl overflow-hidden border border-gray-200 bg-black max-w-sm">
             <video src={form.video_url.trim()} autoPlay loop muted playsInline className="w-full h-auto opacity-90" />
@@ -640,7 +633,7 @@ const AdminExerciseLibrary = ({ goBack }) => {
         </button>
         <div className="flex-1 min-w-0">
           <h1 className="text-base font-semibold text-slate-900 tracking-tight">운동 라이브러리</h1>
-          <p className="text-[10px] text-zinc-400 uppercase tracking-[0.15em]">Exercise Library</p>
+          <p className="text-[10px] text-zinc-400 mt-0.5 tracking-wide">운동·루틴 모음</p>
         </div>
         <button
           type="button"
@@ -682,7 +675,7 @@ const AdminExerciseLibrary = ({ goBack }) => {
       <main className="flex-1 px-5 pt-3 pb-24">
         {loading ? (
           <div className="flex justify-center pt-16">
-            <p className="text-sm text-zinc-400 tracking-wide">Loading…</p>
+            <p className="text-sm text-zinc-400 tracking-wide">불러오는 중…</p>
           </div>
         ) : filtered.length === 0 ? (
           <div className="flex flex-col items-center justify-center pt-16 gap-3 text-zinc-400">
@@ -713,7 +706,7 @@ const AdminExerciseLibrary = ({ goBack }) => {
                   <div className="px-4 py-3 flex items-start justify-between gap-3">
                     <button type="button" onClick={() => setSelectedPost(post)} className="min-w-0 flex-1 text-left">
                       <div className="flex flex-wrap items-center gap-1.5 mb-1">
-                        <span className="text-[10px] font-semibold uppercase tracking-widest text-emerald-700">
+                        <span className="text-[10px] font-semibold tracking-wide text-emerald-700">
                           {CATEGORY_LABEL[post.category] ?? post.category}
                         </span>
                         {post.body_part && (
@@ -727,7 +720,7 @@ const AdminExerciseLibrary = ({ goBack }) => {
                         ))}
                         {post.video_url && (
                           <span className="inline-flex items-center gap-1 rounded-full bg-zinc-100 px-2 py-0.5 text-[10px] font-medium text-zinc-500">
-                            <PlayCircle size={10} /> Video
+                            <PlayCircle size={10} /> 동영상
                           </span>
                         )}
                       </div>
@@ -953,7 +946,7 @@ const AdminExerciseLibrary = ({ goBack }) => {
                   <div className="mt-3 flex gap-2 flex-wrap">
                     {sanitizeActiveViews(selectedPost.active_views).map((v) => (
                       <span key={v} className="text-[10px] text-blue-600 bg-blue-50 border border-blue-100 rounded-full px-2 py-0.5">
-                        {viewLabel(v)} 뷰
+                        {viewLabel(v)} 표시
                       </span>
                     ))}
                   </div>

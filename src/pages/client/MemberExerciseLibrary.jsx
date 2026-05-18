@@ -49,21 +49,21 @@ const MUSCLE_ID_TO_SLUG = {
 
 // Micro-segment ID → Korean label
 const MUSCLE_ID_LABEL = {
-  chest: '가슴', chest_upper: '상부 가슴', chest_mid: '중부 가슴', chest_lower: '하부 가슴',
+  chest: '가슴 전체', chest_upper: '상부 가슴', chest_mid: '중부 가슴', chest_lower: '하부 가슴',
   lats: '광배근', rhomboids: '능형근',
   traps_upper: '승모근 상부', traps_mid: '승모근 중부', traps_lower: '승모근 하부',
   erector_spinae: '척추기립근', lower_back: '요방형근',
   front_delts: '전면 삼각근', side_delts: '측면 삼각근', rear_delts: '후면 삼각근',
-  biceps: '이두근', brachialis: '상완근', triceps: '삼두근', forearm: '전완근',
+  biceps: '이두근', brachialis: '상완이두근', triceps: '삼두근', forearm: '전완근',
   abs: '복직근', obliques: '외복사근', serratus: '전거근',
-  quads: '대퇴사두', quads_vastus: 'Vastus Lateralis', quads_rectus: '대퇴직근',
-  tfl: 'TFL',
-  hams: '햄스트링', hams_inner: '햄스트링 내측', hams_outer: '햄스트링 외측',
-  gluteal: '둔근', gluteus_medius: '중둔근',
-  adductors: '내전근', calves: '종아리', fibularis: '비골근', tibialis: '전경골근',
+  quads: '대퇴사두근', quads_vastus: '대퇴외측광근', quads_rectus: '대퇴직근',
+  tfl: '대퇴근막장근',
+  hams: '뒷허벅지근', hams_inner: '뒷허벅지 내측', hams_outer: '뒷허벅지 외측',
+  gluteal: '대둔근', gluteus_medius: '중둔근',
+  adductors: '내전근', calves: '복사두근(종아리)', fibularis: '비골근', tibialis: '전경골근',
   // library slugs (legacy)
   'upper-back': '등 상부', 'lower-back': '등 하부', trapezius: '승모근',
-  deltoids: '어깨', quadriceps: '대퇴사두', hamstring: '햄스트링',
+  deltoids: '어깨', quadriceps: '대퇴사두근', hamstring: '뒷허벅지근',
 };
 
 const toLibrarySlug = (id) => MUSCLE_ID_TO_SLUG[id] ?? id;
@@ -89,7 +89,7 @@ const preferredSide = (muscles, bodyPart) => {
 // ── Mini muscle map (list card) ───────────────────────────────────────────────
 // Supports multiple views side-by-side when activeViews has >1 entry.
 
-const VIEW_SHORT = { front: 'FRONT', back: 'BACK' };
+const VIEW_SHORT = { front: '전면', back: '후면' };
 
 const MiniMuscleMap = ({ muscles, bodyPart, activeViews }) => {
   const data = useMemo(
@@ -132,8 +132,8 @@ const MiniMuscleMap = ({ muscles, bodyPart, activeViews }) => {
             />
           </div>
           {isMulti && (
-            <span className="text-[6px] font-bold text-zinc-400 uppercase tracking-widest mt-0.5 shrink-0">
-              {VIEW_SHORT[v] ?? v.toUpperCase()}
+            <span className="text-[6px] font-bold text-zinc-500 tracking-wide mt-0.5 shrink-0">
+              {VIEW_SHORT[v]}
             </span>
           )}
         </div>
@@ -164,7 +164,7 @@ const ExerciseDetail = ({ post, onClose }) => {
     [muscles]
   );
 
-  const viewLabel = (v) => (v === 'front' ? 'FRONT · 전면' : 'BACK · 후면');
+  const viewLabel = (v) => (v === 'front' ? '전면' : '후면');
 
   return (
     <div className="fixed inset-0 z-[100] bg-white flex flex-col animate-in slide-in-from-bottom duration-200">
@@ -179,7 +179,7 @@ const ExerciseDetail = ({ post, onClose }) => {
         </button>
         <div className="flex items-center gap-2">
           <span className="text-sm font-bold text-zinc-900">
-            {CATEGORY_LABEL[post.category] ?? post.category}
+            {CATEGORY_LABEL[post.category] ?? (post.category === 'Exercise' ? '운동' : post.category === 'Routine' ? '루틴' : post.category)}
           </span>
           {post.body_part && (
             <span className="text-xs text-zinc-500 bg-zinc-100 px-2 py-0.5 rounded-full">
@@ -212,7 +212,7 @@ const ExerciseDetail = ({ post, onClose }) => {
               {/* Panel header */}
               <div className="w-full flex items-center justify-between px-5 py-3 border-b border-zinc-100 bg-[#F8F9FA]">
                 <div>
-                  <p className="text-[9px] font-bold text-zinc-400 uppercase tracking-[0.22em]">Anatomy · Target Muscle</p>
+                  <p className="text-[9px] font-bold text-zinc-400 tracking-widest">해부학 · 타깃 근육</p>
                   <p className="text-xs font-semibold text-zinc-700 mt-0.5">근육 분석 차트</p>
                 </div>
               </div>
@@ -222,7 +222,7 @@ const ExerciseDetail = ({ post, onClose }) => {
                   <div className="flex gap-5 items-start justify-center">
                     {views.map((v) => (
                       <div key={v} className="flex flex-col items-center gap-1.5">
-                        <span className="text-xs font-bold text-zinc-500 uppercase tracking-widest">
+                        <span className="text-xs font-bold text-zinc-600 tracking-wide">
                           {viewLabel(v)}
                         </span>
                         <Body
@@ -241,7 +241,7 @@ const ExerciseDetail = ({ post, onClose }) => {
                   </div>
                 ) : (
                   <div className="flex flex-col items-center gap-2">
-                    <span className="text-xs font-bold text-zinc-500 uppercase tracking-widest">{viewLabel(views[0])}</span>
+                    <span className="text-xs font-bold text-zinc-600 tracking-wide">{viewLabel(views[0])}</span>
                     <Body
                       data={bodyData}
                       side={views[0]}
@@ -258,7 +258,7 @@ const ExerciseDetail = ({ post, onClose }) => {
               </div>
 
               <div className="w-full px-5 py-4 border-t border-zinc-100 bg-white">
-                <p className="text-[9px] font-bold text-zinc-400 uppercase tracking-[0.2em] mb-2.5">근육 분류</p>
+                <p className="text-[9px] font-bold text-zinc-400 tracking-wide mb-2.5">근육 구분</p>
                 <div className="flex flex-wrap gap-2">
                   {muscles.map((id, idx) => (
                     <span
@@ -269,7 +269,7 @@ const ExerciseDetail = ({ post, onClose }) => {
                           : 'bg-emerald-50 text-emerald-800 border border-emerald-100'
                       }`}
                     >
-                      <span className={`text-[8px] font-black uppercase tracking-wider opacity-70 ${idx === 0 ? 'text-red-200' : 'text-emerald-500'}`}>
+                      <span className={`text-[8px] font-bold tracking-wide opacity-80 ${idx === 0 ? 'text-red-200' : 'text-emerald-600'}`}>
                         {idx === 0 ? '주동' : '보조'}
                       </span>
                       {toLabel(id)}
@@ -281,7 +281,7 @@ const ExerciseDetail = ({ post, onClose }) => {
           ) : (
             <div className="flex flex-col items-center justify-center p-8 bg-zinc-50 rounded-2xl border border-zinc-100">
               <Dumbbell size={32} strokeWidth={1} className="text-zinc-300 mb-3" />
-              <p className="text-xs text-zinc-400 uppercase tracking-widest">타겟 근육 정보 없음</p>
+              <p className="text-xs text-zinc-400 tracking-wide">표시할 타깃 근육이 없습니다</p>
             </div>
           )}
 
@@ -339,7 +339,7 @@ const MemberExerciseLibrary = ({ goBack }) => {
           </button>
           <div className="flex-1">
             <h1 className="text-base font-semibold tracking-tight text-slate-900">운동 라이브러리</h1>
-            <p className="text-[10px] text-zinc-400 uppercase tracking-[0.15em]">Exercise Library</p>
+            <p className="text-[10px] text-zinc-400 tracking-wide">운동·루틴 모음</p>
           </div>
         </header>
 
@@ -367,7 +367,7 @@ const MemberExerciseLibrary = ({ goBack }) => {
         <main className="flex-1 px-4 pt-4 pb-24">
           {loading ? (
             <div className="flex justify-center pt-16">
-              <p className="text-sm text-zinc-400 tracking-wide">Loading…</p>
+              <p className="text-sm text-zinc-400 tracking-wide">불러오는 중…</p>
             </div>
           ) : filteredExercises.length === 0 ? (
             <div className="flex flex-col items-center justify-center pt-16 gap-3 text-zinc-400">
