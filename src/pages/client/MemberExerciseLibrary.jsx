@@ -27,7 +27,7 @@ const MUSCLE_ID_TO_SLUG = {
   traps_upper: 'trapezius', traps_mid: 'trapezius', traps_lower: 'trapezius',
   erector_spinae: 'lower-back', lower_back: 'lower-back',
   front_delts: 'deltoids', side_delts: 'deltoids', rear_delts: 'deltoids',
-  biceps: 'biceps', triceps: 'triceps', forearm: 'forearm',
+  biceps: 'biceps', brachialis: 'biceps', triceps: 'triceps', forearm: 'forearm',
   abs: 'abs', obliques: 'obliques', serratus: 'obliques',
   quads: 'quadriceps', quads_vastus: 'quadriceps', quads_rectus: 'quadriceps',
   tfl: 'quadriceps',
@@ -43,7 +43,7 @@ const MUSCLE_ID_LABEL = {
   traps_upper: '승모근 상부', traps_mid: '승모근 중부', traps_lower: '승모근 하부',
   erector_spinae: '척추기립근', lower_back: '요방형근',
   front_delts: '전면 삼각근', side_delts: '측면 삼각근', rear_delts: '후면 삼각근',
-  biceps: '이두근', triceps: '삼두근', forearm: '전완근',
+  biceps: '이두근', brachialis: '상완근', triceps: '삼두근', forearm: '전완근',
   abs: '복직근', obliques: '외복사근', serratus: '전거근',
   quads: '대퇴사두', quads_vastus: 'Vastus Lateralis', quads_rectus: '대퇴직근',
   tfl: 'TFL',
@@ -76,9 +76,11 @@ const preferredSide = (muscles, bodyPart) => {
 };
 
 // ── Mini muscle map (list card) ───────────────────────────────────────────────
+// Supports multiple views side-by-side when activeViews has >1 entry.
 
-const MiniMuscleMap = ({ muscles, bodyPart, scale = 0.3 }) => {
-  const side = preferredSide(muscles, bodyPart);
+const VIEW_SHORT = { front: 'FRT', back: 'BCK', side: 'LAT' };
+
+const MiniMuscleMap = ({ muscles, bodyPart, activeViews }) => {
   const data = useMemo(
     () => muscles.slice(0, 3).map((id, idx) => ({
       slug: toLibrarySlug(id),
@@ -87,6 +89,12 @@ const MiniMuscleMap = ({ muscles, bodyPart, scale = 0.3 }) => {
     [muscles]
   );
 
+  // Determine which views to render (max 2, prefer front/back over side for compact cards)
+  const views = useMemo(() => {
+    if (activeViews?.length > 0) return activeViews.slice(0, 2);
+    return [preferredSide(muscles, bodyPart)];
+  }, [activeViews, muscles, bodyPart]);
+
   if (muscles.length === 0) {
     return (
       <div className="w-full h-full flex items-center justify-center">
@@ -94,17 +102,42 @@ const MiniMuscleMap = ({ muscles, bodyPart, scale = 0.3 }) => {
       </div>
     );
   }
+
+  const isMulti = views.length > 1;
+  // Side view is narrower (200×430), front/back are square-ish — normalise scale
+  const bodyScale  = isMulti ? 0.255 : 0.285;
+  const sideScale  = isMulti ? 0.225 : 0.26;
+
   return (
-    <div className="w-full h-full flex items-start justify-center overflow-hidden">
-      <Body
-        data={data}
-        side={side}
-        gender="male"
-        scale={scale}
-        border="none"
-        defaultFill="#e5e7eb"
-        colors={['#16a34a', '#86efac']}
-      />
+    <div className={`w-full h-full flex items-start ${isMulti ? 'flex-row gap-0.5 pt-1 px-1' : 'justify-center overflow-hidden'}`}>
+      {views.map((v) => (
+        <div key={v} className={`flex flex-col items-center ${isMulti ? 'flex-1 overflow-hidden' : 'w-full h-full'}`}>
+          <div className="flex items-start justify-center w-full overflow-hidden">
+            {v !== 'side' ? (
+              <Body
+                data={data}
+                side={v}
+                gender="male"
+                scale={bodyScale}
+                border="none"
+                defaultFill="#e5e7eb"
+                colors={['#16a34a', '#86efac']}
+              />
+            ) : (
+              <SideBodyView
+                activeMuscleIds={muscles}
+                scale={sideScale}
+                defaultFill="#e5e7eb"
+              />
+            )}
+          </div>
+          {isMulti && (
+            <span className="text-[6px] font-bold text-zinc-400 uppercase tracking-widest mt-0.5 shrink-0">
+              {VIEW_SHORT[v] ?? v.toUpperCase()}
+            </span>
+          )}
+        </div>
+      ))}
     </div>
   );
 };
@@ -172,14 +205,14 @@ const ExerciseDetail = ({ post, onClose }) => {
           {/* ── Anatomy display ── */}
           {muscles.length > 0 ? (
             <div className="flex flex-col items-center rounded-2xl border border-zinc-100 shadow-sm overflow-hidden bg-white">
-              {/* Panel header — clinical chart style */}
+              {/* Panel header */}
               <div className="w-full flex items-center justify-between px-5 py-3 border-b border-zinc-100 bg-[#F8F9FA]">
                 <div>
                   <p className="text-[9px] font-bold text-zinc-400 uppercase tracking-[0.22em]">Anatomy · Target Muscle</p>
                   <p className="text-xs font-semibold text-zinc-700 mt-0.5">근육 분석 차트</p>
                 </div>
-                {/* View switcher pills */}
-                {views.length > 1 && (
+                {/* Tab switcher only shown for 3+ views */}
+                {views.length >= 3 && (
                   <div className="flex gap-1">
                     {views.map((v) => (
                       <button
@@ -199,31 +232,78 @@ const ExerciseDetail = ({ post, onClose }) => {
                 )}
               </div>
 
-              {/* Body visualization — centered, generous padding */}
+              {/* Body visualization */}
               <div className="w-full flex justify-center items-start py-6 bg-[#F8F9FA]">
-                {activeView !== 'side' ? (
-                  <div className="flex items-start justify-center overflow-hidden">
-                    <Body
-                      data={bodyData}
-                      side={activeView}
-                      gender="male"
-                      scale={0.95}
-                      border="none"
-                      defaultFill="#e5e7eb"
-                      defaultStroke="#d1d5db"
-                      defaultStrokeWidth={0.5}
-                      colors={['#16a34a', '#86efac']}
-                    />
+                {views.length === 2 ? (
+                  /* ── Dual view — side by side ── */
+                  <div className="flex gap-5 items-start justify-center">
+                    {views.map((v) => (
+                      <div key={v} className="flex flex-col items-center gap-1.5">
+                        <span className="text-[8px] font-bold text-zinc-400 uppercase tracking-[0.2em]">
+                          {viewLabel(v)}
+                        </span>
+                        {v !== 'side' ? (
+                          <Body
+                            data={bodyData}
+                            side={v}
+                            gender="male"
+                            scale={0.58}
+                            border="none"
+                            defaultFill="#e5e7eb"
+                            defaultStroke="#d1d5db"
+                            defaultStrokeWidth={0.5}
+                            colors={['#16a34a', '#86efac']}
+                          />
+                        ) : (
+                          <SideBodyView activeMuscleIds={muscles} scale={0.56} />
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                ) : views.length >= 3 ? (
+                  /* ── 3+ views — single tab panel ── */
+                  <div className="flex flex-col items-center gap-2">
+                    <span className="text-[8px] font-bold text-zinc-400 uppercase tracking-[0.2em]">{viewLabel(activeView)}</span>
+                    {activeView !== 'side' ? (
+                      <Body
+                        data={bodyData}
+                        side={activeView}
+                        gender="male"
+                        scale={0.88}
+                        border="none"
+                        defaultFill="#e5e7eb"
+                        defaultStroke="#d1d5db"
+                        defaultStrokeWidth={0.5}
+                        colors={['#16a34a', '#86efac']}
+                      />
+                    ) : (
+                      <SideBodyView activeMuscleIds={muscles} scale={0.86} />
+                    )}
                   </div>
                 ) : (
-                  <SideBodyView
-                    activeMuscleIds={muscles}
-                    scale={0.95}
-                  />
+                  /* ── Single view ── */
+                  <div className="flex flex-col items-center gap-2">
+                    <span className="text-[8px] font-bold text-zinc-400 uppercase tracking-[0.2em]">{viewLabel(views[0])}</span>
+                    {views[0] !== 'side' ? (
+                      <Body
+                        data={bodyData}
+                        side={views[0]}
+                        gender="male"
+                        scale={0.95}
+                        border="none"
+                        defaultFill="#e5e7eb"
+                        defaultStroke="#d1d5db"
+                        defaultStrokeWidth={0.5}
+                        colors={['#16a34a', '#86efac']}
+                      />
+                    ) : (
+                      <SideBodyView activeMuscleIds={muscles} scale={0.92} />
+                    )}
+                  </div>
                 )}
               </div>
 
-              {/* Muscle legend — clinical tag style */}
+              {/* Muscle legend — clinical tags */}
               <div className="w-full px-5 py-4 border-t border-zinc-100 bg-white">
                 <p className="text-[9px] font-bold text-zinc-400 uppercase tracking-[0.2em] mb-2.5">근육 분류</p>
                 <div className="flex flex-wrap gap-2">
@@ -411,10 +491,25 @@ const MemberExerciseLibrary = ({ goBack }) => {
                         <span className="text-xs text-zinc-500 truncate mt-1">{post.content}</span>
                       </div>
 
-                      {/* Mini muscle map */}
-                      <div className="w-[76px] h-[120px] rounded-md bg-[#F8F9FA] border border-zinc-100 flex-shrink-0 overflow-hidden">
-                        <MiniMuscleMap muscles={muscles} bodyPart={post.body_part} scale={0.3} />
-                      </div>
+                      {/* Mini muscle map — adaptive width for single or multi-view */}
+                      {(() => {
+                        const displayViews =
+                          Array.isArray(post.active_views) && post.active_views.length > 0
+                            ? post.active_views
+                            : null;
+                        const isMulti = displayViews && displayViews.length > 1;
+                        return (
+                          <div
+                            className={`${isMulti ? 'w-[112px]' : 'w-[62px]'} h-[108px] rounded-xl bg-[#F8F9FA] border border-zinc-100 flex-shrink-0 overflow-hidden transition-all`}
+                          >
+                            <MiniMuscleMap
+                              muscles={muscles}
+                              bodyPart={post.body_part}
+                              activeViews={displayViews}
+                            />
+                          </div>
+                        );
+                      })()}
                     </div>
                   </button>
                 );

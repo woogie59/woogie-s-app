@@ -45,9 +45,10 @@ const MUSCLE_GROUPS = [
   {
     group: '팔',
     muscles: [
-      { id: 'biceps',  slug: 'biceps',  label: '이두근', preferredView: 'front' },
-      { id: 'triceps', slug: 'triceps', label: '삼두근', preferredView: 'back'  },
-      { id: 'forearm', slug: 'forearm', label: '전완근', preferredView: 'front' },
+      { id: 'biceps',     slug: 'biceps',  label: '이두근',               preferredView: 'front' },
+      { id: 'brachialis', slug: 'biceps',  label: '상완근 (Brachialis)',  preferredView: 'side'  },
+      { id: 'triceps',    slug: 'triceps', label: '삼두근',               preferredView: 'back'  },
+      { id: 'forearm',    slug: 'forearm', label: '전완근',               preferredView: 'front' },
     ],
   },
   {
@@ -462,7 +463,7 @@ const AdminExerciseLibrary = ({ goBack }) => {
     const { error } = await operation(buildPayload());
     if (!error) return null;
     if (error.message?.toLowerCase().includes('target_muscles')) {
-      const { target_muscles, ...fallback } = buildPayload();
+      const { target_muscles: _tm, ...fallback } = buildPayload();
       const { error: err2 } = await operation(fallback);
       if (!err2) {
         toast('target_muscles 컬럼이 없어 기본 저장했습니다. Supabase 대시보드에서 마이그레이션을 실행해 주세요.', { icon: '⚠️' });
