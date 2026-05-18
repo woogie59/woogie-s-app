@@ -3,9 +3,65 @@ import { ArrowLeft, Plus, Dumbbell, PlayCircle, X, Pencil, Trash2, Tag } from 'l
 import Body from 'react-muscle-highlighter';
 import { supabase } from '../../lib/supabaseClient';
 import toast from 'react-hot-toast';
-import SideBodyView from '../../components/SideBodyView';
 
 // ── Constants ──────────────────────────────────────────────────────────────────
+
+/** White Lab: crimson = primary target, emerald = synergist */
+const HL_PRIMARY = '#dc2626';
+const HL_SECONDARY = '#16a34a';
+const HL_SECONDARY_LIGHT = '#86efac';
+const BODY_HIGHLIGHT_PALETTE = [HL_PRIMARY, HL_SECONDARY, HL_SECONDARY_LIGHT];
+
+/** Strip legacy `side` view; member detail only uses front/back SVGs from the library. */
+const sanitizeActiveViews = (views) => {
+  const allowed = new Set(['front', 'back']);
+  const out = (Array.isArray(views) ? views : [])
+    .filter((v) => allowed.has(v));
+  return out.length > 0 ? [...new Set(out)] : ['front'];
+};
+
+/**
+ * Map react-muscle-highlighter body tap (slug) + plane → micro-segment id.
+ * Front shoulder → lateral delt; back shoulder → rear delt; back glute → medius; etc.
+ */
+const BODY_PRESS_ID_BY_VIEW = {
+  front: {
+    deltoids: 'side_delts',
+    chest: 'chest',
+    biceps: 'biceps',
+    triceps: 'triceps',
+    forearm: 'forearm',
+    abs: 'abs',
+    obliques: 'obliques',
+    quadriceps: 'quads_vastus',
+    adductors: 'adductors',
+    tibialis: 'tibialis',
+    calves: 'calves',
+    gluteal: 'gluteal',
+    hamstring: 'hams',
+    'upper-back': 'lats',
+    trapezius: 'traps_mid',
+    'lower-back': 'erector_spinae',
+  },
+  back: {
+    deltoids: 'rear_delts',
+    'upper-back': 'lats',
+    trapezius: 'traps_mid',
+    'lower-back': 'erector_spinae',
+    triceps: 'triceps',
+    biceps: 'biceps',
+    forearm: 'forearm',
+    gluteal: 'gluteus_medius',
+    hamstring: 'hams',
+    calves: 'calves',
+    quadriceps: 'quads',
+    obliques: 'obliques',
+    abs: 'abs',
+    adductors: 'adductors',
+    tibialis: 'tibialis',
+    chest: 'chest',
+  },
+};
 
 const EXERCISE_CATEGORIES = ['Exercise', 'Routine'];
 const CATEGORY_LABEL = { Exercise: '운동', Routine: '루틴' };
@@ -46,34 +102,34 @@ const MUSCLE_GROUPS = [
     group: '팔',
     muscles: [
       { id: 'biceps',     slug: 'biceps',  label: '이두근',               preferredView: 'front' },
-      { id: 'brachialis', slug: 'biceps',  label: '상완근 (Brachialis)',  preferredView: 'side'  },
+      { id: 'brachialis', slug: 'biceps',  label: '상완근 (Brachialis)',  preferredView: 'front' },
       { id: 'triceps',    slug: 'triceps', label: '삼두근',               preferredView: 'back'  },
       { id: 'forearm',    slug: 'forearm', label: '전완근',               preferredView: 'front' },
     ],
   },
   {
-    group: '코어 / 측면',
+    group: '코어',
     muscles: [
       { id: 'abs',      slug: 'abs',      label: '복직근',               preferredView: 'front' },
       { id: 'obliques', slug: 'obliques', label: '외복사근',             preferredView: 'front' },
-      { id: 'serratus', slug: 'obliques', label: '전거근 (Serratus)',     preferredView: 'side'  },
+      { id: 'serratus', slug: 'obliques', label: '전거근 (Serratus)',     preferredView: 'front' },
     ],
   },
   {
     group: '하체',
     muscles: [
       { id: 'quads',          slug: 'quadriceps', label: '대퇴사두 전체',          preferredView: 'front' },
-      { id: 'quads_vastus',   slug: 'quadriceps', label: 'Vastus Lateralis',      preferredView: 'side'  },
+      { id: 'quads_vastus',   slug: 'quadriceps', label: 'Vastus Lateralis',      preferredView: 'front' },
       { id: 'quads_rectus',   slug: 'quadriceps', label: '대퇴직근',              preferredView: 'front' },
-      { id: 'tfl',            slug: 'quadriceps', label: 'TFL (Tensor Fasciae)',  preferredView: 'side'  },
+      { id: 'tfl',            slug: 'quadriceps', label: 'TFL (Tensor Fasciae)',  preferredView: 'front' },
       { id: 'hams',           slug: 'hamstring',  label: '햄스트링 전체',          preferredView: 'back'  },
       { id: 'hams_inner',     slug: 'hamstring',  label: '햄스트링 내측',          preferredView: 'back'  },
       { id: 'hams_outer',     slug: 'hamstring',  label: '햄스트링 외측',          preferredView: 'back'  },
       { id: 'gluteal',        slug: 'gluteal',    label: '둔근 (대둔근)',           preferredView: 'back'  },
-      { id: 'gluteus_medius', slug: 'gluteal',    label: '중둔근 (Gluteus Medius)', preferredView: 'side'  },
+      { id: 'gluteus_medius', slug: 'gluteal',    label: '중둔근 (Gluteus Medius)', preferredView: 'back'  },
       { id: 'adductors',      slug: 'adductors',  label: '내전근',                 preferredView: 'front' },
       { id: 'calves',         slug: 'calves',     label: '종아리 (Gastrocnemius)', preferredView: 'back'  },
-      { id: 'fibularis',      slug: 'calves',     label: '비골근 (Fibularis)',     preferredView: 'side'  },
+      { id: 'fibularis',      slug: 'calves',     label: '비골근 (Fibularis)',     preferredView: 'back'  },
       { id: 'tibialis',       slug: 'tibialis',   label: '전경골근',               preferredView: 'front' },
     ],
   },
@@ -86,10 +142,9 @@ MUSCLE_GROUPS.forEach(({ muscles }) => muscles.forEach((m) => { MUSCLE_BY_ID[m.i
 const toLibrarySlug = (id) => MUSCLE_BY_ID[id]?.slug ?? id;
 const toLabel       = (id) => MUSCLE_BY_ID[id]?.label ?? id;
 
-const ANATOMY_VIEWS = [
-  { val: 'front', label: '전면' },
-  { val: 'back',  label: '후면' },
-  { val: 'side',  label: '측면' },
+const PLANE_VIEWS = [
+  { val: 'front', labelEn: 'FRONT', labelKo: '전면' },
+  { val: 'back',  labelEn: 'BACK',  labelKo: '후면' },
 ];
 
 const EMPTY_FORM = {
@@ -107,7 +162,7 @@ const MusclePickerPanel = ({ selectedMuscles, onChange }) => {
   const bodyData = useMemo(
     () => selectedMuscles.map((id, idx) => ({
       slug: toLibrarySlug(id),
-      color: idx === 0 ? '#16a34a' : '#86efac',
+      color: idx === 0 ? HL_PRIMARY : idx % 2 === 1 ? HL_SECONDARY : HL_SECONDARY_LIGHT,
     })),
     [selectedMuscles]
   );
@@ -120,8 +175,19 @@ const MusclePickerPanel = ({ selectedMuscles, onChange }) => {
     }
   };
 
+  const resolveBodyPressId = (slug) => {
+    const mapped = BODY_PRESS_ID_BY_VIEW[pickerView]?.[slug];
+    if (mapped) return mapped;
+    const samePlane = MUSCLE_GROUPS.flatMap((g) => g.muscles).filter(
+      (m) => m.slug === slug && m.preferredView === pickerView
+    );
+    if (samePlane[0]) return samePlane[0].id;
+    const any = MUSCLE_GROUPS.flatMap((g) => g.muscles).filter((m) => m.slug === slug);
+    return any[0]?.id ?? slug;
+  };
+
   const handleBodyPress = (part) => {
-    if (part?.slug) toggleMuscle(part.slug);
+    if (part?.slug) toggleMuscle(resolveBodyPressId(part.slug));
   };
 
   return (
@@ -143,47 +209,42 @@ const MusclePickerPanel = ({ selectedMuscles, onChange }) => {
         )}
       </div>
 
-      {/* View switcher */}
+      {/* View switcher — front / back only (library SVGs) */}
       <div className="flex gap-1 px-3 pt-3 pb-1 bg-[#F8F9FA]">
-        {ANATOMY_VIEWS.map(({ val, label }) => (
+        {PLANE_VIEWS.map(({ val, labelEn, labelKo }) => (
           <button
             key={val}
             type="button"
             onClick={() => setPickerView(val)}
-            className={`flex-1 py-1.5 text-[11px] font-bold uppercase tracking-wider rounded-lg transition-all ${
+            className={`flex-1 py-2 text-[11px] font-bold uppercase tracking-widest rounded-lg transition-all leading-tight ${
               pickerView === val
                 ? 'bg-[#064e3b] text-white shadow-sm'
                 : 'bg-white border border-zinc-200 text-zinc-500 hover:border-emerald-400'
             }`}
           >
-            {label}
+            <span className="block">{labelEn}</span>
+            <span className={`block text-[9px] font-semibold tracking-wide mt-0.5 ${pickerView === val ? 'text-emerald-200' : 'text-zinc-400'}`}>
+              {labelKo}
+            </span>
           </button>
         ))}
       </div>
 
       {/* Interactive body map — clinical panel */}
       <div className="flex justify-center py-4 bg-[#F8F9FA] border-b border-zinc-100">
-        <div className="rounded-2xl bg-white border border-zinc-100 shadow-inner p-2">
-          {pickerView !== 'side' ? (
-            <Body
-              data={bodyData}
-              side={pickerView}
-              gender="male"
-              scale={0.75}
-              border="none"
-              defaultFill="#e5e7eb"
-              defaultStroke="#d1d5db"
-              defaultStrokeWidth={0.5}
-              colors={['#16a34a', '#86efac']}
-              onBodyPartPress={handleBodyPress}
-            />
-          ) : (
-            <SideBodyView
-              activeMuscleIds={selectedMuscles}
-              scale={0.75}
-              onRegionPress={(region) => toggleMuscle(region.id)}
-            />
-          )}
+        <div className="rounded-2xl bg-white border border-zinc-100 shadow-inner p-2 w-full max-w-[280px] flex justify-center">
+          <Body
+            data={bodyData}
+            side={pickerView}
+            gender="male"
+            scale={0.75}
+            border="none"
+            defaultFill="#e5e7eb"
+            defaultStroke="#d1d5db"
+            defaultStrokeWidth={0.5}
+            colors={BODY_HIGHLIGHT_PALETTE}
+            onBodyPartPress={handleBodyPress}
+          />
         </div>
       </div>
 
@@ -197,11 +258,11 @@ const MusclePickerPanel = ({ selectedMuscles, onChange }) => {
               onClick={() => toggleMuscle(id)}
               className={`flex items-center gap-1 rounded-full px-2.5 py-1 transition-all active:scale-95 ${
                 idx === 0
-                  ? 'bg-[#064e3b] text-white text-[10px] font-bold uppercase tracking-wider shadow-sm'
+                  ? 'bg-red-700 text-white text-[10px] font-bold uppercase tracking-wider shadow-sm'
                   : 'bg-emerald-50 text-emerald-800 border border-emerald-200 text-[10px] font-semibold'
               }`}
             >
-              {idx === 0 && <span className="text-[7px] opacity-60 mr-0.5">◉ 주동</span>}
+              {idx === 0 && <span className="text-[7px] opacity-80 mr-0.5">◉ 주동</span>}
               {toLabel(id)}
               <X size={9} strokeWidth={2.5} />
             </button>
@@ -290,7 +351,7 @@ const FormFields = ({ form, setForm, dynamicCategories }) => {
           회원에게 표시할 해부학 뷰
         </p>
         <div className="flex gap-5">
-          {ANATOMY_VIEWS.map(({ val, label }) => (
+          {PLANE_VIEWS.map(({ val, labelEn, labelKo }) => (
             <label key={val} className="flex items-center gap-2 cursor-pointer select-none">
               <input
                 type="checkbox"
@@ -298,7 +359,11 @@ const FormFields = ({ form, setForm, dynamicCategories }) => {
                 onChange={() => toggleView(val)}
                 className="w-4 h-4 rounded accent-emerald-600 cursor-pointer"
               />
-              <span className="text-sm text-slate-700 font-medium">{label}</span>
+              <span className="text-sm text-slate-700 font-medium">
+                <span className="font-bold tracking-wider text-xs text-zinc-500">{labelEn}</span>
+                {' · '}
+                {labelKo}
+              </span>
             </label>
           ))}
         </div>
@@ -451,7 +516,7 @@ const AdminExerciseLibrary = ({ goBack }) => {
       body_part: form.body_part || null,
       target_muscles: muscles.length > 0 ? muscles : null,
       target_muscle: primarySlug, // backward-compat for member display
-      active_views: form.active_views.length > 0 ? form.active_views : ['front'],
+      active_views: sanitizeActiveViews(form.active_views),
       image_url: form.image_url.trim() || null,
       video_url: form.video_url.trim() || null,
     };
@@ -509,10 +574,11 @@ const AdminExerciseLibrary = ({ goBack }) => {
       category: post.category || 'Exercise',
       body_part: post.body_part || '',
       target_muscles: muscles,
-      active_views:
+      active_views: sanitizeActiveViews(
         Array.isArray(post.active_views) && post.active_views.length > 0
           ? post.active_views
-          : ['front'],
+          : ['front']
+      ),
       image_url: post.image_url || '',
       video_url: post.video_url || '',
     });
@@ -558,7 +624,7 @@ const AdminExerciseLibrary = ({ goBack }) => {
     }
   };
 
-  const viewLabel = (v) => (v === 'front' ? '전면' : v === 'back' ? '후면' : '측면');
+  const viewLabel = (v) => (v === 'front' ? '전면' : '후면');
 
   const filtered = filter === 'All' ? posts : posts.filter((p) => p.category === filter);
 
@@ -654,7 +720,7 @@ const AdminExerciseLibrary = ({ goBack }) => {
                           <span className="text-[10px] text-zinc-500 border border-zinc-200 rounded-full px-1.5 py-0.5">{post.body_part}</span>
                         )}
                         {/* active_views badges */}
-                        {Array.isArray(post.active_views) && post.active_views.map((v) => (
+                        {sanitizeActiveViews(post.active_views).map((v) => (
                           <span key={v} className="text-[10px] text-blue-500 bg-blue-50 border border-blue-100 rounded-full px-1.5 py-0.5">
                             {viewLabel(v)}
                           </span>
@@ -674,7 +740,7 @@ const AdminExerciseLibrary = ({ goBack }) => {
                               key={id}
                               className={`text-[10px] rounded-full px-1.5 py-0.5 font-medium ${
                                 idx === 0
-                                  ? 'bg-emerald-50 text-emerald-700 border border-emerald-100'
+                                  ? 'bg-red-50 text-red-800 border border-red-100'
                                   : 'bg-zinc-50 text-zinc-500 border border-zinc-100'
                               }`}
                             >
@@ -883,9 +949,9 @@ const AdminExerciseLibrary = ({ goBack }) => {
               <div className="p-5">
                 <h2 className="text-base font-semibold text-slate-900">{selectedPost.title}</h2>
                 <p className="mt-3 text-sm text-zinc-500 leading-relaxed whitespace-pre-wrap">{selectedPost.content}</p>
-                {Array.isArray(selectedPost.active_views) && selectedPost.active_views.length > 0 && (
+                {sanitizeActiveViews(selectedPost.active_views).length > 0 && (
                   <div className="mt-3 flex gap-2 flex-wrap">
-                    {selectedPost.active_views.map((v) => (
+                    {sanitizeActiveViews(selectedPost.active_views).map((v) => (
                       <span key={v} className="text-[10px] text-blue-600 bg-blue-50 border border-blue-100 rounded-full px-2 py-0.5">
                         {viewLabel(v)} 뷰
                       </span>
@@ -907,7 +973,7 @@ const AdminExerciseLibrary = ({ goBack }) => {
                           key={id}
                           className={`text-[10px] rounded-full px-2 py-0.5 font-semibold ${
                             idx === 0
-                              ? 'bg-emerald-600 text-white'
+                              ? 'bg-red-700 text-white'
                               : 'bg-emerald-50 text-emerald-700 border border-emerald-100'
                           }`}
                         >
