@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { User, ChevronRight, RotateCcw } from 'lucide-react';
+import { User, ChevronRight, RotateCcw, ArrowDownAZ, ChevronsDown } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { supabase } from '../../lib/supabaseClient';
 import { fetchMembersBalanceSummaries } from '../../utils/sessionHelpers';
@@ -35,7 +35,7 @@ const MemberList = ({ setView, goBack, setSelectedMemberId }) => {
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [memberTab, setMemberTab] = useState('active');
-  const [sortMode, setSortMode] = useState('remaining_asc');
+  const [sortBy, setSortBy] = useState('name');
   const [filterMode, setFilterMode] = useState('all');
   const [summary, setSummary] = useState({ total: 0, lowCredit: 0, unbooked: 0 });
   const [reactivatingId, setReactivatingId] = useState(null);
@@ -101,22 +101,27 @@ const MemberList = ({ setView, goBack, setSelectedMemberId }) => {
     });
   };
 
-  const filteredUsers = users
-    .filter((u) => {
-      if (memberTab === 'inactive') return true;
-      if (filterMode === 'low_credit') return (u.computedRemaining ?? 0) <= 5;
-      if (filterMode === 'unbooked') return !u.hasFutureBooking;
-      return true;
-    })
-    .sort((a, b) => {
-      if (memberTab === 'active') {
-        const aExpired = (a.computedRemaining ?? 0) <= 0;
-        const bExpired = (b.computedRemaining ?? 0) <= 0;
-        if (aExpired !== bExpired) return aExpired ? 1 : -1;
-      }
-      if (sortMode === 'remaining_asc') return (a.computedRemaining ?? 0) - (b.computedRemaining ?? 0);
+  const filteredMembers = users.filter((u) => {
+    if (memberTab === 'inactive') return true;
+    if (filterMode === 'low_credit') return (u.computedRemaining ?? 0) <= 5;
+    if (filterMode === 'unbooked') return !u.hasFutureBooking;
+    return true;
+  });
+
+  const sortedMembers = [...filteredMembers].sort((a, b) => {
+    if (memberTab === 'active') {
+      const aExpired = (a.computedRemaining ?? 0) <= 0;
+      const bExpired = (b.computedRemaining ?? 0) <= 0;
+      if (aExpired !== bExpired) return aExpired ? 1 : -1;
+    }
+    if (sortBy === 'level') {
+      const aLevel = Number(a.member_level) || 1;
+      const bLevel = Number(b.member_level) || 1;
+      if (bLevel !== aLevel) return bLevel - aLevel;
       return String(a.name || '').localeCompare(String(b.name || ''), 'ko');
-    });
+    }
+    return String(a.name || '').localeCompare(String(b.name || ''), 'ko');
+  });
 
   const getRemainingBadgeClass = (remaining) => {
     if (remaining <= 2) return 'bg-red-100 text-red-700';
@@ -200,18 +205,31 @@ const MemberList = ({ setView, goBack, setSelectedMemberId }) => {
           </div>
         )}
 
-        {memberTab === 'active' && (
-        <div className="flex justify-end">
-          <select
-            value={sortMode}
-            onChange={(e) => setSortMode(e.target.value)}
-            className="rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs text-gray-600"
-          >
-            <option value="remaining_asc">잔여 세션 적은 순</option>
-            <option value="name_asc">이름순</option>
-          </select>
+        <div className="flex items-center justify-between gap-3">
+          <span className="text-[10px] font-medium uppercase tracking-widest text-gray-400">정렬</span>
+          <div className="flex flex-1 max-w-sm rounded-xl border border-gray-200 bg-gray-50 p-1 text-xs">
+            <button
+              type="button"
+              onClick={() => setSortBy('name')}
+              className={`flex flex-1 items-center justify-center gap-1.5 rounded-lg py-2 font-medium transition-colors active:scale-[0.98] ${
+                sortBy === 'name' ? 'bg-white text-slate-900 shadow-sm border border-gray-100' : 'text-gray-500'
+              }`}
+            >
+              <ArrowDownAZ size={14} strokeWidth={1.5} className={sortBy === 'name' ? 'text-[#064e3b]' : 'text-gray-400'} />
+              이름순 (가나다)
+            </button>
+            <button
+              type="button"
+              onClick={() => setSortBy('level')}
+              className={`flex flex-1 items-center justify-center gap-1.5 rounded-lg py-2 font-medium transition-colors active:scale-[0.98] ${
+                sortBy === 'level' ? 'bg-white text-slate-900 shadow-sm border border-gray-100' : 'text-gray-500'
+              }`}
+            >
+              <ChevronsDown size={14} strokeWidth={1.5} className={sortBy === 'level' ? 'text-[#064e3b]' : 'text-gray-400'} />
+              레벨순 (높은순)
+            </button>
+          </div>
         </div>
-        )}
 
         {loading ? (
           <div className="space-y-4">
@@ -231,8 +249,8 @@ const MemberList = ({ setView, goBack, setSelectedMemberId }) => {
               </div>
             ))}
           </div>
-        ) : filteredUsers.length > 0 ? (
-          filteredUsers.map((u) => {
+        ) : sortedMembers.length > 0 ? (
+          sortedMembers.map((u) => {
             const isExpired = memberTab === 'active' && (u.computedRemaining ?? 0) <= 0;
             return (
             <div
@@ -244,7 +262,14 @@ const MemberList = ({ setView, goBack, setSelectedMemberId }) => {
               className={`bg-white p-4 rounded-xl border border-gray-200 flex justify-between items-center active:bg-gray-100 hover:border-emerald-600/30 transition-colors cursor-pointer ${isExpired ? 'opacity-60' : ''}`}
             >
               <div>
-                <h3 className="font-bold text-lg text-slate-900">{u.name}</h3>
+                <div className="flex items-center gap-2">
+                  <h3 className="font-bold text-lg text-slate-900">{u.name}</h3>
+                  {sortBy === 'level' && (
+                    <span className="rounded-full bg-gray-100 px-2 py-0.5 text-[10px] font-semibold tabular-nums text-gray-500">
+                      Lv.{Number(u.member_level) || 1}
+                    </span>
+                  )}
+                </div>
                 {memberTab === 'inactive' && (
                   <p className="text-xs text-gray-400 mt-0.5">비활성 · 데이터 보존됨</p>
                 )}
