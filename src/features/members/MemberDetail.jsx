@@ -1,8 +1,10 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Plus, Settings2 } from 'lucide-react';
+import { Plus, Settings2, Archive } from 'lucide-react';
+import toast from 'react-hot-toast';
 import { supabase } from '../../lib/supabaseClient';
 import { fetchSessionBalanceMetrics } from '../../utils/sessionHelpers';
 import { SESSION_BALANCE_REFRESH_EVENT } from '../../utils/sessionBalanceEvents';
+import { useGlobalModal } from '../../context/GlobalModalContext';
 import BackButton from '../../components/ui/BackButton';
 import AddSessionModal from './AddSessionModal';
 import MemberStatusTab from './MemberStatusTab';
@@ -25,7 +27,9 @@ function FallbackRedirectToMain({ goBack }) {
 }
 
 const MemberDetail = ({ selectedMemberId, goBack, startInStatusMode = false, onExitAthleteView, fallbackToHub = false }) => {
+  const { showConfirm } = useGlobalModal();
   const [u, setU] = useState(null);
+  const [statusUpdating, setStatusUpdating] = useState(false);
   const [batches, setBatches] = useState([]);
   const [loadingBatches, setLoadingBatches] = useState(true);
   const [sessionBalance, setSessionBalance] = useState(null);
@@ -135,6 +139,42 @@ const MemberDetail = ({ selectedMemberId, goBack, startInStatusMode = false, onE
   const usedSessionCount = sessionBalance?.usedSessionCount ?? 0;
   const progressPct = totalPurchased > 0 ? Math.min(100, (usedSessionCount / totalPurchased) * 100) : 0;
 
+  const isInactive = u?.status === 'inactive';
+
+  const handleDeactivate = () => {
+    if (!u?.id || isInactive) return;
+    showConfirm({
+      title: '회원 비활성',
+      message: '이 회원을 비활성 처리하시겠습니까? 데이터는 보존되지만 활동 목록에서는 숨겨집니다.',
+      confirmLabel: '비활성 처리',
+      onConfirm: async () => {
+        setStatusUpdating(true);
+        const { error } = await supabase.from('profiles').update({ status: 'inactive' }).eq('id', u.id);
+        setStatusUpdating(false);
+        if (error) throw error;
+        toast.success('회원이 비활성 처리되었습니다.');
+        goBack?.();
+      },
+    });
+  };
+
+  const handleReactivate = () => {
+    if (!u?.id || !isInactive) return;
+    showConfirm({
+      title: '회원 복구',
+      message: `${u.name || '회원'}을(를) 다시 활성화하시겠습니까?`,
+      confirmLabel: '재활성',
+      onConfirm: async () => {
+        setStatusUpdating(true);
+        const { error } = await supabase.from('profiles').update({ status: 'active' }).eq('id', u.id);
+        setStatusUpdating(false);
+        if (error) throw error;
+        setU((prev) => (prev ? { ...prev, status: 'active' } : prev));
+        toast.success('회원이 활성화되었습니다.');
+      },
+    });
+  };
+
   const saveMemoIfChanged = useCallback(async () => {
     if (!u?.id) return;
     const prev = u.memo || '';
@@ -204,6 +244,11 @@ const MemberDetail = ({ selectedMemberId, goBack, startInStatusMode = false, onE
       <header className="mt-8 mb-8">
         <h1 className="text-2xl font-semibold tracking-tight text-neutral-950">{u?.name || '—'}</h1>
         <p className="mt-2 text-sm text-neutral-500">{u.email}</p>
+        {isInactive && (
+          <p className="mt-2 inline-block rounded-full bg-gray-100 px-3 py-1 text-xs font-medium text-gray-600">
+            비활성 회원 · 보관함
+          </p>
+        )}
       </header>
 
       <section className="mb-16">
@@ -335,6 +380,29 @@ const MemberDetail = ({ selectedMemberId, goBack, startInStatusMode = false, onE
             <dd className="text-neutral-950 font-medium">{u.gender === 'M' ? '남' : u.gender === 'F' ? '여' : '—'}</dd>
           </div>
         </dl>
+      </section>
+
+      <section className="mt-16 border-t border-neutral-200 pt-10">
+        {isInactive ? (
+          <button
+            type="button"
+            onClick={handleReactivate}
+            disabled={statusUpdating}
+            className="w-full rounded-xl border border-[#064e3b]/30 bg-emerald-50/50 py-3.5 text-sm font-semibold text-[#064e3b] hover:bg-emerald-50 transition-colors active:scale-[0.98] disabled:opacity-50"
+          >
+            {statusUpdating ? '처리 중…' : '복구/재활성'}
+          </button>
+        ) : (
+          <button
+            type="button"
+            onClick={handleDeactivate}
+            disabled={statusUpdating}
+            className="w-full inline-flex items-center justify-center gap-2 rounded-xl border border-gray-200 py-3.5 text-sm font-medium text-gray-500 hover:border-gray-300 hover:text-gray-700 transition-colors active:scale-[0.98] disabled:opacity-50"
+          >
+            <Archive size={16} strokeWidth={1.5} />
+            {statusUpdating ? '처리 중…' : '비활성 처리'}
+          </button>
+        )}
       </section>
 
       {sessionModal && (

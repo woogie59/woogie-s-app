@@ -45,7 +45,8 @@ export default function HallOfFameLeaderboard({ isOpen, onClose }) {
         supabase
           .from('profiles')
           .select('id, name, member_level, current_title')
-          .eq('is_athlete_system_enabled', true),
+          .eq('is_athlete_system_enabled', true)
+          .eq('status', 'active'),
         supabase
           .from('master_exam_requests')
           .select('user_id')

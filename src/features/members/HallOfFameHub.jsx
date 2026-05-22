@@ -16,6 +16,7 @@ export default function HallOfFameHub({ setView, setSelectedMemberId, goBack }) 
       .from('profiles')
       .select('id,name,member_level,current_title')
       .eq('role', 'user')
+      .eq('status', 'active')
       .order('name', { ascending: true });
     setLoading(false);
     if (error) {

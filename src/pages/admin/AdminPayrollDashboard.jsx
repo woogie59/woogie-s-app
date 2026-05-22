@@ -225,6 +225,7 @@ const AdminPayrollDashboard = ({ goBack }) => {
         .from('profiles')
         .select('id, name, email, price_per_session')
         .neq('role', 'admin')
+        .eq('status', 'active')
         .order('name', { ascending: true });
 
       if (pErr) throw pErr;

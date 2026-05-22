@@ -60,6 +60,7 @@ const RegisterView = ({ setView, goBack }) => {
             email: user.email,
             name: formData.name,
             role: 'user',
+            status: 'active',
           })
           .select('id')
           .single();

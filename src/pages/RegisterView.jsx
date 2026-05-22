@@ -63,6 +63,7 @@ const RegisterView = ({ setView, onSignupSuccess }) => {
                   email: user.email,
                   name: form.name,
                   role: 'user',
+                  status: 'active',
                 });
               }
             }

@@ -58,7 +58,8 @@ const AdminHome = ({ setView, logout, onOpenTrainingLog, adminName }) => {
       const { data: allMembers, error: memErr } = await supabase
         .from('profiles')
         .select('id, name, email, role')
-        .neq('role', 'admin');
+        .neq('role', 'admin')
+        .eq('status', 'active');
 
       if (memErr) throw memErr;
 
