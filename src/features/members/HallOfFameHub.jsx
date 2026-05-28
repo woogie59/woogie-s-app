@@ -1,11 +1,12 @@
-import React, { useCallback, useEffect, useState } from 'react';
-import { Crown, ChevronRight } from 'lucide-react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { Crown, ChevronRight, ArrowDownAZ, ChevronsDown } from 'lucide-react';
 import { supabase } from '../../lib/supabaseClient';
 import toast from 'react-hot-toast';
 
 export default function HallOfFameHub({ setView, setSelectedMemberId, goBack }) {
   const [members, setMembers] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [sortBy, setSortBy] = useState('name');
   const [pendingExams, setPendingExams] = useState([]);
   const [loadingPendingExams, setLoadingPendingExams] = useState(false);
   const [examActionBusyId, setExamActionBusyId] = useState('');
@@ -16,8 +17,7 @@ export default function HallOfFameHub({ setView, setSelectedMemberId, goBack }) 
       .from('profiles')
       .select('id,name,member_level,current_title')
       .eq('role', 'user')
-      .eq('status', 'active')
-      .order('name', { ascending: true });
+      .eq('status', 'active');
     setLoading(false);
     if (error) {
       console.error('[HallOfFameHub] profiles', error);
@@ -131,6 +131,18 @@ export default function HallOfFameHub({ setView, setSelectedMemberId, goBack }) 
     await fetchPendingExams();
   };
 
+  const sortedMembers = useMemo(() => {
+    return [...members].sort((a, b) => {
+      if (sortBy === 'level') {
+        const aLevel = Number(a.member_level) || 1;
+        const bLevel = Number(b.member_level) || 1;
+        if (bLevel !== aLevel) return bLevel - aLevel;
+        return String(a.name || '').localeCompare(String(b.name || ''), 'ko');
+      }
+      return String(a.name || '').localeCompare(String(b.name || ''), 'ko');
+    });
+  }, [members, sortBy]);
+
   return (
     <div className="min-h-[100dvh] bg-[#050505] px-6 py-8 text-white [font-family:Urbanist,sans-serif]">
       <button
@@ -188,13 +200,43 @@ export default function HallOfFameHub({ setView, setSelectedMemberId, goBack }) 
         )}
       </div>
 
-      <div className="mt-6 space-y-3">
+      <div className="mt-6 flex items-center justify-end gap-2">
+        <span className="text-[10px] font-medium uppercase tracking-widest text-zinc-600">정렬</span>
+        <div className="flex rounded-xl border border-zinc-800 bg-transparent p-1 text-xs">
+          <button
+            type="button"
+            onClick={() => setSortBy('name')}
+            className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 font-medium transition-colors active:scale-[0.98] ${
+              sortBy === 'name'
+                ? 'bg-zinc-800 text-emerald-500'
+                : 'bg-transparent text-zinc-500 hover:text-zinc-300'
+            }`}
+          >
+            <ArrowDownAZ size={14} strokeWidth={1.5} className={sortBy === 'name' ? 'text-emerald-500' : 'text-zinc-600'} />
+            이름순
+          </button>
+          <button
+            type="button"
+            onClick={() => setSortBy('level')}
+            className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 font-medium transition-colors active:scale-[0.98] ${
+              sortBy === 'level'
+                ? 'bg-zinc-800 text-emerald-500'
+                : 'bg-transparent text-zinc-500 hover:text-zinc-300'
+            }`}
+          >
+            <ChevronsDown size={14} strokeWidth={1.5} className={sortBy === 'level' ? 'text-emerald-500' : 'text-zinc-600'} />
+            레벨순
+          </button>
+        </div>
+      </div>
+
+      <div className="mt-3 space-y-3">
         {loading ? (
           <p className="text-sm text-zinc-500">불러오는 중...</p>
-        ) : members.length === 0 ? (
+        ) : sortedMembers.length === 0 ? (
           <p className="text-sm text-zinc-500">표시할 회원이 없습니다.</p>
         ) : (
-          members.map((m) => (
+          sortedMembers.map((m) => (
             <button
               key={m.id}
               type="button"
