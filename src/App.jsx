@@ -6,6 +6,7 @@ import OneSignal from 'react-onesignal';
 import { supabase, REMEMBER_ME_KEY } from './lib/supabaseClient';
 import { deleteAttendanceLogsForBooking, toTime24h } from './utils/cascadeAttendance';
 import { emitSessionBalanceRefresh } from './utils/sessionBalanceEvents';
+import { invokeNotifyMemberEvents } from './utils/notifications';
 import { clearBookingPwaState } from './utils/bookingPwaState';
 import {
   readPersistedView,
@@ -646,19 +647,52 @@ export default function App() {
     if (!id) return;
     setCalendarActionBusy(true);
     try {
-      const { error } = await supabase.rpc('admin_update_session_status', {
+      const { data, error } = await supabase.rpc('admin_update_session_status', {
         p_booking_id: id,
         p_new_status: 'completed',
       });
       if (error) throw error;
-      setDashboardBookings((prev) =>
-        prev.map((b) => (b.id === id ? { ...b, status: 'completed' } : b))
+
+      const payload = data && typeof data === 'object' ? data : {};
+      if (payload.ok === false || payload.success === false) {
+        throw new Error(payload.error || '완료 처리에 실패했습니다.');
+      }
+
+      const userId = payload.user_id;
+      const remaining = payload.remaining;
+
+      await fetchRevenueData();
+
+      emitSessionBalanceRefresh();
+
+      if (userId) {
+        try {
+          await invokeNotifyMemberEvents(
+            userId,
+            'LAB DOT · 수업 완료',
+            remaining != null
+              ? `수업이 완료 처리되었습니다. (잔여: ${remaining}회)`
+              : '수업이 완료 처리되었습니다.',
+            'attendance'
+          );
+        } catch (notifyErr) {
+          console.warn('[completeBookingFromCalendar] member push:', notifyErr);
+        }
+      }
+
+      showToast(
+        remaining != null
+          ? `수업 완료 · 잔여 ${remaining}회`
+          : '수업이 완료 처리되었습니다.'
       );
-      showToast('수업이 완료 처리되었습니다.');
-      closeCalendarActionModal();
+      setCalendarActionModal(null);
     } catch (e) {
       console.error('[admin_update_session_status]', e);
-      showAlert({ message: e?.message ? `완료 처리 실패: ${e.message}` : '완료 처리에 실패했습니다.' });
+      showAlert({
+        message: e?.message
+          ? `완료 처리 실패: ${e.message}`
+          : '완료 처리에 실패했습니다. 잔여 횟수가 차감되지 않았습니다.',
+      });
     } finally {
       setCalendarActionBusy(false);
     }
