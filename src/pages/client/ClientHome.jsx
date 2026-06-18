@@ -16,6 +16,7 @@ import Skeleton from '../../components/ui/Skeleton';
 import SessionHistoryModal from '../../features/members/SessionHistoryModal';
 import { parseBookingToLocalDate } from '../../utils/bookingDateKeys';
 import MemberCancelBookingModals from '../../components/member/MemberCancelBookingModals';
+import { hasUnreadAthleteBoard } from '../../utils/athleteBoardNotifications';
 
 /** MVP: 라이브러리·트레이닝 일지 진입 UI 비표시 — 라우트/화면은 유지 */
 const MVP_HIDE_LIBRARY_AND_TRAINING_NAV = true;
@@ -85,6 +86,27 @@ const ClientHome = ({ user, logout, setView }) => {
 
     fetchProfile();
   }, [user]);
+
+  useEffect(() => {
+    if (!user?.id) return undefined;
+    const ch = supabase
+      .channel(`profile-athlete-badge:${user.id}`)
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'profiles', filter: `id=eq.${user.id}` },
+        (payload) => {
+          if (payload.new) {
+            setProfile((prev) => (prev ? { ...prev, ...payload.new } : payload.new));
+          }
+        }
+      )
+      .subscribe();
+    return () => {
+      supabase.removeChannel(ch);
+    };
+  }, [user?.id]);
+
+  const hasAthleteBoardNew = useMemo(() => hasUnreadAthleteBoard(profile), [profile]);
 
   const loadSessionMetrics = useCallback(async () => {
     if (!user?.id) return;
@@ -579,8 +601,17 @@ const ClientHome = ({ user, logout, setView }) => {
             <button
               type="button"
               onClick={() => setShowHallEntryModal(true)}
-              className="w-full rounded-2xl border border-purple-500/30 bg-gradient-to-r from-zinc-900 to-black px-4 py-4 text-left text-white shadow-[0_0_24px_rgba(0,0,0,0.45)] transition-all duration-200 hover:border-purple-500/50 active:scale-[0.99]"
+              className={`relative w-full rounded-2xl border px-4 py-4 text-left text-white shadow-[0_0_24px_rgba(0,0,0,0.45)] transition-all duration-200 hover:border-purple-500/50 active:scale-[0.99] ${
+                hasAthleteBoardNew
+                  ? 'border-purple-400/60 bg-gradient-to-r from-zinc-900 to-black ring-2 ring-purple-500/30 animate-pulse'
+                  : 'border-purple-500/30 bg-gradient-to-r from-zinc-900 to-black'
+              }`}
             >
+              {hasAthleteBoardNew && (
+                <span className="absolute top-3 right-3 rounded-full bg-emerald-500 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-white shadow-[0_0_10px_rgba(16,185,129,0.55)]">
+                  NEW
+                </span>
+              )}
               <p className="text-[11px] uppercase tracking-[0.16em] text-zinc-400">MY STATUS</p>
               <p className="mt-1 text-sm font-semibold tracking-tight">나의 상태 보기</p>
             </button>

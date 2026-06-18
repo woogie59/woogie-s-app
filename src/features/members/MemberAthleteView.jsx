@@ -5,6 +5,7 @@ import AthleteStatus from './AthleteStatus';
 import AthleteStatusBoard from './AthleteStatusBoard';
 import TitleArchiveModal from './TitleArchiveModal';
 import HallOfFameLeaderboard from './HallOfFameLeaderboard';
+import { markAthleteBoardSeen } from '../../utils/athleteBoardNotifications';
 
 function MasterPendingCinematicView({ onBack }) {
   return (
@@ -60,6 +61,12 @@ export default function MemberAthleteView({ userId, goBack }) {
   };
 
   /** Single orchestrated load: pending master → skip member_titles (no leak). */
+  useEffect(() => {
+    if (!userId) return undefined;
+    void markAthleteBoardSeen();
+    return undefined;
+  }, [userId]);
+
   useEffect(() => {
     if (!userId) {
       setProfile(null);

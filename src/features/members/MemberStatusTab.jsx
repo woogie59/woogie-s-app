@@ -7,6 +7,7 @@ import AthleteStatus from './AthleteStatus';
 import MemberPhoneMirror from './MemberPhoneMirror';
 import AthleteStatusBoard from './AthleteStatusBoard';
 import { getAthleteLevelDescription } from './athleteLevelDescriptions';
+import { bumpAthleteBoardForMember } from '../../utils/athleteBoardNotifications';
 
 const PHYSICAL_AUTONOMY_MAX = 10;
 
@@ -242,6 +243,7 @@ export default function MemberStatusTab({ userId, profile, memberLevel, onRefres
       return;
     }
     setSaving(true);
+    const prevLevel = committedMemberLevel;
     try {
       const { error } = await supabase.rpc('admin_save_growth_record', {
         p_target_user: userId,
@@ -250,6 +252,15 @@ export default function MemberStatusTab({ userId, profile, memberLevel, onRefres
         p_custom_comment: customComment.trim() || null,
       });
       if (error) throw error;
+
+      const levelChanged = selectedLevelNumber !== prevLevel;
+      await bumpAthleteBoardForMember(userId, {
+        push: levelChanged,
+        title: 'LAB DOT · 상태 업데이트',
+        message: levelChanged
+          ? `레벨이 LV.${selectedLevelNumber}(으)로 업데이트되었습니다. 나의 상태를 확인하세요.`
+          : undefined,
+      });
 
       setCommittedMemberLevel(selectedLevelNumber);
       setLedgerRefreshKey((k) => k + 1);
@@ -356,6 +367,13 @@ export default function MemberStatusTab({ userId, profile, memberLevel, onRefres
       const unlockedMainTitle = typeof data === 'string'
         ? data.trim()
         : String(data?.unlocked_main_title || data?.main_title || '').trim();
+      await bumpAthleteBoardForMember(userId, {
+        push: !!unlockedMainTitle,
+        title: 'LAB DOT · 칭호 해금',
+        message: unlockedMainTitle
+          ? `[${unlockedMainTitle}] 칭호를 해금했습니다! 나의 상태를 확인하세요.`
+          : undefined,
+      });
       setLedgerRefreshKey((k) => k + 1);
       await onRefresh?.();
       if (unlockedMainTitle) {
