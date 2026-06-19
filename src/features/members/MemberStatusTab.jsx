@@ -70,6 +70,11 @@ export default function MemberStatusTab({ userId, profile, memberLevel, onRefres
   const [isAthleteEnabled, setIsAthleteEnabled] = useState(() => !!profile?.is_athlete_system_enabled);
   const [togglingAthleteSystem, setTogglingAthleteSystem] = useState(false);
   const [unequippingTitle, setUnequippingTitle] = useState(false);
+  const [growthBaseline, setGrowthBaseline] = useState({
+    level: null,
+    standardComment: '',
+    customComment: '',
+  });
 
   if (!profile || !userId) {
     return (
@@ -158,6 +163,42 @@ export default function MemberStatusTab({ userId, profile, memberLevel, onRefres
 
   useEffect(() => {
     if (!userId) {
+      setGrowthBaseline({ level: null, standardComment: '', customComment: '' });
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      const { data, error } = await supabase
+        .from('growth_records')
+        .select('achieved_level,new_level,standard_comment,custom_comment')
+        .eq('user_id', userId)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (cancelled) return;
+      if (error) {
+        console.warn('[MemberStatusTab] growth baseline', error);
+        setGrowthBaseline({
+          level: committedMemberLevel,
+          standardComment: '',
+          customComment: '',
+        });
+        return;
+      }
+      const lv = Number(data?.achieved_level ?? data?.new_level);
+      setGrowthBaseline({
+        level: Number.isFinite(lv) ? lv : committedMemberLevel,
+        standardComment: String(data?.standard_comment ?? ''),
+        customComment: String(data?.custom_comment ?? ''),
+      });
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [userId, ledgerRefreshKey, committedMemberLevel]);
+
+  useEffect(() => {
+    if (!userId) {
       setMasterExamStatus('idle');
       return;
     }
@@ -201,6 +242,29 @@ export default function MemberStatusTab({ userId, profile, memberLevel, onRefres
       isMaster: selectedLevelNumber === 10 && masterExamStatus === 'approved',
     });
 
+  const growthDraftChanges = useMemo(() => {
+    if (selectedLevelNumber == null) {
+      return { levelChanged: false, commentChanged: false, hasChanges: false };
+    }
+    const commentText = customComment.trim();
+    const baselineLevel = growthBaseline.level ?? committedMemberLevel;
+    const levelChanged = selectedLevelNumber !== baselineLevel;
+    const commentChanged =
+      commentText !== String(growthBaseline.customComment ?? '').trim()
+      || String(standardComment ?? '').trim() !== String(growthBaseline.standardComment ?? '').trim();
+    return {
+      levelChanged,
+      commentChanged,
+      hasChanges: levelChanged || commentChanged,
+    };
+  }, [
+    selectedLevelNumber,
+    customComment,
+    standardComment,
+    growthBaseline,
+    committedMemberLevel,
+  ]);
+
   const titleHierarchy = useMemo(() => {
     const defs = Array.isArray(titleDefinitions) ? titleDefinitions : [];
     const subRows = defs.filter((row) => String(row.parent_title ?? '').trim() !== '');
@@ -242,17 +306,16 @@ export default function MemberStatusTab({ userId, profile, memberLevel, onRefres
       toast.error('레벨을 선택하세요.');
       return;
     }
-
-    const commentText = customComment.trim();
-    const levelChanged = selectedLevelNumber !== committedMemberLevel;
-    if (!levelChanged && !commentText) {
-      toast.error('변경할 레벨을 선택하거나 개별 코멘트를 입력하세요.');
+    if (!growthDraftChanges.hasChanges) {
+      toast.error('변경된 레벨 또는 코멘트가 없습니다.');
       return;
     }
 
+    const commentText = customComment.trim();
+
     setSaving(true);
     try {
-      const { error } = await supabase.rpc('admin_save_growth_record', {
+      const { data, error } = await supabase.rpc('admin_save_growth_record', {
         p_target_user: userId,
         p_new_level: selectedLevelNumber,
         p_standard_comment: standardComment || null,
@@ -260,8 +323,12 @@ export default function MemberStatusTab({ userId, profile, memberLevel, onRefres
       });
       if (error) throw error;
 
-      // NEW badge: growth_records INSERT trigger → athlete_growth_updated_at only (not titles).
-      if (levelChanged) {
+      if (data?.skipped) {
+        toast('변경 사항이 없어 저장하지 않았습니다.');
+        return;
+      }
+
+      if (growthDraftChanges.levelChanged) {
         try {
           await invokeNotifyMemberEvents(
             userId,
@@ -274,12 +341,25 @@ export default function MemberStatusTab({ userId, profile, memberLevel, onRefres
         }
       }
 
+      setGrowthBaseline({
+        level: selectedLevelNumber,
+        standardComment: String(standardComment ?? ''),
+        customComment: commentText,
+      });
       setCommittedMemberLevel(selectedLevelNumber);
       setLedgerRefreshKey((k) => k + 1);
       setCustomComment('');
       await onRefresh?.();
       onMemberLevelSynced?.(selectedLevelNumber);
-      toast.success('성장 기록이 저장되었습니다.');
+
+      const notifyBits = [];
+      if (data?.level_changed || growthDraftChanges.levelChanged) notifyBits.push('레벨');
+      if (data?.comment_changed || growthDraftChanges.commentChanged) notifyBits.push('코멘트');
+      toast.success(
+        notifyBits.length
+          ? `성장 기록 저장 · 회원 NEW: ${notifyBits.join('·')} (성장기록만)`
+          : '성장 기록이 저장되었습니다.'
+      );
     } catch (e) {
       console.error('[MemberStatusTab] admin_save_growth_record', e);
       toast.error(`저장 실패: ${supabaseErrorMessage(e)}`);
@@ -759,17 +839,24 @@ export default function MemberStatusTab({ userId, profile, memberLevel, onRefres
             <div className="border-t border-white/10 pt-6">
               <Motion.button
                 type="button"
-                disabled={saving || selectedLevelNumber == null}
+                disabled={saving || selectedLevelNumber == null || !growthDraftChanges.hasChanges}
                 onClick={saveGrowthRecord}
-                whileHover={!saving && selectedLevelNumber != null ? { scale: 1.02 } : {}}
-                whileTap={!saving && selectedLevelNumber != null ? { scale: 0.98 } : {}}
+                whileHover={!saving && selectedLevelNumber != null && growthDraftChanges.hasChanges ? { scale: 1.02 } : {}}
+                whileTap={!saving && selectedLevelNumber != null && growthDraftChanges.hasChanges ? { scale: 0.98 } : {}}
                 className="apply-exp-cta relative w-full overflow-hidden rounded-2xl border border-white/10 bg-zinc-900/60 py-4 text-center text-sm font-black uppercase tracking-[0.2em] text-white shadow-2xl transition-all hover:border-zinc-500 disabled:cursor-not-allowed disabled:opacity-35"
               >
                 <span className="relative z-10">적용</span>
                 <span className="pointer-events-none absolute inset-0 bg-[linear-gradient(110deg,transparent_0%,rgba(255,255,255,0.12)_45%,transparent_90%)] opacity-60" />
               </Motion.button>
               <p className="mt-3 text-center text-sm text-zinc-500">
-                {selectedLevelNumber == null ? '레벨을 먼저 선택하세요.' : '선택 레벨과 코멘트를 성장 기록에 저장합니다.'}
+                {selectedLevelNumber == null
+                  ? '레벨을 먼저 선택하세요.'
+                  : growthDraftChanges.hasChanges
+                    ? `저장 시 회원 NEW: ${[
+                        growthDraftChanges.levelChanged ? '레벨' : null,
+                        growthDraftChanges.commentChanged ? '코멘트' : null,
+                      ].filter(Boolean).join('·')} → 성장기록만`
+                    : '변경된 레벨·코멘트가 없습니다. (칭호 변경은 토글/설명 저장 별도)'}
               </p>
             </div>
           </div>

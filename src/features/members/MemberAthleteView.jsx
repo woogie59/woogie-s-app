@@ -315,6 +315,7 @@ export default function MemberAthleteView({ userId, goBack }) {
           onRoadmapOpenChange={setRoadmapOpen}
           onRepresentativeTitleClick={openTitleArchive}
           representativeTitleDescription={representativeTitleDescription}
+          heroHasGrowthNew={hasGrowthNew}
         />
       </div>
 

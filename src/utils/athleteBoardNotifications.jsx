@@ -4,6 +4,11 @@ import { invokeNotifyMemberEvents } from './notifications';
 const LS_GROWTH_SEEN = (uid) => `labdot:athlete-growth-seen:${uid}`;
 const LS_TITLES_SEEN = (uid) => `labdot:athlete-titles-seen:${uid}`;
 
+function revisionNum(value) {
+  const n = Number(value);
+  return Number.isFinite(n) && n >= 0 ? n : 0;
+}
+
 function maxTimestamp(...values) {
   const valid = values.filter(Boolean);
   if (!valid.length) return null;
@@ -21,31 +26,62 @@ function isUpdatedAfterSeen(updatedAt, seenAt) {
   return new Date(updatedAt).getTime() > new Date(seenAt).getTime();
 }
 
+function hasRevisionUnread(currentRevision, seenRevision) {
+  return revisionNum(currentRevision) > revisionNum(seenRevision);
+}
+
 /** Member has unseen athlete board updates (home card). */
-export function hasUnreadAthleteBoard(profile) {
+export function hasUnreadAthleteBoard(profileOrSignals) {
+  const profile = profileOrSignals?.meta ?? profileOrSignals;
   if (!profile?.is_athlete_system_enabled) return false;
+
+  if (
+    profile.athlete_growth_revision != null
+    || profile.athlete_titles_revision != null
+  ) {
+    return (
+      hasRevisionUnread(profile.athlete_growth_revision, profile.athlete_growth_seen_revision)
+      || hasRevisionUnread(profile.athlete_titles_revision, profile.athlete_titles_seen_revision)
+    );
+  }
+
   return isUpdatedAfterSeen(profile.athlete_board_updated_at, profile.athlete_board_seen_at);
 }
 
 /** Unseen growth / level / comment updates. */
 export function hasUnreadAthleteGrowth(signals) {
-  if (!signals) return false;
+  if (!signals?.meta) return false;
+
+  if (signals.meta.athlete_growth_revision != null) {
+    return hasRevisionUnread(
+      signals.meta.athlete_growth_revision,
+      signals.meta.athlete_growth_seen_revision
+    );
+  }
+
   return isUpdatedAfterSeen(signals.growthUpdated, signals.effectiveGrowthSeen);
 }
 
 /** Unseen title grants / unlocks. */
 export function hasUnreadAthleteTitles(signals) {
-  if (!signals) return false;
+  if (!signals?.meta) return false;
+
+  if (signals.meta.athlete_titles_revision != null) {
+    return hasRevisionUnread(
+      signals.meta.athlete_titles_revision,
+      signals.meta.athlete_titles_seen_revision
+    );
+  }
+
   return isUpdatedAfterSeen(signals.titlesUpdated, signals.effectiveTitlesSeen);
 }
 
 /**
- * Load section NEW signals from profiles columns only.
+ * Load section NEW signals from profiles (revision counters preferred).
  *
- * Bump paths (server):
- * - growth  → growth_records INSERT/UPDATE trigger, admin_save_growth_record (Apply)
- * - titles  → member_titles INSERT/re-grant trigger, admin_toggle_sub_title (grant only)
- * - home    → athlete_board_updated_at on any section bump; cleared by mark_athlete_board_seen
+ * Bump paths:
+ * - growth → bump_athlete_growth_board / growth_records trigger
+ * - titles → bump_athlete_titles_board / member_titles grant trigger
  */
 export async function fetchAthleteBoardSignals(userId) {
   if (!userId) return null;
@@ -56,7 +92,7 @@ export async function fetchAthleteBoardSignals(userId) {
   const { data: meta, error } = await supabase
     .from('profiles')
     .select(
-      'athlete_board_updated_at,athlete_board_seen_at,athlete_growth_updated_at,athlete_growth_seen_at,athlete_titles_updated_at,athlete_titles_seen_at,is_athlete_system_enabled'
+      'athlete_board_updated_at,athlete_board_seen_at,athlete_growth_updated_at,athlete_growth_seen_at,athlete_titles_updated_at,athlete_titles_seen_at,athlete_growth_revision,athlete_growth_seen_revision,athlete_titles_revision,athlete_titles_seen_revision,is_athlete_system_enabled'
     )
     .eq('id', userId)
     .maybeSingle();
@@ -82,23 +118,18 @@ export async function fetchAthleteBoardMeta(userId) {
   return signals?.meta ?? null;
 }
 
-/** Admin-side: bump one section + optional push. Never use section 'all' from UI. */
+/** Admin-side: bump one section + optional push. */
 export async function bumpAthleteBoardForMember(
   userId,
   { section = 'growth', push = false, title, message } = {}
 ) {
   if (!userId) return { error: new Error('missing userId') };
-  if (section === 'all') {
-    console.warn('[bumpAthleteBoardForMember] section "all" avoided — use growth or titles');
-  }
 
-  const { error: bumpErr } = await supabase.rpc('bump_athlete_board_updated', {
-    p_user_id: userId,
-    p_section: section,
-  });
+  const rpcName = section === 'titles' ? 'bump_athlete_titles_board' : 'bump_athlete_growth_board';
+  const { error: bumpErr } = await supabase.rpc(rpcName, { p_user_id: userId });
 
   if (bumpErr) {
-    console.error('[bumpAthleteBoardForMember]', bumpErr);
+    console.error('[bumpAthleteBoardForMember]', rpcName, bumpErr);
   }
 
   if (push && title && message) {
