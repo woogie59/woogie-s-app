@@ -1291,7 +1291,7 @@ export default function App() {
 
           {/* 클래스 예약 */}
           {session && view === 'class_booking' && (
-            <ClassBooking user={session.user} setView={navigate} goBack={goBack} />
+            <ClassBooking user={session.user} profileName={userProfileName} setView={navigate} goBack={goBack} />
           )}
 
           {session && view === 'training_log' && (

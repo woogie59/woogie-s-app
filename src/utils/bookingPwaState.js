@@ -119,10 +119,10 @@ function readFromUrl() {
   return { ymd, week };
 }
 
-function validate({ ymd, weekMode }) {
+function validate({ ymd, weekMode }, profileName = '') {
   const todayKey = toYmd(new Date());
   let w = weekMode === 'next' ? 'next' : 'current';
-  if (w === 'next' && !isNextWeekBookingUnlockedKST(new Date())) {
+  if (w === 'next' && !isNextWeekBookingUnlockedKST(new Date(), profileName)) {
     w = 'current';
   }
   const keys = weekDateKeysForMode(w);
@@ -136,12 +136,12 @@ function validate({ ymd, weekMode }) {
 /**
  * localStorage/밀러 키 **우선**, 그다음 URL.
  */
-export function getBookingInitialPwaState(userId) {
+export function getBookingInitialPwaState(userId, profileName = '') {
   const a = readBookingPwaFromStorages(userId);
   const b = readFromUrl();
   const ymd = a.ymd ?? b.ymd;
   const week = a.week ?? b.week ?? 'current';
-  return validate({ ymd, weekMode: week });
+  return validate({ ymd, weekMode: week }, profileName);
 }
 
 export function writeBookingPwaToSessionAndUrl(userId, { selectedDate, weekMode }) {

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useLayoutEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useLayoutEffect, useMemo, useCallback, useRef } from 'react';
 import { Lock } from 'lucide-react';
 import { supabase } from '../../lib/supabaseClient';
 import { fetchAdminOnesignalProfile } from '../../utils/notifications';
@@ -70,8 +70,9 @@ function slotHourFromTime(time) {
   return Number.isFinite(h) ? h : -1;
 }
 
-const ClassBooking = ({ user, setView, goBack }) => {
+const ClassBooking = ({ user, profileName = '', setView, goBack }) => {
   const { showAlert, showConfirm } = useGlobalModal();
+  const profileNameResolvedRef = useRef(false);
   /** sessionStorage 1순 (과제) + 동기 초기화 — '오늘' 기본값으로 덮지 않음 */
   const [selectedDate, setSelectedDate] = useState(() => getBookingInitialPwaState(user?.id).selectedDate);
   const [weekMode, setWeekMode] = useState(() => getBookingInitialPwaState(user?.id).weekMode);
@@ -101,7 +102,19 @@ const ClassBooking = ({ user, setView, goBack }) => {
     return () => clearInterval(id);
   }, []);
 
-  const nextUnlocked = useMemo(() => isNextWeekBookingUnlockedKST(new Date()), [nextWeekLockTick]);
+  const nextUnlocked = useMemo(
+    () => isNextWeekBookingUnlockedKST(new Date(), profileName),
+    [nextWeekLockTick, profileName],
+  );
+
+  useLayoutEffect(() => {
+    if (!user?.id || profileName == null) return;
+    if (profileNameResolvedRef.current) return;
+    profileNameResolvedRef.current = true;
+    const restored = getBookingInitialPwaState(user.id, profileName);
+    setWeekMode(restored.weekMode);
+    setSelectedDate(restored.selectedDate);
+  }, [user?.id, profileName]);
 
   const fetchMyAllBookings = useCallback(async () => {
     if (!user?.id) return;
