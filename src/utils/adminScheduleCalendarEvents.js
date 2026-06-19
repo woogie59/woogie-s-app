@@ -51,3 +51,29 @@ export function buildAdminCalendarEvents(mergedItemsByDate) {
   });
   return out;
 }
+
+/**
+ * @param {Array<{ id: string, block_date?: string, date?: string, block_time?: string, time?: string, label?: string }>} blocks
+ * @returns {import('@fullcalendar/core').EventInput[]}
+ */
+export function buildBlockedCalendarEvents(blocks) {
+  const out = [];
+  (blocks || []).forEach((row) => {
+    const dateKey = String(row.block_date ?? row.date ?? '');
+    const timeRaw = row.block_time ?? row.time;
+    const parts = parseTimeToHm(timeRaw);
+    if (!dateKey || !parts) return;
+    const start = new Date(`${dateKey}T${pad2(parts.h)}:${pad2(parts.m)}:00`);
+    if (Number.isNaN(start.getTime())) return;
+    const end = new Date(start.getTime() + SESSION_MS);
+    out.push({
+      id: `block-${row.id}`,
+      title: row.label || '예약처리',
+      start,
+      end,
+      classNames: ['labdot-slot-blocked'],
+      extendedProps: { isBlock: true, block: row, dateKey },
+    });
+  });
+  return out;
+}

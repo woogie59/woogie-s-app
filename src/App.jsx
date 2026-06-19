@@ -36,7 +36,7 @@ import AdminPayrollDashboard from './pages/admin/AdminPayrollDashboard';
 import AdminExerciseLibrary from './pages/admin/AdminExerciseLibrary';
 import AdminBookingSettingsPanel from './features/admin/AdminBookingSettingsPanel';
 import AdminScheduleFullCalendar from './features/admin/AdminScheduleFullCalendar';
-import { buildAdminCalendarEvents } from './utils/adminScheduleCalendarEvents';
+import { buildAdminCalendarEvents, buildBlockedCalendarEvents } from './utils/adminScheduleCalendarEvents';
 
 import LibraryArticleScreen from './features/library/LibraryArticleScreen';
 import TrainingLogList from './features/training/TrainingLogList';
@@ -109,6 +109,7 @@ export default function App() {
   const [currentRevenueDate, setCurrentRevenueDate] = useState(new Date());
   const [revenueLogs, setRevenueLogs] = useState([]);
   const [dashboardBookings, setDashboardBookings] = useState([]);
+  const [dashboardBlockedSlots, setDashboardBlockedSlots] = useState([]);
   /** Month-scoped: scheduled class count (bookings/schedules), not attendance logs */
   const [monthlyScheduledCount, setMonthlyScheduledCount] = useState(0);
   /** Month-scoped: sum of pack revenue from session_batches (price or total_count × price_per_session) */
@@ -581,12 +582,21 @@ export default function App() {
         .order('check_in_at', { ascending: false });
 
       if (isAdminSchedule) {
-        const [bookingsRes, logsRes] = await Promise.all([bookingsQuery, logsQuery]);
+        const blocksQuery = supabase
+          .from('trainer_blocked_slots')
+          .select('*')
+          .gte('block_date', startKey)
+          .lte('block_date', endKey)
+          .order('block_date', { ascending: true })
+          .order('block_time', { ascending: true });
+
+        const [bookingsRes, logsRes, blocksRes] = await Promise.all([bookingsQuery, logsQuery, blocksQuery]);
         if (logsRes.error) throw logsRes.error;
         if (bookingsRes.error) throw bookingsRes.error;
         const scheduleRows = bookingsRes.data || [];
         setRevenueLogs(logsRes.data || []);
         setDashboardBookings(scheduleRows);
+        setDashboardBlockedSlots(blocksRes.error ? [] : blocksRes.data || []);
         setMonthlyScheduledCount((scheduleRows || []).filter((b) => b?.status !== 'cancelled').length);
       } else {
         const batchesQuery = supabase
@@ -717,6 +727,23 @@ export default function App() {
     }
   };
 
+  const removeBlockedSlotFromCalendar = async (blockId) => {
+    if (!blockId) return;
+    setCalendarActionBusy(true);
+    try {
+      const { error } = await supabase.from('trainer_blocked_slots').delete().eq('id', blockId);
+      if (error) throw error;
+      setDashboardBlockedSlots((prev) => prev.filter((row) => row.id !== blockId));
+      closeCalendarActionModal();
+      showToast('예약처리(차단)가 해제되었습니다.');
+    } catch (e) {
+      console.error('[trainer_blocked_slots delete]', e);
+      showAlert({ message: e?.message ? `해제 실패: ${e.message}` : '차단 해제에 실패했습니다.' });
+    } finally {
+      setCalendarActionBusy(false);
+    }
+  };
+
   const changeMonth = (delta) => {
     const newDate = new Date(currentRevenueDate);
     newDate.setMonth(newDate.getMonth() + delta);
@@ -777,8 +804,11 @@ export default function App() {
   }, [revenueLogs, dashboardBookings]);
 
   const adminCalendarEvents = React.useMemo(
-    () => buildAdminCalendarEvents(mergedItemsByDate),
-    [mergedItemsByDate],
+    () => [
+      ...buildAdminCalendarEvents(mergedItemsByDate),
+      ...buildBlockedCalendarEvents(dashboardBlockedSlots),
+    ],
+    [mergedItemsByDate, dashboardBlockedSlots],
   );
 
   // Helper to handle input changes
@@ -1037,7 +1067,7 @@ export default function App() {
                   </div>
                 </div>
                 <div className="flex-1 px-4 sm:px-6 max-w-7xl w-full mx-auto flex flex-col gap-4">
-                  <AdminBookingSettingsPanel variant="embed" className="shrink-0" />
+                  <AdminBookingSettingsPanel variant="embed" className="shrink-0" onBlocksChanged={fetchRevenueData} />
                   <div className="min-h-[min(60vh,640px)] flex-1 pb-3">
                     <AdminScheduleFullCalendar
                       key={scheduleCalendarSeed ? String(scheduleCalendarSeed.getTime()) : 'cal'}
@@ -1045,6 +1075,17 @@ export default function App() {
                       loading={isRevenueLoading}
                       initialDate={scheduleCalendarSeed ?? undefined}
                       onEventClick={(info) => {
+                        const block = info?.event?.extendedProps?.block;
+                        if (info?.event?.extendedProps?.isBlock && block?.id) {
+                          setCalendarActionModal({
+                            isBlock: true,
+                            blockId: block.id,
+                            label: block.label || '예약처리',
+                            date: String(block.block_date || info?.event?.extendedProps?.dateKey || ''),
+                            time: String(block.block_time || ''),
+                          });
+                          return;
+                        }
                         const item = info?.event?.extendedProps?.item;
                         const dateKey = info?.event?.extendedProps?.dateKey;
                         if (!item || !dateKey) return;
@@ -1070,16 +1111,20 @@ export default function App() {
                       <div className="flex items-start justify-between gap-3">
                         <div className="min-w-0">
                           <p className="text-[10px] font-medium uppercase tracking-[0.32em] text-emerald-400/80">
-                            일정 관리 (Schedule Management)
+                            {calendarActionModal.isBlock ? '예약처리 (차단)' : '일정 관리 (Schedule Management)'}
                           </p>
                           <p className="mt-2 text-lg font-semibold tracking-tight text-white">
-                            {calendarActionModal.userName}
+                            {calendarActionModal.isBlock
+                              ? calendarActionModal.label || '예약처리'
+                              : calendarActionModal.userName}
                           </p>
                           <p className="mt-1 text-sm text-white/55">
                             {calendarActionModal.date} · {calendarActionModal.time}
                           </p>
                           <p className="mt-2 text-xs leading-relaxed text-white/45">
-                            해당 일정의 수업을 완료(출석/노쇼) 처리하거나, 일정을 캘린더에서 취소할 수 있습니다.
+                            {calendarActionModal.isBlock
+                              ? '회원 예약이 막힌 시간입니다. 해제하면 다시 예약 가능합니다.'
+                              : '해당 일정의 수업을 완료(출석/노쇼) 처리하거나, 일정을 캘린더에서 취소할 수 있습니다.'}
                           </p>
                         </div>
                         <button
@@ -1093,30 +1138,53 @@ export default function App() {
                       </div>
 
                       <div className="mt-5 grid grid-cols-1 gap-3">
-                        <button
-                          type="button"
-                          disabled={calendarActionBusy}
-                          onClick={completeBookingFromCalendar}
-                          className="rounded-xl border border-emerald-300/40 bg-emerald-500/30 px-4 py-3 text-sm font-black text-emerald-50 shadow-[0_0_20px_rgba(16,185,129,0.35)] transition hover:bg-emerald-500/40 disabled:opacity-40"
-                        >
-                          수업 완료 처리
-                        </button>
-                        <button
-                          type="button"
-                          disabled={calendarActionBusy}
-                          onClick={cancelBookingFromCalendar}
-                          className="rounded-xl border border-red-300/35 bg-transparent px-4 py-3 text-sm font-semibold text-red-200/90 transition hover:bg-red-500/10 disabled:opacity-40"
-                        >
-                          일정 취소
-                        </button>
-                        <button
-                          type="button"
-                          disabled={calendarActionBusy}
-                          onClick={closeCalendarActionModal}
-                          className="rounded-xl px-4 py-2 text-sm font-medium text-white/60 transition hover:text-white disabled:opacity-40"
-                        >
-                          닫기
-                        </button>
+                        {calendarActionModal.isBlock ? (
+                          <>
+                            <button
+                              type="button"
+                              disabled={calendarActionBusy}
+                              onClick={() => removeBlockedSlotFromCalendar(calendarActionModal.blockId)}
+                              className="rounded-xl border border-amber-300/40 bg-amber-500/25 px-4 py-3 text-sm font-semibold text-amber-50 transition hover:bg-amber-500/35 disabled:opacity-40"
+                            >
+                              차단 해제
+                            </button>
+                            <button
+                              type="button"
+                              disabled={calendarActionBusy}
+                              onClick={closeCalendarActionModal}
+                              className="rounded-xl px-4 py-2 text-sm font-medium text-white/60 transition hover:text-white disabled:opacity-40"
+                            >
+                              닫기
+                            </button>
+                          </>
+                        ) : (
+                          <>
+                            <button
+                              type="button"
+                              disabled={calendarActionBusy}
+                              onClick={completeBookingFromCalendar}
+                              className="rounded-xl border border-emerald-300/40 bg-emerald-500/30 px-4 py-3 text-sm font-black text-emerald-50 shadow-[0_0_20px_rgba(16,185,129,0.35)] transition hover:bg-emerald-500/40 disabled:opacity-40"
+                            >
+                              수업 완료 처리
+                            </button>
+                            <button
+                              type="button"
+                              disabled={calendarActionBusy}
+                              onClick={cancelBookingFromCalendar}
+                              className="rounded-xl border border-red-300/35 bg-transparent px-4 py-3 text-sm font-semibold text-red-200/90 transition hover:bg-red-500/10 disabled:opacity-40"
+                            >
+                              일정 취소
+                            </button>
+                            <button
+                              type="button"
+                              disabled={calendarActionBusy}
+                              onClick={closeCalendarActionModal}
+                              className="rounded-xl px-4 py-2 text-sm font-medium text-white/60 transition hover:text-white disabled:opacity-40"
+                            >
+                              닫기
+                            </button>
+                          </>
+                        )}
                       </div>
                     </div>
                   </div>

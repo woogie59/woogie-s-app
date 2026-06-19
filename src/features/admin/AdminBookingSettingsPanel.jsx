@@ -1,11 +1,17 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabaseClient';
 import { useGlobalModal } from '../../context/GlobalModalContext';
-import { ChevronDown } from 'lucide-react';
+import { ChevronDown, X } from 'lucide-react';
+import {
+  dayName,
+  formatHourLabel,
+  nextDateForDayOfWeek,
+} from '../../utils/trainerBlockedSlots';
 
 const DAY_NAMES = ['일', '월', '화', '수', '목', '금', '토'];
 const DAY_RENDER_ORDER = [1, 2, 3, 4, 5, 6, 0];
 const HOURS_0_23 = Array.from({ length: 24 }, (_, i) => i);
+const HOLD_LABELS = ['OT', '내부', '기타'];
 
 const emptyWeek = () =>
   Array.from({ length: 7 }, (_, d) => ({
@@ -30,25 +36,44 @@ function normalizeHours(raw) {
   );
 }
 
+function todayKeyLocal() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
 /**
  * @param {object} props
- * @param {'page' | 'embed'} [props.variant='page'] — embed: compact card for admin schedule dashboard
+ * @param {'page' | 'embed'} [props.variant='page']
  * @param {string} [props.className]
+ * @param {() => void} [props.onBlocksChanged] — parent calendar refresh
  */
-const AdminBookingSettingsPanel = ({ variant = 'page', className = '' }) => {
+const AdminBookingSettingsPanel = ({ variant = 'page', className = '', onBlocksChanged }) => {
   const { showAlert } = useGlobalModal();
   const [settings, setSettings] = useState(emptyWeek);
   const [holidays, setHolidays] = useState([]);
+  const [blockedSlots, setBlockedSlots] = useState([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saveToast, setSaveToast] = useState(false);
   const [newHolidayDate, setNewHolidayDate] = useState('');
-  const [settingsOpen, setSettingsOpen] = useState(variant === 'page' ? true : false);
+  const [settingsOpen, setSettingsOpen] = useState(variant === 'page');
+  const [hourModal, setHourModal] = useState(null);
+  const [holdDate, setHoldDate] = useState('');
+  const [holdLabel, setHoldLabel] = useState('OT');
+  const [holdSaving, setHoldSaving] = useState(false);
 
   const fetchData = async () => {
     setLoading(true);
+    const today = todayKeyLocal();
     const { data: sett, error: e1 } = await supabase.from('trainer_settings').select('*').order('day_of_week');
     const { data: hols, error: e2 } = await supabase.from('trainer_holidays').select('*').order('date', { ascending: false });
+    const { data: blocks, error: e3 } = await supabase
+      .from('trainer_blocked_slots')
+      .select('*')
+      .gte('block_date', today)
+      .order('block_date', { ascending: true })
+      .order('block_time', { ascending: true });
+
     if (!e1 && sett && sett.length) {
       const arr = Array.from({ length: 7 }, (_, d) => {
         const row = sett.find((s) => s.day_of_week === d);
@@ -63,6 +88,7 @@ const AdminBookingSettingsPanel = ({ variant = 'page', className = '' }) => {
       setSettings(arr);
     }
     setHolidays(e2 ? [] : hols || []);
+    setBlockedSlots(e3 ? [] : blocks || []);
     setLoading(false);
   };
 
@@ -90,21 +116,20 @@ const AdminBookingSettingsPanel = ({ variant = 'page', className = '' }) => {
     });
   };
 
-  const toggleHour = (dow, h) => {
-    updateDay(dow, (s) => {
-      if (s.off) return s;
-      const arr = [...(s.available_hours || [])];
-      const i = arr.indexOf(h);
-      if (i >= 0) arr.splice(i, 1);
-      else arr.push(h);
-      arr.sort((a, b) => a - b);
-      return { ...s, available_hours: arr };
-    });
+  const withHourChange = (dow, h, mode) => {
+    const day = settings.find((s) => s.day_of_week === dow);
+    if (!day || day.off) return settings;
+    const arr = [...(day.available_hours || [])];
+    const i = arr.indexOf(h);
+    if (mode === 'off' && i >= 0) arr.splice(i, 1);
+    else if (mode === 'on' && i < 0) arr.push(h);
+    arr.sort((a, b) => a - b);
+    return settings.map((s) => (s.day_of_week === dow ? { ...s, available_hours: arr } : s));
   };
 
-  const saveSettings = async () => {
+  const persistSettings = async (nextSettings, toast = true) => {
     setSaving(true);
-    const rows = settings.map((s) => ({
+    const rows = nextSettings.map((s) => ({
       day_of_week: s.day_of_week,
       off: s.off,
       available_hours: s.off ? [] : normalizeHours(s.available_hours),
@@ -112,10 +137,74 @@ const AdminBookingSettingsPanel = ({ variant = 'page', className = '' }) => {
     const { error } = await supabase.from('trainer_settings').upsert(rows, { onConflict: 'day_of_week' });
     setSaving(false);
     if (!error) {
-      setSaveToast(true);
+      setSettings(nextSettings);
+      if (toast) setSaveToast(true);
     } else {
       showAlert({ message: '저장 실패: ' + error.message });
     }
+    return !error;
+  };
+
+  const saveSettings = async () => {
+    await persistSettings(settings, true);
+  };
+
+  const openHourModal = (dow, h) => {
+    const day = settings.find((s) => s.day_of_week === dow);
+    if (!day || day.off) return;
+    const active = (day.available_hours || []).includes(h);
+    setHoldDate(nextDateForDayOfWeek(dow));
+    setHoldLabel('OT');
+    setHourModal({ dow, hour: h, active });
+  };
+
+  const closeHourModal = () => {
+    if (holdSaving) return;
+    setHourModal(null);
+  };
+
+  const handleWeeklyDeactivate = async () => {
+    if (!hourModal) return;
+    const next = withHourChange(hourModal.dow, hourModal.hour, 'off');
+    setHourModal(null);
+    await persistSettings(next, true);
+  };
+
+  const handleWeeklyActivate = async () => {
+    if (!hourModal) return;
+    const next = withHourChange(hourModal.dow, hourModal.hour, 'on');
+    setHourModal(null);
+    await persistSettings(next, true);
+  };
+
+  const handleHoldSlot = async () => {
+    if (!hourModal || !holdDate) return;
+    setHoldSaving(true);
+    const time = formatHourLabel(hourModal.hour);
+    const { error } = await supabase.from('trainer_blocked_slots').insert({
+      block_date: holdDate,
+      block_time: time,
+      label: holdLabel || 'OT',
+      kind: holdLabel === '내부' ? 'internal' : holdLabel === '기타' ? 'hold' : 'ot',
+    });
+    setHoldSaving(false);
+    if (error) {
+      showAlert({ message: error.message.includes('unique') ? '이미 차단된 시간입니다.' : '예약처리 실패: ' + error.message });
+      return;
+    }
+    setHourModal(null);
+    await fetchData();
+    onBlocksChanged?.();
+  };
+
+  const removeBlockedSlot = async (id) => {
+    const { error } = await supabase.from('trainer_blocked_slots').delete().eq('id', id);
+    if (error) {
+      showAlert({ message: '삭제 실패: ' + error.message });
+      return;
+    }
+    await fetchData();
+    onBlocksChanged?.();
   };
 
   const addHoliday = async () => {
@@ -142,6 +231,8 @@ const AdminBookingSettingsPanel = ({ variant = 'page', className = '' }) => {
     );
   }
 
+  const modalDayLabel = hourModal ? `${dayName(hourModal.dow)}요일 ${formatHourLabel(hourModal.hour)}` : '';
+
   const body = (
     <>
       {saveToast && (
@@ -152,7 +243,7 @@ const AdminBookingSettingsPanel = ({ variant = 'page', className = '' }) => {
 
       <div className="mb-6">
         <h3 className="text-[#064e3b] font-bold mb-2 text-sm tracking-wide">주간 휴무 · 예약 가능 시간</h3>
-        <p className="text-xs text-slate-500 mb-3">시간 칸을 켜면 해당 시간에 예약이 열립니다.</p>
+        <p className="text-xs text-slate-500 mb-3">시간 칸을 누르면 주간 비활성화 또는 날짜별 예약처리(OT 등)를 선택할 수 있습니다.</p>
         <div className="space-y-3">
           {DAY_RENDER_ORDER.map((dow) => settings.find((x) => x.day_of_week === dow)).filter(Boolean).map((s) => (
             <div
@@ -174,7 +265,7 @@ const AdminBookingSettingsPanel = ({ variant = 'page', className = '' }) => {
                       <button
                         key={h}
                         type="button"
-                        onClick={() => toggleHour(s.day_of_week, h)}
+                        onClick={() => openHourModal(s.day_of_week, h)}
                         className={`py-1.5 rounded-md text-[10px] font-medium tabular-nums transition-all active:scale-[0.98] ${
                           active
                             ? 'bg-[#064e3b] text-white shadow-sm'
@@ -199,6 +290,28 @@ const AdminBookingSettingsPanel = ({ variant = 'page', className = '' }) => {
           {saving ? '저장 중…' : '저장'}
         </button>
       </div>
+
+      {blockedSlots.length > 0 && (
+        <div className="mb-6">
+          <h3 className="text-[#064e3b] font-bold mb-2 text-sm">예약처리 (날짜별 차단)</h3>
+          <div className="space-y-1.5 max-h-32 overflow-y-auto pr-0.5">
+            {blockedSlots.map((row) => (
+              <div
+                key={row.id}
+                className="flex items-center justify-between gap-2 px-2 py-1.5 bg-amber-50/80 rounded-lg border border-amber-200/60 text-xs"
+              >
+                <span className="font-mono text-slate-800">
+                  {row.block_date} {row.block_time}{' '}
+                  <span className="text-amber-800 font-semibold">{row.label || 'OT'}</span>
+                </span>
+                <button type="button" onClick={() => removeBlockedSlot(row.id)} className="text-red-500 hover:underline shrink-0">
+                  삭제
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       <div>
         <h3 className="text-[#064e3b] font-bold mb-2 text-sm">특정 휴무일</h3>
@@ -227,6 +340,93 @@ const AdminBookingSettingsPanel = ({ variant = 'page', className = '' }) => {
           ))}
         </div>
       </div>
+
+      {hourModal && (
+        <div
+          className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center bg-black/50 p-4 backdrop-blur-sm"
+          role="dialog"
+          aria-modal="true"
+          aria-label="시간 슬롯 작업"
+          onClick={closeHourModal}
+        >
+          <div
+            className="w-full max-w-sm rounded-2xl bg-white shadow-xl border border-slate-200/90 overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-start justify-between gap-2 px-4 pt-4 pb-2">
+              <div>
+                <p className="text-[10px] font-semibold uppercase tracking-wider text-[#064e3b]/70">시간 슬롯</p>
+                <p className="text-base font-semibold text-slate-900 mt-0.5">{modalDayLabel}</p>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  {hourModal.active ? '현재 예약 가능' : '현재 비활성(주간)'}
+                </p>
+              </div>
+              <button type="button" onClick={closeHourModal} className="p-1 rounded-lg text-slate-400 hover:bg-slate-100" aria-label="닫기">
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <div className="px-4 pb-4 space-y-3">
+              {hourModal.active ? (
+                <>
+                  <button
+                    type="button"
+                    onClick={handleWeeklyDeactivate}
+                    disabled={saving}
+                    className="w-full py-3 rounded-xl border border-slate-200 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                  >
+                    비활성화
+                    <span className="block text-[10px] font-normal text-slate-400 mt-0.5">매주 이 요일·시간 예약 끄기</span>
+                  </button>
+
+                  <div className="rounded-xl border border-amber-200/80 bg-amber-50/50 p-3 space-y-2">
+                    <p className="text-xs font-semibold text-amber-900">예약처리</p>
+                    <p className="text-[10px] text-amber-800/80">주간 설정은 유지하고, 선택한 날짜만 회원 예약을 막습니다.</p>
+                    <input
+                      type="date"
+                      value={holdDate}
+                      onChange={(e) => setHoldDate(e.target.value)}
+                      className="w-full bg-white border border-slate-200 rounded-lg px-2 py-2 text-sm"
+                    />
+                    <div className="flex flex-wrap gap-1.5">
+                      {HOLD_LABELS.map((lbl) => (
+                        <button
+                          key={lbl}
+                          type="button"
+                          onClick={() => setHoldLabel(lbl)}
+                          className={`px-2.5 py-1 rounded-lg text-xs font-medium ${
+                            holdLabel === lbl ? 'bg-amber-600 text-white' : 'bg-white border border-slate-200 text-slate-600'
+                          }`}
+                        >
+                          {lbl}
+                        </button>
+                      ))}
+                    </div>
+                    <button
+                      type="button"
+                      onClick={handleHoldSlot}
+                      disabled={holdSaving || !holdDate}
+                      className="w-full py-2.5 rounded-xl bg-amber-600 text-white text-sm font-semibold hover:bg-amber-700 disabled:opacity-50"
+                    >
+                      {holdSaving ? '처리 중…' : '예약처리 적용'}
+                    </button>
+                  </div>
+                </>
+              ) : (
+                <button
+                  type="button"
+                  onClick={handleWeeklyActivate}
+                  disabled={saving}
+                  className="w-full py-3 rounded-xl bg-[#064e3b] text-white text-sm font-semibold hover:bg-[#043d2d] disabled:opacity-50"
+                >
+                  활성화
+                  <span className="block text-[10px] font-normal text-emerald-100/80 mt-0.5">매주 이 요일·시간 예약 켜기</span>
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 

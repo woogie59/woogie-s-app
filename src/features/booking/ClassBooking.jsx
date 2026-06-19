@@ -22,6 +22,7 @@ import {
   writeBookingPwaToSessionAndUrl,
   stripBookingPwaFromUrl,
 } from '../../utils/bookingPwaState';
+import { isSlotBlocked } from '../../utils/trainerBlockedSlots';
 
 const ICON_STROKE = 1;
 /** 1:1 — one booking per slot; used for full/disabled state only (no UI count) */
@@ -78,6 +79,7 @@ const ClassBooking = ({ user, setView, goBack }) => {
   const [loading, setLoading] = useState(false);
   const [settings, setSettings] = useState([]);
   const [holidays, setHolidays] = useState([]);
+  const [blockedSlots, setBlockedSlots] = useState([]);
   /** Non-blocking toast when next week is still locked */
   const [weekToast, setWeekToast] = useState(null);
   /** 내 예약 슬롯·티켓 탭 → 공통 취소 모달 */
@@ -189,12 +191,16 @@ const ClassBooking = ({ user, setView, goBack }) => {
     const fetchBookings = async () => {
       setLoading(true);
       try {
-        // 회원 화면 슬롯 가용성: 해당 날짜의 bookings 행 수로 점유를 판단(countSlot). 행 삭제 시 슬롯이 즉시 비워짐.
-        const { data, error } = await supabase.from('bookings').select('*').eq('date', selectedDate);
-        if (error) throw error;
-        setBookings(Array.isArray(data) ? data : []);
+        const [bookingsRes, blocksRes] = await Promise.all([
+          supabase.from('bookings').select('*').eq('date', selectedDate),
+          supabase.from('trainer_blocked_slots').select('*').eq('block_date', selectedDate),
+        ]);
+        if (bookingsRes.error) throw bookingsRes.error;
+        setBookings(Array.isArray(bookingsRes.data) ? bookingsRes.data : []);
+        setBlockedSlots(blocksRes.error ? [] : blocksRes.data || []);
       } catch {
         setBookings([]);
+        setBlockedSlots([]);
       } finally {
         setLoading(false);
       }
@@ -258,6 +264,7 @@ const ClassBooking = ({ user, setView, goBack }) => {
     if (isHoliday(selectedDate)) return false;
     if (getDaySetting(selectedDate).off) return false;
     if (!isHourInAvailableMatrix(selectedDate, time)) return false;
+    if (isSlotBlocked(blockedSlots, selectedDate, time)) return false;
     if (isSlotExpired(selectedDate, time)) return false;
     return slotRemaining(time) > 0;
   };
