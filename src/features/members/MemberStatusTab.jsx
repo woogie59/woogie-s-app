@@ -255,6 +255,7 @@ export default function MemberStatusTab({ userId, profile, memberLevel, onRefres
 
       const levelChanged = selectedLevelNumber !== prevLevel;
       await bumpAthleteBoardForMember(userId, {
+        section: 'growth',
         push: levelChanged,
         title: 'LAB DOT · 상태 업데이트',
         message: levelChanged
@@ -368,6 +369,7 @@ export default function MemberStatusTab({ userId, profile, memberLevel, onRefres
         ? data.trim()
         : String(data?.unlocked_main_title || data?.main_title || '').trim();
       await bumpAthleteBoardForMember(userId, {
+        section: 'titles',
         push: !!unlockedMainTitle,
         title: 'LAB DOT · 칭호 해금',
         message: unlockedMainTitle

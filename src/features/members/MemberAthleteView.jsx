@@ -1,11 +1,11 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { ChevronLeft } from 'lucide-react';
 import { supabase } from '../../lib/supabaseClient';
 import AthleteStatus from './AthleteStatus';
 import AthleteStatusBoard from './AthleteStatusBoard';
 import TitleArchiveModal from './TitleArchiveModal';
 import HallOfFameLeaderboard from './HallOfFameLeaderboard';
-import { markAthleteBoardSeen } from '../../utils/athleteBoardNotifications';
+import { markAthleteBoardSeen, fetchAthleteBoardMeta, hasUnreadAthleteGrowth, hasUnreadAthleteTitles, markAthleteGrowthSeen, markAthleteTitlesSeen, AthleteSectionNewBadge } from '../../utils/athleteBoardNotifications';
 
 function MasterPendingCinematicView({ onBack }) {
   return (
@@ -45,6 +45,25 @@ export default function MemberAthleteView({ userId, goBack }) {
   const [masterExamRequestStatus, setMasterExamRequestStatus] = useState('idle');
   const [isTitleModalOpen, setIsTitleModalOpen] = useState(false);
   const [hofOpen, setHofOpen] = useState(false);
+  const [boardMeta, setBoardMeta] = useState(null);
+
+  const refreshBoardMeta = useCallback(async () => {
+    if (!userId) return;
+    const meta = await fetchAthleteBoardMeta(userId);
+    if (meta) setBoardMeta(meta);
+  }, [userId]);
+
+  const hasGrowthNew = hasUnreadAthleteGrowth(boardMeta);
+  const hasTitlesNew = hasUnreadAthleteTitles(boardMeta);
+
+  const openTitleArchive = () => {
+    setIsTitleModalOpen(true);
+    void markAthleteTitlesSeen().then(() => refreshBoardMeta());
+  };
+
+  const handleGrowthOpened = () => {
+    void markAthleteGrowthSeen().then(() => refreshBoardMeta());
+  };
 
   const handleBack = () => {
     if (typeof goBack === 'function') {
@@ -64,8 +83,23 @@ export default function MemberAthleteView({ userId, goBack }) {
   useEffect(() => {
     if (!userId) return undefined;
     void markAthleteBoardSeen();
-    return undefined;
-  }, [userId]);
+    void refreshBoardMeta();
+    const ch = supabase
+      .channel(`athlete-board-meta:${userId}`)
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'profiles', filter: `id=eq.${userId}` },
+        (payload) => {
+          if (payload.new) {
+            setBoardMeta((prev) => ({ ...prev, ...payload.new }));
+          }
+        }
+      )
+      .subscribe();
+    return () => {
+      supabase.removeChannel(ch);
+    };
+  }, [userId, refreshBoardMeta]);
 
   useEffect(() => {
     if (!userId) {
@@ -267,8 +301,9 @@ export default function MemberAthleteView({ userId, goBack }) {
           hideTitleArchive
           roadmapOpen={roadmapOpen}
           onRoadmapOpenChange={setRoadmapOpen}
-          onRepresentativeTitleClick={() => setIsTitleModalOpen(true)}
+          onRepresentativeTitleClick={openTitleArchive}
           representativeTitleDescription={representativeTitleDescription}
+          heroHasGrowthNew={hasGrowthNew}
         />
       </div>
 
@@ -276,13 +311,25 @@ export default function MemberAthleteView({ userId, goBack }) {
       <div className="mt-auto pt-6 pb-12 w-full max-w-[420px] mx-auto flex flex-col gap-3 z-10">
         <button
           type="button"
-          onClick={() => setIsTitleModalOpen(true)}
-          className="w-full rounded-xl border border-white/8 bg-white/[0.02] px-3 py-3 text-sm font-semibold text-white/60 transition hover:border-white/15 hover:text-white/80"
+          onClick={openTitleArchive}
+          className={`relative w-full rounded-xl border px-3 py-3 text-sm font-semibold transition ${
+            hasTitlesNew
+              ? 'border-emerald-500/40 bg-emerald-950/20 text-emerald-100 ring-1 ring-emerald-500/25'
+              : 'border-white/8 bg-white/[0.02] text-white/60 hover:border-white/15 hover:text-white/80'
+          }`}
         >
-          [ ✦ 나의 칭호 목록 ]
+          <span className="flex items-center justify-center gap-2">
+            [ ✦ 나의 칭호 목록 ]
+            {hasTitlesNew && <AthleteSectionNewBadge />}
+          </span>
         </button>
 
-        <AthleteStatusBoard targetUserId={profile.id} ledgerRefreshKey={ledgerRefreshKey} />
+        <AthleteStatusBoard
+          targetUserId={profile.id}
+          ledgerRefreshKey={ledgerRefreshKey}
+          hasGrowthNew={hasGrowthNew}
+          onGrowthOpened={handleGrowthOpened}
+        />
 
         <button
           type="button"

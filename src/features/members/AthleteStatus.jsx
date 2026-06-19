@@ -5,6 +5,7 @@ import { supabase } from '../../lib/supabaseClient';
 import LevelUpEpicFX from './LevelUpEpicFX';
 import MasterExamPendingSanctum from './MasterExamPendingSanctum';
 import { getAthleteLevelDescription } from './athleteLevelDescriptions';
+import { AthleteSectionNewBadge } from '../../utils/athleteBoardNotifications';
 
 const ROADMAP_MAX = 10;
 const DEFAULT_LEVEL_PHASES = [
@@ -132,6 +133,7 @@ export default function AthleteStatus({
   compactMemberHero = false,
   onRepresentativeTitleClick,
   representativeTitleDescription = '',
+  heroHasGrowthNew = false,
 }) {
   const [roadmapInternalOpen, setRoadmapInternalOpen] = useState(false);
   const roadmapControlled = roadmapOpenProp !== undefined && typeof onRoadmapOpenChange === 'function';
@@ -763,7 +765,17 @@ export default function AthleteStatus({
 
               {/* Description card */}
               {currentGuideDescription ? (
-                <div className="w-full max-w-sm mx-auto mt-12 p-5 rounded-xl bg-[#0F0F0F] border border-zinc-800 text-zinc-400 text-sm leading-relaxed text-center shadow-inner">
+                <div
+                  className={`w-full max-w-sm mx-auto mt-12 p-5 rounded-xl bg-[#0F0F0F] border text-zinc-400 text-sm leading-relaxed text-center shadow-inner ${
+                    heroHasGrowthNew ? 'border-emerald-500/35 ring-1 ring-emerald-500/20' : 'border-zinc-800'
+                  }`}
+                >
+                  {heroHasGrowthNew ? (
+                    <div className="mb-3 flex items-center justify-center gap-2">
+                      <AthleteSectionNewBadge />
+                      <span className="text-[10px] font-medium tracking-wide text-emerald-400/90">레벨 · 코멘트 업데이트</span>
+                    </div>
+                  ) : null}
                   {currentGuideDescription}
                 </div>
               ) : null}

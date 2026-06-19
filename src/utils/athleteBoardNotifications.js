@@ -1,22 +1,61 @@
 import { supabase } from '../lib/supabaseClient';
 import { invokeNotifyMemberEvents } from './notifications';
 
-/** Member has unseen athlete board updates (admin saved after last visit). */
-export function hasUnreadAthleteBoard(profile) {
-  if (!profile?.is_athlete_system_enabled) return false;
-  const updated = profile.athlete_board_updated_at;
-  if (!updated) return false;
-  const seen = profile.athlete_board_seen_at;
-  if (!seen) return true;
-  return new Date(updated).getTime() > new Date(seen).getTime();
+const BOARD_META_FIELDS = [
+  'athlete_board_updated_at',
+  'athlete_board_seen_at',
+  'athlete_growth_updated_at',
+  'athlete_growth_seen_at',
+  'athlete_titles_updated_at',
+  'athlete_titles_seen_at',
+].join(', ');
+
+function isUpdatedAfterSeen(updatedAt, seenAt) {
+  if (!updatedAt) return false;
+  if (!seenAt) return true;
+  return new Date(updatedAt).getTime() > new Date(seenAt).getTime();
 }
 
-/** Admin-side: bump updated_at; optionally send member push for major events. */
-export async function bumpAthleteBoardForMember(userId, { push = false, title, message } = {}) {
+/** Member has unseen athlete board updates (home card). */
+export function hasUnreadAthleteBoard(profile) {
+  if (!profile?.is_athlete_system_enabled) return false;
+  return isUpdatedAfterSeen(profile.athlete_board_updated_at, profile.athlete_board_seen_at);
+}
+
+/** Unseen growth / level / comment updates. */
+export function hasUnreadAthleteGrowth(profile) {
+  return isUpdatedAfterSeen(profile?.athlete_growth_updated_at, profile?.athlete_growth_seen_at);
+}
+
+/** Unseen title grants / unlocks. */
+export function hasUnreadAthleteTitles(profile) {
+  return isUpdatedAfterSeen(profile?.athlete_titles_updated_at, profile?.athlete_titles_seen_at);
+}
+
+export async function fetchAthleteBoardMeta(userId) {
+  if (!userId) return null;
+  const { data, error } = await supabase
+    .from('profiles')
+    .select(BOARD_META_FIELDS)
+    .eq('id', userId)
+    .maybeSingle();
+  if (error) {
+    console.warn('[fetchAthleteBoardMeta]', error);
+    return null;
+  }
+  return data;
+}
+
+/** Admin-side: bump section + optional push. section: 'growth' | 'titles' | 'all' */
+export async function bumpAthleteBoardForMember(
+  userId,
+  { section = 'all', push = false, title, message } = {}
+) {
   if (!userId) return { error: new Error('missing userId') };
 
   const { error: bumpErr } = await supabase.rpc('bump_athlete_board_updated', {
     p_user_id: userId,
+    p_section: section,
   });
   if (bumpErr) {
     console.error('[bumpAthleteBoardForMember]', bumpErr);
@@ -34,7 +73,7 @@ export async function bumpAthleteBoardForMember(userId, { push = false, title, m
   return { error: null };
 }
 
-/** Member opened 나의 상태 — clears NEW badge via seen_at. */
+/** Member opened 나의 상태 hub — clears home NEW only. */
 export async function markAthleteBoardSeen() {
   const { data, error } = await supabase.rpc('mark_athlete_board_seen');
   if (error) {
@@ -42,4 +81,33 @@ export async function markAthleteBoardSeen() {
     return { ok: false, error };
   }
   return { ok: data?.ok !== false, error: null };
+}
+
+export async function markAthleteGrowthSeen() {
+  const { data, error } = await supabase.rpc('mark_athlete_growth_seen');
+  if (error) {
+    console.warn('[markAthleteGrowthSeen]', error);
+    return { ok: false, error };
+  }
+  return { ok: data?.ok !== false, error: null };
+}
+
+export async function markAthleteTitlesSeen() {
+  const { data, error } = await supabase.rpc('mark_athlete_titles_seen');
+  if (error) {
+    console.warn('[markAthleteTitlesSeen]', error);
+    return { ok: false, error };
+  }
+  return { ok: data?.ok !== false, error: null };
+}
+
+/** Small NEW pill for dark athlete UI buttons. */
+export function AthleteSectionNewBadge({ className = '' }) {
+  return (
+    <span
+      className={`inline-flex items-center rounded-full bg-emerald-500 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider text-white shadow-[0_0_8px_rgba(16,185,129,0.45)] ${className}`}
+    >
+      NEW
+    </span>
+  );
 }
