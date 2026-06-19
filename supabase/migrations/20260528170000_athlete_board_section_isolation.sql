@@ -82,6 +82,10 @@ CREATE TRIGGER athlete_member_titles_bump
 
 -- ── 3. admin_save_growth_record — growth only, no title bump ────────────────
 -- Replaces any version that called bump_athlete_board_updated(...) without p_section='growth'.
+-- Must DROP first: existing function may return void (or other type), not jsonb.
+
+DROP FUNCTION IF EXISTS public.admin_save_growth_record(uuid, integer, text, text, text);
+DROP FUNCTION IF EXISTS public.admin_save_growth_record(uuid, integer, text, text);
 
 CREATE OR REPLACE FUNCTION public.admin_save_growth_record(
   p_target_user uuid,
