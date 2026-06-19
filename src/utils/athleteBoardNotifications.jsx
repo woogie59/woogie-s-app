@@ -40,8 +40,7 @@ export function hasUnreadAthleteTitles(signals) {
 }
 
 /**
- * Load NEW signals from profiles columns + latest growth_records / member_titles (fallback).
- * effective*Seen includes hub visit time so old records don't false-positive.
+ * Load NEW signals from profiles section columns (+ growth_records fallback for growth only).
  */
 export async function fetchAthleteBoardSignals(userId) {
   if (!userId) return null;
@@ -49,7 +48,7 @@ export async function fetchAthleteBoardSignals(userId) {
   const lsGrowthSeen = typeof localStorage !== 'undefined' ? localStorage.getItem(LS_GROWTH_SEEN(userId)) : null;
   const lsTitlesSeen = typeof localStorage !== 'undefined' ? localStorage.getItem(LS_TITLES_SEEN(userId)) : null;
 
-  const [metaRes, growthRes, titlesRes] = await Promise.all([
+  const [metaRes, growthRes] = await Promise.all([
     supabase
       .from('profiles')
       .select(
@@ -64,13 +63,6 @@ export async function fetchAthleteBoardSignals(userId) {
       .order('created_at', { ascending: false })
       .limit(1)
       .maybeSingle(),
-    supabase
-      .from('member_titles')
-      .select('granted_at')
-      .eq('user_id', userId)
-      .order('granted_at', { ascending: false })
-      .limit(1)
-      .maybeSingle(),
   ]);
 
   if (metaRes.error) {
@@ -79,14 +71,13 @@ export async function fetchAthleteBoardSignals(userId) {
 
   const meta = metaRes.data || {};
   const growthRow = growthRes.error ? null : growthRes.data;
-  const titleRow = titlesRes.error ? null : titlesRes.data;
 
-  const growthUpdated = maxTimestamp(
-    meta.athlete_growth_updated_at,
-    growthRow?.updated_at,
-    growthRow?.created_at
-  );
-  const titlesUpdated = maxTimestamp(meta.athlete_titles_updated_at, titleRow?.granted_at);
+  // Growth: profile column is source of truth; fall back to latest row only if column unset (pre-migration).
+  const growthUpdated = meta.athlete_growth_updated_at
+    || maxTimestamp(growthRow?.updated_at, growthRow?.created_at);
+  // Titles: only athlete_titles_updated_at (set by title grant trigger/RPC). Do not use granted_at —
+  // that caused false NEW when the member had old titles but had never opened 칭호 목록.
+  const titlesUpdated = meta.athlete_titles_updated_at || null;
 
   const effectiveGrowthSeen = maxTimestamp(meta.athlete_growth_seen_at, lsGrowthSeen);
   const effectiveTitlesSeen = maxTimestamp(meta.athlete_titles_seen_at, lsTitlesSeen);
@@ -113,17 +104,10 @@ export async function bumpAthleteBoardForMember(
 ) {
   if (!userId) return { error: new Error('missing userId') };
 
-  let bumpErr = null;
-  const withSection = await supabase.rpc('bump_athlete_board_updated', {
+  const { error: bumpErr } = await supabase.rpc('bump_athlete_board_updated', {
     p_user_id: userId,
     p_section: section,
   });
-  bumpErr = withSection.error;
-
-  if (bumpErr) {
-    const legacy = await supabase.rpc('bump_athlete_board_updated', { p_user_id: userId });
-    bumpErr = legacy.error;
-  }
 
   if (bumpErr) {
     console.error('[bumpAthleteBoardForMember]', bumpErr);
