@@ -5,7 +5,7 @@ import AthleteStatus from './AthleteStatus';
 import AthleteStatusBoard from './AthleteStatusBoard';
 import TitleArchiveModal from './TitleArchiveModal';
 import HallOfFameLeaderboard from './HallOfFameLeaderboard';
-import { markAthleteBoardSeen, fetchAthleteBoardMeta, hasUnreadAthleteGrowth, hasUnreadAthleteTitles, markAthleteGrowthSeen, markAthleteTitlesSeen, AthleteSectionNewBadge } from '../../utils/athleteBoardNotifications';
+import { markAthleteBoardSeen, fetchAthleteBoardSignals, hasUnreadAthleteGrowth, hasUnreadAthleteTitles, markAthleteGrowthSeen, markAthleteTitlesSeen, AthleteSectionNewBadge } from '../../utils/athleteBoardNotifications';
 
 function MasterPendingCinematicView({ onBack }) {
   return (
@@ -45,24 +45,24 @@ export default function MemberAthleteView({ userId, goBack }) {
   const [masterExamRequestStatus, setMasterExamRequestStatus] = useState('idle');
   const [isTitleModalOpen, setIsTitleModalOpen] = useState(false);
   const [hofOpen, setHofOpen] = useState(false);
-  const [boardMeta, setBoardMeta] = useState(null);
+  const [boardSignals, setBoardSignals] = useState(null);
 
-  const refreshBoardMeta = useCallback(async () => {
+  const refreshBoardSignals = useCallback(async () => {
     if (!userId) return;
-    const meta = await fetchAthleteBoardMeta(userId);
-    if (meta) setBoardMeta(meta);
+    const signals = await fetchAthleteBoardSignals(userId);
+    if (signals) setBoardSignals(signals);
   }, [userId]);
 
-  const hasGrowthNew = hasUnreadAthleteGrowth(boardMeta);
-  const hasTitlesNew = hasUnreadAthleteTitles(boardMeta);
+  const hasGrowthNew = hasUnreadAthleteGrowth(boardSignals);
+  const hasTitlesNew = hasUnreadAthleteTitles(boardSignals);
 
   const openTitleArchive = () => {
     setIsTitleModalOpen(true);
-    void markAthleteTitlesSeen().then(() => refreshBoardMeta());
+    void markAthleteTitlesSeen(userId).then(() => refreshBoardSignals());
   };
 
   const handleGrowthOpened = () => {
-    void markAthleteGrowthSeen().then(() => refreshBoardMeta());
+    void markAthleteGrowthSeen(userId).then(() => refreshBoardSignals());
   };
 
   const handleBack = () => {
@@ -83,23 +83,34 @@ export default function MemberAthleteView({ userId, goBack }) {
   useEffect(() => {
     if (!userId) return undefined;
     void markAthleteBoardSeen();
-    void refreshBoardMeta();
+    void refreshBoardSignals();
+
     const ch = supabase
-      .channel(`athlete-board-meta:${userId}`)
+      .channel(`athlete-board-signals:${userId}`)
       .on(
         'postgres_changes',
         { event: 'UPDATE', schema: 'public', table: 'profiles', filter: `id=eq.${userId}` },
-        (payload) => {
-          if (payload.new) {
-            setBoardMeta((prev) => ({ ...prev, ...payload.new }));
-          }
-        }
+        () => { void refreshBoardSignals(); }
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'growth_records', filter: `user_id=eq.${userId}` },
+        () => { void refreshBoardSignals(); }
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'member_titles', filter: `user_id=eq.${userId}` },
+        () => { void refreshBoardSignals(); }
       )
       .subscribe();
+
+    const poll = window.setInterval(() => { void refreshBoardSignals(); }, 12000);
+
     return () => {
+      window.clearInterval(poll);
       supabase.removeChannel(ch);
     };
-  }, [userId, refreshBoardMeta]);
+  }, [userId, refreshBoardSignals]);
 
   useEffect(() => {
     if (!userId) {
@@ -191,11 +202,12 @@ export default function MemberAthleteView({ userId, goBack }) {
 
       setLoading(false);
       setEntranceKey((k) => k + 1);
+      void refreshBoardSignals();
     })();
     return () => {
       cancelled = true;
     };
-  }, [userId]);
+  }, [userId, refreshBoardSignals]);
 
   if (loading) {
     return (
@@ -303,7 +315,6 @@ export default function MemberAthleteView({ userId, goBack }) {
           onRoadmapOpenChange={setRoadmapOpen}
           onRepresentativeTitleClick={openTitleArchive}
           representativeTitleDescription={representativeTitleDescription}
-          heroHasGrowthNew={hasGrowthNew}
         />
       </div>
 
@@ -312,15 +323,20 @@ export default function MemberAthleteView({ userId, goBack }) {
         <button
           type="button"
           onClick={openTitleArchive}
-          className={`relative w-full rounded-xl border px-3 py-3 text-sm font-semibold transition ${
+          className={`relative w-full rounded-xl border px-3 py-3.5 text-sm font-semibold transition ${
             hasTitlesNew
-              ? 'border-emerald-500/40 bg-emerald-950/20 text-emerald-100 ring-1 ring-emerald-500/25'
+              ? 'border-emerald-400/60 bg-emerald-950/30 text-emerald-50 ring-2 ring-emerald-400/30 shadow-[0_0_16px_rgba(16,185,129,0.15)]'
               : 'border-white/8 bg-white/[0.02] text-white/60 hover:border-white/15 hover:text-white/80'
           }`}
         >
-          <span className="flex items-center justify-center gap-2">
-            [ ✦ 나의 칭호 목록 ]
-            {hasTitlesNew && <AthleteSectionNewBadge />}
+          <span className="flex items-center justify-center gap-2 flex-wrap">
+            <span>[ ✦ 나의 칭호 목록 ]</span>
+            {hasTitlesNew ? (
+              <>
+                <AthleteSectionNewBadge />
+                <span className="text-[10px] font-normal text-emerald-300/80">칭호 업데이트</span>
+              </>
+            ) : null}
           </span>
         </button>
 

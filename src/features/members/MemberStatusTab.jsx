@@ -254,7 +254,7 @@ export default function MemberStatusTab({ userId, profile, memberLevel, onRefres
       if (error) throw error;
 
       const levelChanged = selectedLevelNumber !== prevLevel;
-      await bumpAthleteBoardForMember(userId, {
+      const bumpResult = await bumpAthleteBoardForMember(userId, {
         section: 'growth',
         push: levelChanged,
         title: 'LAB DOT · 상태 업데이트',
@@ -262,6 +262,9 @@ export default function MemberStatusTab({ userId, profile, memberLevel, onRefres
           ? `레벨이 LV.${selectedLevelNumber}(으)로 업데이트되었습니다. 나의 상태를 확인하세요.`
           : undefined,
       });
+      if (bumpResult.error) {
+        console.warn('[MemberStatusTab] growth bump failed (trigger may still apply):', bumpResult.error);
+      }
 
       setCommittedMemberLevel(selectedLevelNumber);
       setLedgerRefreshKey((k) => k + 1);

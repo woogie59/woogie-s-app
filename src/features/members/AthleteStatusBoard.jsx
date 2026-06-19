@@ -23,15 +23,20 @@ export default function AthleteStatusBoard({
       <button
         type="button"
         onClick={handleToggle}
-        className={`relative w-full rounded-xl border px-3 py-3 text-sm font-semibold transition ${
+        className={`relative w-full rounded-xl border px-3 py-3.5 text-sm font-semibold transition ${
           hasGrowthNew && !isGrowthOpen
-            ? 'border-emerald-500/40 bg-emerald-950/20 text-emerald-100 ring-1 ring-emerald-500/25'
+            ? 'border-emerald-400/60 bg-emerald-950/30 text-emerald-50 ring-2 ring-emerald-400/30 shadow-[0_0_16px_rgba(16,185,129,0.15)]'
             : 'border-white/10 bg-white/[0.02] text-white/70 hover:border-white/20 hover:text-white'
         }`}
       >
         <span className="flex items-center justify-center gap-2">
-          {isGrowthOpen ? '성장기록 닫기' : '성장기록 보기'}
-          {hasGrowthNew && !isGrowthOpen && <AthleteSectionNewBadge />}
+          <span>{isGrowthOpen ? '성장기록 닫기' : '성장기록 보기'}</span>
+          {hasGrowthNew && !isGrowthOpen ? (
+            <>
+              <AthleteSectionNewBadge />
+              <span className="text-[10px] font-normal text-emerald-300/80">레벨·코멘트 업데이트</span>
+            </>
+          ) : null}
         </span>
       </button>
       {isGrowthOpen ? (
