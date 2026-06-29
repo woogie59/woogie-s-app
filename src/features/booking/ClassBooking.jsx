@@ -540,21 +540,19 @@ const ClassBooking = ({ user, profileName = '', setView, goBack }) => {
                       const isOther = Boolean(bookingAtSlot && !isMine);
                       const clickable = isSlotBookable(time);
 
+                      const isUnavailable = !isMine && (isOther || expired || !clickable);
+
                       const baseCard =
                         'w-full rounded-xl border px-2 py-3 text-sm text-center transition-all duration-200 flex flex-col items-center justify-center gap-0.5 font-medium';
                       let slotClass = baseCard;
                       if (isMine) {
                         slotClass +=
                           ' cursor-pointer bg-[#0B3B24] text-white border-[#0B3B24] shadow-md scale-[0.98] hover:brightness-110';
-                      } else if (isOther) {
-                        slotClass += ' cursor-not-allowed border-gray-200 bg-gray-100 text-gray-400 opacity-80';
-                      } else if (expired) {
-                        slotClass += ' opacity-45 cursor-not-allowed border-gray-200 bg-gray-50 text-gray-400';
-                      } else if (clickable) {
+                      } else if (isUnavailable) {
+                        slotClass += ' labdot-slot-disabled';
+                      } else {
                         slotClass +=
                           ' cursor-pointer bg-white border-gray-200 text-gray-900 hover:border-[#0B3B24]/40 hover:shadow-sm active:scale-[0.98]';
-                      } else {
-                        slotClass += ' opacity-45 cursor-not-allowed border-gray-200 bg-gray-50 text-gray-400';
                       }
 
                       const slotButtonDisabled = isOther || (!isMine && !clickable);
@@ -592,11 +590,9 @@ const ClassBooking = ({ user, profileName = '', setView, goBack }) => {
                               </span>
                             </>
                           ) : isOther ? (
-                            <span className="tabular-nums text-gray-400">{time}</span>
+                            <span className="tabular-nums">{time}</span>
                           ) : (
-                            <span className={expired ? 'line-through tabular-nums' : 'tabular-nums'}>
-                              {time}
-                            </span>
+                            <span className="tabular-nums">{time}</span>
                           )}
                         </button>
                       );

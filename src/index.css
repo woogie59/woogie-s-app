@@ -193,3 +193,13 @@
   }
 }
 
+/* Member booking — unavailable / sold-out time slots */
+.labdot-slot-disabled {
+  background:
+    linear-gradient(to top right, transparent 48%, #e5e7eb 48%, #e5e7eb 52%, transparent 52%),
+    #f9fafb;
+  color: #9ca3af;
+  border-color: #e5e7eb;
+  cursor: not-allowed;
+}
+
