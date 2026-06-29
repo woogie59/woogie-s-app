@@ -23,6 +23,7 @@ import {
   stripBookingPwaFromUrl,
 } from '../../utils/bookingPwaState';
 import { isSlotBlocked } from '../../utils/trainerBlockedSlots';
+import { isDayOpen } from '../../utils/labdotWeekSchedulePolicy';
 
 const ICON_STROKE = 1;
 /** 1:1 — one booking per slot; used for full/disabled state only (no UI count) */
@@ -462,13 +463,15 @@ const ClassBooking = ({ user, profileName = '', setView, goBack }) => {
                 const isPast = dateStr < todayKey;
                 const isHolidayDate = isHoliday(dateStr);
                 const hasMine = myDatesWithBooking.has(dateStr);
+                const isWeekendDay = dow === 0 || dow === 6;
+                const weekendOpen = isWeekendDay && isDayOpen(settings, dow);
                 return (
                   <button
                     key={dateStr}
                     type="button"
                     onClick={() => !isPast && setSelectedDate(dateStr)}
                     disabled={isPast}
-                    className={`shrink-0 min-w-[52px] py-3 px-2 rounded-xl border flex flex-col items-center justify-center transition-all duration-200 active:scale-[0.98] ${
+                    className={`relative shrink-0 min-w-[52px] py-3 px-2 rounded-xl border flex flex-col items-center justify-center transition-all duration-200 active:scale-[0.98] ${
                       isSelected
                         ? 'bg-[#064e3b] border-[#064e3b] text-white shadow-md'
                         : isPast
@@ -482,6 +485,15 @@ const ClassBooking = ({ user, profileName = '', setView, goBack }) => {
                   >
                     <span className="text-[10px] font-light tracking-widest uppercase opacity-80">{labelKo}</span>
                     <span className="text-lg font-light tabular-nums mt-0.5">{dayNum}</span>
+                    {weekendOpen && (
+                      <span
+                        className={`mt-0.5 rounded px-1 py-px text-[8px] font-bold tracking-wide leading-none ${
+                          isSelected ? 'bg-white/20 text-white' : 'bg-emerald-600 text-white'
+                        }`}
+                      >
+                        OPEN
+                      </span>
+                    )}
                     {hasMine && (
                       <span
                         className={`mt-1 h-1.5 w-1.5 rounded-full shrink-0 ${

@@ -1,11 +1,11 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import FullCalendar from '@fullcalendar/react';
 import dayGridPlugin from '@fullcalendar/daygrid';
 import timeGridPlugin from '@fullcalendar/timegrid';
 import listPlugin from '@fullcalendar/list';
 import interactionPlugin from '@fullcalendar/interaction';
 import koLocale from '@fullcalendar/core/locales/ko';
-import { Download } from 'lucide-react';
+import { ChevronDown, ChevronUp, Download } from 'lucide-react';
 import { supabase } from '../../lib/supabaseClient';
 import { downloadWeeklyScheduleXlsx, getMonday, toYmd } from '../../utils/weeklyScheduleGridExport';
 import {
@@ -16,17 +16,14 @@ import {
 } from '../../utils/labdotWeekSchedulePolicy';
 import './adminScheduleCalendar.css';
 
-const GHOST_TOGGLE_CLASS =
-  'w-full py-2 px-3 text-[11px] font-medium text-slate-500 hover:text-[#064e3b] hover:bg-emerald-50/40 transition-colors';
-
-function buildSlotCollapseClasses(arg, expandEarly, expandLate) {
+function buildSlotCollapseClasses(arg, expandEarly, expandLateWeekend, expandLateWeekday) {
   const d = arg?.date;
   if (!d) return [];
   const classes = [];
   if (d.getDay() === 6 && d.getHours() < SATURDAY_OPEN_HOUR) {
     classes.push('labdot-sat-morning-na');
   }
-  if (isSlotFolded(d, expandEarly, expandLate)) {
+  if (isSlotFolded(d, expandEarly, expandLateWeekend, expandLateWeekday)) {
     classes.push('labdot-slot-collapsed');
   }
   return classes;
@@ -38,7 +35,7 @@ function buildSlotCollapseClasses(arg, expandEarly, expandLate) {
  * @param {(info: import('@fullcalendar/core').EventClickArg) => void} props.onEventClick
  * @param {boolean} [props.loading]
  * @param {Date} [props.initialDate]
- * @param {number} [props.settingsRevision] — bump after trainer_settings save to refetch OPEN badges
+ * @param {number} [props.settingsRevision]
  */
 const AdminScheduleFullCalendar = ({
   events,
@@ -50,19 +47,32 @@ const AdminScheduleFullCalendar = ({
   const calRef = useRef(null);
   const [exporting, setExporting] = useState(false);
   const [expandEarly, setExpandEarly] = useState(false);
-  const [expandLate, setExpandLate] = useState(false);
+  const [expandLateWeekend, setExpandLateWeekend] = useState(false);
+  const [expandLateWeekday, setExpandLateWeekday] = useState(false);
   const [weekSettings, setWeekSettings] = useState([]);
   const [activeView, setActiveView] = useState('timeGridWeek');
 
   const isTimeGridView = activeView.startsWith('timeGrid');
+  const showLateToggle = !expandLateWeekend || !expandLateWeekday;
+
+  const hiddenCounts = useMemo(() => detectHiddenEventSlots(events), [events]);
 
   const slotBounds = useMemo(
     () => ({
       slotMinTime: expandEarly ? '00:00:00' : '10:00:00',
-      slotMaxTime: expandLate ? '24:00:00' : '23:00:00',
+      slotMaxTime: expandLateWeekday || expandLateWeekend ? '24:00:00' : '23:00:00',
     }),
-    [expandEarly, expandLate]
+    [expandEarly, expandLateWeekday, expandLateWeekend]
   );
+
+  const calendarHeight = useMemo(() => {
+    const mobile = typeof window !== 'undefined' && window.innerWidth < 640;
+    let hours = 13;
+    if (expandEarly) hours += 10;
+    if (expandLateWeekend || expandLateWeekday) hours += 1;
+    const base = mobile ? 300 : 360;
+    return Math.min(mobile ? 560 : 680, base + hours * 22);
+  }, [expandEarly, expandLateWeekend, expandLateWeekday]);
 
   const validRange = useMemo(() => {
     const end = new Date();
@@ -87,30 +97,35 @@ const AdminScheduleFullCalendar = ({
   }, [settingsRevision]);
 
   useEffect(() => {
-    if (expandEarly && expandLate) return;
-    if (!events?.length) return;
-    const { needEarly, needLate } = detectHiddenEventSlots(events);
+    const { needEarly, needLateWeekend, needLateWeekday } = hiddenCounts;
     if (needEarly && !expandEarly) setExpandEarly(true);
-    if (needLate && !expandLate) setExpandLate(true);
-  }, [events, expandEarly, expandLate]);
+    if (needLateWeekend && !expandLateWeekend) setExpandLateWeekend(true);
+    if (needLateWeekday && !expandLateWeekday) setExpandLateWeekday(true);
+  }, [hiddenCounts, expandEarly, expandLateWeekend, expandLateWeekday]);
 
   const slotLaneClassNames = useCallback(
-    (arg) => buildSlotCollapseClasses(arg, expandEarly, expandLate),
-    [expandEarly, expandLate]
+    (arg) => buildSlotCollapseClasses(arg, expandEarly, expandLateWeekend, expandLateWeekday),
+    [expandEarly, expandLateWeekend, expandLateWeekday]
   );
 
   const slotLabelClassNames = useCallback(
-    (arg) => buildSlotCollapseClasses(arg, expandEarly, expandLate),
-    [expandEarly, expandLate]
+    (arg) => {
+      const d = arg?.date;
+      if (!d) return [];
+      const classes = [];
+      if (!expandEarly && d.getHours() < 10) classes.push('labdot-slot-collapsed');
+      return classes;
+    },
+    [expandEarly]
   );
 
   const eventAllow = useCallback(
     (dropInfo) => {
       const start = dropInfo?.start;
       if (!start) return true;
-      return !isSlotFolded(start, expandEarly, expandLate);
+      return !isSlotFolded(start, expandEarly, expandLateWeekend, expandLateWeekday);
     },
-    [expandEarly, expandLate]
+    [expandEarly, expandLateWeekend, expandLateWeekday]
   );
 
   const dayHeaderContent = useCallback(
@@ -166,6 +181,11 @@ const AdminScheduleFullCalendar = ({
     }
   };
 
+  const expandAllLate = () => {
+    setExpandLateWeekend(true);
+    setExpandLateWeekday(true);
+  };
+
   return (
     <div className="space-y-3">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-end gap-2">
@@ -183,6 +203,7 @@ const AdminScheduleFullCalendar = ({
           {exporting ? '파일 만드는 중…' : '주간 일정 엑셀 다운로드'}
         </button>
       </div>
+
       <div className="labdot-fc-wrap relative rounded-2xl border border-[#064e3b]/15 bg-white shadow-sm overflow-hidden">
         {loading && (
           <div className="absolute inset-0 z-10 bg-white/70 backdrop-blur-[1px] flex items-center justify-center">
@@ -190,9 +211,23 @@ const AdminScheduleFullCalendar = ({
           </div>
         )}
 
+        {isTimeGridView && (
+          <div className="labdot-fc-slot-hint px-3 py-2 text-[10px] text-slate-500 border-b border-slate-100 bg-slate-50/80">
+            기본 보기 10:00–23:00 (주말 19:00까지) · 접힌 시간은 아래 버튼으로 펼칩니다
+          </div>
+        )}
+
         {isTimeGridView && !expandEarly && (
-          <button type="button" className={`${GHOST_TOGGLE_CLASS} border-b border-slate-100/90`} onClick={() => setExpandEarly(true)}>
+          <button
+            type="button"
+            className="labdot-fc-expand-btn w-full flex items-center justify-center gap-1.5 py-2.5 px-3 text-xs font-semibold text-[#064e3b] bg-emerald-50/60 border-b border-emerald-100/80 hover:bg-emerald-50 transition-colors"
+            onClick={() => setExpandEarly(true)}
+          >
+            <ChevronUp className="h-3.5 w-3.5" strokeWidth={2.5} />
             + 00시~09시 일정 보기
+            {hiddenCounts.needEarly ? (
+              <span className="ml-1 rounded-full bg-amber-500 px-1.5 py-0.5 text-[9px] font-bold text-white">일정</span>
+            ) : null}
           </button>
         )}
 
@@ -229,9 +264,9 @@ const AdminScheduleFullCalendar = ({
           slotLaneClassNames={slotLaneClassNames}
           slotLabelClassNames={slotLabelClassNames}
           eventAllow={eventAllow}
-          expandRows
+          expandRows={false}
           height="auto"
-          contentHeight={typeof window !== 'undefined' && window.innerWidth < 640 ? 520 : 640}
+          contentHeight={isTimeGridView ? calendarHeight : undefined}
           weekends
           events={events}
           eventClick={(info) => {
@@ -244,9 +279,20 @@ const AdminScheduleFullCalendar = ({
           validRange={validRange}
         />
 
-        {isTimeGridView && !expandLate && (
-          <button type="button" className={`${GHOST_TOGGLE_CLASS} border-t border-slate-100/90`} onClick={() => setExpandLate(true)}>
+        {isTimeGridView && showLateToggle && (
+          <button
+            type="button"
+            className="labdot-fc-expand-btn w-full flex items-center justify-center gap-1.5 py-2.5 px-3 text-xs font-semibold text-[#064e3b] bg-emerald-50/60 border-t border-emerald-100/80 hover:bg-emerald-50 transition-colors"
+            onClick={expandAllLate}
+          >
+            <ChevronDown className="h-3.5 w-3.5" strokeWidth={2.5} />
             + 마감 이후 일정 보기
+            {(hiddenCounts.needLateWeekend || hiddenCounts.needLateWeekday) && (
+              <span className="ml-1 rounded-full bg-amber-500 px-1.5 py-0.5 text-[9px] font-bold text-white">일정</span>
+            )}
+            {!expandLateWeekend && (
+              <span className="ml-0.5 text-[10px] font-normal text-slate-500">(주말 19시~)</span>
+            )}
           </button>
         )}
       </div>

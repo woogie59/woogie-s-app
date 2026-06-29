@@ -36,13 +36,15 @@ export function isDayOpen(settings, dow) {
 }
 
 /** Whether a time-grid slot should be visually collapsed. */
-export function isSlotFolded(date, expandEarly, expandLate) {
+export function isSlotFolded(date, expandEarly, expandLateWeekend, expandLateWeekday) {
   if (!date || !(date instanceof Date) || Number.isNaN(date.getTime())) return false;
   const h = date.getHours();
   const dow = date.getDay();
   const isWeekend = dow === 0 || dow === 6;
   if (!expandEarly && h < DEFAULT_SLOT_START_HOUR) return true;
-  if (!expandLate && (isWeekend ? h >= WEEKEND_DEFAULT_END_HOUR : h >= WEEKDAY_DEFAULT_END_HOUR)) {
+  if (isWeekend) {
+    if (!expandLateWeekend && h >= WEEKEND_DEFAULT_END_HOUR) return true;
+  } else if (!expandLateWeekday && h >= WEEKDAY_DEFAULT_END_HOUR) {
     return true;
   }
   return false;
@@ -50,11 +52,12 @@ export function isSlotFolded(date, expandEarly, expandLate) {
 
 /**
  * @param {import('@fullcalendar/core').EventInput[]} events
- * @returns {{ needEarly: boolean, needLate: boolean }}
+ * @returns {{ needEarly: boolean, needLateWeekend: boolean, needLateWeekday: boolean }}
  */
 export function detectHiddenEventSlots(events) {
   let needEarly = false;
-  let needLate = false;
+  let needLateWeekend = false;
+  let needLateWeekday = false;
   for (const ev of events || []) {
     const raw = ev.start;
     const start = raw instanceof Date ? raw : new Date(raw);
@@ -63,10 +66,11 @@ export function detectHiddenEventSlots(events) {
     const dow = start.getDay();
     const isWeekend = dow === 0 || dow === 6;
     if (h < DEFAULT_SLOT_START_HOUR) needEarly = true;
-    if (isWeekend ? h >= WEEKEND_DEFAULT_END_HOUR : h >= WEEKDAY_DEFAULT_END_HOUR) needLate = true;
-    if (needEarly && needLate) break;
+    if (isWeekend && h >= WEEKEND_DEFAULT_END_HOUR) needLateWeekend = true;
+    else if (!isWeekend && h >= WEEKDAY_DEFAULT_END_HOUR) needLateWeekday = true;
+    if (needEarly && needLateWeekend && needLateWeekday) break;
   }
-  return { needEarly, needLate };
+  return { needEarly, needLateWeekend, needLateWeekday };
 }
 
 /**
