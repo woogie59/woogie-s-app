@@ -1,4 +1,4 @@
-import React, { useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import FullCalendar from '@fullcalendar/react';
 import dayGridPlugin from '@fullcalendar/daygrid';
 import timeGridPlugin from '@fullcalendar/timegrid';
@@ -8,8 +8,29 @@ import koLocale from '@fullcalendar/core/locales/ko';
 import { Download } from 'lucide-react';
 import { supabase } from '../../lib/supabaseClient';
 import { downloadWeeklyScheduleXlsx, getMonday, toYmd } from '../../utils/weeklyScheduleGridExport';
-import { SATURDAY_OPEN_HOUR } from '../../utils/labdotWeekSchedulePolicy';
+import {
+  SATURDAY_OPEN_HOUR,
+  detectHiddenEventSlots,
+  isDayOpen,
+  isSlotFolded,
+} from '../../utils/labdotWeekSchedulePolicy';
 import './adminScheduleCalendar.css';
+
+const GHOST_TOGGLE_CLASS =
+  'w-full py-2 px-3 text-[11px] font-medium text-slate-500 hover:text-[#064e3b] hover:bg-emerald-50/40 transition-colors';
+
+function buildSlotCollapseClasses(arg, expandEarly, expandLate) {
+  const d = arg?.date;
+  if (!d) return [];
+  const classes = [];
+  if (d.getDay() === 6 && d.getHours() < SATURDAY_OPEN_HOUR) {
+    classes.push('labdot-sat-morning-na');
+  }
+  if (isSlotFolded(d, expandEarly, expandLate)) {
+    classes.push('labdot-slot-collapsed');
+  }
+  return classes;
+}
 
 /**
  * @param {object} props
@@ -17,16 +38,98 @@ import './adminScheduleCalendar.css';
  * @param {(info: import('@fullcalendar/core').EventClickArg) => void} props.onEventClick
  * @param {boolean} [props.loading]
  * @param {Date} [props.initialDate]
+ * @param {number} [props.settingsRevision] — bump after trainer_settings save to refetch OPEN badges
  */
-const AdminScheduleFullCalendar = ({ events, onEventClick, loading, initialDate }) => {
+const AdminScheduleFullCalendar = ({
+  events,
+  onEventClick,
+  loading,
+  initialDate,
+  settingsRevision = 0,
+}) => {
   const calRef = useRef(null);
   const [exporting, setExporting] = useState(false);
+  const [expandEarly, setExpandEarly] = useState(false);
+  const [expandLate, setExpandLate] = useState(false);
+  const [weekSettings, setWeekSettings] = useState([]);
+  const [activeView, setActiveView] = useState('timeGridWeek');
+
+  const isTimeGridView = activeView.startsWith('timeGrid');
+
+  const slotBounds = useMemo(
+    () => ({
+      slotMinTime: expandEarly ? '00:00:00' : '10:00:00',
+      slotMaxTime: expandLate ? '24:00:00' : '23:00:00',
+    }),
+    [expandEarly, expandLate]
+  );
 
   const validRange = useMemo(() => {
     const end = new Date();
     end.setFullYear(end.getFullYear() + 1);
     return { start: '2000-01-01', end: end.toISOString().slice(0, 10) };
   }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const { data, error } = await supabase
+        .from('trainer_settings')
+        .select('day_of_week, off, available_hours')
+        .order('day_of_week');
+      if (!cancelled && !error) {
+        setWeekSettings(data || []);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [settingsRevision]);
+
+  useEffect(() => {
+    if (expandEarly && expandLate) return;
+    if (!events?.length) return;
+    const { needEarly, needLate } = detectHiddenEventSlots(events);
+    if (needEarly && !expandEarly) setExpandEarly(true);
+    if (needLate && !expandLate) setExpandLate(true);
+  }, [events, expandEarly, expandLate]);
+
+  const slotLaneClassNames = useCallback(
+    (arg) => buildSlotCollapseClasses(arg, expandEarly, expandLate),
+    [expandEarly, expandLate]
+  );
+
+  const slotLabelClassNames = useCallback(
+    (arg) => buildSlotCollapseClasses(arg, expandEarly, expandLate),
+    [expandEarly, expandLate]
+  );
+
+  const eventAllow = useCallback(
+    (dropInfo) => {
+      const start = dropInfo?.start;
+      if (!start) return true;
+      return !isSlotFolded(start, expandEarly, expandLate);
+    },
+    [expandEarly, expandLate]
+  );
+
+  const dayHeaderContent = useCallback(
+    (arg) => {
+      const dow = arg.date.getDay();
+      const open = (dow === 0 || dow === 6) && isDayOpen(weekSettings, dow);
+      return (
+        <div className="labdot-fc-day-header flex flex-col items-center gap-0.5 py-0.5 leading-tight">
+          <span>{arg.text}</span>
+          {open ? (
+            <span className="rounded px-1 py-0.5 text-[9px] font-bold tracking-wide bg-emerald-600 text-white leading-none">
+              OPEN
+            </span>
+          ) : null}
+        </div>
+      );
+    },
+    [weekSettings]
+  );
 
   const handleExportWeeklyXlsx = async () => {
     const api = calRef.current?.getApi?.() ?? null;
@@ -81,60 +184,71 @@ const AdminScheduleFullCalendar = ({ events, onEventClick, loading, initialDate 
         </button>
       </div>
       <div className="labdot-fc-wrap relative rounded-2xl border border-[#064e3b]/15 bg-white shadow-sm overflow-hidden">
-      {loading && (
-        <div className="absolute inset-0 z-10 bg-white/70 backdrop-blur-[1px] flex items-center justify-center">
-          <p className="text-sm font-medium text-[#064e3b]">일정 불러오는 중…</p>
-        </div>
-      )}
-      <FullCalendar
-        ref={calRef}
-        plugins={[dayGridPlugin, timeGridPlugin, listPlugin, interactionPlugin]}
-        initialView="timeGridWeek"
-        initialDate={initialDate}
-        locale={koLocale}
-        headerToolbar={{
-          left: 'prev,next today',
-          center: 'title',
-          right: 'dayGridMonth,timeGridWeek,timeGridDay,listWeek',
-        }}
-        buttonText={{
-          today: '오늘',
-          month: '월',
-          week: '주',
-          day: '일',
-          list: '목록',
-        }}
-        titleFormat={{ year: 'numeric', month: 'long' }}
-        dayHeaderFormat={{ weekday: 'short', month: 'numeric', day: 'numeric' }}
-        slotMinTime="06:00:00"
-        slotMaxTime="23:00:00"
-        allDaySlot={false}
-        slotDuration="00:30:00"
-        slotLabelInterval="01:00:00"
-        snapDuration="00:15:00"
-        firstDay={1}
-        slotLaneClassNames={(arg) => {
-          const d = arg?.date;
-          if (!d) return [];
-          if (d.getDay() === 6 && d.getHours() < SATURDAY_OPEN_HOUR) {
-            return ['labdot-sat-morning-na'];
-          }
-          return [];
-        }}
-        expandRows
-        height="auto"
-        contentHeight={typeof window !== 'undefined' && window.innerWidth < 640 ? 520 : 640}
-        weekends
-        events={events}
-        eventClick={(info) => {
-          info.jsEvent.preventDefault();
-          if (onEventClick) onEventClick(info);
-        }}
-        eventDisplay="block"
-        dayMaxEvents
-        nowIndicator
-        validRange={validRange}
-      />
+        {loading && (
+          <div className="absolute inset-0 z-10 bg-white/70 backdrop-blur-[1px] flex items-center justify-center">
+            <p className="text-sm font-medium text-[#064e3b]">일정 불러오는 중…</p>
+          </div>
+        )}
+
+        {isTimeGridView && !expandEarly && (
+          <button type="button" className={`${GHOST_TOGGLE_CLASS} border-b border-slate-100/90`} onClick={() => setExpandEarly(true)}>
+            + 00시~09시 일정 보기
+          </button>
+        )}
+
+        <FullCalendar
+          ref={calRef}
+          plugins={[dayGridPlugin, timeGridPlugin, listPlugin, interactionPlugin]}
+          initialView="timeGridWeek"
+          initialDate={initialDate}
+          locale={koLocale}
+          headerToolbar={{
+            left: 'prev,next today',
+            center: 'title',
+            right: 'dayGridMonth,timeGridWeek,timeGridDay,listWeek',
+          }}
+          buttonText={{
+            today: '오늘',
+            month: '월',
+            week: '주',
+            day: '일',
+            list: '목록',
+          }}
+          titleFormat={{ year: 'numeric', month: 'long' }}
+          dayHeaderFormat={{ weekday: 'short', month: 'numeric', day: 'numeric' }}
+          dayHeaderContent={dayHeaderContent}
+          datesSet={(info) => setActiveView(info.view.type)}
+          slotMinTime={slotBounds.slotMinTime}
+          slotMaxTime={slotBounds.slotMaxTime}
+          scrollTime="10:00:00"
+          allDaySlot={false}
+          slotDuration="00:30:00"
+          slotLabelInterval="01:00:00"
+          snapDuration="00:15:00"
+          firstDay={1}
+          slotLaneClassNames={slotLaneClassNames}
+          slotLabelClassNames={slotLabelClassNames}
+          eventAllow={eventAllow}
+          expandRows
+          height="auto"
+          contentHeight={typeof window !== 'undefined' && window.innerWidth < 640 ? 520 : 640}
+          weekends
+          events={events}
+          eventClick={(info) => {
+            info.jsEvent.preventDefault();
+            if (onEventClick) onEventClick(info);
+          }}
+          eventDisplay="block"
+          dayMaxEvents
+          nowIndicator
+          validRange={validRange}
+        />
+
+        {isTimeGridView && !expandLate && (
+          <button type="button" className={`${GHOST_TOGGLE_CLASS} border-t border-slate-100/90`} onClick={() => setExpandLate(true)}>
+            + 마감 이후 일정 보기
+          </button>
+        )}
       </div>
     </div>
   );

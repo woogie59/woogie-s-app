@@ -46,8 +46,9 @@ function todayKeyLocal() {
  * @param {'page' | 'embed'} [props.variant='page']
  * @param {string} [props.className]
  * @param {() => void} [props.onBlocksChanged] — parent calendar refresh
+ * @param {() => void} [props.onSettingsChanged] — trainer_settings saved → calendar OPEN badges
  */
-const AdminBookingSettingsPanel = ({ variant = 'page', className = '', onBlocksChanged }) => {
+const AdminBookingSettingsPanel = ({ variant = 'page', className = '', onBlocksChanged, onSettingsChanged }) => {
   const { showAlert } = useGlobalModal();
   const [settings, setSettings] = useState(emptyWeek);
   const [holidays, setHolidays] = useState([]);
@@ -139,6 +140,7 @@ const AdminBookingSettingsPanel = ({ variant = 'page', className = '', onBlocksC
     if (!error) {
       setSettings(nextSettings);
       if (toast) setSaveToast(true);
+      onSettingsChanged?.();
     } else {
       showAlert({ message: '저장 실패: ' + error.message });
     }
