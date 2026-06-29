@@ -196,7 +196,7 @@
 /* Member booking — unavailable / sold-out time slots */
 .labdot-slot-disabled {
   background: linear-gradient(
-      to top right,
+      to bottom right,
       transparent calc(50% - 0.5px),
       #d1d5db calc(50% - 0.5px),
       #d1d5db calc(50% + 0.5px),
