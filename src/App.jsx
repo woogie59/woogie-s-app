@@ -117,7 +117,6 @@ export default function App() {
   const [isRevenueLoading, setIsRevenueLoading] = useState(false);
   /** OneSignal deep link → open schedule on a specific day */
   const [scheduleCalendarSeed, setScheduleCalendarSeed] = useState(null);
-  const [trainerSettingsRevision, setTrainerSettingsRevision] = useState(0);
   const [calendarActionModal, setCalendarActionModal] = useState(null);
   const [calendarActionBusy, setCalendarActionBusy] = useState(false);
 
@@ -1068,13 +1067,18 @@ export default function App() {
                   </div>
                 </div>
                 <div className="flex-1 px-4 sm:px-6 max-w-7xl w-full mx-auto flex flex-col gap-4">
-                  <div className="min-h-[min(50vh,560px)] flex-1 pb-3 order-1">
+                  <AdminBookingSettingsPanel
+                    variant="embed"
+                    className="shrink-0"
+                    onBlocksChanged={fetchRevenueData}
+                    onSettingsChanged={fetchRevenueData}
+                  />
+                  <div className="min-h-[min(60vh,640px)] flex-1 pb-3">
                     <AdminScheduleFullCalendar
                       key={scheduleCalendarSeed ? String(scheduleCalendarSeed.getTime()) : 'cal'}
                       events={adminCalendarEvents}
                       loading={isRevenueLoading}
                       initialDate={scheduleCalendarSeed ?? undefined}
-                      settingsRevision={trainerSettingsRevision}
                       onEventClick={(info) => {
                         const block = info?.event?.extendedProps?.block;
                         if (info?.event?.extendedProps?.isBlock && block?.id) {
@@ -1095,12 +1099,6 @@ export default function App() {
                       }}
                     />
                   </div>
-                  <AdminBookingSettingsPanel
-                    variant="embed"
-                    className="shrink-0 order-2"
-                    onBlocksChanged={fetchRevenueData}
-                    onSettingsChanged={() => setTrainerSettingsRevision((n) => n + 1)}
-                  />
                 </div>
 
                 {calendarActionModal ? (

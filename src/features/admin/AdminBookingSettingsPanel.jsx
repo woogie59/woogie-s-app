@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { supabase } from '../../lib/supabaseClient';
 import { useGlobalModal } from '../../context/GlobalModalContext';
 import { ChevronDown, X } from 'lucide-react';
@@ -7,11 +7,29 @@ import {
   formatHourLabel,
   nextDateForDayOfWeek,
 } from '../../utils/trainerBlockedSlots';
+import {
+  DEFAULT_SLOT_START_HOUR,
+  detectPanelExpandNeeds,
+  isDayOpen,
+  isWeekendBulkActive,
+  isWeekendDow,
+  normalizeTrainerHours,
+  visiblePanelHours,
+  WEEKDAY_PANEL_END_HOUR,
+  WEEKDAY_PRESET_14_22,
+  WEEKEND_BULK_HOURS,
+} from '../../utils/labdotWeekSchedulePolicy';
 
 const DAY_NAMES = ['일', '월', '화', '수', '목', '금', '토'];
-const DAY_RENDER_ORDER = [1, 2, 3, 4, 5, 6, 0];
-const HOURS_0_23 = Array.from({ length: 24 }, (_, i) => i);
+const WEEKDAY_ORDER = [1, 2, 3, 4, 5];
+const WEEKEND_ORDER = [6, 0];
 const HOLD_LABELS = ['OT', '내부', '기타'];
+
+const PANEL_TABS = [
+  { id: 'template', label: '주간 템플릿' },
+  { id: 'blocks', label: '예약처리' },
+  { id: 'holidays', label: '휴무일' },
+];
 
 const emptyWeek = () =>
   Array.from({ length: 7 }, (_, d) => ({
@@ -20,33 +38,21 @@ const emptyWeek = () =>
     available_hours: [],
   }));
 
-function normalizeHours(raw) {
-  if (raw == null) return [];
-  let arr = raw;
-  if (typeof raw === 'string') {
-    try {
-      arr = JSON.parse(raw);
-    } catch {
-      return [];
-    }
-  }
-  if (!Array.isArray(arr)) return [];
-  return [...new Set(arr.map((x) => Number(x)).filter((h) => Number.isInteger(h) && h >= 0 && h <= 23))].sort(
-    (a, b) => a - b
-  );
-}
-
 function todayKeyLocal() {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+function formatHourBtn(h) {
+  return `${String(h).padStart(2, '0')}:00`;
 }
 
 /**
  * @param {object} props
  * @param {'page' | 'embed'} [props.variant='page']
  * @param {string} [props.className]
- * @param {() => void} [props.onBlocksChanged] — parent calendar refresh
- * @param {() => void} [props.onSettingsChanged] — trainer_settings saved → calendar OPEN badges
+ * @param {() => void} [props.onBlocksChanged]
+ * @param {() => void} [props.onSettingsChanged]
  */
 const AdminBookingSettingsPanel = ({ variant = 'page', className = '', onBlocksChanged, onSettingsChanged }) => {
   const { showAlert } = useGlobalModal();
@@ -58,10 +64,16 @@ const AdminBookingSettingsPanel = ({ variant = 'page', className = '', onBlocksC
   const [saveToast, setSaveToast] = useState(false);
   const [newHolidayDate, setNewHolidayDate] = useState('');
   const [settingsOpen, setSettingsOpen] = useState(variant === 'page');
+  const [activeTab, setActiveTab] = useState('template');
   const [hourModal, setHourModal] = useState(null);
   const [holdDate, setHoldDate] = useState('');
   const [holdLabel, setHoldLabel] = useState('OT');
   const [holdSaving, setHoldSaving] = useState(false);
+  const [weekdayExpandEarly, setWeekdayExpandEarly] = useState(false);
+  const [weekdayExpandLate, setWeekdayExpandLate] = useState(false);
+  const [weekendExpandEarly, setWeekendExpandEarly] = useState(false);
+  const [weekendExpandLate, setWeekendExpandLate] = useState(false);
+  const [expandInitialized, setExpandInitialized] = useState(false);
 
   const fetchData = async () => {
     setLoading(true);
@@ -82,11 +94,19 @@ const AdminBookingSettingsPanel = ({ variant = 'page', className = '', onBlocksC
           ? {
               day_of_week: d,
               off: !!row.off,
-              available_hours: normalizeHours(row.available_hours),
+              available_hours: normalizeTrainerHours(row.available_hours),
             }
           : { day_of_week: d, off: d === 0, available_hours: [] };
       });
       setSettings(arr);
+      if (!expandInitialized) {
+        const needs = detectPanelExpandNeeds(arr);
+        setWeekdayExpandEarly(needs.weekdayEarly);
+        setWeekdayExpandLate(needs.weekdayLate);
+        setWeekendExpandEarly(needs.weekendEarly);
+        setWeekendExpandLate(needs.weekendLate);
+        setExpandInitialized(true);
+      }
     }
     setHolidays(e2 ? [] : hols || []);
     setBlockedSlots(e3 ? [] : blocks || []);
@@ -94,8 +114,8 @@ const AdminBookingSettingsPanel = ({ variant = 'page', className = '', onBlocksC
   };
 
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- mount: load trainer_settings / holidays
     void fetchData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- mount only
   }, []);
 
   useEffect(() => {
@@ -109,23 +129,15 @@ const AdminBookingSettingsPanel = ({ variant = 'page', className = '', onBlocksC
     setSettings((prev) => prev.map((s) => (s.day_of_week === dow ? fn(s) : s)));
   };
 
-  const toggleDayOff = (dow) => {
-    updateDay(dow, (s) => {
-      const nextOff = !s.off;
-      if (nextOff) return { ...s, off: true, available_hours: [] };
-      return { ...s, off: false };
-    });
-  };
-
-  const withHourChange = (dow, h, mode) => {
-    const day = settings.find((s) => s.day_of_week === dow);
-    if (!day || day.off) return settings;
+  const withHourChange = (list, dow, h, mode) => {
+    const day = list.find((s) => s.day_of_week === dow);
+    if (!day || day.off) return list;
     const arr = [...(day.available_hours || [])];
     const i = arr.indexOf(h);
     if (mode === 'off' && i >= 0) arr.splice(i, 1);
     else if (mode === 'on' && i < 0) arr.push(h);
     arr.sort((a, b) => a - b);
-    return settings.map((s) => (s.day_of_week === dow ? { ...s, available_hours: arr } : s));
+    return list.map((s) => (s.day_of_week === dow ? { ...s, available_hours: arr } : s));
   };
 
   const persistSettings = async (nextSettings, toast = true) => {
@@ -133,7 +145,7 @@ const AdminBookingSettingsPanel = ({ variant = 'page', className = '', onBlocksC
     const rows = nextSettings.map((s) => ({
       day_of_week: s.day_of_week,
       off: s.off,
-      available_hours: s.off ? [] : normalizeHours(s.available_hours),
+      available_hours: s.off ? [] : normalizeTrainerHours(s.available_hours),
     }));
     const { error } = await supabase.from('trainer_settings').upsert(rows, { onConflict: 'day_of_week' });
     setSaving(false);
@@ -151,13 +163,59 @@ const AdminBookingSettingsPanel = ({ variant = 'page', className = '', onBlocksC
     await persistSettings(settings, true);
   };
 
-  const openHourModal = (dow, h) => {
-    const day = settings.find((s) => s.day_of_week === dow);
-    if (!day || day.off) return;
-    const active = (day.available_hours || []).includes(h);
-    setHoldDate(nextDateForDayOfWeek(dow));
-    setHoldLabel('OT');
-    setHourModal({ dow, hour: h, active });
+  const toggleDayOff = (dow) => {
+    updateDay(dow, (s) => {
+      const nextOff = !s.off;
+      if (nextOff) return { ...s, off: true, available_hours: [] };
+      return { ...s, off: false };
+    });
+  };
+
+  const applyWeekendBulk = (dow, on) => {
+    updateDay(dow, (s) => ({
+      ...s,
+      off: !on,
+      available_hours: on ? [...WEEKEND_BULK_HOURS] : [],
+    }));
+  };
+
+  const applyWeekendBulkBoth = (on) => {
+    setSettings((prev) =>
+      prev.map((s) =>
+        isWeekendDow(s.day_of_week)
+          ? { ...s, off: !on, available_hours: on ? [...WEEKEND_BULK_HOURS] : [] }
+          : s
+      )
+    );
+  };
+
+  const applyWeekdayPreset1422All = () => {
+    setSettings((prev) =>
+      prev.map((s) =>
+        s.day_of_week >= 1 && s.day_of_week <= 5
+          ? { ...s, off: false, available_hours: [...WEEKDAY_PRESET_14_22] }
+          : s
+      )
+    );
+  };
+
+  const clearWeekdays = () => {
+    setSettings((prev) =>
+      prev.map((s) =>
+        s.day_of_week >= 1 && s.day_of_week <= 5 ? { ...s, off: true, available_hours: [] } : s
+      )
+    );
+  };
+
+  const handleHourClick = async (dow, h, active) => {
+    if (active) {
+      setHoldDate(nextDateForDayOfWeek(dow));
+      setHoldLabel('OT');
+      setHourModal({ dow, hour: h, active: true });
+      return;
+    }
+    const next = withHourChange(settings, dow, h, 'on');
+    await persistSettings(next, true);
   };
 
   const closeHourModal = () => {
@@ -167,14 +225,14 @@ const AdminBookingSettingsPanel = ({ variant = 'page', className = '', onBlocksC
 
   const handleWeeklyDeactivate = async () => {
     if (!hourModal) return;
-    const next = withHourChange(hourModal.dow, hourModal.hour, 'off');
+    const next = withHourChange(settings, hourModal.dow, hourModal.hour, 'off');
     setHourModal(null);
     await persistSettings(next, true);
   };
 
   const handleWeeklyActivate = async () => {
     if (!hourModal) return;
-    const next = withHourChange(hourModal.dow, hourModal.hour, 'on');
+    const next = withHourChange(settings, hourModal.dow, hourModal.hour, 'on');
     setHourModal(null);
     await persistSettings(next, true);
   };
@@ -191,7 +249,9 @@ const AdminBookingSettingsPanel = ({ variant = 'page', className = '', onBlocksC
     });
     setHoldSaving(false);
     if (error) {
-      showAlert({ message: error.message.includes('unique') ? '이미 차단된 시간입니다.' : '예약처리 실패: ' + error.message });
+      showAlert({
+        message: error.message.includes('unique') ? '이미 차단된 시간입니다.' : '예약처리 실패: ' + error.message,
+      });
       return;
     }
     setHourModal(null);
@@ -225,6 +285,69 @@ const AdminBookingSettingsPanel = ({ variant = 'page', className = '', onBlocksC
     fetchData();
   };
 
+  const bothWeekendBulkOn = useMemo(() => {
+    const sat = settings.find((s) => s.day_of_week === 6);
+    const sun = settings.find((s) => s.day_of_week === 0);
+    return isWeekendBulkActive(sat) && isWeekendBulkActive(sun);
+  }, [settings]);
+
+  const renderDayCard = (s, expandEarly, expandLate) => {
+    const open = isDayOpen(settings, s.day_of_week);
+    const hours = visiblePanelHours(s.day_of_week, expandEarly, expandLate);
+
+    return (
+      <div
+        key={s.day_of_week}
+        className="p-3 rounded-xl border border-slate-200/90 bg-slate-50/60 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.6)]"
+      >
+        <div className="flex items-center justify-between gap-2 flex-wrap mb-1">
+          <div className="flex items-center gap-2">
+            <span className="font-semibold text-slate-900 w-6 text-sm">{DAY_NAMES[s.day_of_week]}</span>
+            {isWeekendDow(s.day_of_week) && (
+              <span
+                className={`rounded px-1 py-0.5 text-[9px] font-bold leading-none ${
+                  open ? 'bg-emerald-600 text-white' : 'bg-slate-300 text-slate-600'
+                }`}
+              >
+                {open ? 'OPEN' : 'CLOSED'}
+              </span>
+            )}
+          </div>
+          <label className="flex items-center gap-2 cursor-pointer text-xs text-slate-600">
+            <input
+              type="checkbox"
+              checked={s.off}
+              onChange={() => toggleDayOff(s.day_of_week)}
+              className="accent-[#064e3b]"
+            />
+            <span>하루 종일 휴무</span>
+          </label>
+        </div>
+        {!s.off && (
+          <div className="grid grid-cols-3 sm:grid-cols-5 gap-1.5 mt-2">
+            {hours.map((h) => {
+              const active = (s.available_hours || []).includes(h);
+              return (
+                <button
+                  key={h}
+                  type="button"
+                  onClick={() => handleHourClick(s.day_of_week, h, active)}
+                  className={`py-1.5 rounded-md text-[10px] font-medium tabular-nums transition-all active:scale-[0.98] ${
+                    active
+                      ? 'bg-[#064e3b] text-white shadow-sm'
+                      : 'bg-white text-slate-400 border border-slate-200/80'
+                  }`}
+                >
+                  {formatHourBtn(h)}
+                </button>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    );
+  };
+
   if (loading) {
     return (
       <div className={`text-slate-600 text-sm ${className}`}>
@@ -235,6 +358,187 @@ const AdminBookingSettingsPanel = ({ variant = 'page', className = '', onBlocksC
 
   const modalDayLabel = hourModal ? `${dayName(hourModal.dow)}요일 ${formatHourLabel(hourModal.hour)}` : '';
 
+  const templateBody = (
+    <div className="space-y-5">
+      <p className="text-xs text-slate-500 leading-relaxed">
+        기본 표시: 평일 {DEFAULT_SLOT_START_HOUR}:00~{WEEKDAY_PANEL_END_HOUR}:00 · 주말 {DEFAULT_SLOT_START_HOUR}:00~18:00.
+        비활성 칸 탭 → 즉시 ON · 활성 칸 탭 → 비활성화/예약처리(OT).
+      </p>
+
+      {/* Weekdays */}
+      <div>
+        <div className="flex items-center justify-between gap-2 flex-wrap mb-2">
+          <h3 className="text-[#064e3b] font-bold text-sm">평일 (월~금)</h3>
+          <div className="flex flex-wrap gap-1.5">
+            <button
+              type="button"
+              onClick={applyWeekdayPreset1422All}
+              className="px-2.5 py-1 rounded-lg text-[10px] font-semibold bg-[#064e3b]/10 text-[#064e3b] border border-[#064e3b]/20"
+            >
+              14~22 일괄 ON
+            </button>
+            <button
+              type="button"
+              onClick={clearWeekdays}
+              className="px-2.5 py-1 rounded-lg text-[10px] font-semibold text-slate-600 border border-slate-200"
+            >
+              평일 전체 OFF
+            </button>
+          </div>
+        </div>
+        {!weekdayExpandEarly && (
+          <button
+            type="button"
+            onClick={() => setWeekdayExpandEarly(true)}
+            className="w-full mb-2 py-1.5 text-[10px] font-medium text-slate-500 border border-dashed border-slate-200 rounded-lg hover:bg-slate-50"
+          >
+            + 00시~09시 보기
+          </button>
+        )}
+        <div className="space-y-2">
+          {WEEKDAY_ORDER.map((dow) => settings.find((x) => x.day_of_week === dow)).filter(Boolean).map((s) =>
+            renderDayCard(s, weekdayExpandEarly, weekdayExpandLate)
+          )}
+        </div>
+        {!weekdayExpandLate && (
+          <button
+            type="button"
+            onClick={() => setWeekdayExpandLate(true)}
+            className="w-full mt-2 py-1.5 text-[10px] font-medium text-slate-500 border border-dashed border-slate-200 rounded-lg hover:bg-slate-50"
+          >
+            + 23시 보기
+          </button>
+        )}
+      </div>
+
+      {/* Weekend */}
+      <div>
+        <div className="flex items-center justify-between gap-2 flex-wrap mb-2">
+          <h3 className="text-[#064e3b] font-bold text-sm">주말 (토·일)</h3>
+          <button
+            type="button"
+            onClick={() => applyWeekendBulkBoth(!bothWeekendBulkOn)}
+            className={`px-2.5 py-1 rounded-lg text-[10px] font-semibold border transition-colors ${
+              bothWeekendBulkOn
+                ? 'bg-emerald-600 text-white border-emerald-700'
+                : 'bg-white text-[#064e3b] border-[#064e3b]/30'
+            }`}
+          >
+            {bothWeekendBulkOn ? '토·일 10~18 OFF' : '토·일 10~18 수업 오픈'}
+          </button>
+        </div>
+        <div className="flex flex-wrap gap-1.5 mb-2">
+          {WEEKEND_ORDER.map((dow) => {
+            const day = settings.find((s) => s.day_of_week === dow);
+            const on = isWeekendBulkActive(day);
+            return (
+              <button
+                key={dow}
+                type="button"
+                onClick={() => applyWeekendBulk(dow, !on)}
+                className={`px-2 py-1 rounded-lg text-[10px] font-semibold border ${
+                  on ? 'bg-emerald-600 text-white border-emerald-700' : 'bg-white text-slate-600 border-slate-200'
+                }`}
+              >
+                {DAY_NAMES[dow]} {on ? 'OFF' : '10~18 ON'}
+              </button>
+            );
+          })}
+        </div>
+        {!weekendExpandEarly && (
+          <button
+            type="button"
+            onClick={() => setWeekendExpandEarly(true)}
+            className="w-full mb-2 py-1.5 text-[10px] font-medium text-slate-500 border border-dashed border-slate-200 rounded-lg hover:bg-slate-50"
+          >
+            + 00시~09시 보기
+          </button>
+        )}
+        <div className="space-y-2">
+          {WEEKEND_ORDER.map((dow) => settings.find((x) => x.day_of_week === dow)).filter(Boolean).map((s) =>
+            renderDayCard(s, weekendExpandEarly, weekendExpandLate)
+          )}
+        </div>
+        {!weekendExpandLate && (
+          <button
+            type="button"
+            onClick={() => setWeekendExpandLate(true)}
+            className="w-full mt-2 py-1.5 text-[10px] font-medium text-slate-500 border border-dashed border-slate-200 rounded-lg hover:bg-slate-50"
+          >
+            + 19시~23시 보기
+          </button>
+        )}
+      </div>
+
+      <button
+        type="button"
+        onClick={saveSettings}
+        disabled={saving}
+        className="w-full py-2.5 bg-[#064e3b] text-white text-sm font-semibold rounded-xl hover:bg-[#043d2d] disabled:opacity-50 transition-colors"
+      >
+        {saving ? '저장 중…' : '저장'}
+      </button>
+    </div>
+  );
+
+  const blocksBody = (
+    <div>
+      <h3 className="text-[#064e3b] font-bold mb-2 text-sm">예약처리 (날짜별 차단 · OT)</h3>
+      <p className="text-xs text-slate-500 mb-3">주간 템플릿은 유지하고, 특정 날짜·시간만 회원 예약을 막습니다.</p>
+      {blockedSlots.length === 0 ? (
+        <p className="text-sm text-slate-400 py-6 text-center">등록된 예약처리가 없습니다.</p>
+      ) : (
+        <div className="space-y-1.5 max-h-48 overflow-y-auto pr-0.5">
+          {blockedSlots.map((row) => (
+            <div
+              key={row.id}
+              className="flex items-center justify-between gap-2 px-2 py-1.5 bg-amber-50/80 rounded-lg border border-amber-200/60 text-xs"
+            >
+              <span className="font-mono text-slate-800">
+                {row.block_date} {row.block_time}{' '}
+                <span className="text-amber-800 font-semibold">{row.label || 'OT'}</span>
+              </span>
+              <button type="button" onClick={() => removeBlockedSlot(row.id)} className="text-red-500 hover:underline shrink-0">
+                삭제
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+      <p className="text-[10px] text-slate-400 mt-3">새 OT 등록: 주간 템플릿 탭에서 활성(녹색) 시간 칸을 누르세요.</p>
+    </div>
+  );
+
+  const holidaysBody = (
+    <div>
+      <h3 className="text-[#064e3b] font-bold mb-2 text-sm">특정 휴무일</h3>
+      <div className="flex flex-wrap gap-2 mb-2">
+        <input
+          type="date"
+          value={newHolidayDate}
+          onChange={(e) => setNewHolidayDate(e.target.value)}
+          className="flex-1 min-w-0 bg-white border border-slate-200 rounded-lg px-2 py-1.5 text-sm text-slate-900"
+        />
+        <button type="button" onClick={addHoliday} className="shrink-0 bg-[#064e3b] text-white text-sm font-semibold px-3 py-1.5 rounded-lg">
+          추가
+        </button>
+      </div>
+      <div className="space-y-1.5 max-h-48 overflow-y-auto pr-0.5">
+        {holidays.slice(0, 20).map((h) => (
+          <div
+            key={h.id}
+            className="flex items-center justify-between px-2 py-1.5 bg-white rounded-lg border border-slate-100 text-xs"
+          >
+            <span className="font-mono text-slate-800">{h.date}</span>
+            <button type="button" onClick={() => removeHoliday(h.id)} className="text-red-500 hover:underline">
+              삭제
+            </button>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+
   const body = (
     <>
       {saveToast && (
@@ -243,105 +547,27 @@ const AdminBookingSettingsPanel = ({ variant = 'page', className = '', onBlocksC
         </div>
       )}
 
-      <div className="mb-6">
-        <h3 className="text-[#064e3b] font-bold mb-2 text-sm tracking-wide">주간 휴무 · 예약 가능 시간</h3>
-        <p className="text-xs text-slate-500 mb-3">시간 칸을 누르면 주간 비활성화 또는 날짜별 예약처리(OT 등)를 선택할 수 있습니다.</p>
-        <div className="space-y-3">
-          {DAY_RENDER_ORDER.map((dow) => settings.find((x) => x.day_of_week === dow)).filter(Boolean).map((s) => (
-            <div
-              key={s.day_of_week}
-              className="p-3 rounded-xl border border-slate-200/90 bg-slate-50/60 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.6)]"
-            >
-              <div className="flex items-center justify-between gap-2 flex-wrap mb-1">
-                <span className="font-semibold text-slate-900 w-6 text-sm">{DAY_NAMES[s.day_of_week]}</span>
-                <label className="flex items-center gap-2 cursor-pointer text-xs text-slate-600">
-                  <input type="checkbox" checked={s.off} onChange={() => toggleDayOff(s.day_of_week)} className="accent-[#064e3b]" />
-                  <span>하루 종일 휴무</span>
-                </label>
-              </div>
-              {!s.off && (
-                <div className="grid grid-cols-4 sm:grid-cols-6 gap-1.5 mt-2">
-                  {HOURS_0_23.map((h) => {
-                    const active = (s.available_hours || []).includes(h);
-                    return (
-                      <button
-                        key={h}
-                        type="button"
-                        onClick={() => openHourModal(s.day_of_week, h)}
-                        className={`py-1.5 rounded-md text-[10px] font-medium tabular-nums transition-all active:scale-[0.98] ${
-                          active
-                            ? 'bg-[#064e3b] text-white shadow-sm'
-                            : 'bg-white text-slate-400 border border-slate-200/80'
-                        }`}
-                      >
-                        {String(h).padStart(2, '0')}:00
-                      </button>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-          ))}
-        </div>
-        <button
-          type="button"
-          onClick={saveSettings}
-          disabled={saving}
-          className="w-full mt-3 py-2.5 bg-[#064e3b] text-white text-sm font-semibold rounded-xl hover:bg-[#043d2d] disabled:opacity-50 transition-colors"
-        >
-          {saving ? '저장 중…' : '저장'}
-        </button>
-      </div>
-
-      {blockedSlots.length > 0 && (
-        <div className="mb-6">
-          <h3 className="text-[#064e3b] font-bold mb-2 text-sm">예약처리 (날짜별 차단)</h3>
-          <div className="space-y-1.5 max-h-32 overflow-y-auto pr-0.5">
-            {blockedSlots.map((row) => (
-              <div
-                key={row.id}
-                className="flex items-center justify-between gap-2 px-2 py-1.5 bg-amber-50/80 rounded-lg border border-amber-200/60 text-xs"
-              >
-                <span className="font-mono text-slate-800">
-                  {row.block_date} {row.block_time}{' '}
-                  <span className="text-amber-800 font-semibold">{row.label || 'OT'}</span>
-                </span>
-                <button type="button" onClick={() => removeBlockedSlot(row.id)} className="text-red-500 hover:underline shrink-0">
-                  삭제
-                </button>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      <div>
-        <h3 className="text-[#064e3b] font-bold mb-2 text-sm">특정 휴무일</h3>
-        <div className="flex flex-wrap gap-2 mb-2">
-          <input
-            type="date"
-            value={newHolidayDate}
-            onChange={(e) => setNewHolidayDate(e.target.value)}
-            className="flex-1 min-w-0 bg-white border border-slate-200 rounded-lg px-2 py-1.5 text-sm text-slate-900"
-          />
-          <button type="button" onClick={addHoliday} className="shrink-0 bg-[#064e3b] text-white text-sm font-semibold px-3 py-1.5 rounded-lg">
-            추가
+      <div className="flex gap-1 p-1 mb-4 rounded-xl bg-slate-100/80 border border-slate-200/60">
+        {PANEL_TABS.map((tab) => (
+          <button
+            key={tab.id}
+            type="button"
+            onClick={() => setActiveTab(tab.id)}
+            className={`flex-1 py-2 rounded-lg text-[11px] font-semibold transition-colors ${
+              activeTab === tab.id ? 'bg-white text-[#064e3b] shadow-sm' : 'text-slate-500 hover:text-slate-700'
+            }`}
+          >
+            {tab.label}
+            {tab.id === 'blocks' && blockedSlots.length > 0 ? (
+              <span className="ml-1 text-[9px] text-amber-600">({blockedSlots.length})</span>
+            ) : null}
           </button>
-        </div>
-        <div className="space-y-1.5 max-h-36 overflow-y-auto pr-0.5">
-          {holidays.slice(0, 20).map((h) => (
-            <div
-              key={h.id}
-              className="flex items-center justify-between px-2 py-1.5 bg-white rounded-lg border border-slate-100 text-xs"
-            >
-              <span className="font-mono text-slate-800">{h.date}</span>
-              <button type="button" onClick={() => removeHoliday(h.id)} className="text-red-500 hover:underline">
-                삭제
-              </button>
-            </div>
-          ))}
-        </div>
+        ))}
       </div>
+
+      {activeTab === 'template' && templateBody}
+      {activeTab === 'blocks' && blocksBody}
+      {activeTab === 'holidays' && holidaysBody}
 
       {hourModal && (
         <div
@@ -443,7 +669,7 @@ const AdminBookingSettingsPanel = ({ variant = 'page', className = '', onBlocksC
           <span className="text-sm font-semibold text-[#064e3b]">예약 설정</span>
           <ChevronDown className={`h-4 w-4 text-slate-400 transition-transform ${settingsOpen ? 'rotate-180' : ''}`} />
         </button>
-        {settingsOpen && <div className="px-3 pb-4 pt-1 sm:px-4 max-h-[min(70vh,520px)] overflow-y-auto">{body}</div>}
+        {settingsOpen && <div className="px-3 pb-4 pt-1 sm:px-4 max-h-[min(75vh,640px)] overflow-y-auto">{body}</div>}
       </div>
     );
   }

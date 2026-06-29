@@ -42,23 +42,6 @@
   color: #64748b;
 }
 
-.labdot-fc-wrap .fc .fc-timegrid-slot-lane.labdot-slot-collapsed {
-  display: none !important;
-}
-
-.labdot-fc-wrap .fc .fc-timegrid-slot-label.labdot-slot-collapsed {
-  display: none !important;
-}
-
-.labdot-fc-wrap .labdot-fc-expand-btn {
-  position: relative;
-  z-index: 2;
-}
-
-.labdot-fc-wrap .labdot-fc-day-header {
-  min-height: 2rem;
-}
-
 .labdot-fc-wrap .fc .fc-event {
   border-radius: 0.45rem;
   border: none !important;
