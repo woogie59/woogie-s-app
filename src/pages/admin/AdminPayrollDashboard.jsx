@@ -1,8 +1,9 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { ChevronDown } from 'lucide-react';
+import { ChevronDown, ClipboardCopy } from 'lucide-react';
 import * as XLSX from 'xlsx-js-style';
 import { supabase } from '../../lib/supabaseClient';
 import BackButton from '../../components/ui/BackButton';
+import { useGlobalModal } from '../../context/GlobalModalContext';
 import { isAttendanceLogCompletedForBalance } from '../../utils/sessionHelpers';
 
 /** Local calendar month bounds for `check_in_at` (timestamptz): 1st 00:00:00.000 — last day 23:59:59.999. */
@@ -180,7 +181,78 @@ function formatWonKo(value) {
   return Math.round(value).toLocaleString('ko-KR');
 }
 
+const PAYROLL_LEDGER_HEADER = [
+  'no',
+  '회원명',
+  '등록 세션수',
+  '잔여세션',
+  '판매공재 단가',
+  '수업료',
+  '진행 수업',
+  '잔여 수업',
+  '합계',
+];
+
+function buildPayrollLedgerRows(
+  members,
+  { batchesByUserId, totalRegisteredByUser, remainingByUser, unitPriceByUser, completedCountByUser },
+) {
+  const sortedMembers = [...(members || [])].sort((a, b) => {
+    const na = (a?.name || a?.email || '').localeCompare(b?.name || b?.email || '', 'ko');
+    return na;
+  });
+
+  const dataRows = sortedMembers.map((m, idx) => {
+    const uid = m.id;
+    const baseName = String(m?.name || m?.email || '—').trim();
+    const memberNameCol = `${baseName}님`;
+
+    const hasPackRows = (batchesByUserId[uid] || []).length > 0;
+    const totalRegSum = totalRegisteredByUser[uid] ?? 0;
+    const registeredSessionsCol = hasPackRows ? totalRegSum : '';
+
+    const remainingSessions = Number(remainingByUser[uid] ?? 0);
+    const unitRaw = unitPriceByUser[uid];
+    const unitPriceWon =
+      unitRaw != null && Number.isFinite(unitRaw) ? Math.round(Number(unitRaw)) : 0;
+    const completedInMonth = Number(completedCountByUser[uid] ?? 0);
+    const trainerPayout = Math.round(unitPriceWon * 0.3);
+    const remainingLessProgress = remainingSessions - completedInMonth;
+    const lineTotal = trainerPayout * completedInMonth;
+
+    return [
+      idx + 1,
+      memberNameCol,
+      registeredSessionsCol,
+      remainingSessions,
+      unitPriceWon,
+      trainerPayout,
+      completedInMonth,
+      remainingLessProgress,
+      lineTotal,
+    ];
+  });
+
+  return { header: PAYROLL_LEDGER_HEADER, dataRows };
+}
+
+function aoaToTsv(header, dataRows) {
+  const rows = [header, ...dataRows];
+  return rows
+    .map((row) =>
+      row
+        .map((cell) =>
+          String(cell ?? '')
+            .replace(/\t/g, ' ')
+            .replace(/\r?\n/g, ' '),
+        )
+        .join('\t'),
+    )
+    .join('\n');
+}
+
 const AdminPayrollDashboard = ({ goBack }) => {
+  const { showToast } = useGlobalModal();
   const [selectedDate, setSelectedDate] = useState(() => startOfCurrentMonth());
 
   const monthOptions = useMemo(() => buildLastTwelveMonthOptions(), []);
@@ -327,55 +399,19 @@ const AdminPayrollDashboard = ({ goBack }) => {
     );
   }, [logs, selectedId]);
 
+  const payrollLedgerContext = useMemo(
+    () => ({
+      batchesByUserId,
+      totalRegisteredByUser,
+      remainingByUser,
+      unitPriceByUser,
+      completedCountByUser,
+    }),
+    [batchesByUserId, totalRegisteredByUser, remainingByUser, unitPriceByUser, completedCountByUser],
+  );
+
   const handleExportExcel = () => {
-    const header = [
-      'no',
-      '회원명',
-      '등록 세션수',
-      '잔여세션',
-      '판매공재 단가',
-      '수업료',
-      '진행 수업',
-      '잔여 수업',
-      '합계',
-    ];
-
-    const sortedMembers = [...(members || [])].sort((a, b) => {
-      const na = (a?.name || a?.email || '').localeCompare(b?.name || b?.email || '', 'ko');
-      return na;
-    });
-
-    const dataRows = sortedMembers.map((m, idx) => {
-      const uid = m.id;
-      const baseName = String(m?.name || m?.email || '—').trim();
-      const memberNameCol = `${baseName}님`;
-
-      const hasPackRows = (batchesByUserId[uid] || []).length > 0;
-      const totalRegSum = totalRegisteredByUser[uid] ?? 0;
-      const registeredSessionsCol = hasPackRows ? totalRegSum : '';
-
-      const remainingSessions = Number(remainingByUser[uid] ?? 0);
-      const unitRaw = unitPriceByUser[uid];
-      const unitPriceWon =
-        unitRaw != null && Number.isFinite(unitRaw) ? Math.round(Number(unitRaw)) : 0;
-      const completedInMonth = Number(completedCountByUser[uid] ?? 0);
-      const trainerPayout = Math.round(unitPriceWon * 0.3);
-      const remainingLessProgress = remainingSessions - completedInMonth;
-      const lineTotal = trainerPayout * completedInMonth;
-
-      return [
-        idx + 1,
-        memberNameCol,
-        registeredSessionsCol,
-        remainingSessions,
-        unitPriceWon,
-        trainerPayout,
-        completedInMonth,
-        remainingLessProgress,
-        lineTotal,
-      ];
-    });
-
+    const { header, dataRows } = buildPayrollLedgerRows(members, payrollLedgerContext);
     const aoa = [header, ...dataRows];
     const wb = XLSX.utils.book_new();
     const ws = XLSX.utils.aoa_to_sheet(aoa);
@@ -386,6 +422,21 @@ const AdminPayrollDashboard = ({ goBack }) => {
 
     const safeMonth = `${selectedDate.getFullYear()}-${String(selectedDate.getMonth() + 1).padStart(2, '0')}`;
     XLSX.writeFile(wb, `payroll-ledger-${safeMonth}.xlsx`);
+  };
+
+  const handleCopyToClipboard = async () => {
+    const { header, dataRows } = buildPayrollLedgerRows(members, payrollLedgerContext);
+    if (!dataRows.length) return;
+
+    const tsvContent = aoaToTsv(header, dataRows);
+
+    try {
+      await navigator.clipboard.writeText(tsvContent);
+      showToast('급여 데이터가 복사되었습니다. 스프레드시트에 붙여넣기(Cmd+V) 하세요.');
+    } catch (err) {
+      console.error('Failed to copy payroll TSV:', err);
+      showToast('클립보드 복사에 실패했습니다.');
+    }
   };
 
   return (
@@ -424,14 +475,25 @@ const AdminPayrollDashboard = ({ goBack }) => {
                 />
               </div>
             </label>
-            <button
-              type="button"
-              onClick={handleExportExcel}
-              disabled={loading || !(members || []).length}
-              className="shrink-0 border border-neutral-900 bg-neutral-900 text-white px-5 py-3 text-sm font-medium tracking-wide hover:bg-neutral-800 disabled:opacity-40 disabled:pointer-events-none transition-colors"
-            >
-              엑셀 다운로드
-            </button>
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={handleCopyToClipboard}
+                disabled={loading || !(members || []).length}
+                className="inline-flex shrink-0 items-center gap-2 border border-neutral-200 bg-white text-neutral-900 px-5 py-3 text-sm font-medium tracking-wide hover:bg-neutral-50 disabled:opacity-40 disabled:pointer-events-none transition-colors"
+              >
+                <ClipboardCopy className="size-4 shrink-0" strokeWidth={2} aria-hidden />
+                급여 복사하기
+              </button>
+              <button
+                type="button"
+                onClick={handleExportExcel}
+                disabled={loading || !(members || []).length}
+                className="shrink-0 border border-neutral-900 bg-neutral-900 text-white px-5 py-3 text-sm font-medium tracking-wide hover:bg-neutral-800 disabled:opacity-40 disabled:pointer-events-none transition-colors"
+              >
+                엑셀 다운로드
+              </button>
+            </div>
           </div>
         </div>
       </header>
