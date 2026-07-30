@@ -5,6 +5,13 @@ import { supabase } from '../../lib/supabaseClient';
 import BackButton from '../../components/ui/BackButton';
 import { useGlobalModal } from '../../context/GlobalModalContext';
 import { isAttendanceLogCompletedForBalance } from '../../utils/sessionHelpers';
+import {
+  buildPriceByLogIdForUsers,
+  monthStatsFromLogs,
+  PAYROLL_TRAINER_RATE,
+  resolveLogUnitPriceWon,
+  sumResolvedLogPrices,
+} from '../../utils/payrollPricing';
 
 /** Local calendar month bounds for `check_in_at` (timestamptz): 1st 00:00:00.000 — last day 23:59:59.999. */
 function monthRangeISO(dateInMonth) {
@@ -144,41 +151,18 @@ function sumTotalCountByUser(rows) {
   return m;
 }
 
-/** Weighted average `price_per_session` using `total_count` per pack. */
-function weightedUnitPriceFromBatches(batchRows) {
-  if (!batchRows?.length) return null;
-  let num = 0;
-  let den = 0;
-  for (const b of batchRows) {
-    const tc = Number(b?.total_count);
-    const pps = Number(b?.price_per_session);
-    if (!Number.isFinite(tc) || tc <= 0) continue;
-    if (!Number.isFinite(pps) || pps < 0) continue;
-    num += pps * tc;
-    den += tc;
-  }
-  if (den <= 0) return null;
-  return Math.round(num / den);
-}
-
-/**
- * Resolved unit price (KRW, integer): packs first (weighted), then `profiles.price_per_session`.
- * Returns `null` when no usable price (export shows "단가 미정").
- */
-function resolveUnitPriceWon(profileRow, batchesForUser) {
-  const rows = batchesForUser || [];
-  if (rows.length > 0) {
-    const w = weightedUnitPriceFromBatches(rows);
-    if (w != null) return w;
-  }
-  const p = Number(profileRow?.price_per_session);
-  if (Number.isFinite(p) && p >= 0) return Math.round(p);
-  return null;
-}
-
 function formatWonKo(value) {
   if (value == null || !Number.isFinite(value)) return '0';
   return Math.round(value).toLocaleString('ko-KR');
+}
+
+function formatUnitPriceLabel(stats) {
+  if (!stats?.count) return { unitLabel: '단가 미정', monthPayout: null };
+  if (stats.prices.size === 0) return { unitLabel: '단가 미정', monthPayout: stats.sum };
+  if (stats.prices.size === 1) {
+    return { unitLabel: `${formatWonKo([...stats.prices][0])}원`, monthPayout: stats.sum };
+  }
+  return { unitLabel: '회원권별 상이', monthPayout: stats.sum };
 }
 
 const PAYROLL_LEDGER_HEADER = [
@@ -195,7 +179,7 @@ const PAYROLL_LEDGER_HEADER = [
 
 function buildPayrollLedgerRows(
   members,
-  { batchesByUserId, totalRegisteredByUser, remainingByUser, unitPriceByUser, completedCountByUser },
+  { batchesByUserId, totalRegisteredByUser, remainingByUser, completedCountByUser, logsByUserId, priceByLogId, profilePriceByUserId },
 ) {
   const sortedMembers = [...(members || [])].sort((a, b) => {
     const na = (a?.name || a?.email || '').localeCompare(b?.name || b?.email || '', 'ko');
@@ -212,13 +196,17 @@ function buildPayrollLedgerRows(
     const registeredSessionsCol = hasPackRows ? totalRegSum : '';
 
     const remainingSessions = Number(remainingByUser[uid] ?? 0);
-    const unitRaw = unitPriceByUser[uid];
-    const unitPriceWon =
-      unitRaw != null && Number.isFinite(unitRaw) ? Math.round(Number(unitRaw)) : 0;
+    const monthLogs = logsByUserId[uid] || [];
+    const monthStats = monthStatsFromLogs(monthLogs, priceByLogId, profilePriceByUserId);
     const completedInMonth = Number(completedCountByUser[uid] ?? 0);
-    const trainerPayout = Math.round(unitPriceWon * 0.3);
+    const unitPriceWon =
+      monthStats.count > 0 ? Math.round(monthStats.sum / monthStats.count) : 0;
+    const trainerPayout =
+      monthStats.count > 0
+        ? Math.round((monthStats.sum * PAYROLL_TRAINER_RATE) / monthStats.count)
+        : 0;
+    const lineTotal = Math.round(monthStats.sum * PAYROLL_TRAINER_RATE);
     const remainingLessProgress = remainingSessions - completedInMonth;
-    const lineTotal = trainerPayout * completedInMonth;
 
     return [
       idx + 1,
@@ -283,6 +271,7 @@ const AdminPayrollDashboard = ({ goBack }) => {
 
   const [members, setMembers] = useState([]);
   const [logs, setLogs] = useState([]);
+  const [allCompletedLogs, setAllCompletedLogs] = useState([]);
   const [sessionBatches, setSessionBatches] = useState([]);
   const [remainingByUser, setRemainingByUser] = useState({});
   const [loading, setLoading] = useState(true);
@@ -304,7 +293,8 @@ const AdminPayrollDashboard = ({ goBack }) => {
 
       const memberIds = (profileRows || []).map((p) => p.id).filter(Boolean);
 
-      const [{ data: logRows, error: lErr }, { data: batchRows, error: bErr }] = await Promise.all([
+      const [{ data: logRows, error: lErr }, { data: batchRows, error: bErr }, { data: allLogRows, error: allErr }] =
+        await Promise.all([
         supabase
           .from('attendance_logs')
           .select('*')
@@ -314,12 +304,25 @@ const AdminPayrollDashboard = ({ goBack }) => {
         memberIds.length
           ? supabase
               .from('session_batches')
-              .select('user_id, remaining_count, price_per_session, total_count')
+              .select('user_id, remaining_count, price_per_session, total_count, created_at')
               .in('user_id', memberIds)
+          : Promise.resolve({ data: [], error: null }),
+        memberIds.length
+          ? supabase
+              .from('attendance_logs')
+              .select('id, user_id, check_in_at, session_price_snapshot, status')
+              .in('user_id', memberIds)
+              .order('check_in_at', { ascending: true })
           : Promise.resolve({ data: [], error: null }),
       ]);
 
       if (lErr) throw lErr;
+      if (allErr) {
+        console.warn('[AdminPayrollDashboard] all attendance_logs', allErr.message);
+        setAllCompletedLogs([]);
+      } else {
+        setAllCompletedLogs(allLogRows || []);
+      }
       if (bErr) {
         console.warn('[AdminPayrollDashboard] session_batches', bErr.message);
         setRemainingByUser({});
@@ -340,6 +343,7 @@ const AdminPayrollDashboard = ({ goBack }) => {
       setError(e?.message || 'Failed to load data.');
       setMembers([]);
       setLogs([]);
+      setAllCompletedLogs([]);
       setSessionBatches([]);
       setRemainingByUser({});
     } finally {
@@ -381,14 +385,42 @@ const AdminPayrollDashboard = ({ goBack }) => {
     return m;
   }, [sessionBatches]);
 
-  const unitPriceByUser = useMemo(() => {
+  const profilePriceByUserId = useMemo(() => {
+    const m = {};
+    for (const p of members || []) {
+      if (p?.id) m[p.id] = p.price_per_session;
+    }
+    return m;
+  }, [members]);
+
+  const priceByLogId = useMemo(
+    () => buildPriceByLogIdForUsers(allCompletedLogs, batchesByUserId),
+    [allCompletedLogs, batchesByUserId],
+  );
+
+  const logsByUserId = useMemo(() => {
+    const m = {};
+    for (const row of logs || []) {
+      const uid = row?.user_id;
+      if (!uid) continue;
+      if (!m[uid]) m[uid] = [];
+      m[uid].push(row);
+    }
+    return m;
+  }, [logs]);
+
+  const monthStatsByUser = useMemo(() => {
     const m = {};
     for (const p of members || []) {
       if (!p?.id) continue;
-      m[p.id] = resolveUnitPriceWon(p, batchesByUserId[p.id] || []);
+      m[p.id] = monthStatsFromLogs(
+        logsByUserId[p.id] || [],
+        priceByLogId,
+        profilePriceByUserId,
+      );
     }
     return m;
-  }, [members, batchesByUserId]);
+  }, [members, logsByUserId, priceByLogId, profilePriceByUserId]);
 
   const totalRegisteredByUser = useMemo(() => sumTotalCountByUser(sessionBatches), [sessionBatches]);
 
@@ -404,11 +436,30 @@ const AdminPayrollDashboard = ({ goBack }) => {
       batchesByUserId,
       totalRegisteredByUser,
       remainingByUser,
-      unitPriceByUser,
       completedCountByUser,
+      logsByUserId,
+      priceByLogId,
+      profilePriceByUserId,
     }),
-    [batchesByUserId, totalRegisteredByUser, remainingByUser, unitPriceByUser, completedCountByUser],
+    [
+      batchesByUserId,
+      totalRegisteredByUser,
+      remainingByUser,
+      completedCountByUser,
+      logsByUserId,
+      priceByLogId,
+      profilePriceByUserId,
+    ],
   );
+
+  const selectedMemberMonthTotal = useMemo(() => {
+    if (!selectedId) return null;
+    return sumResolvedLogPrices(
+      filteredLogs,
+      priceByLogId,
+      profilePriceByUserId,
+    );
+  }, [selectedId, filteredLogs, priceByLogId, profilePriceByUserId]);
 
   const handleExportExcel = () => {
     const { header, dataRows } = buildPayrollLedgerRows(members, payrollLedgerContext);
@@ -516,8 +567,7 @@ const AdminPayrollDashboard = ({ goBack }) => {
                   const active = m.id === selectedId;
                   const n = completedCountByUser[m.id] ?? 0;
                   const rem = remainingByUser[m.id] ?? 0;
-                  const unit = unitPriceByUser[m.id];
-                  const monthPayout = unit == null ? null : n * unit;
+                  const { unitLabel, monthPayout } = formatUnitPriceLabel(monthStatsByUser[m.id]);
                   return (
                     <li key={m.id}>
                       <button
@@ -534,11 +584,11 @@ const AdminPayrollDashboard = ({ goBack }) => {
                           출석 {n}회 · 잔여 {rem}회
                         </span>
                         <span className="block text-[11px] text-neutral-500 mt-1 font-normal tabular-nums leading-snug">
-                          {unit == null ? (
-                            <>단가 미정 · 월 정산 —</>
+                          {monthPayout == null ? (
+                            <>단가 {unitLabel} · 월 정산 —</>
                           ) : (
                             <>
-                              단가 {formatWonKo(unit)}원 · 월 정산 {formatWonKo(monthPayout ?? 0)}원
+                              단가 {unitLabel} · 월 정산 {formatWonKo(monthPayout)}원
                             </>
                           )}
                         </span>
@@ -572,9 +622,11 @@ const AdminPayrollDashboard = ({ goBack }) => {
                     </thead>
                     <tbody>
                       {filteredLogs.map((log) => {
-                        const unit = unitPriceByUser[selectedId];
-                        const n = completedCountByUser[selectedId] ?? 0;
-                        const monthTotal = unit == null ? null : n * unit;
+                        const unit = resolveLogUnitPriceWon(
+                          log,
+                          priceByLogId,
+                          profilePriceByUserId[selectedId],
+                        );
                         return (
                           <tr key={log.id} className="border-b border-neutral-100 last:border-0">
                             <td className="py-3 px-3 text-neutral-800 tabular-nums whitespace-nowrap">
@@ -591,12 +643,26 @@ const AdminPayrollDashboard = ({ goBack }) => {
                               {unit == null ? '단가 미정' : `${formatWonKo(unit)}`}
                             </td>
                             <td className="py-3 px-3 text-neutral-700 tabular-nums whitespace-nowrap text-right text-xs">
-                              {monthTotal == null ? '—' : `${formatWonKo(monthTotal)}`}
+                              —
                             </td>
                           </tr>
                         );
                       })}
                     </tbody>
+                    {filteredLogs.length > 0 && (
+                      <tfoot>
+                        <tr className="border-t border-neutral-200 bg-neutral-50/80">
+                          <td colSpan={5} className="py-3 px-3 text-right text-xs font-semibold text-neutral-600">
+                            월 총정산
+                          </td>
+                          <td className="py-3 px-3 text-neutral-900 tabular-nums whitespace-nowrap text-right text-xs font-semibold">
+                            {selectedMemberMonthTotal == null
+                              ? '—'
+                              : `${formatWonKo(selectedMemberMonthTotal)}`}
+                          </td>
+                        </tr>
+                      </tfoot>
+                    )}
                   </table>
                 </div>
               )}
