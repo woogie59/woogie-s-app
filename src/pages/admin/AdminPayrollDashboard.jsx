@@ -6,9 +6,10 @@ import BackButton from '../../components/ui/BackButton';
 import { useGlobalModal } from '../../context/GlobalModalContext';
 import { isAttendanceLogCompletedForBalance } from '../../utils/sessionHelpers';
 import {
+  buildAssignmentByLogIdForUsers,
   buildPriceByLogIdForUsers,
+  countMonthConductedByBatchId,
   monthStatsFromLogs,
-  PAYROLL_TRAINER_RATE,
   resolveLogUnitPriceWon,
   sumResolvedLogPrices,
 } from '../../utils/payrollPricing';
@@ -124,7 +125,7 @@ function applyAttendanceExportStyles(ws, headerRow0, nCols, nRows) {
     s: { r: headerRow0, c: 0 },
     e: { r: lastR, c: nCols - 1 },
   });
-  const colW = [6, 14, 12, 10, 12, 10, 10, 10, 12];
+  const colW = [6, 14, 10, 12, 10, 12, 10, 10, 10, 12];
   ws['!cols'] = Array.from({ length: nCols }, (_, i) => ({ wch: colW[i] ?? 12 }));
   ws['!rows'] = Array.from({ length: nRows }, (_, i) => (i === 0 ? { hpt: 22 } : { hpt: 20 }));
 }
@@ -156,6 +157,12 @@ function formatWonKo(value) {
   return Math.round(value).toLocaleString('ko-KR');
 }
 
+/** 급여표 `판매공제 단가` — 40,000 / 60,000 (콤마, 원 미포함) */
+function formatPayrollUnitPriceCell(value) {
+  if (value == null || !Number.isFinite(value) || value <= 0) return '';
+  return Math.round(value).toLocaleString('ko-KR');
+}
+
 function formatUnitPriceLabel(stats) {
   if (!stats?.count) return { unitLabel: '단가 미정', monthPayout: null };
   if (stats.prices.size === 0) return { unitLabel: '단가 미정', monthPayout: stats.sum };
@@ -165,12 +172,14 @@ function formatUnitPriceLabel(stats) {
   return { unitLabel: '회원권별 상이', monthPayout: stats.sum };
 }
 
+/** 스프레드시트 급여표 붙여넣기용 (재등록·수업료·합계는 시트에서 입력/자동계산) */
 const PAYROLL_LEDGER_HEADER = [
   'no',
   '회원명',
+  '재등록',
   '등록 세션수',
   '잔여세션',
-  '판매공재 단가',
+  '판매공제 단가',
   '수업료',
   '진행 수업',
   '잔여 수업',
@@ -179,45 +188,80 @@ const PAYROLL_LEDGER_HEADER = [
 
 function buildPayrollLedgerRows(
   members,
-  { batchesByUserId, totalRegisteredByUser, remainingByUser, completedCountByUser, logsByUserId, priceByLogId, profilePriceByUserId },
+  {
+    batchesByUserId,
+    completedCountByUser,
+    logsByUserId,
+    priceByLogId,
+    profilePriceByUserId,
+    assignmentByLogId,
+  },
 ) {
   const sortedMembers = [...(members || [])].sort((a, b) => {
     const na = (a?.name || a?.email || '').localeCompare(b?.name || b?.email || '', 'ko');
     return na;
   });
 
-  const dataRows = sortedMembers.map((m, idx) => {
+  const entries = [];
+  for (const m of sortedMembers) {
     const uid = m.id;
-    const baseName = String(m?.name || m?.email || '—').trim();
+    const batches = [...(batchesByUserId[uid] || [])].sort(
+      (a, b) => new Date(a.created_at || 0) - new Date(b.created_at || 0),
+    );
+    if (batches.length > 0) {
+      for (const batch of batches) {
+        entries.push({ member: m, batch });
+      }
+    } else {
+      entries.push({ member: m, batch: null });
+    }
+  }
+
+  const dataRows = entries.map(({ member, batch }, idx) => {
+    const uid = member.id;
+    const baseName = String(member?.name || member?.email || '—').trim();
     const memberNameCol = `${baseName}님`;
-
-    const hasPackRows = (batchesByUserId[uid] || []).length > 0;
-    const totalRegSum = totalRegisteredByUser[uid] ?? 0;
-    const registeredSessionsCol = hasPackRows ? totalRegSum : '';
-
-    const remainingSessions = Number(remainingByUser[uid] ?? 0);
     const monthLogs = logsByUserId[uid] || [];
-    const monthStats = monthStatsFromLogs(monthLogs, priceByLogId, profilePriceByUserId);
+
+    if (batch) {
+      const registeredSessions = Number(batch.total_count) || 0;
+      const remainingSessions = Number(batch.remaining_count) || 0;
+      const conductedInMonth = countMonthConductedByBatchId(monthLogs, assignmentByLogId)[batch.id] || 0;
+      const remainingLessons = remainingSessions - conductedInMonth;
+      const unitPriceWon = Math.round(Number(batch.price_per_session) || 0);
+
+      return [
+        idx + 1,
+        memberNameCol,
+        '',
+        registeredSessions,
+        remainingSessions,
+        formatPayrollUnitPriceCell(unitPriceWon),
+        '',
+        conductedInMonth,
+        remainingLessons,
+        '',
+      ];
+    }
+
     const completedInMonth = Number(completedCountByUser[uid] ?? 0);
+    const monthStats = monthStatsFromLogs(monthLogs, priceByLogId, profilePriceByUserId);
     const unitPriceWon =
-      monthStats.count > 0 ? Math.round(monthStats.sum / monthStats.count) : 0;
-    const trainerPayout =
       monthStats.count > 0
-        ? Math.round((monthStats.sum * PAYROLL_TRAINER_RATE) / monthStats.count)
-        : 0;
-    const lineTotal = Math.round(monthStats.sum * PAYROLL_TRAINER_RATE);
-    const remainingLessProgress = remainingSessions - completedInMonth;
+        ? Math.round(monthStats.sum / monthStats.count)
+        : Math.round(Number(profilePriceByUserId[uid]) || 0);
 
     return [
       idx + 1,
       memberNameCol,
-      registeredSessionsCol,
-      remainingSessions,
-      unitPriceWon,
-      trainerPayout,
+      '',
+      '',
+      '',
+      formatPayrollUnitPriceCell(unitPriceWon),
+      '',
       completedInMonth,
-      remainingLessProgress,
-      lineTotal,
+      '',
+      '',
     ];
   });
 
@@ -304,7 +348,7 @@ const AdminPayrollDashboard = ({ goBack }) => {
         memberIds.length
           ? supabase
               .from('session_batches')
-              .select('user_id, remaining_count, price_per_session, total_count, created_at')
+              .select('id, user_id, remaining_count, price_per_session, total_count, created_at')
               .in('user_id', memberIds)
           : Promise.resolve({ data: [], error: null }),
         memberIds.length
@@ -398,6 +442,11 @@ const AdminPayrollDashboard = ({ goBack }) => {
     [allCompletedLogs, batchesByUserId],
   );
 
+  const assignmentByLogId = useMemo(
+    () => buildAssignmentByLogIdForUsers(allCompletedLogs, batchesByUserId),
+    [allCompletedLogs, batchesByUserId],
+  );
+
   const logsByUserId = useMemo(() => {
     const m = {};
     for (const row of logs || []) {
@@ -434,21 +483,19 @@ const AdminPayrollDashboard = ({ goBack }) => {
   const payrollLedgerContext = useMemo(
     () => ({
       batchesByUserId,
-      totalRegisteredByUser,
-      remainingByUser,
       completedCountByUser,
       logsByUserId,
       priceByLogId,
       profilePriceByUserId,
+      assignmentByLogId,
     }),
     [
       batchesByUserId,
-      totalRegisteredByUser,
-      remainingByUser,
       completedCountByUser,
       logsByUserId,
       priceByLogId,
       profilePriceByUserId,
+      assignmentByLogId,
     ],
   );
 

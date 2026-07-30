@@ -3,9 +3,20 @@ import { isAttendanceLogCompletedForBalance } from './sessionHelpers';
 /** Completed attendance logs in chronological order → FIFO pack unit price per log id. */
 export function buildFifoPriceByLogId(completedLogsAsc, batchRows) {
   const priceByLogId = {};
+  const assignment = buildFifoBatchAssignmentByLogId(completedLogsAsc, batchRows);
+  for (const [logId, { price }] of Object.entries(assignment)) {
+    priceByLogId[logId] = price;
+  }
+  return priceByLogId;
+}
+
+/** FIFO consumption: each log → batch id + unit price. */
+export function buildFifoBatchAssignmentByLogId(completedLogsAsc, batchRows) {
+  const assignmentByLogId = {};
   const queue = [...(batchRows || [])]
     .sort((a, b) => new Date(a.created_at || 0) - new Date(b.created_at || 0))
     .map((b) => ({
+      batchId: b.id,
       price: Math.round(Number(b.price_per_session) || 0),
       remaining: Number(b.total_count) || 0,
     }))
@@ -17,13 +28,48 @@ export function buildFifoPriceByLogId(completedLogsAsc, batchRows) {
 
     const snap = Math.round(Number(log.session_price_snapshot) || 0);
     if (queue.length > 0) {
-      priceByLogId[log.id] = queue[0].price;
+      assignmentByLogId[log.id] = { batchId: queue[0].batchId, price: queue[0].price };
       queue[0].remaining -= 1;
     } else if (Number.isFinite(snap) && snap >= 0) {
-      priceByLogId[log.id] = snap;
+      assignmentByLogId[log.id] = { batchId: null, price: snap };
     }
   }
-  return priceByLogId;
+  return assignmentByLogId;
+}
+
+export function buildAssignmentByLogIdForUsers(allLogs, batchesByUserId) {
+  const assignmentByLogId = {};
+  const logsByUser = {};
+
+  for (const log of allLogs || []) {
+    if (!isAttendanceLogCompletedForBalance(log)) continue;
+    const uid = log?.user_id;
+    if (!uid) continue;
+    if (!logsByUser[uid]) logsByUser[uid] = [];
+    logsByUser[uid].push(log);
+  }
+
+  for (const [uid, userLogs] of Object.entries(logsByUser)) {
+    const sorted = [...userLogs].sort(
+      (a, b) => new Date(a.check_in_at || 0) - new Date(b.check_in_at || 0),
+    );
+    const fifo = buildFifoBatchAssignmentByLogId(sorted, batchesByUserId[uid] || []);
+    Object.assign(assignmentByLogId, fifo);
+  }
+
+  return assignmentByLogId;
+}
+
+/** Count completed sessions in `monthLogs` per session_batch id (FIFO assignment). */
+export function countMonthConductedByBatchId(monthLogs, assignmentByLogId) {
+  const counts = {};
+  for (const log of monthLogs || []) {
+    if (!isAttendanceLogCompletedForBalance(log)) continue;
+    const batchId = assignmentByLogId[log.id]?.batchId;
+    if (!batchId) continue;
+    counts[batchId] = (counts[batchId] || 0) + 1;
+  }
+  return counts;
 }
 
 export function resolveLogUnitPriceWon(log, priceByLogId, profileFallback = null) {
