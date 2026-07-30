@@ -13,7 +13,10 @@ import BackButton from '../../components/ui/BackButton';
 import MemberCancelBookingModals from '../../components/member/MemberCancelBookingModals';
 import { emitSessionBalanceRefresh } from '../../utils/sessionBalanceEvents';
 import {
+  isMemberAppBookingAllowed,
   isNextWeekBookingUnlockedKST,
+  isSlotTooSoonForMemberBooking,
+  MEMBER_BOOKING_ONE_HOUR_MESSAGE,
   NEXT_WEEK_LOCKED_BANNER_HTML,
   NEXT_WEEK_LOCKED_TOAST_MESSAGE,
 } from '../../utils/bookingDateKeys';
@@ -284,6 +287,10 @@ const ClassBooking = ({ user, profileName = '', setView, goBack }) => {
   };
 
   const handleBookSlot = (timeSlot) => {
+    if (isSlotTooSoonForMemberBooking(selectedDate, timeSlot)) {
+      showAlert({ message: MEMBER_BOOKING_ONE_HOUR_MESSAGE, confirmLabel: '확인' });
+      return;
+    }
     if (!isSlotBookable(timeSlot)) return;
     const date = selectedDate;
     showConfirm({
@@ -291,6 +298,10 @@ const ClassBooking = ({ user, profileName = '', setView, goBack }) => {
       message: `${date} ${timeSlot} 수업을 예약하시겠습니까?`,
       confirmLabel: '예약확인',
       onConfirm: async () => {
+        if (!isMemberAppBookingAllowed(date, timeSlot)) {
+          showAlert({ message: MEMBER_BOOKING_ONE_HOUR_MESSAGE, confirmLabel: '확인' });
+          return;
+        }
         const metrics = await fetchSessionBalanceMetrics(supabase, user.id);
         const { data: userBookings, error: bookingsLoadErr } = await supabase
           .from('bookings')

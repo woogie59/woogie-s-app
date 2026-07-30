@@ -69,6 +69,35 @@ export function isMemberAppCancellationAllowed(
   return t.getTime() - now.getTime() >= minLeadMs;
 }
 
+/** 수업 시작 1시간 미만이면 앱에서 예약 불가 (회원). */
+export const MEMBER_BOOKING_MIN_LEAD_MS = 60 * 60 * 1000;
+export const MEMBER_BOOKING_ONE_HOUR_MESSAGE =
+  '1시간 이내 수업 예약은 담당 선생님에게 직접 연락주시길 바랍니다.';
+
+export function isMemberAppBookingAllowed(
+  dateStr,
+  time,
+  now = new Date(),
+  minLeadMs = MEMBER_BOOKING_MIN_LEAD_MS
+) {
+  const start = parseBookingToLocalDate({ date: dateStr, time });
+  if (!start) return false;
+  return start.getTime() - now.getTime() >= minLeadMs;
+}
+
+/** 수업 시작까지 1시간 미만 남았지만 아직 시작 전인 슬롯 (안내 모달용). */
+export function isSlotTooSoonForMemberBooking(
+  dateStr,
+  time,
+  now = new Date(),
+  minLeadMs = MEMBER_BOOKING_MIN_LEAD_MS
+) {
+  const start = parseBookingToLocalDate({ date: dateStr, time });
+  if (!start) return false;
+  const diff = start.getTime() - now.getTime();
+  return diff > 0 && diff < minLeadMs;
+}
+
 /**
  * Rolling time-lock: "다음 주" 탭 — 매주 KST **토요일 13:00** 이후 열림 (트레이너 `trainer_settings`·토요 휴무와 무관).
  *
