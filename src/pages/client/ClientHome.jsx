@@ -617,20 +617,6 @@ const ClientHome = ({ user, logout, setView }) => {
             </button>
           ) : null}
 
-          {profile?.name === '테스트용1' && (
-            <button
-              type="button"
-              onClick={() => setView('member_exercise_library')}
-              className="w-full rounded-2xl border border-zinc-100 bg-white p-5 text-left text-zinc-900 shadow-sm transition-all duration-200 hover:border-zinc-300 hover:shadow-md active:scale-[0.99] flex justify-between items-center"
-            >
-              <div>
-                <p className="text-[0.6rem] text-zinc-400 tracking-widest mb-1 font-mono uppercase">V2 TEST MODE</p>
-                <p className="text-lg font-extrabold text-zinc-900">운동 라이브러리</p>
-              </div>
-              <span className="text-zinc-400 font-light text-lg">›</span>
-            </button>
-          )}
-
           <button
             type="button"
             onClick={() => setView('class_booking')}

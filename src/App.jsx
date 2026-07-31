@@ -8,6 +8,7 @@ import { deleteAttendanceLogsForBooking, toTime24h } from './utils/cascadeAttend
 import { emitSessionBalanceRefresh } from './utils/sessionBalanceEvents';
 import { invokeNotifyMemberEvents } from './utils/notifications';
 import { clearBookingPwaState } from './utils/bookingPwaState';
+import { NEXT_WEEK_BOOKING_QA_PROFILE_NAME } from './utils/bookingDateKeys';
 import {
   readPersistedView,
   writePersistedView,
@@ -939,7 +940,7 @@ export default function App() {
             <MemberAthleteView userId={session.user.id} goBack={goBack} />
           )}
 
-          {session && view === 'member_exercise_library' && (
+          {session && view === 'member_exercise_library' && userProfileName !== NEXT_WEEK_BOOKING_QA_PROFILE_NAME && (
             <MemberExerciseLibrary goBack={() => navigate('client_home')} />
           )}
 
