@@ -5,29 +5,42 @@ import { useBiteSizedKnowledgeRandom } from '../../hooks/useBiteSizedKnowledgeRa
 
 const ICON_STROKE = 1.5;
 
-export default function BiteSizedKnowledgeCard() {
+/** Member home dashboard tile — pairs with MY STATUS card (shared min-height). */
+export const DASHBOARD_TILE_CLASS =
+  'relative h-full min-h-[5.25rem] w-full rounded-2xl px-4 py-3.5 text-left transition-all duration-200 active:scale-[0.98]';
+
+export default function BiteSizedKnowledgeCard({ className = '' }) {
   const { item, loading } = useBiteSizedKnowledgeRandom({ enabled: true });
   const [open, setOpen] = useState(false);
 
-  if (loading || !item) return null;
+  if (loading) {
+    return (
+      <div
+        className={`${DASHBOARD_TILE_CLASS} border border-gray-100 bg-white shadow-sm animate-pulse ${className}`}
+        aria-hidden
+      />
+    );
+  }
+
+  if (!item) return null;
 
   return (
     <>
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="w-full rounded-2xl border border-gray-100 bg-white p-5 text-left shadow-sm transition-all duration-200 hover:border-gray-200 hover:shadow-md active:scale-95 flex items-start gap-3.5"
+        className={`${DASHBOARD_TILE_CLASS} border border-gray-100 bg-white shadow-sm hover:border-gray-200 hover:shadow-md flex flex-col justify-end ${className}`}
         aria-label="깨알지식 열기"
       >
         <Lightbulb
-          size={22}
+          size={20}
           strokeWidth={ICON_STROKE}
-          className="shrink-0 text-[#064e3b] mt-0.5"
+          className="absolute top-3 right-3 text-[#064e3b] opacity-90"
           aria-hidden
         />
-        <div className="min-w-0">
-          <p className="text-base font-semibold text-slate-900 tracking-tight">깨알지식</p>
-          <p className="mt-0.5 text-xs font-light text-gray-500 tracking-wide">오늘의 트레이닝 팩트</p>
+        <div className="relative min-w-0 pr-7">
+          <p className="text-[11px] uppercase tracking-[0.16em] text-gray-400">INSIGHT</p>
+          <p className="mt-1 text-base font-semibold tracking-tight text-slate-900">깨알지식</p>
         </div>
       </button>
 
@@ -64,7 +77,7 @@ export default function BiteSizedKnowledgeCard() {
               </button>
 
               <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[#064e3b] mb-3">
-                깨알지식
+                INSIGHT
               </p>
               <h2
                 id="bite-sized-knowledge-question"

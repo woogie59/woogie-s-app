@@ -16,7 +16,7 @@ import Skeleton from '../../components/ui/Skeleton';
 import SessionHistoryModal from '../../features/members/SessionHistoryModal';
 import { parseBookingToLocalDate, NEXT_WEEK_BOOKING_QA_PROFILE_NAME } from '../../utils/bookingDateKeys';
 import MemberCancelBookingModals from '../../components/member/MemberCancelBookingModals';
-import BiteSizedKnowledgeCard from '../../components/member/BiteSizedKnowledgeCard';
+import BiteSizedKnowledgeCard, { DASHBOARD_TILE_CLASS } from '../../components/member/BiteSizedKnowledgeCard';
 import { hasUnreadAthleteBoard } from '../../utils/athleteBoardNotifications';
 
 /** MVP: 라이브러리·트레이닝 일지 진입 UI 비표시 — 라우트/화면은 유지 */
@@ -597,28 +597,41 @@ const ClientHome = ({ user, logout, setView }) => {
         </div>
 
         {/* 2. Open schedule flow */}
-        <div className="flex flex-col gap-5 pb-2">
-          {profile?.is_athlete_system_enabled ? (
-            <button
-              type="button"
-              onClick={() => setShowHallEntryModal(true)}
-              className={`relative w-full rounded-2xl border px-4 py-4 text-left text-white shadow-[0_0_24px_rgba(0,0,0,0.45)] transition-all duration-200 hover:border-purple-500/50 active:scale-[0.99] ${
-                hasAthleteBoardNew
-                  ? 'border-purple-400/60 bg-gradient-to-r from-zinc-900 to-black ring-2 ring-purple-500/30 animate-pulse'
-                  : 'border-purple-500/30 bg-gradient-to-r from-zinc-900 to-black'
-              }`}
-            >
-              {hasAthleteBoardNew && (
-                <span className="absolute top-3 right-3 rounded-full bg-emerald-500 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-white shadow-[0_0_10px_rgba(16,185,129,0.55)]">
-                  NEW
-                </span>
-              )}
-              <p className="text-[11px] uppercase tracking-[0.16em] text-zinc-400">MY STATUS</p>
-              <p className="mt-1 text-sm font-semibold tracking-tight">나의 상태 보기</p>
-            </button>
-          ) : null}
+        <div className="flex flex-col gap-3 pb-2">
+          {(() => {
+            const showStatus = Boolean(profile?.is_athlete_system_enabled);
+            const showInsight = profile?.name === NEXT_WEEK_BOOKING_QA_PROFILE_NAME;
+            if (!showStatus && !showInsight) return null;
 
-          {profile?.name === NEXT_WEEK_BOOKING_QA_PROFILE_NAME && <BiteSizedKnowledgeCard />}
+            return (
+              <div
+                className={`grid w-full gap-3 ${showStatus && showInsight ? 'grid-cols-2' : 'grid-cols-1'}`}
+              >
+                {showStatus ? (
+                  <button
+                    type="button"
+                    onClick={() => setShowHallEntryModal(true)}
+                    className={`${DASHBOARD_TILE_CLASS} flex flex-col justify-end text-white shadow-[0_0_24px_rgba(0,0,0,0.45)] hover:border-purple-500/50 ${
+                      hasAthleteBoardNew
+                        ? 'border-purple-400/60 bg-gradient-to-r from-zinc-900 to-black ring-2 ring-purple-500/30 animate-pulse'
+                        : 'border-purple-500/30 bg-gradient-to-r from-zinc-900 to-black'
+                    }`}
+                  >
+                    {hasAthleteBoardNew && (
+                      <span className="absolute top-3 right-3 rounded-full bg-emerald-500 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-white shadow-[0_0_10px_rgba(16,185,129,0.55)]">
+                        NEW
+                      </span>
+                    )}
+                    <div className={`relative min-w-0 ${hasAthleteBoardNew ? 'pr-12' : ''}`}>
+                      <p className="text-[11px] uppercase tracking-[0.16em] text-zinc-400">MY STATUS</p>
+                      <p className="mt-1 text-base font-semibold tracking-tight">나의 상태 보기</p>
+                    </div>
+                  </button>
+                ) : null}
+                {showInsight ? <BiteSizedKnowledgeCard className="h-full" /> : null}
+              </div>
+            );
+          })()}
 
           <button
             type="button"
