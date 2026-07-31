@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { LogOut, ChevronRight, Calendar, BookOpen, Check } from 'lucide-react';
+import { LogOut, ChevronRight, Calendar, BookOpen, Check, User } from 'lucide-react';
 import { supabase } from '../../lib/supabaseClient';
 import { deriveSessionFocus, formatKoreanDateFromYmd } from '../../features/training/trainingLogUtils';
 import {
@@ -16,7 +16,13 @@ import Skeleton from '../../components/ui/Skeleton';
 import SessionHistoryModal from '../../features/members/SessionHistoryModal';
 import { parseBookingToLocalDate, NEXT_WEEK_BOOKING_QA_PROFILE_NAME } from '../../utils/bookingDateKeys';
 import MemberCancelBookingModals from '../../components/member/MemberCancelBookingModals';
-import BiteSizedKnowledgeCard, { DASHBOARD_TILE_CLASS } from '../../components/member/BiteSizedKnowledgeCard';
+import BiteSizedKnowledgeCard, {
+  DASHBOARD_TILE_CLASS,
+  DASHBOARD_TILE_ICON_SIZE,
+  DASHBOARD_TILE_ICON_STROKE,
+  DASHBOARD_TILE_SUBTITLE_CLASS,
+  DASHBOARD_TILE_TITLE_CLASS,
+} from '../../components/member/BiteSizedKnowledgeCard';
 import { hasUnreadAthleteBoard } from '../../utils/athleteBoardNotifications';
 
 /** MVP: 라이브러리·트레이닝 일지 진입 UI 비표시 — 라우트/화면은 유지 */
@@ -611,20 +617,27 @@ const ClientHome = ({ user, logout, setView }) => {
                   <button
                     type="button"
                     onClick={() => setShowHallEntryModal(true)}
+                    aria-label="나의 상태"
                     className={`${DASHBOARD_TILE_CLASS} flex flex-col justify-end text-white shadow-[0_0_24px_rgba(0,0,0,0.45)] hover:border-purple-500/50 ${
                       hasAthleteBoardNew
                         ? 'border-purple-400/60 bg-gradient-to-r from-zinc-900 to-black ring-2 ring-purple-500/30 animate-pulse'
                         : 'border-purple-500/30 bg-gradient-to-r from-zinc-900 to-black'
                     }`}
                   >
+                    <User
+                      size={DASHBOARD_TILE_ICON_SIZE}
+                      strokeWidth={DASHBOARD_TILE_ICON_STROKE}
+                      className="absolute top-3 right-3 text-white/90"
+                      aria-hidden
+                    />
                     {hasAthleteBoardNew && (
-                      <span className="absolute top-3 right-3 rounded-full bg-emerald-500 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-white shadow-[0_0_10px_rgba(16,185,129,0.55)]">
+                      <span className="absolute top-3 left-3 rounded-full bg-emerald-500 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-white shadow-[0_0_10px_rgba(16,185,129,0.55)]">
                         NEW
                       </span>
                     )}
-                    <div className={`relative min-w-0 ${hasAthleteBoardNew ? 'pr-12' : ''}`}>
-                      <p className="text-[11px] uppercase tracking-[0.16em] text-zinc-400">MY STATUS</p>
-                      <p className="mt-1 text-base font-semibold tracking-tight">나의 상태 보기</p>
+                    <div className="relative min-w-0 pr-7">
+                      <p className={`${DASHBOARD_TILE_SUBTITLE_CLASS} text-zinc-400`}>MY STATUS</p>
+                      <p className={`${DASHBOARD_TILE_TITLE_CLASS} text-white`}>나의 상태</p>
                     </div>
                   </button>
                 ) : null}

@@ -9,6 +9,15 @@ const ICON_STROKE = 1.5;
 export const DASHBOARD_TILE_CLASS =
   'relative h-full min-h-[5.25rem] w-full rounded-2xl px-4 py-3.5 text-left transition-all duration-200 active:scale-[0.98]';
 
+export const DASHBOARD_TILE_ICON_SIZE = 20;
+export const DASHBOARD_TILE_ICON_STROKE = ICON_STROKE;
+
+export const DASHBOARD_TILE_SUBTITLE_CLASS =
+  'text-[11px] uppercase tracking-[0.16em]';
+
+export const DASHBOARD_TILE_TITLE_CLASS =
+  'mt-1 text-base font-semibold tracking-tight';
+
 export default function BiteSizedKnowledgeCard({ className = '' }) {
   const { item, loading } = useBiteSizedKnowledgeRandom({ enabled: true });
   const [open, setOpen] = useState(false);
@@ -33,14 +42,14 @@ export default function BiteSizedKnowledgeCard({ className = '' }) {
         aria-label="깨알지식 열기"
       >
         <Lightbulb
-          size={20}
-          strokeWidth={ICON_STROKE}
+          size={DASHBOARD_TILE_ICON_SIZE}
+          strokeWidth={DASHBOARD_TILE_ICON_STROKE}
           className="absolute top-3 right-3 text-[#064e3b] opacity-90"
           aria-hidden
         />
         <div className="relative min-w-0 pr-7">
-          <p className="text-[11px] uppercase tracking-[0.16em] text-gray-400">INSIGHT</p>
-          <p className="mt-1 text-base font-semibold tracking-tight text-slate-900">깨알지식</p>
+          <p className={`${DASHBOARD_TILE_SUBTITLE_CLASS} text-gray-400`}>INSIGHT</p>
+          <p className={`${DASHBOARD_TILE_TITLE_CLASS} text-slate-900`}>깨알지식</p>
         </div>
       </button>
 
