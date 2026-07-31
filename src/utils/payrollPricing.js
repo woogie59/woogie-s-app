@@ -72,6 +72,26 @@ export function countMonthConductedByBatchId(monthLogs, assignmentByLogId) {
   return counts;
 }
 
+/** Lifetime completed sessions per batch (all attendance logs, FIFO). */
+export function countTotalConductedByBatchId(allLogs, assignmentByLogId) {
+  const counts = {};
+  for (const log of allLogs || []) {
+    if (!isAttendanceLogCompletedForBalance(log)) continue;
+    const batchId = assignmentByLogId[log.id]?.batchId;
+    if (!batchId) continue;
+    counts[batchId] = (counts[batchId] || 0) + 1;
+  }
+  return counts;
+}
+
+/** Actual pack balance from registered total − FIFO-consumed (matches MemberDetail). */
+export function batchPackBalance(batch, lifetimeConducted) {
+  const registered = Number(batch?.total_count) || 0;
+  const conducted = Math.min(registered, Math.max(0, Number(lifetimeConducted) || 0));
+  const remaining = Math.max(0, registered - conducted);
+  return { registered, conducted, remaining };
+}
+
 export function resolveLogUnitPriceWon(log, priceByLogId, profileFallback = null) {
   const fromFifo = priceByLogId?.[log?.id];
   if (fromFifo != null && Number.isFinite(fromFifo) && fromFifo >= 0) return fromFifo;

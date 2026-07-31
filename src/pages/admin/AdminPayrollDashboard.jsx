@@ -6,9 +6,11 @@ import BackButton from '../../components/ui/BackButton';
 import { useGlobalModal } from '../../context/GlobalModalContext';
 import { isAttendanceLogCompletedForBalance } from '../../utils/sessionHelpers';
 import {
+  batchPackBalance,
   buildAssignmentByLogIdForUsers,
   buildPriceByLogIdForUsers,
   countMonthConductedByBatchId,
+  countTotalConductedByBatchId,
   monthStatsFromLogs,
   resolveLogUnitPriceWon,
   sumResolvedLogPrices,
@@ -192,6 +194,7 @@ function buildPayrollLedgerRows(
     batchesByUserId,
     completedCountByUser,
     logsByUserId,
+    allLogsByUserId,
     priceByLogId,
     profilePriceByUserId,
     assignmentByLogId,
@@ -222,29 +225,44 @@ function buildPayrollLedgerRows(
     const baseName = String(member?.name || member?.email || '—').trim();
     const memberNameCol = `${baseName}님`;
     const monthLogs = logsByUserId[uid] || [];
+    const allUserLogs = allLogsByUserId[uid] || [];
+    const monthConductedByBatch = countMonthConductedByBatchId(monthLogs, assignmentByLogId);
+    const totalConductedByBatch = countTotalConductedByBatchId(allUserLogs, assignmentByLogId);
 
     if (batch) {
-      const registeredSessions = Number(batch.total_count) || 0;
-      const remainingSessions = Number(batch.remaining_count) || 0;
-      const conductedInMonth = countMonthConductedByBatchId(monthLogs, assignmentByLogId)[batch.id] || 0;
-      const remainingLessons = remainingSessions - conductedInMonth;
+      const lifetimeConducted = totalConductedByBatch[batch.id] || 0;
+      const conductedInMonth = monthConductedByBatch[batch.id] || 0;
+      const { registered, remaining } = batchPackBalance(batch, lifetimeConducted);
+      /** 급여표: 월 초 잔여 = 현재 잔여 + 이번 달 진행 (잔여 수업 = 현재 잔여) */
+      const remainingAtMonthStart = remaining + conductedInMonth;
       const unitPriceWon = Math.round(Number(batch.price_per_session) || 0);
 
       return [
         idx + 1,
         memberNameCol,
         '',
-        registeredSessions,
-        remainingSessions,
+        registered,
+        remainingAtMonthStart,
         formatPayrollUnitPriceCell(unitPriceWon),
         '',
         conductedInMonth,
-        remainingLessons,
+        remaining,
         '',
       ];
     }
 
     const completedInMonth = Number(completedCountByUser[uid] ?? 0);
+    const totalPurchased = (batchesByUserId[uid] || []).reduce(
+      (sum, b) => sum + (Number(b.total_count) || 0),
+      0,
+    );
+    const lifetimeConducted = countTotalConductedByBatchId(allUserLogs, assignmentByLogId);
+    const totalUsed = Object.values(lifetimeConducted).reduce((s, n) => s + n, 0);
+    const remaining =
+      totalPurchased > 0
+        ? Math.max(0, totalPurchased - totalUsed)
+        : Math.max(0, totalPurchased - (allUserLogs.filter(isAttendanceLogCompletedForBalance).length));
+    const remainingAtMonthStart = remaining + completedInMonth;
     const monthStats = monthStatsFromLogs(monthLogs, priceByLogId, profilePriceByUserId);
     const unitPriceWon =
       monthStats.count > 0
@@ -255,12 +273,12 @@ function buildPayrollLedgerRows(
       idx + 1,
       memberNameCol,
       '',
-      '',
-      '',
+      totalPurchased || '',
+      remainingAtMonthStart,
       formatPayrollUnitPriceCell(unitPriceWon),
       '',
       completedInMonth,
-      '',
+      remaining,
       '',
     ];
   });
@@ -458,6 +476,17 @@ const AdminPayrollDashboard = ({ goBack }) => {
     return m;
   }, [logs]);
 
+  const allLogsByUserId = useMemo(() => {
+    const m = {};
+    for (const row of allCompletedLogs || []) {
+      const uid = row?.user_id;
+      if (!uid) continue;
+      if (!m[uid]) m[uid] = [];
+      m[uid].push(row);
+    }
+    return m;
+  }, [allCompletedLogs]);
+
   const monthStatsByUser = useMemo(() => {
     const m = {};
     for (const p of members || []) {
@@ -485,6 +514,7 @@ const AdminPayrollDashboard = ({ goBack }) => {
       batchesByUserId,
       completedCountByUser,
       logsByUserId,
+      allLogsByUserId,
       priceByLogId,
       profilePriceByUserId,
       assignmentByLogId,
@@ -493,6 +523,7 @@ const AdminPayrollDashboard = ({ goBack }) => {
       batchesByUserId,
       completedCountByUser,
       logsByUserId,
+      allLogsByUserId,
       priceByLogId,
       profilePriceByUserId,
       assignmentByLogId,
