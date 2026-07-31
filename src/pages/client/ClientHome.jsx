@@ -14,8 +14,9 @@ import { useGlobalModal } from '../../context/GlobalModalContext';
 import LabDotBrand from '../../components/ui/LabDotBrand';
 import Skeleton from '../../components/ui/Skeleton';
 import SessionHistoryModal from '../../features/members/SessionHistoryModal';
-import { parseBookingToLocalDate } from '../../utils/bookingDateKeys';
+import { parseBookingToLocalDate, NEXT_WEEK_BOOKING_QA_PROFILE_NAME } from '../../utils/bookingDateKeys';
 import MemberCancelBookingModals from '../../components/member/MemberCancelBookingModals';
+import BiteSizedKnowledgeCard from '../../components/member/BiteSizedKnowledgeCard';
 import { hasUnreadAthleteBoard } from '../../utils/athleteBoardNotifications';
 
 /** MVP: 라이브러리·트레이닝 일지 진입 UI 비표시 — 라우트/화면은 유지 */
@@ -616,6 +617,8 @@ const ClientHome = ({ user, logout, setView }) => {
               <p className="mt-1 text-sm font-semibold tracking-tight">나의 상태 보기</p>
             </button>
           ) : null}
+
+          {profile?.name === NEXT_WEEK_BOOKING_QA_PROFILE_NAME && <BiteSizedKnowledgeCard />}
 
           <button
             type="button"
