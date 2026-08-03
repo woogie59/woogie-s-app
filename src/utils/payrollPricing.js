@@ -60,12 +60,26 @@ export function buildAssignmentByLogIdForUsers(allLogs, batchesByUserId) {
   return assignmentByLogId;
 }
 
+/** Resolve session_batch id for a log (FIFO first, then unique price_per_session match). */
+function resolveBatchIdForLog(log, assignmentByLogId, batches = []) {
+  const fromFifo = assignmentByLogId?.[log.id]?.batchId;
+  if (fromFifo) return fromFifo;
+
+  const snap = Math.round(Number(log.session_price_snapshot) || 0);
+  if (!snap || !batches.length) return null;
+
+  const matching = batches.filter(
+    (b) => Math.round(Number(b.price_per_session) || 0) === snap,
+  );
+  return matching.length === 1 ? matching[0].id : null;
+}
+
 /** Count completed sessions in `monthLogs` per session_batch id (FIFO assignment). */
-export function countMonthConductedByBatchId(monthLogs, assignmentByLogId) {
+export function countMonthConductedByBatchId(monthLogs, assignmentByLogId, batches = []) {
   const counts = {};
   for (const log of monthLogs || []) {
     if (!isAttendanceLogCompletedForBalance(log)) continue;
-    const batchId = assignmentByLogId[log.id]?.batchId;
+    const batchId = resolveBatchIdForLog(log, assignmentByLogId, batches);
     if (!batchId) continue;
     counts[batchId] = (counts[batchId] || 0) + 1;
   }

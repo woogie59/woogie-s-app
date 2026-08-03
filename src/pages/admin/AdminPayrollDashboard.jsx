@@ -188,6 +188,72 @@ const PAYROLL_LEDGER_HEADER = [
   '합계',
 ];
 
+function buildPayrollBatchRow(member, batch, conductedInMonth, allUserLogs, assignmentByLogId) {
+  const totalConductedByBatch = countTotalConductedByBatchId(allUserLogs, assignmentByLogId);
+  const lifetimeConducted = totalConductedByBatch[batch.id] || 0;
+  const { registered, remaining } = batchPackBalance(batch, lifetimeConducted);
+  const remainingAtMonthStart = remaining + conductedInMonth;
+  const unitPriceWon = Math.round(Number(batch.price_per_session) || 0);
+  const baseName = String(member?.name || member?.email || '—').trim();
+
+  return [
+    `${baseName}님`,
+    '',
+    registered,
+    remainingAtMonthStart,
+    formatPayrollUnitPriceCell(unitPriceWon),
+    '',
+    conductedInMonth,
+    remaining,
+    '',
+  ];
+}
+
+function buildPayrollFallbackRow(member, uid, conductedInMonth, ctx) {
+  const {
+    batchesByUserId,
+    allLogsByUserId,
+    logsByUserId,
+    priceByLogId,
+    profilePriceByUserId,
+    assignmentByLogId,
+  } = ctx;
+  const baseName = String(member?.name || member?.email || '—').trim();
+  const allUserLogs = allLogsByUserId[uid] || [];
+  const monthLogs = logsByUserId[uid] || [];
+  const totalPurchased = (batchesByUserId[uid] || []).reduce(
+    (sum, b) => sum + (Number(b.total_count) || 0),
+    0,
+  );
+  const lifetimeConducted = countTotalConductedByBatchId(allUserLogs, assignmentByLogId);
+  const totalUsed = Object.values(lifetimeConducted).reduce((s, n) => s + n, 0);
+  const remaining =
+    totalPurchased > 0
+      ? Math.max(0, totalPurchased - totalUsed)
+      : Math.max(
+          0,
+          totalPurchased - allUserLogs.filter(isAttendanceLogCompletedForBalance).length,
+        );
+  const remainingAtMonthStart = remaining + conductedInMonth;
+  const monthStats = monthStatsFromLogs(monthLogs, priceByLogId, profilePriceByUserId);
+  const unitPriceWon =
+    monthStats.count > 0
+      ? Math.round(monthStats.sum / monthStats.count)
+      : Math.round(Number(profilePriceByUserId[uid]) || 0);
+
+  return [
+    `${baseName}님`,
+    '',
+    totalPurchased || '',
+    remainingAtMonthStart,
+    formatPayrollUnitPriceCell(unitPriceWon),
+    '',
+    conductedInMonth,
+    remaining,
+    '',
+  ];
+}
+
 function buildPayrollLedgerRows(
   members,
   {
@@ -205,84 +271,62 @@ function buildPayrollLedgerRows(
     return na;
   });
 
-  const entries = [];
+  const rawRows = [];
+
   for (const m of sortedMembers) {
     const uid = m.id;
+    const completedInMonth = Number(completedCountByUser[uid] ?? 0);
+    if (completedInMonth <= 0) continue;
+
     const batches = [...(batchesByUserId[uid] || [])].sort(
       (a, b) => new Date(a.created_at || 0) - new Date(b.created_at || 0),
     );
-    if (batches.length > 0) {
-      for (const batch of batches) {
-        entries.push({ member: m, batch });
+    const monthLogs = logsByUserId[uid] || [];
+    const allUserLogs = allLogsByUserId[uid] || [];
+    const monthConductedByBatch = countMonthConductedByBatchId(
+      monthLogs,
+      assignmentByLogId,
+      batches,
+    );
+
+    const activeBatches = batches.filter((b) => (monthConductedByBatch[b.id] || 0) > 0);
+    const ctx = {
+      batchesByUserId,
+      logsByUserId,
+      allLogsByUserId,
+      priceByLogId,
+      profilePriceByUserId,
+      assignmentByLogId,
+    };
+
+    if (activeBatches.length > 0) {
+      for (const batch of activeBatches) {
+        const conductedInMonth = monthConductedByBatch[batch.id] || 0;
+        rawRows.push(
+          buildPayrollBatchRow(
+            m,
+            batch,
+            conductedInMonth,
+            allUserLogs,
+            assignmentByLogId,
+          ),
+        );
+      }
+
+      const assignedInMonth = activeBatches.reduce(
+        (sum, b) => sum + (monthConductedByBatch[b.id] || 0),
+        0,
+      );
+      const unassignedInMonth = completedInMonth - assignedInMonth;
+      if (unassignedInMonth > 0) {
+        rawRows.push(buildPayrollFallbackRow(m, uid, unassignedInMonth, ctx));
       }
     } else {
-      entries.push({ member: m, batch: null });
+      rawRows.push(buildPayrollFallbackRow(m, uid, completedInMonth, ctx));
     }
   }
 
-  const dataRows = entries.map(({ member, batch }, idx) => {
-    const uid = member.id;
-    const baseName = String(member?.name || member?.email || '—').trim();
-    const memberNameCol = `${baseName}님`;
-    const monthLogs = logsByUserId[uid] || [];
-    const allUserLogs = allLogsByUserId[uid] || [];
-    const monthConductedByBatch = countMonthConductedByBatchId(monthLogs, assignmentByLogId);
-    const totalConductedByBatch = countTotalConductedByBatchId(allUserLogs, assignmentByLogId);
-
-    if (batch) {
-      const lifetimeConducted = totalConductedByBatch[batch.id] || 0;
-      const conductedInMonth = monthConductedByBatch[batch.id] || 0;
-      const { registered, remaining } = batchPackBalance(batch, lifetimeConducted);
-      /** 급여표: 월 초 잔여 = 현재 잔여 + 이번 달 진행 (잔여 수업 = 현재 잔여) */
-      const remainingAtMonthStart = remaining + conductedInMonth;
-      const unitPriceWon = Math.round(Number(batch.price_per_session) || 0);
-
-      return [
-        idx + 1,
-        memberNameCol,
-        '',
-        registered,
-        remainingAtMonthStart,
-        formatPayrollUnitPriceCell(unitPriceWon),
-        '',
-        conductedInMonth,
-        remaining,
-        '',
-      ];
-    }
-
-    const completedInMonth = Number(completedCountByUser[uid] ?? 0);
-    const totalPurchased = (batchesByUserId[uid] || []).reduce(
-      (sum, b) => sum + (Number(b.total_count) || 0),
-      0,
-    );
-    const lifetimeConducted = countTotalConductedByBatchId(allUserLogs, assignmentByLogId);
-    const totalUsed = Object.values(lifetimeConducted).reduce((s, n) => s + n, 0);
-    const remaining =
-      totalPurchased > 0
-        ? Math.max(0, totalPurchased - totalUsed)
-        : Math.max(0, totalPurchased - (allUserLogs.filter(isAttendanceLogCompletedForBalance).length));
-    const remainingAtMonthStart = remaining + completedInMonth;
-    const monthStats = monthStatsFromLogs(monthLogs, priceByLogId, profilePriceByUserId);
-    const unitPriceWon =
-      monthStats.count > 0
-        ? Math.round(monthStats.sum / monthStats.count)
-        : Math.round(Number(profilePriceByUserId[uid]) || 0);
-
-    return [
-      idx + 1,
-      memberNameCol,
-      '',
-      totalPurchased || '',
-      remainingAtMonthStart,
-      formatPayrollUnitPriceCell(unitPriceWon),
-      '',
-      completedInMonth,
-      remaining,
-      '',
-    ];
-  });
-
+  const dataRows = rawRows.map((row, idx) => [idx + 1, ...row]);
   return { header: PAYROLL_LEDGER_HEADER, dataRows };
 }
 
@@ -541,6 +585,10 @@ const AdminPayrollDashboard = ({ goBack }) => {
 
   const handleExportExcel = () => {
     const { header, dataRows } = buildPayrollLedgerRows(members, payrollLedgerContext);
+    if (!dataRows.length) {
+      showToast('이번 달 진행 수업이 있는 회원이 없습니다.');
+      return;
+    }
     const aoa = [header, ...dataRows];
     const wb = XLSX.utils.book_new();
     const ws = XLSX.utils.aoa_to_sheet(aoa);
@@ -555,7 +603,10 @@ const AdminPayrollDashboard = ({ goBack }) => {
 
   const handleCopyToClipboard = async () => {
     const { header, dataRows } = buildPayrollLedgerRows(members, payrollLedgerContext);
-    if (!dataRows.length) return;
+    if (!dataRows.length) {
+      showToast('이번 달 진행 수업이 있는 회원이 없습니다.');
+      return;
+    }
 
     const tsvContent = aoaToTsv(header, dataRows);
 
