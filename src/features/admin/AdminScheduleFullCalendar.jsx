@@ -91,10 +91,10 @@ const AdminScheduleFullCalendar = ({ events, onEventClick, loading, initialDate 
         return;
       }
 
-      const result = await copyWeeklyScheduleAoaToClipboard(built.aoa);
+      const result = await copyWeeklyScheduleAoaToClipboard(built);
       showToast(
         result.mode === 'html'
-          ? '주간 일정이 복사되었습니다. 스프레드시트에 붙여넣기(Cmd+V) 하면 테두리가 적용됩니다.'
+          ? '주간 일정이 복사되었습니다. 붙여넣기(Cmd+V) 시 테두리·합계 수식이 적용됩니다.'
           : '주간 일정이 복사되었습니다. 스프레드시트에 붙여넣기(Cmd+V) 하세요.',
       );
     } catch (e) {

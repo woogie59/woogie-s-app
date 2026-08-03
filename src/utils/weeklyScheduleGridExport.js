@@ -39,6 +39,41 @@ export function getMonday(d) {
   return x;
 }
 
+function colToLetter(col0) {
+  let n = col0 + 1;
+  let s = '';
+  while (n > 0) {
+    const rem = (n - 1) % 26;
+    s = String.fromCharCode(65 + rem) + s;
+    n = Math.floor((n - 1) / 26);
+  }
+  return s;
+}
+
+/** Summary row formulas — COUNTIF per day, SUM for weekly total (1-based Excel rows). */
+function buildWeeklySummaryFormulas(aoaLength, numDayCols) {
+  const slotRows = HOUR_END - HOUR_START + 1;
+  const bodyFirstRow = 3;
+  const bodyLastRow = bodyFirstRow + slotRows - 1;
+  const summaryRowNum = aoaLength;
+
+  const dayFormulas = [];
+  for (let d = 0; d < numDayCols; d++) {
+    const col = colToLetter(1 + d);
+    dayFormulas.push(`=COUNTIF(${col}${bodyFirstRow}:${col}${bodyLastRow},"*수업*")`);
+  }
+
+  const firstDayCol = colToLetter(1);
+  const lastDayCol = colToLetter(numDayCols);
+  const weekFormula = `=SUM(${firstDayCol}${summaryRowNum}:${lastDayCol}${summaryRowNum})`;
+
+  return ['합계', ...dayFormulas, weekFormula];
+}
+
+function formulaForSheetJs(formula) {
+  return String(formula || '').startsWith('=') ? formula.slice(1) : formula;
+}
+
 function parseTimeHour(timeRaw) {
   if (timeRaw == null || typeof timeRaw !== 'string') return null;
   const m = timeRaw.trim().match(/^(\d{1,2}):(\d{2})/);
@@ -168,23 +203,29 @@ export function buildWeeklyTimetableAoa(weekStart, weekEndExcl, bookings) {
 
   const numCols = headerRow.length;
   const titleRow = [title, ...Array(Math.max(0, numCols - 1)).fill('')];
+  const aoa = [titleRow, headerRow, ...bodyRows, summaryRow];
+  const numDayCols = numCols - 2;
+  const summaryFormulas = buildWeeklySummaryFormulas(aoa.length, numDayCols);
   return {
-    aoa: [titleRow, headerRow, ...bodyRows, summaryRow],
+    aoa,
     fileLabel,
+    summaryFormulas,
   };
 }
 
-export function weeklyTimetableAoaToTsv(aoa) {
+export function weeklyTimetableAoaToTsv(aoa, summaryFormulas) {
   return (aoa || [])
-    .map((row) =>
-      row
-        .map((cell) =>
-          String(cell ?? '')
+    .map((row, r) => {
+      const isSummary = r === aoa.length - 1;
+      return row
+        .map((cell, c) => {
+          const raw = isSummary && summaryFormulas?.[c] != null ? summaryFormulas[c] : cell;
+          return String(raw ?? '')
             .replace(/\t/g, ' ')
-            .replace(/\r?\n/g, ' '),
-        )
-        .join('\t'),
-    )
+            .replace(/\r?\n/g, ' ');
+        })
+        .join('\t');
+    })
     .join('\n');
 }
 
@@ -200,7 +241,7 @@ const HTML_CELL_BASE =
   "border:1px solid #000000;padding:4px 6px;text-align:center;vertical-align:middle;font-family:'맑은 고딕',sans-serif;font-size:11pt;white-space:pre-wrap;";
 
 /** HTML table with black cell borders — Excel/Sheets paste preserves grid lines. */
-export function weeklyTimetableAoaToHtmlTable(aoa) {
+export function weeklyTimetableAoaToHtmlTable(aoa, summaryFormulas) {
   if (!aoa?.length) return '';
 
   const numCols = aoa[1]?.length ?? aoa[0].length;
@@ -219,7 +260,13 @@ export function weeklyTimetableAoaToHtmlTable(aoa) {
       }
 
       const cells = row
-        .map((cell) => {
+        .map((cell, c) => {
+          const formula = isSummary ? summaryFormulas?.[c] : null;
+          if (formula && String(formula).startsWith('=')) {
+            const fmlaAttr = escapeHtml(formula).replace(/"/g, '&quot;');
+            const sheetsFormula = fmlaAttr;
+            return `<td x:fmla="${fmlaAttr}" data-sheets-formula="${sheetsFormula}" style="${style}">${escapeHtml(formula)}</td>`;
+          }
           const text = escapeHtml(cell).replace(/\n/g, '<br/>');
           return `<td style="${style}">${text}</td>`;
         })
@@ -236,9 +283,11 @@ function wrapClipboardHtml(fragment) {
 }
 
 /** Copy timetable with bordered HTML (preferred) + TSV plain-text fallback. */
-export async function copyWeeklyScheduleAoaToClipboard(aoa) {
-  const tsv = weeklyTimetableAoaToTsv(aoa);
-  const html = wrapClipboardHtml(weeklyTimetableAoaToHtmlTable(aoa));
+export async function copyWeeklyScheduleAoaToClipboard(built) {
+  const aoa = built?.aoa ?? built;
+  const summaryFormulas = built?.summaryFormulas;
+  const tsv = weeklyTimetableAoaToTsv(aoa, summaryFormulas);
+  const html = wrapClipboardHtml(weeklyTimetableAoaToHtmlTable(aoa, summaryFormulas));
 
   if (typeof ClipboardItem !== 'undefined' && navigator.clipboard?.write) {
     try {
@@ -267,7 +316,7 @@ export function downloadWeeklyScheduleXlsx(weekStart, weekEndExcl, bookings) {
   const built = buildWeeklyTimetableAoa(weekStart, weekEndExcl, bookings);
   if (!built) return;
 
-  const { aoa, fileLabel } = built;
+  const { aoa, fileLabel, summaryFormulas } = built;
   const headerRow = aoa[1];
   const numCols = headerRow.length;
   const totalRows = aoa.length;
@@ -307,10 +356,20 @@ export function downloadWeeklyScheduleXlsx(weekStart, weekEndExcl, bookings) {
       const bold = isTitle || isHeader || isSummary;
 
       if (isSummary && c >= 1) {
-        const n = Number(cell.v);
-        if (!Number.isNaN(n) && cell.v !== '') {
+        const formula = summaryFormulas?.[c];
+        if (formula && String(formula).startsWith('=')) {
           cell.t = 'n';
-          cell.v = n;
+          cell.f = formulaForSheetJs(formula);
+          const n = Number(aoa[lastRow0][c]);
+          if (!Number.isNaN(n) && aoa[lastRow0][c] !== '') {
+            cell.v = n;
+          }
+        } else {
+          const n = Number(cell.v);
+          if (!Number.isNaN(n) && cell.v !== '') {
+            cell.t = 'n';
+            cell.v = n;
+          }
         }
       }
 
