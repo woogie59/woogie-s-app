@@ -308,12 +308,21 @@ const MemberDetail = ({ selectedMemberId, goBack, startInStatusMode = false, onE
                 day: 'numeric',
               });
               const pps = batch.price_per_session != null ? Number(batch.price_per_session) : 0;
+              const appliedMonth = batch.sales_applied_month
+                ? new Date(batch.sales_applied_month).toLocaleDateString('ko-KR', {
+                    year: 'numeric',
+                    month: 'long',
+                  })
+                : null;
               return (
                 <li key={batch.id} className="border-t border-neutral-200 pt-8 first:border-0 first:pt-0">
                   <p className="text-xs text-neutral-400 mb-4">{batchDate}</p>
                   <div className="flex flex-col gap-1">
                     <span className="text-lg font-medium tabular-nums text-neutral-950">{batch.total_count}회</span>
                     <span className="text-sm text-neutral-500 tabular-nums">회당 {pps.toLocaleString()}원</span>
+                    {appliedMonth ? (
+                      <span className="text-xs text-neutral-400">매출 적용 {appliedMonth}</span>
+                    ) : null}
                   </div>
                   <button
                     type="button"

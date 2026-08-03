@@ -3,6 +3,12 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { X } from 'lucide-react';
 import { supabase } from '../../lib/supabaseClient';
 import { useGlobalModal } from '../../context/GlobalModalContext';
+import {
+  buildMonthPickerOptions,
+  currentMonthPickerValue,
+  dateToMonthPickerValue,
+  monthPickerValueToDate,
+} from '../../utils/monthPickerOptions';
 
 /** Row from `session_batches` — purchase snapshot */
 export type SessionBatchRow = {
@@ -11,6 +17,8 @@ export type SessionBatchRow = {
   remaining_count: number;
   price_per_session: number;
   price?: number | null;
+  sales_applied_month?: string | null;
+  created_at?: string | null;
 };
 
 type Props = {
@@ -50,12 +58,22 @@ export default function AddSessionModal({
       ? {
           totalSessions: toNumericInput(editBatch.total_count),
           pricePerSession: toNumericInput(editBatch.price_per_session),
+          salesAppliedMonth: dateToMonthPickerValue(
+            editBatch.sales_applied_month || editBatch.created_at,
+          ),
         }
-      : { totalSessions: '' as NumericInput, pricePerSession: '' as NumericInput };
+      : {
+          totalSessions: '' as NumericInput,
+          pricePerSession: '' as NumericInput,
+          salesAppliedMonth: currentMonthPickerValue(),
+        };
 
   const [totalSessions, setTotalSessions] = useState<NumericInput>(defaults.totalSessions);
   const [pricePerSession, setPricePerSession] = useState<NumericInput>(defaults.pricePerSession);
+  const [salesAppliedMonth, setSalesAppliedMonth] = useState(defaults.salesAppliedMonth);
   const [saving, setSaving] = useState(false);
+
+  const monthOptions = useMemo(() => buildMonthPickerOptions(), []);
 
   /** 수정 시 이미 사용된 횟수 — 입력란 없이 배치에서만 계산 */
   const usedFromBatch =
@@ -69,8 +87,9 @@ export default function AddSessionModal({
     else if (totalSessionsN < 1) err = '횟수는 1 이상이어야 합니다.';
     else if (usedFromBatch > totalSessionsN) err = '횟수는 이미 사용된 횟수보다 작을 수 없습니다.';
     else if (pricePerSessionN < 0) err = '회당 단가는 0 이상이어야 합니다.';
+    else if (!monthPickerValueToDate(salesAppliedMonth)) err = '매출 적용 월을 선택해 주세요.';
     return { error: err };
-  }, [totalSessions, pricePerSession, userId, usedFromBatch]);
+  }, [totalSessions, pricePerSession, salesAppliedMonth, userId, usedFromBatch]);
 
   const handleSave = async () => {
     if (error) {
@@ -83,6 +102,7 @@ export default function AddSessionModal({
       const pricePerSessionN = toNumberOrZero(pricePerSession);
       const newRemaining = Math.max(0, totalSessionsN - usedFromBatch);
       const packPrice = totalSessionsN * pricePerSessionN;
+      const salesAppliedMonthDate = monthPickerValueToDate(salesAppliedMonth);
 
       if (mode === 'edit' && editBatch) {
         const deltaRemaining = newRemaining - editBatch.remaining_count;
@@ -94,6 +114,7 @@ export default function AddSessionModal({
             remaining_count: newRemaining,
             price_per_session: pricePerSessionN,
             price: packPrice,
+            sales_applied_month: salesAppliedMonthDate,
           })
           .eq('id', editBatch.id);
         if (updateError) throw updateError;
@@ -123,6 +144,7 @@ export default function AddSessionModal({
           remaining_count: newRemaining,
           price_per_session: pricePerSessionN,
           price: packPrice,
+          sales_applied_month: salesAppliedMonthDate,
         });
         if (insertError) throw insertError;
 
@@ -219,6 +241,25 @@ export default function AddSessionModal({
               placeholder="0"
             />
             <p className="mt-2 text-xs text-neutral-500">원 · 회당</p>
+          </div>
+
+          <div>
+            <label htmlFor="sales-applied-month" className="block text-sm font-medium text-neutral-800 mb-2">
+              매출 적용 월
+            </label>
+            <select
+              id="sales-applied-month"
+              value={salesAppliedMonth}
+              onChange={(e) => setSalesAppliedMonth(e.target.value)}
+              className="w-full border-0 border-b border-neutral-900/20 bg-transparent py-2.5 text-lg font-semibold text-neutral-950 outline-none focus:border-neutral-900 transition-colors cursor-pointer appearance-none"
+            >
+              {monthOptions.map((opt) => (
+                <option key={opt.value} value={opt.value}>
+                  {opt.label}
+                </option>
+              ))}
+            </select>
+            <p className="mt-2 text-xs text-neutral-500">페이롤 매출 시트에 반영할 월</p>
           </div>
 
           {error ? <p className="text-sm text-red-600">{error}</p> : null}

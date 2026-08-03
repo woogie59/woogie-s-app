@@ -15,6 +15,11 @@ import {
   resolveLogUnitPriceWon,
   sumResolvedLogPrices,
 } from '../../utils/payrollPricing';
+import {
+  buildCombinedPayrollClipboardText,
+  buildSalesLedgerRows,
+  SALES_LEDGER_HEADER,
+} from '../../utils/payrollSalesExport';
 
 /** Local calendar month bounds for `check_in_at` (timestamptz): 1st 00:00:00.000 — last day 23:59:59.999. */
 function monthRangeISO(dateInMonth) {
@@ -330,19 +335,15 @@ function buildPayrollLedgerRows(
   return { header: PAYROLL_LEDGER_HEADER, dataRows };
 }
 
-function aoaToTsv(header, dataRows) {
-  const rows = [header, ...dataRows];
-  return rows
-    .map((row) =>
-      row
-        .map((cell) =>
-          String(cell ?? '')
-            .replace(/\t/g, ' ')
-            .replace(/\r?\n/g, ' '),
-        )
-        .join('\t'),
-    )
-    .join('\n');
+function buildPayrollExportBundle(members, sessionBatches, payrollCtx, selectedDate) {
+  const payroll = buildPayrollLedgerRows(members, payrollCtx);
+  const salesRows = buildSalesLedgerRows(
+    members,
+    sessionBatches,
+    selectedDate.getFullYear(),
+    selectedDate.getMonth() + 1,
+  );
+  return { payroll, salesRows };
 }
 
 const AdminPayrollDashboard = ({ goBack }) => {
@@ -410,7 +411,9 @@ const AdminPayrollDashboard = ({ goBack }) => {
         memberIds.length
           ? supabase
               .from('session_batches')
-              .select('id, user_id, remaining_count, price_per_session, total_count, created_at')
+              .select(
+                'id, user_id, remaining_count, price_per_session, total_count, created_at, price, sales_applied_month',
+              )
               .in('user_id', memberIds)
           : Promise.resolve({ data: [], error: null }),
         memberIds.length
@@ -584,35 +587,59 @@ const AdminPayrollDashboard = ({ goBack }) => {
   }, [selectedId, filteredLogs, priceByLogId, profilePriceByUserId]);
 
   const handleExportExcel = () => {
-    const { header, dataRows } = buildPayrollLedgerRows(members, payrollLedgerContext);
-    if (!dataRows.length) {
-      showToast('이번 달 진행 수업이 있는 회원이 없습니다.');
+    const { payroll, salesRows } = buildPayrollExportBundle(
+      members,
+      sessionBatches,
+      payrollLedgerContext,
+      selectedDate,
+    );
+    if (!payroll.dataRows.length && !salesRows.length) {
+      showToast('이번 달 페이롤·매출 데이터가 없습니다.');
       return;
     }
-    const aoa = [header, ...dataRows];
+
     const wb = XLSX.utils.book_new();
-    const ws = XLSX.utils.aoa_to_sheet(aoa);
-    const nCols = header.length;
-    const nData = dataRows.length;
-    applyAttendanceExportStyles(ws, 0, nCols, 1 + nData);
-    XLSX.utils.book_append_sheet(wb, ws, 'Ledger');
+
+    if (payroll.dataRows.length) {
+      const aoa = [payroll.header, ...payroll.dataRows];
+      const ws = XLSX.utils.aoa_to_sheet(aoa);
+      applyAttendanceExportStyles(ws, 0, payroll.header.length, 1 + payroll.dataRows.length);
+      XLSX.utils.book_append_sheet(wb, ws, '수업');
+    }
+
+    if (salesRows.length) {
+      const salesAoa = [SALES_LEDGER_HEADER, ...salesRows];
+      const salesWs = XLSX.utils.aoa_to_sheet(salesAoa);
+      applyAttendanceExportStyles(salesWs, 0, SALES_LEDGER_HEADER.length, 1 + salesRows.length);
+      XLSX.utils.book_append_sheet(wb, salesWs, '매출');
+    }
 
     const safeMonth = `${selectedDate.getFullYear()}-${String(selectedDate.getMonth() + 1).padStart(2, '0')}`;
-    XLSX.writeFile(wb, `payroll-ledger-${safeMonth}.xlsx`);
+    XLSX.writeFile(wb, `payroll-${safeMonth}.xlsx`);
   };
 
   const handleCopyToClipboard = async () => {
-    const { header, dataRows } = buildPayrollLedgerRows(members, payrollLedgerContext);
-    if (!dataRows.length) {
-      showToast('이번 달 진행 수업이 있는 회원이 없습니다.');
+    const { payroll, salesRows } = buildPayrollExportBundle(
+      members,
+      sessionBatches,
+      payrollLedgerContext,
+      selectedDate,
+    );
+    if (!payroll.dataRows.length && !salesRows.length) {
+      showToast('이번 달 페이롤·매출 데이터가 없습니다.');
       return;
     }
 
-    const tsvContent = aoaToTsv(header, dataRows);
+    const tsvContent = buildCombinedPayrollClipboardText({
+      payrollHeader: payroll.header,
+      payrollRows: payroll.dataRows,
+      salesHeader: SALES_LEDGER_HEADER,
+      salesRows,
+    });
 
     try {
       await navigator.clipboard.writeText(tsvContent);
-      showToast('급여 데이터가 복사되었습니다. 스프레드시트에 붙여넣기(Cmd+V) 하세요.');
+      showToast('급여·매출 데이터가 복사되었습니다. 필요한 구간만 붙여넣기(Cmd+V) 하세요.');
     } catch (err) {
       console.error('Failed to copy payroll TSV:', err);
       showToast('클립보드 복사에 실패했습니다.');
