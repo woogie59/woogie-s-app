@@ -188,6 +188,76 @@ export function weeklyTimetableAoaToTsv(aoa) {
     .join('\n');
 }
 
+function escapeHtml(value) {
+  return String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+const HTML_CELL_BASE =
+  "border:1px solid #000000;padding:4px 6px;text-align:center;vertical-align:middle;font-family:'맑은 고딕',sans-serif;font-size:11pt;white-space:pre-wrap;";
+
+/** HTML table with black cell borders — Excel/Sheets paste preserves grid lines. */
+export function weeklyTimetableAoaToHtmlTable(aoa) {
+  if (!aoa?.length) return '';
+
+  const numCols = aoa[1]?.length ?? aoa[0].length;
+  const lastIdx = aoa.length - 1;
+
+  const body = aoa
+    .map((row, r) => {
+      const isTitle = r === 0;
+      const isHeader = r === 1;
+      const isSummary = r === lastIdx;
+      const bold = isTitle || isHeader || isSummary;
+      const style = `${HTML_CELL_BASE}${bold ? 'font-weight:bold;' : ''}`;
+
+      if (isTitle) {
+        return `<tr><td colspan="${numCols}" style="${style}">${escapeHtml(row[0])}</td></tr>`;
+      }
+
+      const cells = row
+        .map((cell) => {
+          const text = escapeHtml(cell).replace(/\n/g, '<br/>');
+          return `<td style="${style}">${text}</td>`;
+        })
+        .join('');
+      return `<tr>${cells}</tr>`;
+    })
+    .join('');
+
+  return `<table cellspacing="0" cellpadding="0" style="border-collapse:collapse;">${body}</table>`;
+}
+
+function wrapClipboardHtml(fragment) {
+  return `<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40"><head><meta charset="utf-8"></head><body><!--StartFragment-->${fragment}<!--EndFragment--></body></html>`;
+}
+
+/** Copy timetable with bordered HTML (preferred) + TSV plain-text fallback. */
+export async function copyWeeklyScheduleAoaToClipboard(aoa) {
+  const tsv = weeklyTimetableAoaToTsv(aoa);
+  const html = wrapClipboardHtml(weeklyTimetableAoaToHtmlTable(aoa));
+
+  if (typeof ClipboardItem !== 'undefined' && navigator.clipboard?.write) {
+    try {
+      await navigator.clipboard.write([
+        new ClipboardItem({
+          'text/html': new Blob([html], { type: 'text/html' }),
+          'text/plain': new Blob([tsv], { type: 'text/plain' }),
+        }),
+      ]);
+      return { ok: true, mode: 'html' };
+    } catch (err) {
+      console.warn('[copyWeeklySchedule] ClipboardItem failed; falling back to TSV', err);
+    }
+  }
+
+  await navigator.clipboard.writeText(tsv);
+  return { ok: true, mode: 'tsv' };
+}
+
 /**
  * @param {Date} weekStart
  * @param {Date} weekEndExcl

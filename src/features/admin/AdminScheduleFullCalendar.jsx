@@ -10,10 +10,10 @@ import { supabase } from '../../lib/supabaseClient';
 import { useGlobalModal } from '../../context/GlobalModalContext';
 import {
   buildWeeklyTimetableAoa,
+  copyWeeklyScheduleAoaToClipboard,
   downloadWeeklyScheduleXlsx,
   getMonday,
   toYmd,
-  weeklyTimetableAoaToTsv,
 } from '../../utils/weeklyScheduleGridExport';
 import { SATURDAY_OPEN_HOUR } from '../../utils/labdotWeekSchedulePolicy';
 import './adminScheduleCalendar.css';
@@ -91,9 +91,12 @@ const AdminScheduleFullCalendar = ({ events, onEventClick, loading, initialDate 
         return;
       }
 
-      const tsv = weeklyTimetableAoaToTsv(built.aoa);
-      await navigator.clipboard.writeText(tsv);
-      showToast('주간 일정이 복사되었습니다. 스프레드시트에 붙여넣기(Cmd+V) 하세요.');
+      const result = await copyWeeklyScheduleAoaToClipboard(built.aoa);
+      showToast(
+        result.mode === 'html'
+          ? '주간 일정이 복사되었습니다. 스프레드시트에 붙여넣기(Cmd+V) 하면 테두리가 적용됩니다.'
+          : '주간 일정이 복사되었습니다. 스프레드시트에 붙여넣기(Cmd+V) 하세요.',
+      );
     } catch (e) {
       console.error('[weekly copy]', e);
       showToast('클립보드 복사에 실패했습니다.');
