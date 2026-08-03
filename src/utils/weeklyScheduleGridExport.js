@@ -157,26 +157,53 @@ export function buildWeeklyTimetableMatrix(weekStart, weekEndExcl, bookings) {
   };
 }
 
+/** Title + header + grid + summary rows for Excel / clipboard. */
+export function buildWeeklyTimetableAoa(weekStart, weekEndExcl, bookings) {
+  const { title, headerRow, bodyRows, summaryRow, fileLabel } = buildWeeklyTimetableMatrix(
+    weekStart,
+    weekEndExcl,
+    bookings,
+  );
+  if (!headerRow.length) return null;
+
+  const numCols = headerRow.length;
+  const titleRow = [title, ...Array(Math.max(0, numCols - 1)).fill('')];
+  return {
+    aoa: [titleRow, headerRow, ...bodyRows, summaryRow],
+    fileLabel,
+  };
+}
+
+export function weeklyTimetableAoaToTsv(aoa) {
+  return (aoa || [])
+    .map((row) =>
+      row
+        .map((cell) =>
+          String(cell ?? '')
+            .replace(/\t/g, ' ')
+            .replace(/\r?\n/g, ' '),
+        )
+        .join('\t'),
+    )
+    .join('\n');
+}
+
 /**
  * @param {Date} weekStart
  * @param {Date} weekEndExcl
  * @param {Array} bookings
  */
 export function downloadWeeklyScheduleXlsx(weekStart, weekEndExcl, bookings) {
-  const { title, headerRow, bodyRows, summaryRow, fileLabel } = buildWeeklyTimetableMatrix(
-    weekStart,
-    weekEndExcl,
-    bookings,
-  );
-  if (!headerRow.length) return;
+  const built = buildWeeklyTimetableAoa(weekStart, weekEndExcl, bookings);
+  if (!built) return;
 
+  const { aoa, fileLabel } = built;
+  const headerRow = aoa[1];
   const numCols = headerRow.length;
-  const titleRow = [title, ...Array(Math.max(0, numCols - 1)).fill('')];
-  const aoa = [titleRow, headerRow, ...bodyRows, summaryRow];
-
-  const ws = XLSX.utils.aoa_to_sheet(aoa);
   const totalRows = aoa.length;
   const lastRow0 = totalRows - 1;
+
+  const ws = XLSX.utils.aoa_to_sheet(aoa);
 
   ws['!merges'] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: numCols - 1 } }];
 
