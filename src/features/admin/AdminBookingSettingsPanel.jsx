@@ -19,11 +19,11 @@ import {
   WEEKDAY_PRESET_14_22,
   WEEKEND_BULK_HOURS,
 } from '../../utils/labdotWeekSchedulePolicy';
+import { invokeOtBlockGoogleSync } from '../../utils/googleCalendarOtSync';
 
 const DAY_NAMES = ['일', '월', '화', '수', '목', '금', '토'];
 const WEEKDAY_ORDER = [1, 2, 3, 4, 5];
 const WEEKEND_ORDER = [6, 0];
-const HOLD_LABELS = ['OT', '내부', '기타'];
 
 const PANEL_TABS = [
   { id: 'template', label: '주간 템플릿' },
@@ -67,7 +67,7 @@ const AdminBookingSettingsPanel = ({ variant = 'page', className = '', onBlocksC
   const [activeTab, setActiveTab] = useState('template');
   const [hourModal, setHourModal] = useState(null);
   const [holdDate, setHoldDate] = useState('');
-  const [holdLabel, setHoldLabel] = useState('OT');
+  const [holdMemberName, setHoldMemberName] = useState('');
   const [holdSaving, setHoldSaving] = useState(false);
   const [weekdayExpandEarly, setWeekdayExpandEarly] = useState(false);
   const [weekdayExpandLate, setWeekdayExpandLate] = useState(false);
@@ -210,7 +210,7 @@ const AdminBookingSettingsPanel = ({ variant = 'page', className = '', onBlocksC
   const handleHourClick = async (dow, h, active) => {
     if (active) {
       setHoldDate(nextDateForDayOfWeek(dow));
-      setHoldLabel('OT');
+      setHoldMemberName('');
       setHourModal({ dow, hour: h, active: true });
       return;
     }
@@ -239,28 +239,53 @@ const AdminBookingSettingsPanel = ({ variant = 'page', className = '', onBlocksC
 
   const handleHoldSlot = async () => {
     if (!hourModal || !holdDate) return;
+    const memberName = holdMemberName.trim();
+    if (!memberName) {
+      showAlert({ message: 'OT 대상 이름을 입력해 주세요.' });
+      return;
+    }
     setHoldSaving(true);
     const time = formatHourLabel(hourModal.hour);
-    const { error } = await supabase.from('trainer_blocked_slots').insert({
-      block_date: holdDate,
-      block_time: time,
-      label: holdLabel || 'OT',
-      kind: holdLabel === '내부' ? 'internal' : holdLabel === '기타' ? 'hold' : 'ot',
-    });
-    setHoldSaving(false);
+    const { data, error } = await supabase
+      .from('trainer_blocked_slots')
+      .insert({
+        block_date: holdDate,
+        block_time: time,
+        label: 'OT',
+        kind: 'ot',
+        member_name: memberName,
+      })
+      .select()
+      .single();
     if (error) {
+      setHoldSaving(false);
       showAlert({
         message: error.message.includes('unique') ? '이미 차단된 시간입니다.' : '예약처리 실패: ' + error.message,
       });
       return;
+    }
+    const sync = await invokeOtBlockGoogleSync('INSERT', data);
+    setHoldSaving(false);
+    if (!sync.ok) {
+      showAlert({
+        message: '예약처리는 등록됐지만 Google Calendar 연동에 실패했습니다. 설정을 확인해 주세요.',
+      });
     }
     setHourModal(null);
     await fetchData();
     onBlocksChanged?.();
   };
 
-  const removeBlockedSlot = async (id) => {
-    const { error } = await supabase.from('trainer_blocked_slots').delete().eq('id', id);
+  const removeBlockedSlot = async (row) => {
+    if (!row?.id) return;
+    const sync = await invokeOtBlockGoogleSync('DELETE', null, row);
+    if (!sync.ok) {
+      showAlert({
+        message: 'Google Calendar 연동 해제에 실패했습니다. 다시 시도해 주세요.',
+      });
+      return;
+    }
+    const { error } = await supabase.from('trainer_blocked_slots').delete().eq('id', row.id);
     if (error) {
       showAlert({ message: '삭제 실패: ' + error.message });
       return;
@@ -496,9 +521,11 @@ const AdminBookingSettingsPanel = ({ variant = 'page', className = '', onBlocksC
             >
               <span className="font-mono text-slate-800">
                 {row.block_date} {row.block_time}{' '}
-                <span className="text-amber-800 font-semibold">{row.label || 'OT'}</span>
+                <span className="text-amber-800 font-semibold">
+                  {row.member_name ? `${row.member_name}님수업` : row.label || 'OT'}
+                </span>
               </span>
-              <button type="button" onClick={() => removeBlockedSlot(row.id)} className="text-red-500 hover:underline shrink-0">
+              <button type="button" onClick={() => removeBlockedSlot(row)} className="text-red-500 hover:underline shrink-0">
                 삭제
               </button>
             </div>
@@ -616,24 +643,18 @@ const AdminBookingSettingsPanel = ({ variant = 'page', className = '', onBlocksC
                       onChange={(e) => setHoldDate(e.target.value)}
                       className="w-full bg-white border border-slate-200 rounded-lg px-2 py-2 text-sm"
                     />
-                    <div className="flex flex-wrap gap-1.5">
-                      {HOLD_LABELS.map((lbl) => (
-                        <button
-                          key={lbl}
-                          type="button"
-                          onClick={() => setHoldLabel(lbl)}
-                          className={`px-2.5 py-1 rounded-lg text-xs font-medium ${
-                            holdLabel === lbl ? 'bg-amber-600 text-white' : 'bg-white border border-slate-200 text-slate-600'
-                          }`}
-                        >
-                          {lbl}
-                        </button>
-                      ))}
-                    </div>
+                    <input
+                      type="text"
+                      value={holdMemberName}
+                      onChange={(e) => setHoldMemberName(e.target.value)}
+                      placeholder="OT 대상 이름 (예: 홍길동)"
+                      className="w-full bg-white border border-slate-200 rounded-lg px-2 py-2 text-sm"
+                    />
+                    <p className="text-[10px] text-amber-800/70">Google Calendar에는 「이름님수업」으로 등록됩니다.</p>
                     <button
                       type="button"
                       onClick={handleHoldSlot}
-                      disabled={holdSaving || !holdDate}
+                      disabled={holdSaving || !holdDate || !holdMemberName.trim()}
                       className="w-full py-2.5 rounded-xl bg-amber-600 text-white text-sm font-semibold hover:bg-amber-700 disabled:opacity-50"
                     >
                       {holdSaving ? '처리 중…' : '예약처리 적용'}

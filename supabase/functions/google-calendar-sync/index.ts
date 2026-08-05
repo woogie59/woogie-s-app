@@ -22,6 +22,12 @@ function formatEventSummary(userName: string): string {
   return `${n}님 수업`;
 }
 
+/** OT hold: `{이름}님수업` (no space before 수업). */
+function formatOtEventSummary(memberName: string): string {
+  const n = (memberName || "").trim() || "회원";
+  return `${n}님수업`;
+}
+
 /**
  * Google Calendar `events` resource: exactly one override, popup only.
  * `useDefault` must be the boolean `false` (not string). If omitted or `true`, Google
@@ -68,11 +74,20 @@ type WebhookRow = {
   updated_at?: string;
 } & Record<string, unknown>;
 
+type BlockedSlotRow = {
+  id?: string;
+  block_date?: string;
+  block_time?: string;
+  member_name?: string | null;
+  kind?: string | null;
+  google_event_id?: string | null;
+} & Record<string, unknown>;
+
 type WebhookBody = {
   type?: "INSERT" | "UPDATE" | "DELETE" | string;
   table?: string;
-  record?: WebhookRow | null;
-  old_record?: WebhookRow | null;
+  record?: WebhookRow | BlockedSlotRow | null;
+  old_record?: WebhookRow | BlockedSlotRow | null;
   schema?: string;
 };
 
@@ -288,6 +303,133 @@ function buildGoogleCalendarEventBody(
   };
 }
 
+function buildOtGoogleCalendarEventBody(
+  memberName: string,
+  start: string,
+  end: string,
+) {
+  return {
+    summary: formatOtEventSummary(memberName),
+    start: { dateTime: start, timeZone: KST },
+    end: { dateTime: end, timeZone: KST },
+    reminders: getStrictEventReminders(),
+  };
+}
+
+async function handleTrainerBlockedSlotSync(
+  body: WebhookBody,
+  supabase: ReturnType<typeof createClient>,
+  calId: string,
+  token: string,
+): Promise<Response> {
+  const op = (body.type || "").toUpperCase();
+  const rec = body.record as BlockedSlotRow | null | undefined;
+  const old = body.old_record as BlockedSlotRow | null | undefined;
+
+  async function clearBlockEventId(blockId: string) {
+    const { error } = await supabase
+      .from("trainer_blocked_slots")
+      .update({ google_event_id: null })
+      .eq("id", blockId);
+    if (error) console.error("[google-calendar-sync] clear block google_event_id:", error);
+  }
+
+  if (op === "DELETE" && old) {
+    const eid = old.google_event_id;
+    if (!eid) return j({ ok: true, skipped: true, reason: "no google_event_id" });
+    const d = await gcal(calId, "DELETE", `/events/${encodeURIComponent(String(eid))}`, token, undefined);
+    if (!d.ok && d.status !== 404) {
+      return j({ error: "Calendar delete failed (OT block)", details: d.body }, 502);
+    }
+    return j({ ok: true, deleted: eid, source: "trainer_blocked_slots" });
+  }
+
+  const row = rec || old;
+  if (!row?.id) return j({ error: "Missing blocked slot id" }, 400);
+
+  const kind = String(row.kind || "ot");
+  const memberName = String(row.member_name || "").trim();
+  if (kind !== "ot" || !memberName) {
+    return j({ skipped: true, reason: "not OT or missing member_name" });
+  }
+
+  const dateS = normDate(String(row.block_date ?? ""));
+  const timeS = String(row.block_time ?? "");
+  const range = toKstRange(dateS, timeS);
+  if (!range) {
+    return j({ error: "Invalid block date or time", date: dateS, time: timeS }, 400);
+  }
+
+  const eventBody = buildOtGoogleCalendarEventBody(memberName, range.start, range.end);
+
+  if (op === "UPDATE" && old && rec) {
+    const eid = rec.google_event_id || old.google_event_id;
+    const scheduleChanged =
+      normDate(String(old.block_date)) !== normDate(String(rec.block_date)) ||
+      String(old.block_time) !== String(rec.block_time);
+    const nameChanged = String(old.member_name || "").trim() !== memberName;
+    if (eid && (scheduleChanged || nameChanged)) {
+      const got = await gcal(
+        calId,
+        "GET",
+        `/events/${encodeURIComponent(String(eid))}`,
+        token,
+      );
+      if (!got.ok) {
+        return j({ error: "Calendar get failed (OT block)", details: got.body }, 502);
+      }
+      const merged = {
+        ...stripReadOnlyGcalEventFields(got.body as Record<string, unknown>),
+        ...eventBody,
+        reminders: getStrictEventReminders(),
+      };
+      const put = await gcal(
+        calId,
+        "PUT",
+        `/events/${encodeURIComponent(String(eid))}`,
+        token,
+        merged,
+        got.etag ? { ifMatch: got.etag } : undefined,
+      );
+      if (!put.ok) {
+        return j({ error: "Calendar put failed (OT block)", details: put.body }, 502);
+      }
+      return j({ ok: true, action: "put", eventId: eid, source: "trainer_blocked_slots" });
+    }
+    if (eid) return j({ skipped: true, reason: "no OT block schedule/name change" });
+  }
+
+  if (op === "INSERT" && row.google_event_id) {
+    return j({ skipped: true, reason: "already has google_event_id" });
+  }
+
+  const existingId = rec?.google_event_id || old?.google_event_id;
+  if (existingId && op === "INSERT") {
+    return j({ skipped: true, reason: "already has google_event_id" });
+  }
+
+  const ins = await gcal(calId, "POST", "/events", token, {
+    ...eventBody,
+    reminders: getStrictEventReminders(),
+  });
+  if (!ins.ok) {
+    return j({ error: "Calendar insert failed (OT block)", details: ins.body }, 502);
+  }
+  const newId = String(ins.body.id ?? "");
+  if (!newId) return j({ error: "No event id from Google (OT block)" }, 502);
+
+  const { error: upErr } = await supabase
+    .from("trainer_blocked_slots")
+    .update({ google_event_id: newId })
+    .eq("id", row.id);
+  if (upErr) {
+    console.error("[google-calendar-sync] save block id:", upErr);
+    return j({ error: "Saved OT event but failed to store google_event_id", details: upErr.message }, 502);
+  }
+
+  return j({ ok: true, action: "created", eventId: newId, blockId: row.id, source: "trainer_blocked_slots" });
+}
+
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
   if (req.method !== "POST") {
@@ -307,6 +449,19 @@ Deno.serve(async (req: Request) => {
     body = (await req.json()) as WebhookBody;
   } catch {
     return j({ error: "Invalid JSON" }, 400);
+  }
+
+  if (body.table === "trainer_blocked_slots") {
+    const svc = loadServiceAccount();
+    let token: string;
+    try {
+      token = await getAccessToken(svc);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      console.error("[google-calendar-sync] getAccessToken (OT block):", msg);
+      return j({ error: msg }, 500);
+    }
+    return handleTrainerBlockedSlotSync(body, supabase, calId, token);
   }
 
   if (body.table && body.table !== "bookings") {

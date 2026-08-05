@@ -7,6 +7,7 @@ import { supabase, REMEMBER_ME_KEY } from './lib/supabaseClient';
 import { deleteAttendanceLogsForBooking, toTime24h } from './utils/cascadeAttendance';
 import { emitSessionBalanceRefresh } from './utils/sessionBalanceEvents';
 import { invokeNotifyMemberEvents } from './utils/notifications';
+import { invokeOtBlockGoogleSync } from './utils/googleCalendarOtSync';
 import { clearBookingPwaState } from './utils/bookingPwaState';
 import { NEXT_WEEK_BOOKING_QA_PROFILE_NAME } from './utils/bookingDateKeys';
 import {
@@ -729,13 +730,17 @@ export default function App() {
     }
   };
 
-  const removeBlockedSlotFromCalendar = async (blockId) => {
-    if (!blockId) return;
+  const removeBlockedSlotFromCalendar = async (blockRow) => {
+    if (!blockRow?.id) return;
     setCalendarActionBusy(true);
     try {
-      const { error } = await supabase.from('trainer_blocked_slots').delete().eq('id', blockId);
+      const sync = await invokeOtBlockGoogleSync('DELETE', null, blockRow);
+      if (!sync.ok) {
+        throw new Error('Google Calendar 연동 해제에 실패했습니다.');
+      }
+      const { error } = await supabase.from('trainer_blocked_slots').delete().eq('id', blockRow.id);
       if (error) throw error;
-      setDashboardBlockedSlots((prev) => prev.filter((row) => row.id !== blockId));
+      setDashboardBlockedSlots((prev) => prev.filter((row) => row.id !== blockRow.id));
       closeCalendarActionModal();
       showToast('예약처리(차단)가 해제되었습니다.');
     } catch (e) {
@@ -1092,8 +1097,10 @@ export default function App() {
                         if (info?.event?.extendedProps?.isBlock && block?.id) {
                           setCalendarActionModal({
                             isBlock: true,
-                            blockId: block.id,
-                            label: block.label || '예약처리',
+                            block,
+                            label: block.member_name
+                              ? `${block.member_name}님수업`
+                              : block.label || 'OT',
                             date: String(block.block_date || info?.event?.extendedProps?.dateKey || ''),
                             time: String(block.block_time || ''),
                           });
@@ -1156,7 +1163,7 @@ export default function App() {
                             <button
                               type="button"
                               disabled={calendarActionBusy}
-                              onClick={() => removeBlockedSlotFromCalendar(calendarActionModal.blockId)}
+                              onClick={() => removeBlockedSlotFromCalendar(calendarActionModal.block)}
                               className="rounded-xl border border-amber-300/40 bg-amber-500/25 px-4 py-3 text-sm font-semibold text-amber-50 transition hover:bg-amber-500/35 disabled:opacity-40"
                             >
                               차단 해제

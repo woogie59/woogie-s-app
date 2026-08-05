@@ -66,9 +66,11 @@ export function buildBlockedCalendarEvents(blocks) {
     const start = new Date(`${dateKey}T${pad2(parts.h)}:${pad2(parts.m)}:00`);
     if (Number.isNaN(start.getTime())) return;
     const end = new Date(start.getTime() + SESSION_MS);
+    const memberName = String(row.member_name || '').trim();
+    const title = memberName ? `${memberName}님수업` : row.label || 'OT';
     out.push({
       id: `block-${row.id}`,
-      title: row.label || '예약처리',
+      title,
       start,
       end,
       classNames: ['labdot-slot-blocked'],
