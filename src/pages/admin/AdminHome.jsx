@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { motion } from 'framer-motion';
-import { LogOut, Users, Calendar, Archive, NotebookPen, ChevronDown, Table2, Dumbbell } from 'lucide-react';
+import { LogOut, Users, Calendar, Archive, NotebookPen, ChevronDown, Table2, Dumbbell, Megaphone } from 'lucide-react';
 import { supabase } from '../../lib/supabaseClient';
 import { fetchMembersBalanceSummaries, fetchSessionBalanceMetrics } from '../../utils/sessionHelpers';
 import LabDotBrand from '../../components/ui/LabDotBrand';
@@ -382,6 +382,19 @@ const AdminHome = ({ setView, logout, onOpenTrainingLog, adminName }) => {
             <div className="flex items-center gap-3">
               <Table2 size={24} strokeWidth={ICON_STROKE} className="text-[#064e3b] shrink-0" aria-hidden />
               <span className="text-sm font-medium text-slate-900 tracking-tight">페이롤 · 출석</span>
+            </div>
+          </button>
+        </div>
+
+        <div className="mt-4">
+          <button
+            type="button"
+            onClick={() => goMenu({ view: 'admin_member_announcements' })}
+            className="w-full bg-white rounded-2xl border border-gray-100 shadow-sm p-5 flex items-center justify-between transition-all duration-200 hover:bg-gray-50 active:bg-gray-100 active:scale-[0.99] cursor-pointer text-left"
+          >
+            <div className="flex items-center gap-3">
+              <Megaphone size={24} strokeWidth={ICON_STROKE} className="text-[#064e3b] shrink-0" aria-hidden />
+              <span className="text-sm font-medium text-slate-900 tracking-tight">회원 공지</span>
             </div>
           </button>
         </div>

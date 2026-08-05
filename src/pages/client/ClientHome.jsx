@@ -16,6 +16,11 @@ import Skeleton from '../../components/ui/Skeleton';
 import SessionHistoryModal from '../../features/members/SessionHistoryModal';
 import { parseBookingToLocalDate, NEXT_WEEK_BOOKING_QA_PROFILE_NAME } from '../../utils/bookingDateKeys';
 import MemberCancelBookingModals from '../../components/member/MemberCancelBookingModals';
+import MemberAnnouncementModal from '../../components/member/MemberAnnouncementModal';
+import {
+  fetchActiveMemberAnnouncement,
+  isMemberAnnouncementQaProfile,
+} from '../../utils/memberAnnouncements';
 import BiteSizedKnowledgeCard, {
   DASHBOARD_TILE_CLASS,
   DASHBOARD_TILE_ICON_SIZE,
@@ -71,6 +76,8 @@ const ClientHome = ({ user, logout, setView }) => {
   /** Most recent training log row (`client_session_reports`) for gateway teaser */
   const [latestReport, setLatestReport] = useState(null);
   const [latestReportLoading, setLatestReportLoading] = useState(true);
+  const [activeAnnouncement, setActiveAnnouncement] = useState(null);
+  const announcementFetchedRef = useRef(false);
 
   useEffect(() => {
     const fetchProfile = async () => {
@@ -92,6 +99,33 @@ const ClientHome = ({ user, logout, setView }) => {
 
     fetchProfile();
   }, [user]);
+
+  useEffect(() => {
+    announcementFetchedRef.current = false;
+    setActiveAnnouncement(null);
+  }, [user?.id]);
+
+  useEffect(() => {
+    if (!user?.id || loading || !profile) return;
+    if (!isMemberAnnouncementQaProfile(profile?.name)) return;
+    if (showCheckInDoneModal || showHistory || cancelIntent) return;
+    if (announcementFetchedRef.current) return;
+
+    let cancelled = false;
+    const timer = window.setTimeout(async () => {
+      try {
+        const ann = await fetchActiveMemberAnnouncement();
+        if (!cancelled && ann) setActiveAnnouncement(ann);
+      } finally {
+        announcementFetchedRef.current = true;
+      }
+    }, 450);
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [user?.id, loading, profile, showCheckInDoneModal, showHistory, cancelIntent]);
 
   useEffect(() => {
     if (!user?.id) return undefined;
@@ -837,6 +871,13 @@ const ClientHome = ({ user, logout, setView }) => {
         onOpenBookingChange={setCancelIntent}
         onAfterSuccessConfirm={syncAfterBookingCancel}
       />
+
+      {activeAnnouncement ? (
+        <MemberAnnouncementModal
+          announcement={activeAnnouncement}
+          onClose={() => setActiveAnnouncement(null)}
+        />
+      ) : null}
 
     </div>
   );

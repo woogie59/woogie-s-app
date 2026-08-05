@@ -35,6 +35,7 @@ import AdminSettings from './pages/admin/AdminSettings';
 import AdminRoute from './pages/admin/AdminRoute';
 import AdminPayrollDashboard from './pages/admin/AdminPayrollDashboard';
 import AdminExerciseLibrary from './pages/admin/AdminExerciseLibrary';
+import AdminMemberAnnouncements from './pages/admin/AdminMemberAnnouncements';
 import AdminBookingSettingsPanel from './features/admin/AdminBookingSettingsPanel';
 import AdminScheduleFullCalendar from './features/admin/AdminScheduleFullCalendar';
 import { buildAdminCalendarEvents, buildBlockedCalendarEvents } from './utils/adminScheduleCalendarEvents';
@@ -977,6 +978,12 @@ export default function App() {
           {view === 'admin_payroll' && (
             <AdminRoute session={session} replaceView={replaceView}>
               <AdminPayrollDashboard goBack={goBack} />
+            </AdminRoute>
+          )}
+
+          {view === 'admin_member_announcements' && (
+            <AdminRoute session={session} replaceView={replaceView}>
+              <AdminMemberAnnouncements goBack={goBack} />
             </AdminRoute>
           )}
 
