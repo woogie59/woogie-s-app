@@ -17,10 +17,7 @@ import SessionHistoryModal from '../../features/members/SessionHistoryModal';
 import { parseBookingToLocalDate, NEXT_WEEK_BOOKING_QA_PROFILE_NAME } from '../../utils/bookingDateKeys';
 import MemberCancelBookingModals from '../../components/member/MemberCancelBookingModals';
 import MemberAnnouncementModal from '../../components/member/MemberAnnouncementModal';
-import {
-  fetchActiveMemberAnnouncement,
-  isMemberAnnouncementQaProfile,
-} from '../../utils/memberAnnouncements';
+import { fetchActiveMemberAnnouncement } from '../../utils/memberAnnouncements';
 import BiteSizedKnowledgeCard, {
   DASHBOARD_TILE_CLASS,
   DASHBOARD_TILE_ICON_SIZE,
@@ -107,7 +104,6 @@ const ClientHome = ({ user, logout, setView }) => {
 
   useEffect(() => {
     if (!user?.id || loading || !profile) return;
-    if (!isMemberAnnouncementQaProfile(profile?.name)) return;
     if (showCheckInDoneModal || showHistory || cancelIntent) return;
     if (announcementFetchedRef.current) return;
 

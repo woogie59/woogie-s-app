@@ -1,9 +1,4 @@
 import { supabase } from '../lib/supabaseClient';
-import { MEMBER_ANNOUNCEMENT_QA_PROFILE_NAME } from './bookingDateKeys';
-
-export function isMemberAnnouncementQaProfile(profileName) {
-  return String(profileName || '').trim() === MEMBER_ANNOUNCEMENT_QA_PROFILE_NAME;
-}
 
 /** @returns {Promise<{ id: string, title: string, body: string, published_at?: string } | null>} */
 export async function fetchActiveMemberAnnouncement() {

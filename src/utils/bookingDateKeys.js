@@ -115,9 +115,6 @@ const ACTIVE_NEXT_WEEK_UNLOCK = NEXT_WEEK_UNLOCK.SATURDAY_1PM;
 /** QA: 이 프로필 이름만 토요일 1시 잠금 없이 다음 주 예약 가능 */
 export const NEXT_WEEK_BOOKING_QA_PROFILE_NAME = '테스트용1';
 
-/** QA: 회원 공지 팝업 — 전체 오픈 전 테스트용1만 노출 */
-export const MEMBER_ANNOUNCEMENT_QA_PROFILE_NAME = NEXT_WEEK_BOOKING_QA_PROFILE_NAME;
-
 /** "다음 주" 잠금 시 탭/토스트 — 운영 문구 (요청 확정) */
 const NEXT_WEEK_OPEN_COPY = '다음 주 예약은 토요일 1시에 오픈됩니다.';
 

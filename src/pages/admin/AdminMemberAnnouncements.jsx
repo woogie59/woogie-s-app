@@ -3,7 +3,6 @@ import { Megaphone, Pencil, Plus, Trash2 } from 'lucide-react';
 import { supabase } from '../../lib/supabaseClient';
 import BackButton from '../../components/ui/BackButton';
 import { useGlobalModal } from '../../context/GlobalModalContext';
-import { MEMBER_ANNOUNCEMENT_QA_PROFILE_NAME } from '../../utils/bookingDateKeys';
 
 const ICON_STROKE = 1.5;
 
@@ -264,10 +263,8 @@ export default function AdminMemberAnnouncements({ goBack }) {
             공지 게시
           </button>
         </div>
-        <p className="mt-4 rounded-xl border border-amber-200/80 bg-amber-50/90 px-4 py-3 text-xs text-amber-900 leading-relaxed">
-          <span className="font-semibold">QA</span> — 현재 팝업은{' '}
-          <span className="font-semibold">{MEMBER_ANNOUNCEMENT_QA_PROFILE_NAME}</span> 회원에게만
-          노출됩니다.
+        <p className="mt-4 rounded-xl border border-emerald-200/80 bg-emerald-50/90 px-4 py-3 text-xs text-emerald-900 leading-relaxed">
+          게시 중인 공지는 <span className="font-semibold">전체 회원</span> 홈에서 팝업으로 노출됩니다.
         </p>
       </header>
 
