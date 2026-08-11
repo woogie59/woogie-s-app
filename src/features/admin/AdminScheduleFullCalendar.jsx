@@ -1,4 +1,4 @@
-import React, { useMemo, useRef, useState, useCallback } from 'react';
+import React, { useMemo, useRef, useState, useCallback, useEffect } from 'react';
 import FullCalendar from '@fullcalendar/react';
 import dayGridPlugin from '@fullcalendar/daygrid';
 import timeGridPlugin from '@fullcalendar/timegrid';
@@ -24,10 +24,19 @@ import './adminScheduleCalendar.css';
  * @param {(info: import('@fullcalendar/core').EventClickArg) => void} props.onEventClick
  * @param {(info: import('@fullcalendar/interaction').DateClickArg) => void} [props.onSlotClick]
  * @param {(date: Date) => boolean} [props.isSlotAvailable]
+ * @param {string} [props.scheduleSettingsStamp] — changes trigger slot lane repaint
  * @param {boolean} [props.loading]
  * @param {Date} [props.initialDate]
  */
-const AdminScheduleFullCalendar = ({ events, onEventClick, onSlotClick, isSlotAvailable, loading, initialDate }) => {
+const AdminScheduleFullCalendar = ({
+  events,
+  onEventClick,
+  onSlotClick,
+  isSlotAvailable,
+  scheduleSettingsStamp,
+  loading,
+  initialDate,
+}) => {
   const calRef = useRef(null);
   const [exporting, setExporting] = useState(false);
   const [copying, setCopying] = useState(false);
@@ -38,6 +47,11 @@ const AdminScheduleFullCalendar = ({ events, onEventClick, onSlotClick, isSlotAv
     end.setFullYear(end.getFullYear() + 1);
     return { start: '2000-01-01', end: end.toISOString().slice(0, 10) };
   }, []);
+
+  useEffect(() => {
+    const api = calRef.current?.getApi?.();
+    if (api) api.render();
+  }, [scheduleSettingsStamp]);
 
   const fetchVisibleWeekBookings = useCallback(async () => {
     const api = calRef.current?.getApi?.() ?? null;

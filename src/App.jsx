@@ -39,7 +39,7 @@ import AdminExerciseLibrary from './pages/admin/AdminExerciseLibrary';
 import AdminMemberAnnouncements from './pages/admin/AdminMemberAnnouncements';
 import AdminBookingSettingsPanel from './features/admin/AdminBookingSettingsPanel';
 import AdminScheduleFullCalendar from './features/admin/AdminScheduleFullCalendar';
-import { isTrainerHourAvailable, SATURDAY_OPEN_HOUR } from './utils/labdotWeekSchedulePolicy';
+import { isTrainerHourAvailable, normalizeTrainerHours, SATURDAY_OPEN_HOUR } from './utils/labdotWeekSchedulePolicy';
 import { buildAdminCalendarEvents, buildBlockedCalendarEvents } from './utils/adminScheduleCalendarEvents';
 import { blockedSlotDisplayTitle, blockedSlotUsesGoogleCalendar } from './utils/trainerBlockedSlots';
 
@@ -845,6 +845,37 @@ export default function App() {
     [trainerScheduleSettings]
   );
 
+  const scheduleSettingsStamp = React.useMemo(
+    () =>
+      trainerScheduleSettings
+        .map((s) => `${s.day_of_week}:${s.off ? 1 : 0}:${(s.available_hours || []).join(',')}`)
+        .join('|'),
+    [trainerScheduleSettings]
+  );
+
+  useEffect(() => {
+    if (view !== 'admin_schedule' || !supabase) return undefined;
+    let cancelled = false;
+    (async () => {
+      const { data, error } = await supabase.from('trainer_settings').select('*').order('day_of_week');
+      if (cancelled || error || !data?.length) return;
+      const arr = Array.from({ length: 7 }, (_, d) => {
+        const row = data.find((s) => s.day_of_week === d);
+        return row
+          ? {
+              day_of_week: d,
+              off: !!row.off,
+              available_hours: normalizeTrainerHours(row.available_hours),
+            }
+          : { day_of_week: d, off: d === 0, available_hours: [] };
+      });
+      setTrainerScheduleSettings(arr);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [view]);
+
   // Helper to handle input changes
   const handleConfigChange = (key, value) => {
     setSalaryConfig(prev => ({ ...prev, [key]: Number(value) }));
@@ -1115,6 +1146,7 @@ export default function App() {
                       initialDate={scheduleCalendarSeed ?? undefined}
                       onSlotClick={handleCalendarSlotClick}
                       isSlotAvailable={isCalendarSlotAvailable}
+                      scheduleSettingsStamp={scheduleSettingsStamp}
                       onEventClick={(info) => {
                         const block = info?.event?.extendedProps?.block;
                         if (info?.event?.extendedProps?.isBlock && block?.id) {

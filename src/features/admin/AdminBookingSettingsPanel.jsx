@@ -423,14 +423,6 @@ const AdminBookingSettingsPanel = forwardRef(function AdminBookingSettingsPanel(
     );
   };
 
-  if (loading) {
-    return (
-      <div className={`text-slate-600 text-sm ${className}`}>
-        <p>예약 설정을 불러오는 중…</p>
-      </div>
-    );
-  }
-
   const modalDayLabel = hourModal
     ? hourModal.dateKey
       ? `${hourModal.dateKey.replace(/-/g, '. ')} · ${formatHourLabel(hourModal.hour)}`
@@ -626,6 +618,109 @@ const AdminBookingSettingsPanel = forwardRef(function AdminBookingSettingsPanel(
     </div>
   );
 
+  const hourModalLayer = hourModal ? (
+    <div
+      className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center bg-black/50 p-4 backdrop-blur-sm"
+      role="dialog"
+      aria-modal="true"
+      aria-label="시간 슬롯 작업"
+      onClick={closeHourModal}
+    >
+      <div
+        className="w-full max-w-sm rounded-2xl bg-white shadow-xl border border-slate-200/90 overflow-hidden"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-start justify-between gap-2 px-4 pt-4 pb-2">
+          <div>
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-[#064e3b]/70">시간 슬롯</p>
+            <p className="text-base font-semibold text-slate-900 mt-0.5">{modalDayLabel}</p>
+            <div className="mt-1.5">
+              <span
+                className={`inline-flex rounded-full px-2 py-0.5 text-[10px] font-bold tracking-wide ${
+                  hourModal.active
+                    ? 'bg-emerald-100 text-emerald-800 ring-1 ring-emerald-200'
+                    : 'bg-slate-200 text-slate-600 ring-1 ring-slate-300'
+                }`}
+              >
+                {hourModal.active ? '주간 · 예약 가능' : '주간 · 비활성'}
+              </span>
+            </div>
+          </div>
+          <button type="button" onClick={closeHourModal} className="p-1 rounded-lg text-slate-400 hover:bg-slate-100" aria-label="닫기">
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+
+        <div className="px-4 pb-4 space-y-3">
+          {hourModal.active ? (
+            <>
+              <button
+                type="button"
+                onClick={handleWeeklyDeactivate}
+                disabled={saving}
+                className="w-full py-3 rounded-xl border border-slate-200 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+              >
+                비활성화
+                <span className="block text-[10px] font-normal text-slate-400 mt-0.5">매주 이 요일·시간 예약 끄기</span>
+              </button>
+
+              <div className="rounded-xl border border-slate-200/90 bg-slate-50/80 p-3 space-y-2">
+                <p className="text-xs font-semibold text-slate-800">이 날짜만 휴무</p>
+                <p className="text-[10px] text-slate-500 leading-relaxed">
+                  주간 설정은 유지하고, 선택한 날짜·시간만 예약을 막습니다. (Google Calendar 미연동)
+                </p>
+                <input
+                  type="date"
+                  value={holdDate}
+                  onChange={(e) => setHoldDate(e.target.value)}
+                  className="w-full bg-white border border-slate-200 rounded-lg px-2 py-2 text-sm"
+                />
+                <button
+                  type="button"
+                  onClick={handleDayOffSlot}
+                  disabled={holdSaving || !holdDate}
+                  className="w-full py-2.5 rounded-xl bg-slate-800 text-white text-sm font-semibold hover:bg-slate-900 disabled:opacity-50"
+                >
+                  {holdSaving ? '처리 중…' : '휴무 (OFF)'}
+                </button>
+              </div>
+
+              <div className="rounded-xl border border-amber-200/80 bg-amber-50/50 p-3 space-y-2">
+                <p className="text-xs font-semibold text-amber-900">OT 예약처리</p>
+                <p className="text-[10px] text-amber-800/80">OT 수업 — Google Calendar에 자동 등록됩니다.</p>
+                <input
+                  type="text"
+                  value={holdMemberName}
+                  onChange={(e) => setHoldMemberName(e.target.value)}
+                  placeholder="OT 대상 이름 (예: 홍길동)"
+                  className="w-full bg-white border border-slate-200 rounded-lg px-2 py-2 text-sm"
+                />
+                <button
+                  type="button"
+                  onClick={handleHoldSlot}
+                  disabled={holdSaving || !holdDate || !holdMemberName.trim()}
+                  className="w-full py-2.5 rounded-xl bg-amber-600 text-white text-sm font-semibold hover:bg-amber-700 disabled:opacity-50"
+                >
+                  {holdSaving ? '처리 중…' : 'OT 적용'}
+                </button>
+              </div>
+            </>
+          ) : (
+            <button
+              type="button"
+              onClick={handleWeeklyActivate}
+              disabled={saving}
+              className="w-full py-3 rounded-xl bg-[#064e3b] text-white text-sm font-semibold hover:bg-[#043d2d] disabled:opacity-50"
+            >
+              활성화
+              <span className="block text-[10px] font-normal text-emerald-100/80 mt-0.5">매주 이 요일·시간 예약 켜기</span>
+            </button>
+          )}
+        </div>
+      </div>
+    </div>
+  ) : null;
+
   const body = (
     <>
       {saveToast && (
@@ -634,150 +729,61 @@ const AdminBookingSettingsPanel = forwardRef(function AdminBookingSettingsPanel(
         </div>
       )}
 
-      <div className="flex gap-1 p-1 mb-4 rounded-xl bg-slate-100/80 border border-slate-200/60">
-        {PANEL_TABS.map((tab) => (
-          <button
-            key={tab.id}
-            type="button"
-            onClick={() => setActiveTab(tab.id)}
-            className={`flex-1 py-2 rounded-lg text-[11px] font-semibold transition-colors ${
-              activeTab === tab.id ? 'bg-white text-[#064e3b] shadow-sm' : 'text-slate-500 hover:text-slate-700'
-            }`}
-          >
-            {tab.label}
-            {tab.id === 'blocks' && blockedSlots.length > 0 ? (
-              <span className="ml-1 text-[9px] text-amber-600">({blockedSlots.length})</span>
-            ) : null}
-          </button>
-        ))}
-      </div>
-
-      {activeTab === 'template' && templateBody}
-      {activeTab === 'blocks' && blocksBody}
-      {activeTab === 'holidays' && holidaysBody}
-
-      {hourModal && (
-        <div
-          className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center bg-black/50 p-4 backdrop-blur-sm"
-          role="dialog"
-          aria-modal="true"
-          aria-label="시간 슬롯 작업"
-          onClick={closeHourModal}
-        >
-          <div
-            className="w-full max-w-sm rounded-2xl bg-white shadow-xl border border-slate-200/90 overflow-hidden"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex items-start justify-between gap-2 px-4 pt-4 pb-2">
-              <div>
-                <p className="text-[10px] font-semibold uppercase tracking-wider text-[#064e3b]/70">시간 슬롯</p>
-                <p className="text-base font-semibold text-slate-900 mt-0.5">{modalDayLabel}</p>
-                <div className="mt-1.5">
-                  <span
-                    className={`inline-flex rounded-full px-2 py-0.5 text-[10px] font-bold tracking-wide ${
-                      hourModal.active
-                        ? 'bg-emerald-100 text-emerald-800 ring-1 ring-emerald-200'
-                        : 'bg-slate-200 text-slate-600 ring-1 ring-slate-300'
-                    }`}
-                  >
-                    {hourModal.active ? '주간 · 예약 가능' : '주간 · 비활성'}
-                  </span>
-                </div>
-              </div>
-              <button type="button" onClick={closeHourModal} className="p-1 rounded-lg text-slate-400 hover:bg-slate-100" aria-label="닫기">
-                <X className="h-5 w-5" />
+      {loading ? (
+        <p className="text-sm text-slate-500 py-6 text-center">예약 설정을 불러오는 중…</p>
+      ) : (
+        <>
+          <div className="flex gap-1 p-1 mb-4 rounded-xl bg-slate-100/80 border border-slate-200/60">
+            {PANEL_TABS.map((tab) => (
+              <button
+                key={tab.id}
+                type="button"
+                onClick={() => setActiveTab(tab.id)}
+                className={`flex-1 py-2 rounded-lg text-[11px] font-semibold transition-colors ${
+                  activeTab === tab.id ? 'bg-white text-[#064e3b] shadow-sm' : 'text-slate-500 hover:text-slate-700'
+                }`}
+              >
+                {tab.label}
+                {tab.id === 'blocks' && blockedSlots.length > 0 ? (
+                  <span className="ml-1 text-[9px] text-amber-600">({blockedSlots.length})</span>
+                ) : null}
               </button>
-            </div>
-
-            <div className="px-4 pb-4 space-y-3">
-              {hourModal.active ? (
-                <>
-                  <button
-                    type="button"
-                    onClick={handleWeeklyDeactivate}
-                    disabled={saving}
-                    className="w-full py-3 rounded-xl border border-slate-200 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
-                  >
-                    비활성화
-                    <span className="block text-[10px] font-normal text-slate-400 mt-0.5">매주 이 요일·시간 예약 끄기</span>
-                  </button>
-
-                  <div className="rounded-xl border border-slate-200/90 bg-slate-50/80 p-3 space-y-2">
-                    <p className="text-xs font-semibold text-slate-800">이 날짜만 휴무</p>
-                    <p className="text-[10px] text-slate-500 leading-relaxed">
-                      주간 설정은 유지하고, 선택한 날짜·시간만 예약을 막습니다. (Google Calendar 미연동)
-                    </p>
-                    <input
-                      type="date"
-                      value={holdDate}
-                      onChange={(e) => setHoldDate(e.target.value)}
-                      className="w-full bg-white border border-slate-200 rounded-lg px-2 py-2 text-sm"
-                    />
-                    <button
-                      type="button"
-                      onClick={handleDayOffSlot}
-                      disabled={holdSaving || !holdDate}
-                      className="w-full py-2.5 rounded-xl bg-slate-800 text-white text-sm font-semibold hover:bg-slate-900 disabled:opacity-50"
-                    >
-                      {holdSaving ? '처리 중…' : '휴무 (OFF)'}
-                    </button>
-                  </div>
-
-                  <div className="rounded-xl border border-amber-200/80 bg-amber-50/50 p-3 space-y-2">
-                    <p className="text-xs font-semibold text-amber-900">OT 예약처리</p>
-                    <p className="text-[10px] text-amber-800/80">OT 수업 — Google Calendar에 자동 등록됩니다.</p>
-                    <input
-                      type="text"
-                      value={holdMemberName}
-                      onChange={(e) => setHoldMemberName(e.target.value)}
-                      placeholder="OT 대상 이름 (예: 홍길동)"
-                      className="w-full bg-white border border-slate-200 rounded-lg px-2 py-2 text-sm"
-                    />
-                    <button
-                      type="button"
-                      onClick={handleHoldSlot}
-                      disabled={holdSaving || !holdDate || !holdMemberName.trim()}
-                      className="w-full py-2.5 rounded-xl bg-amber-600 text-white text-sm font-semibold hover:bg-amber-700 disabled:opacity-50"
-                    >
-                      {holdSaving ? '처리 중…' : 'OT 적용'}
-                    </button>
-                  </div>
-                </>
-              ) : (
-                <button
-                  type="button"
-                  onClick={handleWeeklyActivate}
-                  disabled={saving}
-                  className="w-full py-3 rounded-xl bg-[#064e3b] text-white text-sm font-semibold hover:bg-[#043d2d] disabled:opacity-50"
-                >
-                  활성화
-                  <span className="block text-[10px] font-normal text-emerald-100/80 mt-0.5">매주 이 요일·시간 예약 켜기</span>
-                </button>
-              )}
-            </div>
+            ))}
           </div>
-        </div>
+
+          {activeTab === 'template' && templateBody}
+          {activeTab === 'blocks' && blocksBody}
+          {activeTab === 'holidays' && holidaysBody}
+        </>
       )}
     </>
   );
 
   if (variant === 'embed') {
     return (
-      <div className={`rounded-2xl border border-[#064e3b]/20 bg-white shadow-sm overflow-hidden ${className}`}>
-        <button
-          type="button"
-          onClick={() => setSettingsOpen((o) => !o)}
-          className="w-full flex items-center justify-between px-4 py-3 text-left bg-gradient-to-r from-white to-emerald-50/30"
-        >
-          <span className="text-sm font-semibold text-[#064e3b]">예약 설정</span>
-          <ChevronDown className={`h-4 w-4 text-slate-400 transition-transform ${settingsOpen ? 'rotate-180' : ''}`} />
-        </button>
-        {settingsOpen && <div className="px-3 pb-4 pt-1 sm:px-4 max-h-[min(75vh,640px)] overflow-y-auto">{body}</div>}
-      </div>
+      <>
+        <div className={`rounded-2xl border border-[#064e3b]/20 bg-white shadow-sm overflow-hidden ${className}`}>
+          <button
+            type="button"
+            onClick={() => setSettingsOpen((o) => !o)}
+            className="w-full flex items-center justify-between px-4 py-3 text-left bg-gradient-to-r from-white to-emerald-50/30"
+          >
+            <span className="text-sm font-semibold text-[#064e3b]">예약 설정</span>
+            <ChevronDown className={`h-4 w-4 text-slate-400 transition-transform ${settingsOpen ? 'rotate-180' : ''}`} />
+          </button>
+          {settingsOpen && <div className="px-3 pb-4 pt-1 sm:px-4 max-h-[min(75vh,640px)] overflow-y-auto">{body}</div>}
+        </div>
+        {hourModalLayer}
+      </>
     );
   }
 
-  return <div className={className}>{body}</div>;
+  return (
+    <>
+      <div className={className}>{body}</div>
+      {hourModalLayer}
+    </>
+  );
 });
 
 export default AdminBookingSettingsPanel;
