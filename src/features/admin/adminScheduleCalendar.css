@@ -38,8 +38,37 @@
 }
 
 .labdot-fc-wrap .fc .fc-timegrid-slot-label {
-  font-size: 0.65rem;
-  color: #64748b;
+  font-size: 0.7rem;
+  color: #475569;
+  font-weight: 500;
+}
+
+.labdot-fc-wrap .fc .fc-timegrid-slot-lane.labdot-slot-hour {
+  transition: background-color 0.15s ease;
+}
+
+.labdot-fc-wrap .fc .fc-timegrid-slot-lane.labdot-slot-clickable {
+  cursor: pointer;
+}
+
+.labdot-fc-wrap .fc .fc-timegrid-slot-lane.labdot-slot-clickable:hover {
+  background-color: rgba(16, 185, 129, 0.1) !important;
+}
+
+.labdot-fc-wrap .fc .fc-timegrid-slot-lane.labdot-slot-available {
+  background-color: rgba(16, 185, 129, 0.05);
+}
+
+.labdot-fc-wrap .fc .fc-timegrid-slot-lane.labdot-slot-closed {
+  background-color: rgba(248, 250, 252, 0.95);
+}
+
+.labdot-fc-wrap .fc .fc-timegrid-slot-lane.labdot-slot-available.labdot-slot-clickable:hover {
+  background-color: rgba(16, 185, 129, 0.14) !important;
+}
+
+.labdot-fc-wrap .fc .fc-timegrid-col.fc-day-today .fc-timegrid-slot-lane.labdot-slot-available {
+  background-color: rgba(16, 185, 129, 0.09);
 }
 
 .labdot-fc-wrap .fc .fc-event {

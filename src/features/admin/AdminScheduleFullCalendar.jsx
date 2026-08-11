@@ -22,10 +22,12 @@ import './adminScheduleCalendar.css';
  * @param {object} props
  * @param {import('@fullcalendar/core').EventInput[]} props.events
  * @param {(info: import('@fullcalendar/core').EventClickArg) => void} props.onEventClick
+ * @param {(info: import('@fullcalendar/interaction').DateClickArg) => void} [props.onSlotClick]
+ * @param {(date: Date) => boolean} [props.isSlotAvailable]
  * @param {boolean} [props.loading]
  * @param {Date} [props.initialDate]
  */
-const AdminScheduleFullCalendar = ({ events, onEventClick, loading, initialDate }) => {
+const AdminScheduleFullCalendar = ({ events, onEventClick, onSlotClick, isSlotAvailable, loading, initialDate }) => {
   const calRef = useRef(null);
   const [exporting, setExporting] = useState(false);
   const [copying, setCopying] = useState(false);
@@ -107,6 +109,13 @@ const AdminScheduleFullCalendar = ({ events, onEventClick, loading, initialDate 
 
   return (
     <div className="space-y-3">
+      {onSlotClick ? (
+        <p className="rounded-xl border border-emerald-100 bg-gradient-to-r from-emerald-50/90 to-white px-4 py-2.5 text-xs text-slate-600 leading-relaxed">
+          <span className="font-semibold text-[#064e3b]">캘린더에서 바로 설정</span>
+          <span className="mx-1.5 text-slate-300">|</span>
+          빈 시간 칸을 탭하면 주간 ON/OFF · OT 예약처리를 할 수 있습니다.
+        </p>
+      ) : null}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-end gap-2">
         <button
           type="button"
@@ -161,20 +170,29 @@ const AdminScheduleFullCalendar = ({ events, onEventClick, loading, initialDate 
           }}
           titleFormat={{ year: 'numeric', month: 'long' }}
           dayHeaderFormat={{ weekday: 'short', month: 'numeric', day: 'numeric' }}
-          slotMinTime="06:00:00"
+          slotMinTime="07:00:00"
           slotMaxTime="23:00:00"
           allDaySlot={false}
-          slotDuration="00:30:00"
+          slotDuration="01:00:00"
           slotLabelInterval="01:00:00"
-          snapDuration="00:15:00"
+          snapDuration="01:00:00"
+          slotMinHeight={52}
           firstDay={1}
           slotLaneClassNames={(arg) => {
             const d = arg?.date;
             if (!d) return [];
+            const classes = ['labdot-slot-hour'];
+            if (onSlotClick) classes.push('labdot-slot-clickable');
             if (d.getDay() === 6 && d.getHours() < SATURDAY_OPEN_HOUR) {
-              return ['labdot-sat-morning-na'];
+              classes.push('labdot-sat-morning-na');
+              return classes;
             }
-            return [];
+            if (isSlotAvailable?.(d)) {
+              classes.push('labdot-slot-available');
+            } else if (isSlotAvailable) {
+              classes.push('labdot-slot-closed');
+            }
+            return classes;
           }}
           expandRows
           height="auto"
@@ -184,6 +202,11 @@ const AdminScheduleFullCalendar = ({ events, onEventClick, loading, initialDate 
           eventClick={(info) => {
             info.jsEvent.preventDefault();
             if (onEventClick) onEventClick(info);
+          }}
+          dateClick={(info) => {
+            if (!onSlotClick) return;
+            info.jsEvent.preventDefault();
+            onSlotClick(info);
           }}
           eventDisplay="block"
           dayMaxEvents

@@ -16,6 +16,16 @@ export const WEEKEND_BULK_HOURS = [10, 11, 12, 13, 14, 15, 16, 17, 18];
 /** 평일 프리셋 14~22 */
 export const WEEKDAY_PRESET_14_22 = [14, 15, 16, 17, 18, 19, 20, 21, 22];
 
+export function isTrainerHourAvailable(settings, date) {
+  if (!(date instanceof Date) || Number.isNaN(date.getTime())) return false;
+  const dow = date.getDay();
+  const hour = date.getHours();
+  if (dow === 6 && hour < SATURDAY_OPEN_HOUR) return false;
+  const row = (settings || []).find((s) => s.day_of_week === dow);
+  if (!row || row.off) return false;
+  return normalizeTrainerHours(row.available_hours).includes(hour);
+}
+
 export function isWeekendDow(dow) {
   return dow === 0 || dow === 6;
 }

@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState, forwardRef, useImperativeHandle, useCallback } from 'react';
 import { supabase } from '../../lib/supabaseClient';
 import { useGlobalModal } from '../../context/GlobalModalContext';
 import { ChevronDown, X } from 'lucide-react';
@@ -54,7 +54,10 @@ function formatHourBtn(h) {
  * @param {() => void} [props.onBlocksChanged]
  * @param {() => void} [props.onSettingsChanged]
  */
-const AdminBookingSettingsPanel = ({ variant = 'page', className = '', onBlocksChanged, onSettingsChanged }) => {
+const AdminBookingSettingsPanel = forwardRef(function AdminBookingSettingsPanel(
+  { variant = 'page', className = '', onBlocksChanged, onSettingsChanged, onSettingsLoaded },
+  ref
+) {
   const { showAlert } = useGlobalModal();
   const [settings, setSettings] = useState(emptyWeek);
   const [holidays, setHolidays] = useState([]);
@@ -99,6 +102,7 @@ const AdminBookingSettingsPanel = ({ variant = 'page', className = '', onBlocksC
           : { day_of_week: d, off: d === 0, available_hours: [] };
       });
       setSettings(arr);
+      onSettingsLoaded?.(arr);
       if (!expandInitialized) {
         const needs = detectPanelExpandNeeds(arr);
         setWeekdayExpandEarly(needs.weekdayEarly);
@@ -131,7 +135,13 @@ const AdminBookingSettingsPanel = ({ variant = 'page', className = '', onBlocksC
 
   const withHourChange = (list, dow, h, mode) => {
     const day = list.find((s) => s.day_of_week === dow);
-    if (!day || day.off) return list;
+    if (!day) return list;
+    if (day.off && mode === 'on') {
+      return list.map((s) =>
+        s.day_of_week === dow ? { ...s, off: false, available_hours: [h] } : s
+      );
+    }
+    if (day.off) return list;
     const arr = [...(day.available_hours || [])];
     const i = arr.indexOf(h);
     if (mode === 'off' && i >= 0) arr.splice(i, 1);
@@ -151,6 +161,7 @@ const AdminBookingSettingsPanel = ({ variant = 'page', className = '', onBlocksC
     setSaving(false);
     if (!error) {
       setSettings(nextSettings);
+      onSettingsLoaded?.(nextSettings);
       if (toast) setSaveToast(true);
       onSettingsChanged?.();
     } else {
@@ -207,16 +218,35 @@ const AdminBookingSettingsPanel = ({ variant = 'page', className = '', onBlocksC
     );
   };
 
-  const handleHourClick = async (dow, h, active) => {
+  const handleHourClick = async (dow, h, active, dateKey = null) => {
     if (active) {
-      setHoldDate(nextDateForDayOfWeek(dow));
+      setHoldDate(dateKey || nextDateForDayOfWeek(dow));
       setHoldMemberName('');
-      setHourModal({ dow, hour: h, active: true });
+      setHourModal({ dow, hour: h, active: true, dateKey });
       return;
     }
     const next = withHourChange(settings, dow, h, 'on');
     await persistSettings(next, true);
   };
+
+  const openSlotModal = useCallback(
+    ({ dow, hour, dateKey }) => {
+      const day = settings.find((s) => s.day_of_week === dow);
+      const active = !!day && !day.off && (day.available_hours || []).includes(hour);
+      void handleHourClick(dow, hour, active, dateKey);
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- handleHourClick uses latest settings
+    [settings]
+  );
+
+  useImperativeHandle(
+    ref,
+    () => ({
+      openSlotModal,
+      refresh: fetchData,
+    }),
+    [openSlotModal]
+  );
 
   const closeHourModal = () => {
     if (holdSaving) return;
@@ -381,7 +411,11 @@ const AdminBookingSettingsPanel = ({ variant = 'page', className = '', onBlocksC
     );
   }
 
-  const modalDayLabel = hourModal ? `${dayName(hourModal.dow)}요일 ${formatHourLabel(hourModal.hour)}` : '';
+  const modalDayLabel = hourModal
+    ? hourModal.dateKey
+      ? `${hourModal.dateKey.replace(/-/g, '. ')} · ${formatHourLabel(hourModal.hour)}`
+      : `${dayName(hourModal.dow)}요일 ${formatHourLabel(hourModal.hour)}`
+    : '';
 
   const templateBody = (
     <div className="space-y-5">
@@ -696,6 +730,6 @@ const AdminBookingSettingsPanel = ({ variant = 'page', className = '', onBlocksC
   }
 
   return <div className={className}>{body}</div>;
-};
+});
 
 export default AdminBookingSettingsPanel;

@@ -39,6 +39,7 @@ import AdminExerciseLibrary from './pages/admin/AdminExerciseLibrary';
 import AdminMemberAnnouncements from './pages/admin/AdminMemberAnnouncements';
 import AdminBookingSettingsPanel from './features/admin/AdminBookingSettingsPanel';
 import AdminScheduleFullCalendar from './features/admin/AdminScheduleFullCalendar';
+import { isTrainerHourAvailable, SATURDAY_OPEN_HOUR } from './utils/labdotWeekSchedulePolicy';
 import { buildAdminCalendarEvents, buildBlockedCalendarEvents } from './utils/adminScheduleCalendarEvents';
 
 import LibraryArticleScreen from './features/library/LibraryArticleScreen';
@@ -122,6 +123,8 @@ export default function App() {
   const [scheduleCalendarSeed, setScheduleCalendarSeed] = useState(null);
   const [calendarActionModal, setCalendarActionModal] = useState(null);
   const [calendarActionBusy, setCalendarActionBusy] = useState(false);
+  const bookingPanelRef = useRef(null);
+  const [trainerScheduleSettings, setTrainerScheduleSettings] = useState([]);
 
   // Salary Configuration (Persist in LocalStorage)
   const [salaryConfig, setSalaryConfig] = useState(() => {
@@ -818,6 +821,27 @@ export default function App() {
     [mergedItemsByDate, dashboardBlockedSlots],
   );
 
+  const handleCalendarSlotClick = useCallback(
+    (info) => {
+      const d = info?.date;
+      if (!(d instanceof Date) || Number.isNaN(d.getTime())) return;
+      const hour = d.getHours();
+      const dow = d.getDay();
+      const dateKey = toDateKey(d);
+      if (dow === 6 && hour < SATURDAY_OPEN_HOUR) {
+        showToast('토요일 오전은 운영하지 않습니다.');
+        return;
+      }
+      bookingPanelRef.current?.openSlotModal?.({ dow, hour, dateKey });
+    },
+    [showToast]
+  );
+
+  const isCalendarSlotAvailable = useCallback(
+    (date) => isTrainerHourAvailable(trainerScheduleSettings, date),
+    [trainerScheduleSettings]
+  );
+
   // Helper to handle input changes
   const handleConfigChange = (key, value) => {
     setSalaryConfig(prev => ({ ...prev, [key]: Number(value) }));
@@ -1068,7 +1092,7 @@ export default function App() {
                     <div className="min-w-0">
                       <BackButton onClick={goBack} />
                       <h1 className="mt-3 text-lg sm:text-xl font-light tracking-wide text-[#064e3b]">일정 &amp; 예약</h1>
-                      <p className="text-xs sm:text-sm text-slate-500 mt-0.5">50분 세션 · 예약을 누르면 작업 선택</p>
+                      <p className="text-xs sm:text-sm text-slate-500 mt-0.5">캘린더 빈 칸 탭 → 설정 · 예약 탭 → 수업 관리</p>
                     </div>
                     <button
                       type="button"
@@ -1080,18 +1104,14 @@ export default function App() {
                   </div>
                 </div>
                 <div className="flex-1 px-4 sm:px-6 max-w-7xl w-full mx-auto flex flex-col gap-4">
-                  <AdminBookingSettingsPanel
-                    variant="embed"
-                    className="shrink-0"
-                    onBlocksChanged={fetchRevenueData}
-                    onSettingsChanged={fetchRevenueData}
-                  />
-                  <div className="min-h-[min(60vh,640px)] flex-1 pb-3">
+                  <div className="min-h-[min(60vh,640px)] flex-1 pb-1">
                     <AdminScheduleFullCalendar
                       key={scheduleCalendarSeed ? String(scheduleCalendarSeed.getTime()) : 'cal'}
                       events={adminCalendarEvents}
                       loading={isRevenueLoading}
                       initialDate={scheduleCalendarSeed ?? undefined}
+                      onSlotClick={handleCalendarSlotClick}
+                      isSlotAvailable={isCalendarSlotAvailable}
                       onEventClick={(info) => {
                         const block = info?.event?.extendedProps?.block;
                         if (info?.event?.extendedProps?.isBlock && block?.id) {
@@ -1114,6 +1134,14 @@ export default function App() {
                       }}
                     />
                   </div>
+                  <AdminBookingSettingsPanel
+                    ref={bookingPanelRef}
+                    variant="embed"
+                    className="shrink-0"
+                    onBlocksChanged={fetchRevenueData}
+                    onSettingsChanged={fetchRevenueData}
+                    onSettingsLoaded={setTrainerScheduleSettings}
+                  />
                 </div>
 
                 {calendarActionModal ? (
