@@ -44,31 +44,55 @@
 }
 
 .labdot-fc-wrap .fc .fc-timegrid-slot-lane.labdot-slot-hour {
-  transition: background-color 0.15s ease;
+  transition: background-color 0.15s ease, box-shadow 0.15s ease;
 }
 
 .labdot-fc-wrap .fc .fc-timegrid-slot-lane.labdot-slot-clickable {
   cursor: pointer;
 }
 
-.labdot-fc-wrap .fc .fc-timegrid-slot-lane.labdot-slot-clickable:hover {
-  background-color: rgba(16, 185, 129, 0.1) !important;
-}
-
+/* Weekly ON — 예약 가능 (empty slots) */
 .labdot-fc-wrap .fc .fc-timegrid-slot-lane.labdot-slot-available {
-  background-color: rgba(16, 185, 129, 0.05);
-}
-
-.labdot-fc-wrap .fc .fc-timegrid-slot-lane.labdot-slot-closed {
-  background-color: rgba(248, 250, 252, 0.95);
+  background-color: rgba(209, 250, 229, 0.55);
+  box-shadow: inset 3px 0 0 rgba(16, 185, 129, 0.55);
 }
 
 .labdot-fc-wrap .fc .fc-timegrid-slot-lane.labdot-slot-available.labdot-slot-clickable:hover {
-  background-color: rgba(16, 185, 129, 0.14) !important;
+  background-color: rgba(167, 243, 208, 0.65) !important;
+  box-shadow: inset 3px 0 0 rgba(5, 150, 105, 0.75);
 }
 
 .labdot-fc-wrap .fc .fc-timegrid-col.fc-day-today .fc-timegrid-slot-lane.labdot-slot-available {
-  background-color: rgba(16, 185, 129, 0.09);
+  background-color: rgba(167, 243, 208, 0.5);
+}
+
+/* Weekly OFF — 비활성 */
+.labdot-fc-wrap .fc .fc-timegrid-slot-lane.labdot-slot-closed {
+  background-color: #eef2f6;
+  background-image: repeating-linear-gradient(
+    -45deg,
+    rgba(148, 163, 184, 0.08),
+    rgba(148, 163, 184, 0.08) 6px,
+    rgba(226, 232, 240, 0.5) 6px,
+    rgba(226, 232, 240, 0.5) 12px
+  );
+  box-shadow: inset 3px 0 0 rgba(148, 163, 184, 0.45);
+}
+
+.labdot-fc-wrap .fc .fc-timegrid-slot-lane.labdot-slot-closed.labdot-slot-clickable:hover {
+  background-color: #e2e8f0 !important;
+}
+
+/* Legend swatch (matches closed slot hatch) */
+.labdot-legend-closed {
+  background-color: #eef2f6;
+  background-image: repeating-linear-gradient(
+    -45deg,
+    rgba(148, 163, 184, 0.12),
+    rgba(148, 163, 184, 0.12) 3px,
+    rgba(226, 232, 240, 0.6) 3px,
+    rgba(226, 232, 240, 0.6) 6px
+  );
 }
 
 .labdot-fc-wrap .fc .fc-event {
@@ -107,16 +131,18 @@
   background: rgba(6, 78, 59, 0.04);
 }
 
-/* Saturday before 13:00 — non-operating (time-block grid) */
+/* Saturday before 13:00 — non-operating */
 .labdot-fc-wrap .fc .fc-timegrid-slot-lane.labdot-sat-morning-na {
-  background: linear-gradient(135deg, #f1f5f9 0%, #e2e8f0 100%) !important;
+  background: linear-gradient(135deg, #e2e8f0 0%, #cbd5e1 100%) !important;
   background-image: repeating-linear-gradient(
     -12deg,
-    rgba(6, 78, 59, 0.05),
-    rgba(6, 78, 59, 0.05) 5px,
-    rgba(148, 163, 184, 0.15) 5px,
-    rgba(148, 163, 184, 0.15) 10px
+    rgba(100, 116, 139, 0.08),
+    rgba(100, 116, 139, 0.08) 5px,
+    rgba(148, 163, 184, 0.2) 5px,
+    rgba(148, 163, 184, 0.2) 10px
   ) !important;
+  box-shadow: inset 3px 0 0 rgba(100, 116, 139, 0.35);
+  cursor: not-allowed;
 }
 
 @media (max-width: 639px) {

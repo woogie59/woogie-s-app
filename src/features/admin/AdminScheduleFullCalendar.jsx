@@ -110,11 +110,35 @@ const AdminScheduleFullCalendar = ({ events, onEventClick, onSlotClick, isSlotAv
   return (
     <div className="space-y-3">
       {onSlotClick ? (
-        <p className="rounded-xl border border-emerald-100 bg-gradient-to-r from-emerald-50/90 to-white px-4 py-2.5 text-xs text-slate-600 leading-relaxed">
-          <span className="font-semibold text-[#064e3b]">캘린더에서 바로 설정</span>
-          <span className="mx-1.5 text-slate-300">|</span>
-          빈 시간 칸을 탭하면 주간 ON/OFF · OT 예약처리를 할 수 있습니다.
-        </p>
+        <div className="rounded-xl border border-emerald-100 bg-gradient-to-r from-emerald-50/90 to-white px-4 py-3 space-y-2.5">
+          <p className="text-xs text-slate-600 leading-relaxed">
+            <span className="font-semibold text-[#064e3b]">빈 칸 탭</span>
+            <span className="text-slate-400 mx-1">→</span>
+            설정 창에서 주간 ON/OFF · 휴무 · OT를 선택하세요. (자동 활성화 없음)
+          </p>
+          <div className="flex flex-wrap gap-x-3 gap-y-1.5 text-[10px] font-medium text-slate-600">
+            <span className="inline-flex items-center gap-1.5">
+              <span className="h-3 w-5 rounded-sm bg-emerald-100 ring-1 ring-emerald-300/80" aria-hidden />
+              예약 가능
+            </span>
+            <span className="inline-flex items-center gap-1.5">
+              <span className="h-3 w-5 rounded-sm bg-slate-100 ring-1 ring-slate-300 labdot-legend-closed" aria-hidden />
+              주간 비활성
+            </span>
+            <span className="inline-flex items-center gap-1.5">
+              <span className="h-3 w-5 rounded-sm bg-[#064e3b]" aria-hidden />
+              수업
+            </span>
+            <span className="inline-flex items-center gap-1.5">
+              <span className="h-3 w-5 rounded-sm bg-slate-500" aria-hidden />
+              휴무
+            </span>
+            <span className="inline-flex items-center gap-1.5">
+              <span className="h-3 w-5 rounded-sm bg-amber-500" aria-hidden />
+              OT
+            </span>
+          </div>
+        </div>
       ) : null}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-end gap-2">
         <button

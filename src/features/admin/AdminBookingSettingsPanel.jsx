@@ -220,24 +220,18 @@ const AdminBookingSettingsPanel = forwardRef(function AdminBookingSettingsPanel(
     );
   };
 
-  const handleHourClick = async (dow, h, active, dateKey = null) => {
-    if (active) {
-      setHoldDate(dateKey || nextDateForDayOfWeek(dow));
-      setHoldMemberName('');
-      setHourModal({ dow, hour: h, active: true, dateKey });
-      return;
-    }
-    const next = withHourChange(settings, dow, h, 'on');
-    await persistSettings(next, true);
+  const handleHourClick = (dow, h, active, dateKey = null) => {
+    setHoldDate(dateKey || nextDateForDayOfWeek(dow));
+    setHoldMemberName('');
+    setHourModal({ dow, hour: h, active, dateKey });
   };
 
   const openSlotModal = useCallback(
     ({ dow, hour, dateKey }) => {
       const day = settings.find((s) => s.day_of_week === dow);
       const active = !!day && !day.off && (day.available_hours || []).includes(hour);
-      void handleHourClick(dow, hour, active, dateKey);
+      handleHourClick(dow, hour, active, dateKey);
     },
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- handleHourClick uses latest settings
     [settings]
   );
 
@@ -447,7 +441,7 @@ const AdminBookingSettingsPanel = forwardRef(function AdminBookingSettingsPanel(
     <div className="space-y-5">
       <p className="text-xs text-slate-500 leading-relaxed">
         기본 표시: 평일 {DEFAULT_SLOT_START_HOUR}:00~{WEEKDAY_PANEL_END_HOUR}:00 · 주말 {DEFAULT_SLOT_START_HOUR}:00~18:00.
-        비활성 칸 탭 → 즉시 ON · 활성 칸 탭 → 비활성화/예약처리(OT).
+        비활성(회색) 칸 탭 → 설정 창 · 활성(녹색) 칸 탭 → 비활성화/휴무/OT.
       </p>
 
       {/* Weekdays */}
@@ -678,9 +672,17 @@ const AdminBookingSettingsPanel = forwardRef(function AdminBookingSettingsPanel(
               <div>
                 <p className="text-[10px] font-semibold uppercase tracking-wider text-[#064e3b]/70">시간 슬롯</p>
                 <p className="text-base font-semibold text-slate-900 mt-0.5">{modalDayLabel}</p>
-                <p className="text-xs text-slate-500 mt-0.5">
-                  {hourModal.active ? '현재 예약 가능' : '현재 비활성(주간)'}
-                </p>
+                <div className="mt-1.5">
+                  <span
+                    className={`inline-flex rounded-full px-2 py-0.5 text-[10px] font-bold tracking-wide ${
+                      hourModal.active
+                        ? 'bg-emerald-100 text-emerald-800 ring-1 ring-emerald-200'
+                        : 'bg-slate-200 text-slate-600 ring-1 ring-slate-300'
+                    }`}
+                  >
+                    {hourModal.active ? '주간 · 예약 가능' : '주간 · 비활성'}
+                  </span>
+                </div>
               </div>
               <button type="button" onClick={closeHourModal} className="p-1 rounded-lg text-slate-400 hover:bg-slate-100" aria-label="닫기">
                 <X className="h-5 w-5" />

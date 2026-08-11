@@ -1095,7 +1095,7 @@ export default function App() {
                     <div className="min-w-0">
                       <BackButton onClick={goBack} />
                       <h1 className="mt-3 text-lg sm:text-xl font-light tracking-wide text-[#064e3b]">일정 &amp; 예약</h1>
-                      <p className="text-xs sm:text-sm text-slate-500 mt-0.5">캘린더 빈 칸 탭 → 설정 · 예약 탭 → 수업 관리</p>
+                      <p className="text-xs sm:text-sm text-slate-500 mt-0.5">빈 칸 탭 → 설정 · 수업/휴무 블록 탭 → 관리</p>
                     </div>
                     <button
                       type="button"
