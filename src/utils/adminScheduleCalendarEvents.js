@@ -67,13 +67,14 @@ export function buildBlockedCalendarEvents(blocks) {
     if (Number.isNaN(start.getTime())) return;
     const end = new Date(start.getTime() + SESSION_MS);
     const memberName = String(row.member_name || '').trim();
-    const title = memberName ? `${memberName}님수업` : row.label || 'OT';
+    const isHold = row.kind === 'hold';
+    const title = memberName ? `${memberName}님수업` : isHold ? '휴무' : row.label || 'OT';
     out.push({
       id: `block-${row.id}`,
       title,
       start,
       end,
-      classNames: ['labdot-slot-blocked'],
+      classNames: [isHold ? 'labdot-slot-hold' : 'labdot-slot-blocked'],
       extendedProps: { isBlock: true, block: row, dateKey },
     });
   });

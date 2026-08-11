@@ -6,6 +6,8 @@ import {
   dayName,
   formatHourLabel,
   nextDateForDayOfWeek,
+  blockedSlotDisplayTitle,
+  blockedSlotUsesGoogleCalendar,
 } from '../../utils/trainerBlockedSlots';
 import {
   DEFAULT_SLOT_START_HOUR,
@@ -267,6 +269,28 @@ const AdminBookingSettingsPanel = forwardRef(function AdminBookingSettingsPanel(
     await persistSettings(next, true);
   };
 
+  const handleDayOffSlot = async () => {
+    if (!hourModal || !holdDate) return;
+    setHoldSaving(true);
+    const time = formatHourLabel(hourModal.hour);
+    const { error } = await supabase.from('trainer_blocked_slots').insert({
+      block_date: holdDate,
+      block_time: time,
+      label: '휴무',
+      kind: 'hold',
+    });
+    setHoldSaving(false);
+    if (error) {
+      showAlert({
+        message: error.message.includes('unique') ? '이미 차단된 시간입니다.' : '휴무 설정 실패: ' + error.message,
+      });
+      return;
+    }
+    setHourModal(null);
+    await fetchData();
+    onBlocksChanged?.();
+  };
+
   const handleHoldSlot = async () => {
     if (!hourModal || !holdDate) return;
     const memberName = holdMemberName.trim();
@@ -308,12 +332,14 @@ const AdminBookingSettingsPanel = forwardRef(function AdminBookingSettingsPanel(
 
   const removeBlockedSlot = async (row) => {
     if (!row?.id) return;
-    const sync = await invokeOtBlockGoogleSync('DELETE', null, row);
-    if (!sync.ok) {
-      showAlert({
-        message: 'Google Calendar 연동 해제에 실패했습니다. 다시 시도해 주세요.',
-      });
-      return;
+    if (blockedSlotUsesGoogleCalendar(row)) {
+      const sync = await invokeOtBlockGoogleSync('DELETE', null, row);
+      if (!sync.ok) {
+        showAlert({
+          message: 'Google Calendar 연동 해제에 실패했습니다. 다시 시도해 주세요.',
+        });
+        return;
+      }
     }
     const { error } = await supabase.from('trainer_blocked_slots').delete().eq('id', row.id);
     if (error) {
@@ -542,7 +568,7 @@ const AdminBookingSettingsPanel = forwardRef(function AdminBookingSettingsPanel(
 
   const blocksBody = (
     <div>
-      <h3 className="text-[#064e3b] font-bold mb-2 text-sm">예약처리 (날짜별 차단 · OT)</h3>
+      <h3 className="text-[#064e3b] font-bold mb-2 text-sm">예약처리 (휴무 · OT)</h3>
       <p className="text-xs text-slate-500 mb-3">주간 템플릿은 유지하고, 특정 날짜·시간만 회원 예약을 막습니다.</p>
       {blockedSlots.length === 0 ? (
         <p className="text-sm text-slate-400 py-6 text-center">등록된 예약처리가 없습니다.</p>
@@ -551,12 +577,18 @@ const AdminBookingSettingsPanel = forwardRef(function AdminBookingSettingsPanel(
           {blockedSlots.map((row) => (
             <div
               key={row.id}
-              className="flex items-center justify-between gap-2 px-2 py-1.5 bg-amber-50/80 rounded-lg border border-amber-200/60 text-xs"
+              className={`flex items-center justify-between gap-2 px-2 py-1.5 rounded-lg border text-xs ${
+                row.kind === 'hold'
+                  ? 'bg-slate-100/90 border-slate-200/80'
+                  : 'bg-amber-50/80 border-amber-200/60'
+              }`}
             >
               <span className="font-mono text-slate-800">
                 {row.block_date} {row.block_time}{' '}
-                <span className="text-amber-800 font-semibold">
-                  {row.member_name ? `${row.member_name}님수업` : row.label || 'OT'}
+                <span
+                  className={`font-semibold ${row.kind === 'hold' ? 'text-slate-700' : 'text-amber-800'}`}
+                >
+                  {blockedSlotDisplayTitle(row)}
                 </span>
               </span>
               <button type="button" onClick={() => removeBlockedSlot(row)} className="text-red-500 hover:underline shrink-0">
@@ -566,7 +598,7 @@ const AdminBookingSettingsPanel = forwardRef(function AdminBookingSettingsPanel(
           ))}
         </div>
       )}
-      <p className="text-[10px] text-slate-400 mt-3">새 OT 등록: 주간 템플릿 탭에서 활성(녹색) 시간 칸을 누르세요.</p>
+      <p className="text-[10px] text-slate-400 mt-3">캘린더 또는 주간 템플릿에서 활성(녹색) 시간 칸을 눌러 휴무·OT를 설정하세요.</p>
     </div>
   );
 
@@ -668,15 +700,30 @@ const AdminBookingSettingsPanel = forwardRef(function AdminBookingSettingsPanel(
                     <span className="block text-[10px] font-normal text-slate-400 mt-0.5">매주 이 요일·시간 예약 끄기</span>
                   </button>
 
-                  <div className="rounded-xl border border-amber-200/80 bg-amber-50/50 p-3 space-y-2">
-                    <p className="text-xs font-semibold text-amber-900">예약처리</p>
-                    <p className="text-[10px] text-amber-800/80">주간 설정은 유지하고, 선택한 날짜만 회원 예약을 막습니다.</p>
+                  <div className="rounded-xl border border-slate-200/90 bg-slate-50/80 p-3 space-y-2">
+                    <p className="text-xs font-semibold text-slate-800">이 날짜만 휴무</p>
+                    <p className="text-[10px] text-slate-500 leading-relaxed">
+                      주간 설정은 유지하고, 선택한 날짜·시간만 예약을 막습니다. (Google Calendar 미연동)
+                    </p>
                     <input
                       type="date"
                       value={holdDate}
                       onChange={(e) => setHoldDate(e.target.value)}
                       className="w-full bg-white border border-slate-200 rounded-lg px-2 py-2 text-sm"
                     />
+                    <button
+                      type="button"
+                      onClick={handleDayOffSlot}
+                      disabled={holdSaving || !holdDate}
+                      className="w-full py-2.5 rounded-xl bg-slate-800 text-white text-sm font-semibold hover:bg-slate-900 disabled:opacity-50"
+                    >
+                      {holdSaving ? '처리 중…' : '휴무 (OFF)'}
+                    </button>
+                  </div>
+
+                  <div className="rounded-xl border border-amber-200/80 bg-amber-50/50 p-3 space-y-2">
+                    <p className="text-xs font-semibold text-amber-900">OT 예약처리</p>
+                    <p className="text-[10px] text-amber-800/80">OT 수업 — Google Calendar에 자동 등록됩니다.</p>
                     <input
                       type="text"
                       value={holdMemberName}
@@ -684,14 +731,13 @@ const AdminBookingSettingsPanel = forwardRef(function AdminBookingSettingsPanel(
                       placeholder="OT 대상 이름 (예: 홍길동)"
                       className="w-full bg-white border border-slate-200 rounded-lg px-2 py-2 text-sm"
                     />
-                    <p className="text-[10px] text-amber-800/70">Google Calendar에는 「이름님수업」으로 등록됩니다.</p>
                     <button
                       type="button"
                       onClick={handleHoldSlot}
                       disabled={holdSaving || !holdDate || !holdMemberName.trim()}
                       className="w-full py-2.5 rounded-xl bg-amber-600 text-white text-sm font-semibold hover:bg-amber-700 disabled:opacity-50"
                     >
-                      {holdSaving ? '처리 중…' : '예약처리 적용'}
+                      {holdSaving ? '처리 중…' : 'OT 적용'}
                     </button>
                   </div>
                 </>

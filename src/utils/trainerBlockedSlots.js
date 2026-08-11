@@ -36,3 +36,15 @@ export function isSlotBlocked(blocks, dateStr, time) {
     (row) => String(row.block_date ?? row.date) === dateStr && normalizeBlockTime(row.block_time ?? row.time) === t
   );
 }
+
+/** Calendar / list label for trainer_blocked_slots row */
+export function blockedSlotDisplayTitle(row) {
+  const memberName = String(row?.member_name || '').trim();
+  if (memberName) return `${memberName}님수업`;
+  if (row?.kind === 'hold') return '휴무';
+  return row?.label || 'OT';
+}
+
+export function blockedSlotUsesGoogleCalendar(row) {
+  return row?.kind === 'ot' && !!String(row?.member_name || '').trim();
+}

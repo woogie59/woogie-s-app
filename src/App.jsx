@@ -41,6 +41,7 @@ import AdminBookingSettingsPanel from './features/admin/AdminBookingSettingsPane
 import AdminScheduleFullCalendar from './features/admin/AdminScheduleFullCalendar';
 import { isTrainerHourAvailable, SATURDAY_OPEN_HOUR } from './utils/labdotWeekSchedulePolicy';
 import { buildAdminCalendarEvents, buildBlockedCalendarEvents } from './utils/adminScheduleCalendarEvents';
+import { blockedSlotDisplayTitle, blockedSlotUsesGoogleCalendar } from './utils/trainerBlockedSlots';
 
 import LibraryArticleScreen from './features/library/LibraryArticleScreen';
 import TrainingLogList from './features/training/TrainingLogList';
@@ -737,15 +738,17 @@ export default function App() {
     if (!blockRow?.id) return;
     setCalendarActionBusy(true);
     try {
-      const sync = await invokeOtBlockGoogleSync('DELETE', null, blockRow);
-      if (!sync.ok) {
-        throw new Error('Google Calendar 연동 해제에 실패했습니다.');
+      if (blockedSlotUsesGoogleCalendar(blockRow)) {
+        const sync = await invokeOtBlockGoogleSync('DELETE', null, blockRow);
+        if (!sync.ok) {
+          throw new Error('Google Calendar 연동 해제에 실패했습니다.');
+        }
       }
       const { error } = await supabase.from('trainer_blocked_slots').delete().eq('id', blockRow.id);
       if (error) throw error;
       setDashboardBlockedSlots((prev) => prev.filter((row) => row.id !== blockRow.id));
       closeCalendarActionModal();
-      showToast('예약처리(차단)가 해제되었습니다.');
+      showToast(blockRow.kind === 'hold' ? '휴무(차단)가 해제되었습니다.' : '예약처리(차단)가 해제되었습니다.');
     } catch (e) {
       console.error('[trainer_blocked_slots delete]', e);
       showAlert({ message: e?.message ? `해제 실패: ${e.message}` : '차단 해제에 실패했습니다.' });
@@ -1118,9 +1121,7 @@ export default function App() {
                           setCalendarActionModal({
                             isBlock: true,
                             block,
-                            label: block.member_name
-                              ? `${block.member_name}님수업`
-                              : block.label || 'OT',
+                            label: blockedSlotDisplayTitle(block),
                             date: String(block.block_date || info?.event?.extendedProps?.dateKey || ''),
                             time: String(block.block_time || ''),
                           });

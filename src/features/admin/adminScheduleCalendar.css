@@ -97,6 +97,12 @@
   border: 1px dashed rgba(255, 251, 235, 0.35) !important;
 }
 
+.labdot-fc-wrap .fc .fc-event.labdot-slot-hold {
+  background: linear-gradient(135deg, #475569 0%, #64748b 100%);
+  color: #f8fafc;
+  border: 1px dashed rgba(248, 250, 252, 0.35) !important;
+}
+
 .labdot-fc-wrap .fc .fc-list-event:hover td {
   background: rgba(6, 78, 59, 0.04);
 }
