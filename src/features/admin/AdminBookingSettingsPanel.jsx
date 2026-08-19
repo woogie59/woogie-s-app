@@ -290,15 +290,26 @@ const AdminBookingSettingsPanel = forwardRef(function AdminBookingSettingsPanel(
         return;
       }
 
-      const { error } = await supabase
-        .from('bookings')
-        .insert({ user_id: addBookingMemberId, date: holdDate, time, status: 'confirmed' })
-        .select()
-        .single();
+      const { data, error } = await supabase.rpc('admin_create_booking', {
+        p_user_id: addBookingMemberId,
+        p_date: holdDate,
+        p_time: time,
+      });
       if (error) {
-        const msg = error.message.includes('unique') || error.code === '23505'
-          ? '이미 예약된 시간입니다.'
-          : '수업 추가 실패: ' + error.message;
+        showAlert({ message: '수업 추가 실패: ' + error.message });
+        return;
+      }
+      const payload = data && typeof data === 'object' ? data : {};
+      if (!payload.ok) {
+        const errCode = String(payload.error || '');
+        const msg =
+          errCode === 'slot_taken'
+            ? '이미 예약된 시간입니다.'
+            : errCode === 'forbidden'
+              ? '관리자 권한이 필요합니다.'
+              : errCode === 'member_not_found'
+                ? '회원을 찾을 수 없습니다.'
+                : `수업 추가 실패: ${errCode || 'unknown'}`;
         showAlert({ message: msg });
         return;
       }

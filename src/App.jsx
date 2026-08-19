@@ -574,10 +574,6 @@ export default function App() {
     }
 
     try {
-      if (isAdminSchedule) {
-        await runAutoCompleteDueBookings();
-      }
-
       const bookingsQuery = supabase
         .from('bookings')
         .select('*, profiles(name, email)')
