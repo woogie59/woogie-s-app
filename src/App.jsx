@@ -4,7 +4,8 @@ import { QrCode, Camera, ChevronRight, ChevronUp, BookOpen, LogOut, Plus, User, 
 import OneSignal from 'react-onesignal';
 
 import { supabase, REMEMBER_ME_KEY } from './lib/supabaseClient';
-import { deleteAttendanceLogsForBooking, toTime24h } from './utils/cascadeAttendance';
+import { toTime24h } from './utils/cascadeAttendance';
+import { runAutoCompleteDueBookings } from './utils/bookingAutoComplete';
 import { emitSessionBalanceRefresh } from './utils/sessionBalanceEvents';
 import { invokeNotifyMemberEvents } from './utils/notifications';
 import { invokeOtBlockGoogleSync } from './utils/googleCalendarOtSync';
@@ -573,6 +574,10 @@ export default function App() {
     }
 
     try {
+      if (isAdminSchedule) {
+        await runAutoCompleteDueBookings();
+      }
+
       const bookingsQuery = supabase
         .from('bookings')
         .select('*, profiles(name, email)')
@@ -645,12 +650,14 @@ export default function App() {
   const openCalendarActionModal = (item) => {
     const b = item?.booking;
     if (!b?.id) return;
+    const isCompleted = item?.status === 'Completed' || b.status === 'completed';
     setCalendarActionModal({
       bookingId: b.id,
       userName: b.profiles?.name || item?.userName || '회원',
       date: String(b.date || ''),
       time: String(b.time || ''),
       status: String(b.status || ''),
+      isCompleted,
     });
   };
 
@@ -720,14 +727,24 @@ export default function App() {
     if (!id) return;
     setCalendarActionBusy(true);
     try {
-      const { error } = await supabase.from('bookings').delete().eq('id', id);
+      const { data, error } = await supabase.rpc('admin_cancel_booking', { p_booking_id: id });
       if (error) throw error;
+      const payload = data && typeof data === 'object' ? data : {};
+      if (payload.ok === false) {
+        throw new Error(payload.error || 'cancel_failed');
+      }
       setDashboardBookings((prev) => prev.filter((b) => b.id !== id));
+      await fetchRevenueData();
       closeCalendarActionModal();
-      showToast('일정이 취소(삭제)되었습니다.');
+      const remaining = payload.remaining;
+      showToast(
+        remaining != null
+          ? `일정이 취소되었습니다. (회원 잔여: ${remaining}회)`
+          : '일정이 취소(삭제)되었습니다.'
+      );
       emitSessionBalanceRefresh();
     } catch (e) {
-      console.error('[bookings delete]', e);
+      console.error('[admin_cancel_booking]', e);
       showAlert({ message: e?.message ? `일정 취소 실패: ${e.message}` : '일정 취소에 실패했습니다.' });
     } finally {
       setCalendarActionBusy(false);
@@ -939,6 +956,16 @@ export default function App() {
       fetchRevenueData();
     }
   }, [view, currentRevenueDate]);
+
+  useEffect(() => {
+    if (view !== 'admin_schedule') return undefined;
+    const timer = window.setInterval(async () => {
+      const result = await runAutoCompleteDueBookings();
+      const n = Number(result?.data?.completed_count ?? 0);
+      if (n > 0) void fetchRevenueData();
+    }, 5 * 60 * 1000);
+    return () => window.clearInterval(timer);
+  }, [view]);
 
   // Macro calculator removed from client UI; normalize stale view state
   useEffect(() => {
@@ -1162,7 +1189,6 @@ export default function App() {
                         const item = info?.event?.extendedProps?.item;
                         const dateKey = info?.event?.extendedProps?.dateKey;
                         if (!item || !dateKey) return;
-                        if (item?.booking?.status === 'completed' || item?.status === 'Completed') return;
                         openCalendarActionModal(item);
                       }}
                     />
@@ -1205,7 +1231,9 @@ export default function App() {
                           <p className="mt-2 text-xs leading-relaxed text-white/45">
                             {calendarActionModal.isBlock
                               ? '회원 예약이 막힌 시간입니다. 해제하면 다시 예약 가능합니다.'
-                              : '해당 일정의 수업을 완료(출석/노쇼) 처리하거나, 일정을 캘린더에서 취소할 수 있습니다.'}
+                              : calendarActionModal.isCompleted
+                                ? '완료된 수업입니다. 취소 시 출석 기록이 삭제되고 세션이 복원됩니다.'
+                                : '수업 완료 처리하거나, 일정을 취소할 수 있습니다. (시작 1시간 후 자동 완료)'}
                           </p>
                         </div>
                         <button
@@ -1240,14 +1268,20 @@ export default function App() {
                           </>
                         ) : (
                           <>
-                            <button
-                              type="button"
-                              disabled={calendarActionBusy}
-                              onClick={completeBookingFromCalendar}
-                              className="rounded-xl border border-emerald-300/40 bg-emerald-500/30 px-4 py-3 text-sm font-black text-emerald-50 shadow-[0_0_20px_rgba(16,185,129,0.35)] transition hover:bg-emerald-500/40 disabled:opacity-40"
-                            >
-                              수업 완료 처리
-                            </button>
+                            {!calendarActionModal.isCompleted ? (
+                              <button
+                                type="button"
+                                disabled={calendarActionBusy}
+                                onClick={completeBookingFromCalendar}
+                                className="rounded-xl border border-emerald-300/40 bg-emerald-500/30 px-4 py-3 text-sm font-black text-emerald-50 shadow-[0_0_20px_rgba(16,185,129,0.35)] transition hover:bg-emerald-500/40 disabled:opacity-40"
+                              >
+                                수업 완료 처리
+                              </button>
+                            ) : (
+                              <p className="rounded-xl border border-teal-400/30 bg-teal-500/15 px-4 py-3 text-sm font-semibold text-teal-100/90 text-center">
+                                자동/수동 완료됨
+                              </p>
+                            )}
                             <button
                               type="button"
                               disabled={calendarActionBusy}
