@@ -8,6 +8,7 @@ import {
   nextDateForDayOfWeek,
   blockedSlotDisplayTitle,
   blockedSlotUsesGoogleCalendar,
+  normalizeBlockTime,
 } from '../../utils/trainerBlockedSlots';
 import {
   DEFAULT_SLOT_START_HOUR,
@@ -22,6 +23,7 @@ import {
   WEEKEND_BULK_HOURS,
 } from '../../utils/labdotWeekSchedulePolicy';
 import { invokeOtBlockGoogleSync } from '../../utils/googleCalendarOtSync';
+import { invokeNotifyMemberEvents } from '../../utils/notifications';
 
 const DAY_NAMES = ['일', '월', '화', '수', '목', '금', '토'];
 const WEEKDAY_ORDER = [1, 2, 3, 4, 5];
@@ -74,6 +76,9 @@ const AdminBookingSettingsPanel = forwardRef(function AdminBookingSettingsPanel(
   const [holdDate, setHoldDate] = useState('');
   const [holdMemberName, setHoldMemberName] = useState('');
   const [holdSaving, setHoldSaving] = useState(false);
+  const [members, setMembers] = useState([]);
+  const [addBookingMemberId, setAddBookingMemberId] = useState('');
+  const [addBookingSaving, setAddBookingSaving] = useState(false);
   const [weekdayExpandEarly, setWeekdayExpandEarly] = useState(false);
   const [weekdayExpandLate, setWeekdayExpandLate] = useState(false);
   const [weekendExpandEarly, setWeekendExpandEarly] = useState(false);
@@ -91,6 +96,12 @@ const AdminBookingSettingsPanel = forwardRef(function AdminBookingSettingsPanel(
       .gte('block_date', today)
       .order('block_date', { ascending: true })
       .order('block_time', { ascending: true });
+    const { data: mems, error: e4 } = await supabase
+      .from('profiles')
+      .select('id, name, email')
+      .neq('role', 'admin')
+      .eq('status', 'active')
+      .order('name');
 
     if (!e1 && sett && sett.length) {
       const arr = Array.from({ length: 7 }, (_, d) => {
@@ -116,6 +127,7 @@ const AdminBookingSettingsPanel = forwardRef(function AdminBookingSettingsPanel(
     }
     setHolidays(e2 ? [] : hols || []);
     setBlockedSlots(e3 ? [] : blocks || []);
+    setMembers(e4 ? [] : mems || []);
     setLoading(false);
   };
 
@@ -223,6 +235,7 @@ const AdminBookingSettingsPanel = forwardRef(function AdminBookingSettingsPanel(
   const handleHourClick = (dow, h, active, dateKey = null) => {
     setHoldDate(dateKey || nextDateForDayOfWeek(dow));
     setHoldMemberName('');
+    setAddBookingMemberId('');
     setHourModal({ dow, hour: h, active, dateKey });
   };
 
@@ -245,8 +258,71 @@ const AdminBookingSettingsPanel = forwardRef(function AdminBookingSettingsPanel(
   );
 
   const closeHourModal = () => {
-    if (holdSaving) return;
+    if (holdSaving || addBookingSaving) return;
     setHourModal(null);
+  };
+
+  const handleAdminAddBooking = async () => {
+    if (!hourModal || !holdDate || !addBookingMemberId) return;
+    const time = formatHourLabel(hourModal.hour);
+    const slotBlocked = blockedSlots.some(
+      (row) => row.block_date === holdDate && normalizeBlockTime(row.block_time) === time
+    );
+    if (slotBlocked) {
+      showAlert({ message: '휴무·OT로 차단된 시간입니다. 예약처리를 먼저 해제해 주세요.' });
+      return;
+    }
+
+    setAddBookingSaving(true);
+    try {
+      const { data: existing, error: existingErr } = await supabase
+        .from('bookings')
+        .select('id, status')
+        .eq('date', holdDate)
+        .eq('time', time)
+        .maybeSingle();
+      if (existingErr) {
+        showAlert({ message: '예약 확인 실패: ' + existingErr.message });
+        return;
+      }
+      if (existing && existing.status !== 'cancelled') {
+        showAlert({ message: '이미 예약된 시간입니다.' });
+        return;
+      }
+
+      const { error } = await supabase
+        .from('bookings')
+        .insert({ user_id: addBookingMemberId, date: holdDate, time, status: 'confirmed' })
+        .select()
+        .single();
+      if (error) {
+        const msg = error.message.includes('unique') || error.code === '23505'
+          ? '이미 예약된 시간입니다.'
+          : '수업 추가 실패: ' + error.message;
+        showAlert({ message: msg });
+        return;
+      }
+
+      const member = members.find((m) => m.id === addBookingMemberId);
+      const memberLabel = member?.name || member?.email || '회원';
+      try {
+        await invokeNotifyMemberEvents(
+          addBookingMemberId,
+          'LAB DOT · 수업 예약',
+          `${holdDate} ${time} 수업이 등록되었습니다.`,
+          'booking'
+        );
+      } catch (notifyErr) {
+        console.warn('[handleAdminAddBooking] member push:', notifyErr);
+      }
+
+      showAlert({ message: `${memberLabel}님 · ${holdDate} ${time} 수업이 추가되었습니다.` });
+      setHourModal(null);
+      setAddBookingMemberId('');
+      onBlocksChanged?.();
+    } finally {
+      setAddBookingSaving(false);
+    }
   };
 
   const handleWeeklyDeactivate = async () => {
@@ -433,7 +509,7 @@ const AdminBookingSettingsPanel = forwardRef(function AdminBookingSettingsPanel(
     <div className="space-y-5">
       <p className="text-xs text-slate-500 leading-relaxed">
         기본 표시: 평일 {DEFAULT_SLOT_START_HOUR}:00~{WEEKDAY_PANEL_END_HOUR}:00 · 주말 {DEFAULT_SLOT_START_HOUR}:00~18:00.
-        비활성(회색) 칸 탭 → 설정 창 · 활성(녹색) 칸 탭 → 비활성화/휴무/OT.
+        비활성(회색) 칸 탭 → 설정 창 · 활성(녹색) 칸 탭 → 수업 추가·비활성화·휴무·OT.
       </p>
 
       {/* Weekdays */}
@@ -652,12 +728,39 @@ const AdminBookingSettingsPanel = forwardRef(function AdminBookingSettingsPanel(
         </div>
 
         <div className="px-4 pb-4 space-y-3">
+          <div className="rounded-xl border border-emerald-200/80 bg-emerald-50/50 p-3 space-y-2">
+            <p className="text-xs font-semibold text-emerald-900">수업 추가</p>
+            <p className="text-[10px] text-emerald-800/80 leading-relaxed">
+              관리자는 1시간 이내 슬롯도 회원 수업을 등록할 수 있습니다.
+            </p>
+            <select
+              value={addBookingMemberId}
+              onChange={(e) => setAddBookingMemberId(e.target.value)}
+              className="w-full bg-white border border-slate-200 rounded-lg px-2 py-2 text-sm text-slate-900"
+            >
+              <option value="">회원 선택</option>
+              {members.map((m) => (
+                <option key={m.id} value={m.id}>
+                  {m.name || m.email || m.id}
+                </option>
+              ))}
+            </select>
+            <button
+              type="button"
+              onClick={handleAdminAddBooking}
+              disabled={addBookingSaving || !holdDate || !addBookingMemberId}
+              className="w-full py-2.5 rounded-xl bg-[#064e3b] text-white text-sm font-semibold hover:bg-[#043d2d] disabled:opacity-50"
+            >
+              {addBookingSaving ? '등록 중…' : '수업 추가'}
+            </button>
+          </div>
+
           {hourModal.active ? (
             <>
               <button
                 type="button"
                 onClick={handleWeeklyDeactivate}
-                disabled={saving}
+                disabled={saving || addBookingSaving}
                 className="w-full py-3 rounded-xl border border-slate-200 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
               >
                 비활성화
@@ -678,7 +781,7 @@ const AdminBookingSettingsPanel = forwardRef(function AdminBookingSettingsPanel(
                 <button
                   type="button"
                   onClick={handleDayOffSlot}
-                  disabled={holdSaving || !holdDate}
+                  disabled={holdSaving || addBookingSaving || !holdDate}
                   className="w-full py-2.5 rounded-xl bg-slate-800 text-white text-sm font-semibold hover:bg-slate-900 disabled:opacity-50"
                 >
                   {holdSaving ? '처리 중…' : '휴무 (OFF)'}
@@ -698,7 +801,7 @@ const AdminBookingSettingsPanel = forwardRef(function AdminBookingSettingsPanel(
                 <button
                   type="button"
                   onClick={handleHoldSlot}
-                  disabled={holdSaving || !holdDate || !holdMemberName.trim()}
+                  disabled={holdSaving || addBookingSaving || !holdDate || !holdMemberName.trim()}
                   className="w-full py-2.5 rounded-xl bg-amber-600 text-white text-sm font-semibold hover:bg-amber-700 disabled:opacity-50"
                 >
                   {holdSaving ? '처리 중…' : 'OT 적용'}
