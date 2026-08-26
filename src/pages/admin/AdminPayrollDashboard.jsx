@@ -16,8 +16,8 @@ import {
   sumResolvedLogPrices,
 } from '../../utils/payrollPricing';
 import {
-  buildCombinedPayrollClipboardText,
   buildSalesLedgerRows,
+  copyCombinedPayrollToClipboard,
   SALES_LEDGER_HEADER,
 } from '../../utils/payrollSalesExport';
 
@@ -630,18 +630,20 @@ const AdminPayrollDashboard = ({ goBack }) => {
       return;
     }
 
-    const tsvContent = buildCombinedPayrollClipboardText({
-      payrollHeader: payroll.header,
-      payrollRows: payroll.dataRows,
-      salesHeader: SALES_LEDGER_HEADER,
-      salesRows,
-    });
-
     try {
-      await navigator.clipboard.writeText(tsvContent);
-      showToast('급여·매출 데이터가 복사되었습니다. 필요한 구간만 붙여넣기(Cmd+V) 하세요.');
+      const { mode } = await copyCombinedPayrollToClipboard({
+        payrollHeader: payroll.header,
+        payrollRows: payroll.dataRows,
+        salesHeader: SALES_LEDGER_HEADER,
+        salesRows,
+      });
+      showToast(
+        mode === 'html'
+          ? '급여·매출 표(가운데 정렬·테두리)가 복사되었습니다. 시트에 붙여넣기(Cmd+V) 하세요.'
+          : '급여·매출 데이터가 복사되었습니다. 필요한 구간만 붙여넣기(Cmd+V) 하세요.',
+      );
     } catch (err) {
-      console.error('Failed to copy payroll TSV:', err);
+      console.error('Failed to copy payroll:', err);
       showToast('클립보드 복사에 실패했습니다.');
     }
   };
