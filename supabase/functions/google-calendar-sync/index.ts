@@ -46,6 +46,11 @@ function getStrictEventReminders(): StrictEventReminders {
   };
 }
 
+/** Event already removed in Google Calendar (manual delete). */
+function isCalendarEventAlreadyGone(status: number | undefined): boolean {
+  return status === 404 || status === 410;
+}
+
 function stripReadOnlyGcalEventFields(rec: Record<string, unknown>) {
   const out: Record<string, unknown> = { ...rec };
   for (const k of [
@@ -338,7 +343,7 @@ async function handleTrainerBlockedSlotSync(
     const eid = old.google_event_id;
     if (!eid) return j({ ok: true, skipped: true, reason: "no google_event_id" });
     const d = await gcal(calId, "DELETE", `/events/${encodeURIComponent(String(eid))}`, token, undefined);
-    if (!d.ok && d.status !== 404) {
+    if (!d.ok && !isCalendarEventAlreadyGone(d.status)) {
       return j({ error: "Calendar delete failed (OT block)", details: d.body }, 502);
     }
     return j({ ok: true, deleted: eid, source: "trainer_blocked_slots" });
@@ -515,7 +520,7 @@ Deno.serve(async (req: Request) => {
     const eid = old.google_event_id;
     if (!eid) return j({ ok: true, skipped: true, reason: "no google_event_id" });
     const d = await gcal(calId, "DELETE", `/events/${encodeURIComponent(eid)}`, token, undefined);
-    if (!d.ok && d.status !== 404) {
+    if (!d.ok && !isCalendarEventAlreadyGone(d.status)) {
       return j({ error: "Calendar delete failed", details: d.body }, 502);
     }
     return j({ ok: true, deleted: eid, source: "DELETE" });
@@ -525,7 +530,7 @@ Deno.serve(async (req: Request) => {
     const eid = rec.google_event_id || old?.google_event_id;
     if (eid) {
       const d = await gcal(calId, "DELETE", `/events/${encodeURIComponent(eid)}`, token, undefined);
-      if (!d.ok && d.status !== 404) {
+      if (!d.ok && !isCalendarEventAlreadyGone(d.status)) {
         return j({ error: "Calendar delete failed (cancelled)", details: d.body }, 502);
       }
     }
