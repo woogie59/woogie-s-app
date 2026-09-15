@@ -751,17 +751,25 @@ export default function App() {
     if (!blockRow?.id) return;
     setCalendarActionBusy(true);
     try {
+      let gcalFailed = false;
       if (blockedSlotUsesGoogleCalendar(blockRow)) {
         const sync = await invokeOtBlockGoogleSync('DELETE', null, blockRow);
-        if (!sync.ok) {
-          throw new Error('Google Calendar 연동 해제에 실패했습니다.');
+        gcalFailed = !sync.ok;
+        if (gcalFailed) {
+          console.warn('[trainer_blocked_slots delete] Google Calendar unlink failed; opening slot anyway');
         }
       }
       const { error } = await supabase.from('trainer_blocked_slots').delete().eq('id', blockRow.id);
       if (error) throw error;
       setDashboardBlockedSlots((prev) => prev.filter((row) => row.id !== blockRow.id));
       closeCalendarActionModal();
-      showToast(blockRow.kind === 'hold' ? '휴무(차단)가 해제되었습니다.' : '예약처리(차단)가 해제되었습니다.');
+      const opened =
+        blockRow.kind === 'hold' ? '휴무(차단)가 해제되었습니다.' : '예약처리(차단)가 해제되었습니다.';
+      showToast(
+        gcalFailed
+          ? `${opened} Google Calendar는 연동이 풀리지 않았을 수 있으니 캘린더에서 확인해 주세요.`
+          : opened,
+      );
     } catch (e) {
       console.error('[trainer_blocked_slots delete]', e);
       showAlert({ message: e?.message ? `해제 실패: ${e.message}` : '차단 해제에 실패했습니다.' });

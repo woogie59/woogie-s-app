@@ -413,13 +413,12 @@ const AdminBookingSettingsPanel = forwardRef(function AdminBookingSettingsPanel(
 
   const removeBlockedSlot = async (row) => {
     if (!row?.id) return;
+    let gcalFailed = false;
     if (blockedSlotUsesGoogleCalendar(row)) {
       const sync = await invokeOtBlockGoogleSync('DELETE', null, row);
-      if (!sync.ok) {
-        showAlert({
-          message: 'Google Calendar 연동 해제에 실패했습니다. 다시 시도해 주세요.',
-        });
-        return;
+      gcalFailed = !sync.ok;
+      if (gcalFailed) {
+        console.warn('[removeBlockedSlot] Google Calendar unlink failed; opening slot anyway');
       }
     }
     const { error } = await supabase.from('trainer_blocked_slots').delete().eq('id', row.id);
@@ -429,6 +428,11 @@ const AdminBookingSettingsPanel = forwardRef(function AdminBookingSettingsPanel(
     }
     await fetchData();
     onBlocksChanged?.();
+    if (gcalFailed) {
+      showAlert({
+        message: '수업 차단은 해제되었습니다. Google Calendar 일정은 캘린더에서 직접 확인해 주세요.',
+      });
+    }
   };
 
   const addHoliday = async () => {
