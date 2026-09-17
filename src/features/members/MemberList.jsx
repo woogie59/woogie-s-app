@@ -158,7 +158,7 @@ const MemberList = ({ setView, goBack, setSelectedMemberId }) => {
   }, [fetchUsers]);
 
   return (
-    <div className="min-h-[100dvh] bg-white text-slate-900 p-6">
+    <div className="min-h-[100dvh] bg-white text-slate-900 px-6 pt-4 pb-10">
       <BackButton onClick={goBack} />
       <div className="space-y-4 mt-8">
         <div className="flex rounded-xl border border-gray-200 bg-gray-50 p-1 text-sm">

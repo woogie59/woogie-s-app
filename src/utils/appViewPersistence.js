@@ -17,6 +17,8 @@ const CLIENT_VIEWS = new Set([
   'library',
   'library_article',
   'macro_calculator',
+  'member_exercise_library',
+  'hall_of_fame_member_self',
 ]);
 
 const ADMIN_VIEWS = new Set([
@@ -24,6 +26,7 @@ const ADMIN_VIEWS = new Set([
   'admin_settings',
   'admin_schedule',
   'admin_payroll',
+  'admin_member_announcements',
   'member_list',
   'member_detail',
   'scanner',
@@ -33,6 +36,9 @@ const ADMIN_VIEWS = new Set([
   'training_log',
   'training_log_detail',
   'class_booking',
+  'exercise_library',
+  'hall_of_fame_hub',
+  'hall_of_fame_member',
 ]);
 
 /**
@@ -70,6 +76,8 @@ const PATH_TO_CLIENT_VIEW = {
   '/training': 'training_log',
   '/library': 'library',
   '/calculator': 'macro_calculator',
+  '/athlete': 'hall_of_fame_member_self',
+  '/member-library': 'member_exercise_library',
 };
 
 const PATH_TO_ADMIN_VIEW = {
@@ -83,6 +91,10 @@ const PATH_TO_ADMIN_VIEW = {
   '/revenue': 'revenue',
   '/settings': 'admin_settings',
   '/payroll': 'admin_payroll',
+  '/hof': 'hall_of_fame_hub',
+  '/status': 'hall_of_fame_hub',
+  '/announcements': 'admin_member_announcements',
+  '/library-admin': 'exercise_library',
 };
 
 /**
@@ -112,6 +124,8 @@ const VIEW_TO_PATH_CLIENT = {
   library: '/library',
   library_article: '/library',
   macro_calculator: '/calculator',
+  hall_of_fame_member_self: '/athlete',
+  member_exercise_library: '/member-library',
 };
 
 const VIEW_TO_PATH_ADMIN = {
@@ -119,6 +133,7 @@ const VIEW_TO_PATH_ADMIN = {
   admin_settings: '/settings',
   admin_schedule: '/schedule',
   admin_payroll: '/payroll',
+  admin_member_announcements: '/announcements',
   member_list: '/members',
   member_detail: '/members',
   scanner: '/scanner',
@@ -128,6 +143,9 @@ const VIEW_TO_PATH_ADMIN = {
   training_log: '/training',
   training_log_detail: '/training',
   class_booking: '/booking',
+  exercise_library: '/library-admin',
+  hall_of_fame_hub: '/hof',
+  hall_of_fame_member: '/hof',
 };
 
 /**
@@ -246,6 +264,7 @@ export function clearPwaLastVisitedPath(userId) {
 export function clearPersistedView(userId) {
   if (typeof window === 'undefined' || !userId) return;
   clearPwaLastVisitedPath(userId);
+  clearPersistedSelectedMemberId(userId);
   const k = PERSISTED_VIEW_KEY(userId);
   try {
     window.sessionStorage.removeItem(k);
@@ -257,4 +276,55 @@ export function clearPersistedView(userId) {
   } catch {
     /* ignore */
   }
+}
+
+export const SELECTED_MEMBER_KEY = (userId) => `${NS}_selected_member_${String(userId)}`;
+
+export function readPersistedSelectedMemberId(userId) {
+  if (typeof window === 'undefined' || !userId) return null;
+  const k = SELECTED_MEMBER_KEY(userId);
+  let v = null;
+  try {
+    v = window.localStorage.getItem(k);
+  } catch {
+    /* ignore */
+  }
+  if (v) return v;
+  try {
+    return window.sessionStorage.getItem('hall_of_fame_member_id');
+  } catch {
+    return null;
+  }
+}
+
+export function writePersistedSelectedMemberId(userId, memberId) {
+  if (typeof window === 'undefined' || !userId) return;
+  const k = SELECTED_MEMBER_KEY(userId);
+  if (!memberId) {
+    try {
+      window.localStorage.removeItem(k);
+    } catch {
+      /* ignore */
+    }
+    try {
+      window.sessionStorage.removeItem('hall_of_fame_member_id');
+    } catch {
+      /* ignore */
+    }
+    return;
+  }
+  try {
+    window.localStorage.setItem(k, String(memberId));
+  } catch {
+    /* ignore */
+  }
+  try {
+    window.sessionStorage.setItem('hall_of_fame_member_id', String(memberId));
+  } catch {
+    /* ignore */
+  }
+}
+
+export function clearPersistedSelectedMemberId(userId) {
+  writePersistedSelectedMemberId(userId, null);
 }

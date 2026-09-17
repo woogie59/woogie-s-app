@@ -211,16 +211,17 @@ export default function MemberAthleteView({ userId, goBack }) {
 
   if (loading) {
     return (
-      <div className="relative min-h-screen max-h-[100dvh] w-full overflow-hidden bg-[#050505] font-sans text-zinc-400">
+      <div className="relative min-h-[100dvh] w-full bg-[#050505] font-sans text-zinc-400">
         <button
           type="button"
           aria-label="뒤로 가기"
           onClick={handleBack}
-          className="absolute left-6 top-6 z-50 p-2 text-zinc-500 transition-colors hover:text-white"
+          className="sticky top-0 z-50 inline-flex min-h-11 items-center px-2 py-2 text-zinc-500 transition-colors hover:text-white"
+          style={{ paddingTop: 'max(0.5rem, env(safe-area-inset-top))' }}
         >
           <ChevronLeft className="h-6 w-6" strokeWidth={1.5} />
         </button>
-        <div className="flex min-h-screen items-center justify-center">불러오는 중...</div>
+        <div className="flex min-h-[50vh] items-center justify-center">불러오는 중...</div>
       </div>
     );
   }
@@ -252,7 +253,7 @@ export default function MemberAthleteView({ userId, goBack }) {
         <button
           type="button"
           onClick={handleBack}
-          className="mt-6 px-4 py-2 border border-zinc-700 rounded-md text-zinc-300 text-sm transition hover:border-zinc-500"
+          className="mt-6 min-h-11 px-4 py-2 border border-zinc-700 rounded-md text-zinc-300 text-sm transition hover:border-zinc-500"
         >
           돌아가기
         </button>
@@ -275,24 +276,25 @@ export default function MemberAthleteView({ userId, goBack }) {
   return (
     <div
       key={entranceKey}
-      className="relative min-h-[100dvh] w-full overflow-y-auto bg-[#050505] px-4 pt-4 font-sans flex flex-col animate-in fade-in duration-1000 ease-out zoom-in-95 fill-mode-forwards"
+      className="relative min-h-[100dvh] w-full bg-[#050505] px-4 font-sans flex flex-col animate-in fade-in duration-1000 ease-out zoom-in-95 fill-mode-forwards"
     >
-      {/* Back button — absolute left */}
+      {/* Back button — stays tappable while scrolling */}
       <button
         type="button"
         aria-label="뒤로 가기"
         onClick={handleBack}
-        className="absolute left-4 top-4 z-50 p-2 text-zinc-500 transition-colors hover:text-white"
+        className="sticky top-0 z-50 -mx-2 mb-1 inline-flex min-h-11 items-center self-start px-2 py-2 text-zinc-500 transition-colors hover:text-white"
+        style={{ paddingTop: 'max(0.5rem, env(safe-area-inset-top))' }}
       >
         <ChevronLeft className="h-6 w-6" strokeWidth={1.5} />
       </button>
 
-      {/* Rank guide — absolute top-right (subtle pill) */}
+      {/* Rank guide — top-right, below sticky back row */}
       <button
         type="button"
         aria-label="계급표 열기"
         onClick={() => setRoadmapOpen(true)}
-        className="absolute top-4 right-4 z-10 inline-flex items-center rounded-full border border-zinc-800 bg-zinc-900/80 px-3 py-1.5 text-[11px] tracking-[0.12em] text-zinc-400 backdrop-blur-md transition hover:border-zinc-600 hover:text-zinc-200"
+        className="absolute top-[max(0.75rem,env(safe-area-inset-top))] right-4 z-40 inline-flex items-center rounded-full border border-zinc-800 bg-zinc-900/80 px-3 py-1.5 text-[11px] tracking-[0.12em] text-zinc-400 backdrop-blur-md transition hover:border-zinc-600 hover:text-zinc-200"
       >
         ✦ 계급표
       </button>

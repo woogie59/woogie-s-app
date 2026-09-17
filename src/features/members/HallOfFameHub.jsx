@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Crown, ChevronRight, ArrowDownAZ, ChevronsDown } from 'lucide-react';
 import { supabase } from '../../lib/supabaseClient';
 import toast from 'react-hot-toast';
+import BackButton from '../../components/ui/BackButton';
 
 export default function HallOfFameHub({ setView, setSelectedMemberId, goBack }) {
   const [members, setMembers] = useState([]);
@@ -144,14 +145,8 @@ export default function HallOfFameHub({ setView, setSelectedMemberId, goBack }) 
   }, [members, sortBy]);
 
   return (
-    <div className="min-h-[100dvh] bg-[#050505] px-6 py-8 text-white [font-family:Urbanist,sans-serif]">
-      <button
-        type="button"
-        onClick={goBack}
-        className="text-sm font-semibold tracking-wide text-zinc-400 transition hover:text-white"
-      >
-        {'< 돌아가기'}
-      </button>
+    <div className="min-h-[100dvh] bg-[#050505] px-6 py-4 text-white [font-family:Urbanist,sans-serif]">
+      <BackButton onClick={goBack} label="돌아가기" tone="dark" />
 
       <div className="mt-6 rounded-2xl border border-white/5 bg-zinc-900/40 p-6 shadow-2xl backdrop-blur-xl">
         <p className="text-xs font-bold uppercase tracking-widest text-zinc-400">아틀리트 명예의 전당</p>

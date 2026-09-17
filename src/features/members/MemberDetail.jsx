@@ -207,7 +207,7 @@ const MemberDetail = ({ selectedMemberId, goBack, startInStatusMode = false, onE
 
   if (startInStatusMode) {
     return (
-      <div className="min-h-[100dvh] bg-white text-neutral-950 px-6 py-10 pb-24 mx-auto w-full max-w-6xl">
+    <div className="min-h-[100dvh] bg-white text-neutral-950 px-6 pt-4 pb-24 mx-auto w-full max-w-6xl">
         <BackButton onClick={goBack} />
         <MemberStatusTab
           userId={selectedMemberId}
@@ -238,7 +238,7 @@ const MemberDetail = ({ selectedMemberId, goBack, startInStatusMode = false, onE
   }
 
   return (
-    <div className="min-h-[100dvh] bg-white text-neutral-950 px-6 py-10 pb-24 mx-auto w-full max-w-lg">
+    <div className="min-h-[100dvh] bg-white text-neutral-950 px-6 pt-4 pb-24 mx-auto w-full max-w-lg">
       <BackButton onClick={goBack} />
 
       <header className="mt-8 mb-8">

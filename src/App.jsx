@@ -16,6 +16,8 @@ import {
   writePersistedView,
   clearPersistedView,
   writePwaLastVisitedPath,
+  readPersistedSelectedMemberId,
+  writePersistedSelectedMemberId,
 } from './utils/appViewPersistence';
 import { useGlobalModal } from './context/GlobalModalContext';
 import CinematicIntro from './components/ui/CinematicIntro';
@@ -90,7 +92,13 @@ export default function App() {
   const [showIntro, setShowIntro] = useState(true);
   const [session, setSession] = useState(null); // 현재 로그인 세션
   const [view, setViewState] = useState('login');
-  const [selectedMemberId, setSelectedMemberId] = useState(() => sessionStorage.getItem('hall_of_fame_member_id')); // 선택된 회원 ID
+  const [selectedMemberId, setSelectedMemberId] = useState(() => {
+    try {
+      return window.sessionStorage.getItem('hall_of_fame_member_id');
+    } catch {
+      return null;
+    }
+  });
   const [trainingLogId, setTrainingLogId] = useState(null);
 
   // [PASSWORD RESET STATE - OVERRIDES EVERYTHING]
@@ -214,16 +222,25 @@ export default function App() {
 
   const goBack = useCallback(() => {
     const prev = viewHistoryRef.current.pop();
-    if (prev !== undefined) {
-      setViewState(prev);
+    const home = userProfileRole === 'admin' ? 'admin_home' : 'client_home';
+    if (prev === undefined) {
+      setViewState(session?.user?.id ? home : 'login');
       return;
     }
-    if (!session?.user?.id) {
-      setViewState('login');
+    if (prev === 'hall_of_fame_member' && !selectedMemberId) {
+      setViewState('hall_of_fame_hub');
       return;
     }
-    setViewState(userProfileRole === 'admin' ? 'admin_home' : 'client_home');
-  }, [userProfileRole, session?.user?.id]);
+    if (prev === 'member_detail' && !selectedMemberId) {
+      setViewState('member_list');
+      return;
+    }
+    if (prev === 'hall_of_fame_member_self' && userProfileRole === 'admin') {
+      setViewState('hall_of_fame_hub');
+      return;
+    }
+    setViewState(prev);
+  }, [userProfileRole, session?.user?.id, selectedMemberId]);
 
   const viewRef = useRef(view);
   viewRef.current = view;
@@ -345,7 +362,12 @@ export default function App() {
       if (authEvent === 'SIGNED_IN') {
         replaceView(def);
       } else if (authEvent === 'INITIAL_SESSION') {
-        const p = readPersistedView(sessionData.user.id, role);
+        const savedMemberId = readPersistedSelectedMemberId(sessionData.user.id);
+        if (savedMemberId) setSelectedMemberId(savedMemberId);
+        let p = readPersistedView(sessionData.user.id, role);
+        if (role === 'admin' && p === 'hall_of_fame_member_self') p = 'hall_of_fame_hub';
+        if (p === 'hall_of_fame_member' && !savedMemberId) p = 'hall_of_fame_hub';
+        if (p === 'member_detail' && !savedMemberId) p = 'member_list';
         replaceView(p || def);
       }
     } catch {
@@ -981,17 +1003,16 @@ export default function App() {
   }, [view]);
 
   useEffect(() => {
-    if (selectedMemberId) {
-      sessionStorage.setItem('hall_of_fame_member_id', selectedMemberId);
-    }
-  }, [selectedMemberId]);
+    if (!session?.user?.id) return;
+    writePersistedSelectedMemberId(session.user.id, selectedMemberId || null);
+  }, [selectedMemberId, session?.user?.id]);
 
   useEffect(() => {
     if (view !== 'admin_schedule') setScheduleCalendarSeed(null);
   }, [view]);
 
   return (
-    <div className="bg-white min-h-[100dvh] flex flex-col font-sans selection:bg-emerald-500/20 overflow-x-hidden">
+    <div className="bg-white flex-1 min-h-0 w-full flex flex-col font-sans selection:bg-emerald-500/20 overflow-y-auto overflow-x-hidden">
       <AnimatePresence>
         {showIntro && <CinematicIntro onComplete={() => setShowIntro(false)} />}
       </AnimatePresence>
@@ -1041,20 +1062,20 @@ export default function App() {
 
           {/* 관리자 화면 (admin role 필수) */}
           {view === 'admin_home' && (
-            <AdminRoute session={session} replaceView={replaceView}>
+            <AdminRoute session={session} replaceView={replaceView} knownRole={userProfileRole}>
               <AdminHome setView={navigate} logout={handleLogout} onOpenTrainingLog={() => setShowAdminTrainingReport(true)} adminName={userProfileName} />
             </AdminRoute>
           )}
 
           {/* 회원 목록 */}
           {view === 'member_list' && (
-            <AdminRoute session={session} replaceView={replaceView}>
+            <AdminRoute session={session} replaceView={replaceView} knownRole={userProfileRole}>
               <MemberList setView={navigate} goBack={goBack} setSelectedMemberId={setSelectedMemberId} />
             </AdminRoute>
           )}
 
           {view === 'hall_of_fame_hub' && (
-            <AdminRoute session={session} replaceView={replaceView}>
+            <AdminRoute session={session} replaceView={replaceView} knownRole={userProfileRole}>
               <HallOfFameHub
                 setView={navigate}
                 goBack={() => navigate('admin_home')}
@@ -1064,37 +1085,37 @@ export default function App() {
           )}
 
           {view === 'admin_settings' && (
-            <AdminRoute session={session} replaceView={replaceView}>
+            <AdminRoute session={session} replaceView={replaceView} knownRole={userProfileRole}>
               <AdminSettings goBack={goBack} />
             </AdminRoute>
           )}
 
           {view === 'admin_payroll' && (
-            <AdminRoute session={session} replaceView={replaceView}>
+            <AdminRoute session={session} replaceView={replaceView} knownRole={userProfileRole}>
               <AdminPayrollDashboard goBack={goBack} />
             </AdminRoute>
           )}
 
           {view === 'admin_member_announcements' && (
-            <AdminRoute session={session} replaceView={replaceView}>
+            <AdminRoute session={session} replaceView={replaceView} knownRole={userProfileRole}>
               <AdminMemberAnnouncements goBack={goBack} />
             </AdminRoute>
           )}
 
           {view === 'exercise_library' && (
-            <AdminRoute session={session} replaceView={replaceView}>
+            <AdminRoute session={session} replaceView={replaceView} knownRole={userProfileRole}>
               <AdminExerciseLibrary goBack={() => navigate('admin_home')} />
             </AdminRoute>
           )}
 
           {/* 회원 상세 */}
           {view === 'member_detail' && selectedMemberId && (
-            <AdminRoute session={session} replaceView={replaceView}>
+            <AdminRoute session={session} replaceView={replaceView} knownRole={userProfileRole}>
               <MemberDetail selectedMemberId={selectedMemberId} goBack={goBack} />
             </AdminRoute>
           )}
           {view === 'hall_of_fame_member' && selectedMemberId && (
-            <AdminRoute session={session} replaceView={replaceView}>
+            <AdminRoute session={session} replaceView={replaceView} knownRole={userProfileRole}>
               <MemberDetail
                 selectedMemberId={selectedMemberId}
                 goBack={() => navigate('hall_of_fame_hub')}
@@ -1109,7 +1130,7 @@ export default function App() {
             </AdminRoute>
           )}
           {view === 'hall_of_fame_member' && !selectedMemberId && (
-            <AdminRoute session={session} replaceView={replaceView}>
+            <AdminRoute session={session} replaceView={replaceView} knownRole={userProfileRole}>
               <div className="min-h-[100dvh] bg-[#050505] flex items-center justify-center px-6 text-zinc-300">
                 <div className="rounded-2xl border border-white/10 bg-zinc-900/40 p-6 text-center backdrop-blur-xl">
                   <p className="text-sm tracking-wide text-zinc-400">회원 정보가 유실되었습니다.</p>
@@ -1125,7 +1146,7 @@ export default function App() {
             </AdminRoute>
           )}
           {view === 'member_detail' && !selectedMemberId && (
-            <AdminRoute session={session} replaceView={replaceView}>
+            <AdminRoute session={session} replaceView={replaceView} knownRole={userProfileRole}>
               <div className="min-h-[100dvh] flex items-center justify-center bg-[#050505] px-6 text-zinc-300">
                 <div className="rounded-2xl border border-white/10 bg-zinc-900/40 p-6 text-center backdrop-blur-xl">
                   <p className="text-sm tracking-wide">회원 상태가 유실되어 목록으로 이동합니다.</p>
@@ -1143,14 +1164,14 @@ export default function App() {
 
           {/* QR 스캐너 */}
           {view === 'scanner' && (
-            <AdminRoute session={session} replaceView={replaceView}>
+            <AdminRoute session={session} replaceView={replaceView} knownRole={userProfileRole}>
               <QRScanner setView={navigate} goBack={goBack} />
             </AdminRoute>
           )}
 
           {/* Schedule: FullCalendar + embedded 예약 설정 */}
           {view === 'admin_schedule' && (
-            <AdminRoute session={session} replaceView={replaceView}>
+            <AdminRoute session={session} replaceView={replaceView} knownRole={userProfileRole}>
               <div className="min-h-[100dvh] bg-gradient-to-b from-white to-emerald-50/20 text-slate-900 flex flex-col overflow-y-auto pb-24">
                 <div className="px-4 sm:px-6 pt-4 sm:pt-6 pb-2 max-w-7xl w-full mx-auto">
                   <div className="flex items-start justify-between gap-3 flex-wrap">
@@ -1314,7 +1335,7 @@ export default function App() {
 
           {/* Revenue: monthly payroll & CSV only (was Private/Manager on Schedule) */}
           {view === 'revenue' && (
-            <AdminRoute session={session} replaceView={replaceView}>
+            <AdminRoute session={session} replaceView={replaceView} knownRole={userProfileRole}>
               <div className="min-h-[100dvh] bg-white flex flex-col text-slate-900 overflow-y-auto pb-24">
                 <div className="p-6 pb-2">
                   <BackButton onClick={goBack} />

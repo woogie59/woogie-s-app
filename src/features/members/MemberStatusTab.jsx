@@ -155,6 +155,13 @@ export default function MemberStatusTab({ userId, profile, memberLevel, onRefres
 
   const displayName = profile?.name || '회원';
 
+  useEffect(() => {
+    if (!isLevelDropdownOpen) return undefined;
+    const close = () => setIsLevelDropdownOpen(false);
+    window.addEventListener('scroll', close, true);
+    return () => window.removeEventListener('scroll', close, true);
+  }, [isLevelDropdownOpen]);
+
   const selectedLevelNumber = useMemo(() => {
     const n = Number.parseInt(selectedLevel, 10);
     if (!Number.isFinite(n)) return null;
