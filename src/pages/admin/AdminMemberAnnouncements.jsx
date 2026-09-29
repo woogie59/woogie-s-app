@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { Megaphone, Pencil, Plus, Trash2 } from 'lucide-react';
+import { Megaphone, Pencil, Plus, Trash2, X } from 'lucide-react';
 import { supabase } from '../../lib/supabaseClient';
 import BackButton from '../../components/ui/BackButton';
 import { useGlobalModal } from '../../context/GlobalModalContext';
@@ -21,18 +21,52 @@ function formatDateTime(iso) {
 }
 
 function AnnouncementEditorModal({ open, initial, onClose, onSaved }) {
-  const { showAlert } = useGlobalModal();
+  const { showAlert, showConfirm } = useGlobalModal();
   const [title, setTitle] = useState('');
   const [body, setBody] = useState('');
   const [publishNow, setPublishNow] = useState(true);
   const [saving, setSaving] = useState(false);
 
+  const initialId = initial?.id ?? null;
+  const initialTitle = initial?.title ?? '';
+  const initialBody = initial?.body ?? '';
+  const initialPublished = Boolean(initial?.is_published);
+
   useEffect(() => {
     if (!open) return;
-    setTitle(initial?.title ?? '');
-    setBody(initial?.body ?? '');
-    setPublishNow(initial?.is_published ?? !initial?.id);
-  }, [open, initial]);
+    setTitle(initialTitle);
+    setBody(initialBody);
+    setPublishNow(initialId ? initialPublished : true);
+  }, [open, initialId, initialTitle, initialBody, initialPublished]);
+
+  const requestClose = useCallback(() => {
+    if (saving) return;
+    const dirty = title !== initialTitle || body !== initialBody;
+    if (!dirty) {
+      onClose();
+      return;
+    }
+    showConfirm({
+      title: '작성 중인 공지',
+      message: '저장하지 않은 내용이 있습니다. 창을 닫을까요?',
+      confirmLabel: '닫기',
+      onConfirm: (close) => {
+        close();
+        onClose();
+      },
+    });
+  }, [saving, title, body, initialTitle, initialBody, onClose, showConfirm]);
+
+  useEffect(() => {
+    if (!open) return undefined;
+    const onKey = (e) => {
+      if (e.key !== 'Escape') return;
+      e.preventDefault();
+      requestClose();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [open, requestClose]);
 
   if (!open) return null;
 
@@ -91,22 +125,38 @@ function AnnouncementEditorModal({ open, initial, onClose, onSaved }) {
 
   return (
     <div
-      className="fixed inset-0 z-[200] flex items-center justify-center p-5 bg-black/40"
-      onClick={onClose}
+      className="fixed inset-0 z-[190] flex items-end sm:items-center justify-center p-0 sm:p-5 bg-black/40"
       role="presentation"
     >
       <div
-        className="w-full max-w-lg rounded-2xl bg-white shadow-2xl overflow-hidden"
+        className="w-full max-w-lg rounded-t-2xl sm:rounded-2xl bg-white shadow-2xl overflow-hidden max-h-[min(92dvh,720px)] flex flex-col"
+        onPointerDown={(e) => e.stopPropagation()}
         onClick={(e) => e.stopPropagation()}
         role="dialog"
         aria-modal="true"
+        aria-labelledby="ann-editor-title"
       >
-        <div className="px-6 py-5 border-b border-gray-100">
-          <h3 className="text-lg font-semibold text-slate-900 tracking-tight">
-            {initial?.id ? '공지 수정' : '공지 게시'}
+        <div className="px-6 py-5 border-b border-gray-100 flex items-start justify-between gap-3 shrink-0">
+          <h3 id="ann-editor-title" className="text-lg font-semibold text-slate-900 tracking-tight">
+            {initialId ? '공지 수정' : '공지 게시'}
           </h3>
+          <button
+            type="button"
+            onClick={requestClose}
+            disabled={saving}
+            className="p-1 rounded-lg text-slate-400 hover:bg-slate-100 disabled:opacity-50"
+            aria-label="닫기"
+          >
+            <X className="h-5 w-5" strokeWidth={ICON_STROKE} />
+          </button>
         </div>
-        <div className="px-6 py-5 space-y-5">
+        <form
+          className="flex-1 min-h-0 overflow-y-auto px-6 py-5 space-y-5"
+          onSubmit={(e) => {
+            e.preventDefault();
+            void handleSave();
+          }}
+        >
           <div>
             <label htmlFor="ann-title" className="block text-sm font-medium text-neutral-800 mb-2">
               제목
@@ -118,6 +168,7 @@ function AnnouncementEditorModal({ open, initial, onClose, onSaved }) {
               onChange={(e) => setTitle(e.target.value)}
               className="w-full rounded-xl border border-gray-200 px-3 py-2.5 text-sm text-slate-900 outline-none focus:border-[#064e3b]/40 focus:ring-2 focus:ring-[#064e3b]/15"
               placeholder="공지 제목"
+              autoComplete="off"
             />
           </div>
           <div>
@@ -133,7 +184,7 @@ function AnnouncementEditorModal({ open, initial, onClose, onSaved }) {
               placeholder="회원에게 전달할 내용을 입력하세요."
             />
           </div>
-          {!initial?.id || !initial?.is_published ? (
+          {!initialId || !initialPublished ? (
             <label className="flex items-center gap-2.5 cursor-pointer select-none">
               <input
                 type="checkbox"
@@ -144,11 +195,11 @@ function AnnouncementEditorModal({ open, initial, onClose, onSaved }) {
               <span className="text-sm text-gray-700">저장과 동시에 게시</span>
             </label>
           ) : null}
-        </div>
-        <div className="px-6 py-4 border-t border-gray-100 flex gap-2 justify-end bg-gray-50/60">
+        </form>
+        <div className="px-6 py-4 border-t border-gray-100 flex gap-2 justify-end bg-gray-50/60 shrink-0">
           <button
             type="button"
-            onClick={onClose}
+            onClick={requestClose}
             disabled={saving}
             className="px-4 py-2.5 text-sm font-medium text-gray-600 hover:text-gray-900 transition-colors"
           >
@@ -160,7 +211,7 @@ function AnnouncementEditorModal({ open, initial, onClose, onSaved }) {
             disabled={saving}
             className="px-5 py-2.5 rounded-xl bg-neutral-950 text-sm font-semibold text-white hover:bg-neutral-800 disabled:opacity-50 transition-colors"
           >
-            {saving ? '저장 중…' : initial?.id ? '저장' : '게시'}
+            {saving ? '저장 중…' : initialId ? '저장' : '게시'}
           </button>
         </div>
       </div>
@@ -256,7 +307,7 @@ export default function AdminMemberAnnouncements({ goBack }) {
           </div>
           <button
             type="button"
-            onClick={() => setEditor({})}
+            onClick={() => setEditor({ id: null })}
             className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#064e3b] px-5 py-3 text-sm font-semibold text-white hover:bg-[#053d2f] transition-colors shrink-0"
           >
             <Plus size={18} strokeWidth={ICON_STROKE} aria-hidden />
