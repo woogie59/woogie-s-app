@@ -1,5 +1,5 @@
 import { supabase } from '../lib/supabaseClient';
-import { invokeNotifyAllMembers } from './notifications';
+import { fetchAdminOnesignalPlayerId, invokeNotifyAllMembers, invokeNotifyMemberTarget } from './notifications';
 
 /** @returns {Promise<{ id: string, title: string, body: string, published_at?: string } | null>} */
 export async function fetchActiveMemberAnnouncement() {
@@ -31,8 +31,8 @@ export async function confirmMemberAnnouncement(announcementId, { dismissPermane
   return data;
 }
 
-/** Until push QA is done, only this member receives announcement phone notifications. */
-export const ANNOUNCEMENT_PUSH_QA_ONLY = true;
+/** Set true to restrict announcement phone push to ANNOUNCEMENT_PUSH_QA_NAME only. */
+export const ANNOUNCEMENT_PUSH_QA_ONLY = false;
 export const ANNOUNCEMENT_PUSH_QA_NAME = '테스트용1';
 
 function previewAnnouncementBody(body, max = 160) {
@@ -41,9 +41,18 @@ function previewAnnouncementBody(body, max = 160) {
   return `${text.slice(0, Math.max(0, max - 1))}…`;
 }
 
-/** Phone push. During QA, the edge function delivers only to 테스트용1. Does not throw. */
+/** Phone push to active members and admin. Does not throw. */
 export async function notifyMembersAnnouncementPublished(title, body) {
   const heading = String(title || '').trim() || 'LAB DOT · 공지';
   const message = previewAnnouncementBody(body) || '새 공지가 게시되었습니다.';
-  return invokeNotifyAllMembers(heading, message, 'member_announcement');
+  const broadcast = await invokeNotifyAllMembers(heading, message, 'member_announcement');
+  try {
+    const adminPlayerId = await fetchAdminOnesignalPlayerId();
+    if (adminPlayerId) {
+      await invokeNotifyMemberTarget(adminPlayerId, heading, message, 'member_announcement');
+    }
+  } catch (e) {
+    console.warn('[notifyMembersAnnouncementPublished] admin copy', e);
+  }
+  return broadcast;
 }

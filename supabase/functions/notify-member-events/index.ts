@@ -12,8 +12,8 @@ const corsHeaders = {
 };
 
 const ID_CHUNK = 200;
-/** Until announcement-push QA is done, only this profile receives `member_announcement` pushes. */
-const ANNOUNCEMENT_PUSH_QA_ONLY = true;
+/** Set true to restrict `member_announcement` pushes to ANNOUNCEMENT_PUSH_QA_NAME only. */
+const ANNOUNCEMENT_PUSH_QA_ONLY = false;
 const ANNOUNCEMENT_PUSH_QA_NAME = "테스트용1";
 
 function isAnnouncementQaName(name: unknown) {
