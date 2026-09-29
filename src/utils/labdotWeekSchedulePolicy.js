@@ -56,6 +56,29 @@ export function defaultHoursForOpenDate(_settings, _ymd) {
   return [...WEEKEND_BULK_HOURS];
 }
 
+export function weeklyHoursForYmd(settings, ymd) {
+  const dow = dayOfWeekFromYmd(ymd);
+  const row = (settings || []).find((s) => s.day_of_week === dow);
+  if (!row || row.off) return [];
+  return normalizeTrainerHours(row.available_hours);
+}
+
+export function hoursEqual(a, b) {
+  return normalizeTrainerHours(a).join(',') === normalizeTrainerHours(b).join(',');
+}
+
+/**
+ * 특정 날짜 시간 토글의 시작점: 이미 날짜 예외가 있으면 그 시간, 휴무일이면 빈 배열, 아니면 주간 템플릿.
+ */
+export function seedHoursForDateOverride(settings, ymd, extras = {}) {
+  const dateStr = ymdKey(ymd);
+  if (!dateStr) return [];
+  const opens = openDateMap(extras.openDates);
+  if (opens.has(dateStr)) return opens.get(dateStr) || [];
+  if (holidayDateSet(extras.holidays).has(dateStr)) return [];
+  return weeklyHoursForYmd(settings, dateStr);
+}
+
 /**
  * 특정 날짜의 실제 오픈 여부. 우선순위: 이 날짜만 오픈 → 휴무일 → 주간 템플릿.
  * @returns {{ off: boolean, available_hours: number[], source: 'open_date' | 'holiday' | 'weekly' }}

@@ -14,12 +14,15 @@ import {
   DEFAULT_SLOT_START_HOUR,
   defaultHoursForOpenDate,
   detectPanelExpandNeeds,
+  hoursEqual,
   isDayOpen,
   isWeekendBulkActive,
   isWeekendDow,
   normalizeTrainerHours,
   resolveDateAvailability,
+  seedHoursForDateOverride,
   visiblePanelHours,
+  weeklyHoursForYmd,
   WEEKDAY_PANEL_END_HOUR,
   WEEKDAY_PRESET_14_22,
   WEEKEND_BULK_HOURS,
@@ -481,20 +484,68 @@ const AdminBookingSettingsPanel = forwardRef(function AdminBookingSettingsPanel(
     onSettingsChanged?.();
   };
 
-  const addOpenDateOverride = async (dateStr) => {
+  const persistDateHours = async (dateStr, hours, label = '이 날짜만') => {
     const ymd = ymdKey(dateStr);
     if (!ymd) return false;
-    const hours = defaultHoursForOpenDate(settings, ymd);
+    const next = normalizeTrainerHours(hours);
+    const weekly = weeklyHoursForYmd(settings, ymd);
+    if (hoursEqual(next, weekly)) {
+      const { error: delOpenErr } = await supabase.from('trainer_open_dates').delete().eq('date', ymd);
+      if (delOpenErr) {
+        showAlert({ message: '예외 해제 실패: ' + delOpenErr.message });
+        return false;
+      }
+      const { error: delHolErr } = await supabase.from('trainer_holidays').delete().eq('date', ymd);
+      if (delHolErr) {
+        showAlert({ message: '휴무 해제 실패: ' + delHolErr.message });
+        return false;
+      }
+      return true;
+    }
     const { error } = await supabase.from('trainer_open_dates').upsert(
-      { date: ymd, available_hours: hours, label: '이 날짜만 오픈' },
+      { date: ymd, available_hours: next, label },
       { onConflict: 'date' }
     );
     if (error) {
-      showAlert({ message: '오픈 설정 실패: ' + error.message });
+      showAlert({ message: '날짜 예외 저장 실패: ' + error.message });
       return false;
     }
     await supabase.from('trainer_holidays').delete().eq('date', ymd);
     return true;
+  };
+
+  const addOpenDateOverride = async (dateStr) => persistDateHours(dateStr, defaultHoursForOpenDate(settings, dateStr), '이 날짜만 10~18');
+
+  const handleDateHourOn = async () => {
+    if (!hourModal || !holdDate) return;
+    setHoldSaving(true);
+    try {
+      const base = seedHoursForDateOverride(settings, holdDate, { holidays, openDates });
+      const next = [...new Set([...base, hourModal.hour])].sort((a, b) => a - b);
+      const ok = await persistDateHours(holdDate, next, '이 날짜만');
+      if (!ok) return;
+      setHourModal(null);
+      await fetchData();
+      onSettingsChanged?.();
+    } finally {
+      setHoldSaving(false);
+    }
+  };
+
+  const handleDateHourOff = async () => {
+    if (!hourModal || !holdDate) return;
+    setHoldSaving(true);
+    try {
+      const base = seedHoursForDateOverride(settings, holdDate, { holidays, openDates });
+      const next = base.filter((h) => h !== hourModal.hour);
+      const ok = await persistDateHours(holdDate, next, '이 날짜만');
+      if (!ok) return;
+      setHourModal(null);
+      await fetchData();
+      onSettingsChanged?.();
+    } finally {
+      setHoldSaving(false);
+    }
   };
 
   const addOpenDateFromTab = async () => {
@@ -661,16 +712,24 @@ const AdminBookingSettingsPanel = forwardRef(function AdminBookingSettingsPanel(
     : null;
   const holdIsHoliday = holdResolved?.source === 'holiday';
   const holdIsOpenOverride = holdResolved?.source === 'open_date';
-  const weeklyDayOff = hourModal
-    ? !isDayOpen(settings, hourModal.dow)
-    : false;
+  const dateHourOn = Boolean(
+    hourModal &&
+      holdResolved &&
+      !holdResolved.off &&
+      (holdResolved.available_hours || []).includes(hourModal.hour)
+  );
+  const dateHoursAreWeekendBulk = Boolean(
+    holdResolved && !holdResolved.off && hoursEqual(holdResolved.available_hours, WEEKEND_BULK_HOURS)
+  );
   const dateBadge = holdIsHoliday
     ? { text: '이 날짜 · 하루 휴무', className: 'bg-red-100 text-red-800 ring-1 ring-red-200' }
-    : holdIsOpenOverride
-      ? { text: '이 날짜만 · 오픈', className: 'bg-emerald-100 text-emerald-800 ring-1 ring-emerald-200' }
-      : hourModal?.active
-        ? { text: '주간 · 예약 가능', className: 'bg-emerald-100 text-emerald-800 ring-1 ring-emerald-200' }
-        : { text: '주간 · 비활성', className: 'bg-slate-200 text-slate-600 ring-1 ring-slate-300' };
+    : holdIsOpenOverride && dateHourOn
+      ? { text: '이 날짜만 · 이 시간 오픈', className: 'bg-emerald-100 text-emerald-800 ring-1 ring-emerald-200' }
+      : holdIsOpenOverride
+        ? { text: '이 날짜만 · 이 시간 꺼짐', className: 'bg-slate-200 text-slate-600 ring-1 ring-slate-300' }
+        : hourModal?.active
+          ? { text: '주간 · 예약 가능', className: 'bg-emerald-100 text-emerald-800 ring-1 ring-emerald-200' }
+          : { text: '주간 · 비활성', className: 'bg-slate-200 text-slate-600 ring-1 ring-slate-300' };
 
   const hourModalLayer = hourModal ? (
     <div
@@ -703,7 +762,7 @@ const AdminBookingSettingsPanel = forwardRef(function AdminBookingSettingsPanel(
           <div className="rounded-xl border border-[#064e3b]/25 bg-[#064e3b]/5 p-3 space-y-2">
             <p className="text-xs font-semibold text-[#064e3b]">이 날짜만 (주간과 별개)</p>
             <p className="text-[10px] text-slate-600 leading-relaxed">
-              이번 주 토요일만 닫고 다음 주 토요일은 열려 있게 할 때 사용합니다. 주간 템플릿은 그대로 둡니다.
+              평일 휴일처럼 그날만 운영시간이 다를 때 사용합니다. 매주 같은 요일은 그대로 둡니다.
             </p>
             <input
               type="date"
@@ -730,6 +789,44 @@ const AdminBookingSettingsPanel = forwardRef(function AdminBookingSettingsPanel(
                 {holdSaving ? '처리 중…' : '이 날짜만 하루 휴무'}
               </button>
             )}
+            {dateHourOn ? (
+              <button
+                type="button"
+                onClick={handleDateHourOff}
+                disabled={holdSaving || addBookingSaving || !holdDate}
+                className="w-full py-2.5 rounded-xl border border-slate-300 bg-white text-slate-800 text-sm font-semibold hover:bg-slate-50 disabled:opacity-50"
+              >
+                {holdSaving ? '처리 중…' : '이 날짜·이 시간만 끄기'}
+                <span className="block text-[10px] font-normal text-slate-500 mt-0.5">
+                  {formatHourLabel(hourModal.hour)}만 닫습니다
+                </span>
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={handleDateHourOn}
+                disabled={holdSaving || addBookingSaving || !holdDate}
+                className="w-full py-2.5 rounded-xl bg-[#064e3b] text-white text-sm font-semibold hover:bg-[#043d2d] disabled:opacity-50"
+              >
+                {holdSaving ? '처리 중…' : '이 날짜·이 시간만 켜기'}
+                <span className="block text-[10px] font-normal text-emerald-100/80 mt-0.5">
+                  {formatHourLabel(hourModal.hour)}만 엽니다. 다른 요일은 그대로입니다
+                </span>
+              </button>
+            )}
+            {dateHoursAreWeekendBulk ? null : (
+              <button
+                type="button"
+                onClick={handleDateOnlyOpen}
+                disabled={holdSaving || addBookingSaving || !holdDate}
+                className="w-full py-2.5 rounded-xl border border-[#064e3b]/30 bg-white text-[#064e3b] text-sm font-semibold hover:bg-emerald-50 disabled:opacity-50"
+              >
+                {holdSaving ? '처리 중…' : '이 날짜만 10~18 오픈'}
+                <span className="block text-[10px] font-normal text-slate-500 mt-0.5">
+                  휴일 운영시간으로 바꿉니다
+                </span>
+              </button>
+            )}
             {holdIsOpenOverride ? (
               <button
                 type="button"
@@ -737,18 +834,9 @@ const AdminBookingSettingsPanel = forwardRef(function AdminBookingSettingsPanel(
                 disabled={holdSaving || addBookingSaving || !holdDate}
                 className="w-full py-2.5 rounded-xl border border-emerald-200 bg-white text-emerald-900 text-sm font-semibold hover:bg-emerald-50 disabled:opacity-50"
               >
-                {holdSaving ? '처리 중…' : '이 날짜만 오픈 해제'}
-              </button>
-            ) : weeklyDayOff ? (
-              <button
-                type="button"
-                onClick={handleDateOnlyOpen}
-                disabled={holdSaving || addBookingSaving || !holdDate}
-                className="w-full py-2.5 rounded-xl bg-[#064e3b] text-white text-sm font-semibold hover:bg-[#043d2d] disabled:opacity-50"
-              >
-                {holdSaving ? '처리 중…' : '이 날짜만 오픈'}
-                <span className="block text-[10px] font-normal text-emerald-100/80 mt-0.5">
-                  주간은 끈 채로, 선택한 날만 회원 예약 열기
+                {holdSaving ? '처리 중…' : '이 날짜 예외 해제'}
+                <span className="block text-[10px] font-normal text-slate-500 mt-0.5">
+                  주간 템플릿으로 돌아갑니다
                 </span>
               </button>
             ) : null}
@@ -782,17 +870,29 @@ const AdminBookingSettingsPanel = forwardRef(function AdminBookingSettingsPanel(
           </div>
 
           {hourModal.active ? (
-            <>
-              <button
-                type="button"
-                onClick={handleWeeklyDeactivate}
-                disabled={saving || addBookingSaving}
-                className="w-full py-3 rounded-xl border border-slate-200 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
-              >
-                매주 이 시간 끄기
-                <span className="block text-[10px] font-normal text-slate-400 mt-0.5">모든 주의 같은 요일·시간에 적용됩니다</span>
-              </button>
+            <button
+              type="button"
+              onClick={handleWeeklyDeactivate}
+              disabled={saving || addBookingSaving}
+              className="w-full py-3 rounded-xl border border-slate-200 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+            >
+              매주 이 시간 끄기
+              <span className="block text-[10px] font-normal text-slate-400 mt-0.5">모든 주의 같은 요일·시간에 적용됩니다</span>
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={handleWeeklyActivate}
+              disabled={saving}
+              className="w-full py-3 rounded-xl border border-slate-200 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+            >
+              매주 이 시간 켜기
+              <span className="block text-[10px] font-normal text-slate-400 mt-0.5">모든 주의 같은 요일·시간에 적용됩니다</span>
+            </button>
+          )}
 
+          {dateHourOn ? (
+            <>
               <div className="rounded-xl border border-slate-200/90 bg-slate-50/80 p-3 space-y-2">
                 <p className="text-xs font-semibold text-slate-800">이 시간만 휴무</p>
                 <p className="text-[10px] text-slate-500 leading-relaxed">
@@ -828,17 +928,7 @@ const AdminBookingSettingsPanel = forwardRef(function AdminBookingSettingsPanel(
                 </button>
               </div>
             </>
-          ) : (
-            <button
-              type="button"
-              onClick={handleWeeklyActivate}
-              disabled={saving}
-              className="w-full py-3 rounded-xl border border-slate-200 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
-            >
-              매주 이 시간 켜기
-              <span className="block text-[10px] font-normal text-slate-400 mt-0.5">모든 주의 같은 요일·시간에 적용됩니다</span>
-            </button>
-          )}
+          ) : null}
         </div>
       </div>
     </div>
@@ -848,8 +938,7 @@ const AdminBookingSettingsPanel = forwardRef(function AdminBookingSettingsPanel(
     <div className="space-y-5">
       <p className="text-xs text-slate-500 leading-relaxed">
         주간 템플릿은 <span className="font-semibold text-slate-700">매주 같은 요일</span>에 적용됩니다.
-        이번 주 토만 닫고 다음 주 토는 열려 있게 하려면, 주간에서 토를 끄지 말고 캘린더에서
-        「이 날짜만 하루 휴무」를 쓰세요. 반대로 매주 토가 꺼져 있으면 「이 날짜만 오픈」으로 그 날만 엽니다.
+        평일 휴일처럼 그날만 시간이 다르면 캘린더에서 「이 날짜·이 시간만 켜기/끄기」 또는 「이 날짜만 10~18 오픈」을 쓰세요.
       </p>
 
       {/* Weekdays */}
@@ -1008,7 +1097,7 @@ const AdminBookingSettingsPanel = forwardRef(function AdminBookingSettingsPanel(
     <div className="space-y-6">
       <p className="text-xs text-slate-500 leading-relaxed">
         주간 템플릿과 별개로 <span className="font-semibold text-slate-700">특정 날짜만</span> 닫거나 엽니다.
-        이번 주 토요일만 휴무이고 다음 주 토요일은 수업이면 여기에서 각각 설정하세요.
+        평일 휴일은 캘린더에서 그 시간만 켜거나, 「이 날짜만 10~18 오픈」으로 바꿀 수 있습니다.
       </p>
       <div>
         <h3 className="text-[#064e3b] font-bold mb-2 text-sm">이 날짜만 하루 휴무</h3>
@@ -1041,9 +1130,9 @@ const AdminBookingSettingsPanel = forwardRef(function AdminBookingSettingsPanel(
         </div>
       </div>
       <div>
-        <h3 className="text-[#064e3b] font-bold mb-2 text-sm">이 날짜만 오픈</h3>
+        <h3 className="text-[#064e3b] font-bold mb-2 text-sm">이 날짜만 10~18 오픈</h3>
         <p className="text-[10px] text-slate-500 mb-2 leading-relaxed">
-          주간에서 토·일이 꺼져 있어도, 선택한 날만 회원 예약을 엽니다.
+          평일 휴일처럼 그날만 주말 시간(10~18)으로 엽니다. 주간 템플릿은 그대로입니다.
         </p>
         <div className="flex flex-wrap gap-2 mb-2">
           <input
@@ -1101,9 +1190,6 @@ const AdminBookingSettingsPanel = forwardRef(function AdminBookingSettingsPanel(
                 {tab.label}
                 {tab.id === 'blocks' && blockedSlots.length > 0 ? (
                   <span className="ml-1 text-[9px] text-amber-600">({blockedSlots.length})</span>
-                ) : null}
-                {tab.id === 'holidays' && holidays.length + openDates.length > 0 ? (
-                  <span className="ml-1 text-[9px] text-[#064e3b]">({holidays.length + openDates.length})</span>
                 ) : null}
                 {tab.id === 'holidays' && holidays.length + openDates.length > 0 ? (
                   <span className="ml-1 text-[9px] text-[#064e3b]">({holidays.length + openDates.length})</span>

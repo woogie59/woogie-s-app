@@ -127,8 +127,8 @@ const AdminScheduleFullCalendar = ({
           <p className="text-xs text-slate-600 leading-relaxed">
             <span className="font-semibold text-[#064e3b]">빈 칸 탭</span>
             <span className="text-slate-400 mx-1">→</span>
-            「이 날짜만 하루 휴무」 또는 「이 날짜만 오픈」으로 이번 주와 다음 주를 따로 관리하세요.
-            주간 ON/OFF는 모든 주에 적용됩니다.
+            「이 날짜·이 시간만 켜기/끄기」로 평일 휴일 시간도 그날만 바꿀 수 있습니다.
+            「매주 켜기/끄기」는 모든 주에 적용됩니다.
           </p>
           <div className="flex flex-wrap gap-x-3 gap-y-1.5 text-[10px] font-medium text-slate-600">
             <span className="inline-flex items-center gap-1.5">
