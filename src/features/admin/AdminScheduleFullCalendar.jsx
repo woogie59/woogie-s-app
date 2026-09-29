@@ -15,7 +15,6 @@ import {
   getMonday,
   toYmd,
 } from '../../utils/weeklyScheduleGridExport';
-import { SATURDAY_OPEN_HOUR } from '../../utils/labdotWeekSchedulePolicy';
 import './adminScheduleCalendar.css';
 
 /**
@@ -222,10 +221,6 @@ const AdminScheduleFullCalendar = ({
             if (!d) return [];
             const classes = ['labdot-slot-hour'];
             if (onSlotClick) classes.push('labdot-slot-clickable');
-            if (d.getDay() === 6 && d.getHours() < SATURDAY_OPEN_HOUR) {
-              classes.push('labdot-sat-morning-na');
-              return classes;
-            }
             if (isSlotAvailable?.(d)) {
               classes.push('labdot-slot-available');
             } else if (isSlotAvailable) {

@@ -1,10 +1,11 @@
 /**
  * LabDot schedule policy — trainer_settings is DB source of truth.
  * JS: Date.getDay() 0=Sun … 5=Fri, 6=Sat
+ * 주말·휴일 수업 시작: 10:00~18:00
  */
-export const SATURDAY_OPEN_HOUR = 13;
-
 export const DEFAULT_SLOT_START_HOUR = 10;
+/** @deprecated 주말·휴일은 10시부터. 호환용 별칭 */
+export const SATURDAY_OPEN_HOUR = DEFAULT_SLOT_START_HOUR;
 export const WEEKDAY_PANEL_END_HOUR = 22;
 export const WEEKDAY_LATE_HOUR = 23;
 export const WEEKEND_PANEL_END_HOUR = 18;
@@ -49,18 +50,10 @@ function openDateMap(openDates) {
 }
 
 /**
- * 주간 템플릿이 꺼져 있을 때 「이 날짜만 오픈」에 넣을 기본 시간.
+ * 주말·휴일(이 날짜만 오픈) 기본 시간 — 10~18시 시작.
  */
-export function defaultHoursForOpenDate(settings, ymd) {
-  const dow = dayOfWeekFromYmd(ymd);
-  const row = (settings || []).find((s) => s.day_of_week === dow);
-  const weekly = normalizeTrainerHours(row?.available_hours);
-  if (weekly.length) {
-    return dow === 6 ? weekly.filter((h) => h >= SATURDAY_OPEN_HOUR) : weekly;
-  }
-  if (dow === 6) return WEEKEND_BULK_HOURS.filter((h) => h >= SATURDAY_OPEN_HOUR);
-  if (dow === 0) return [...WEEKEND_BULK_HOURS];
-  return [...WEEKDAY_PRESET_14_22];
+export function defaultHoursForOpenDate(_settings, _ymd) {
+  return [...WEEKEND_BULK_HOURS];
 }
 
 /**
@@ -84,8 +77,7 @@ export function resolveDateAvailability(settings, ymd, extras = {}) {
   const dow = dayOfWeekFromYmd(dateStr);
   const row = (settings || []).find((s) => s.day_of_week === dow);
   if (!row || row.off) return { off: true, available_hours: [], source: 'weekly' };
-  let hours = normalizeTrainerHours(row.available_hours);
-  if (dow === 6) hours = hours.filter((h) => h >= SATURDAY_OPEN_HOUR);
+  const hours = normalizeTrainerHours(row.available_hours);
   return { off: hours.length === 0, available_hours: hours, source: 'weekly' };
 }
 
@@ -100,12 +92,9 @@ export function isResolvedDateOpen(resolved) {
  */
 export function isTrainerHourAvailable(settings, date, extras = {}) {
   if (!(date instanceof Date) || Number.isNaN(date.getTime())) return false;
-  const dow = date.getDay();
-  const hour = date.getHours();
-  if (dow === 6 && hour < SATURDAY_OPEN_HOUR) return false;
   const resolved = resolveDateAvailability(settings, ymdFromDate(date), extras);
   if (resolved.off) return false;
-  return resolved.available_hours.includes(hour);
+  return resolved.available_hours.includes(date.getHours());
 }
 
 export function isWeekendDow(dow) {

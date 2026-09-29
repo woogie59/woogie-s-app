@@ -42,7 +42,7 @@ import AdminExerciseLibrary from './pages/admin/AdminExerciseLibrary';
 import AdminMemberAnnouncements from './pages/admin/AdminMemberAnnouncements';
 import AdminBookingSettingsPanel from './features/admin/AdminBookingSettingsPanel';
 import AdminScheduleFullCalendar from './features/admin/AdminScheduleFullCalendar';
-import { isTrainerHourAvailable, normalizeTrainerHours, SATURDAY_OPEN_HOUR } from './utils/labdotWeekSchedulePolicy';
+import { isTrainerHourAvailable, normalizeTrainerHours } from './utils/labdotWeekSchedulePolicy';
 import { buildAdminCalendarEvents, buildBlockedCalendarEvents } from './utils/adminScheduleCalendarEvents';
 import { blockedSlotDisplayTitle, blockedSlotUsesGoogleCalendar } from './utils/trainerBlockedSlots';
 
@@ -876,13 +876,9 @@ export default function App() {
       const hour = d.getHours();
       const dow = d.getDay();
       const dateKey = toDateKey(d);
-      if (dow === 6 && hour < SATURDAY_OPEN_HOUR) {
-        showToast('토요일 오전은 운영하지 않습니다.');
-        return;
-      }
       bookingPanelRef.current?.openSlotModal?.({ dow, hour, dateKey });
     },
-    [showToast]
+    []
   );
 
   const isCalendarSlotAvailable = useCallback(
