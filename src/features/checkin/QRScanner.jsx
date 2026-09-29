@@ -20,8 +20,10 @@ const QRScanner = ({ setView, goBack }) => {
   const mediaStreamRef = useRef(null);
 
   const processCheckIn = async (decodedText) => {
+    if (processCheckIn.lock) return;
     if (!decodedText || typeof decodedText !== 'string') return;
     const scannedUserId = decodedText.trim();
+    processCheckIn.lock = true;
 
     if (navigator.vibrate) navigator.vibrate(200);
 
@@ -44,6 +46,12 @@ const QRScanner = ({ setView, goBack }) => {
       if (rpcError) throw rpcError;
 
       if (data?.id) {
+        const { error: statusErr } = await supabase
+          .from('bookings')
+          .update({ status: 'completed' })
+          .eq('id', data.id);
+        if (statusErr) console.warn('[QRScanner] booking status update:', statusErr);
+      }
         const { error: statusErr } = await supabase
           .from('bookings')
           .update({ status: 'completed' })
@@ -92,11 +100,31 @@ const QRScanner = ({ setView, goBack }) => {
       setResult({
         success: true,
         userName,
-        message: `출석 완료 (${metrics.usedSessionCount}회 / 총 ${metrics.totalPurchased}회 · 잔여 ${remaining}회)`,
+        message: rpcData?.already_logged
+          ? `이미 출석 처리된 수업입니다 (잔여 ${remaining}회)`
+          : `출석 완료 (${metrics.usedSessionCount}회 / 총 ${metrics.totalPurchased}회 · 잔여 ${remaining}회)`,
         remainingSessions: remaining,
       });
     } catch (error) {
       console.log('QR Check-in error (full object):', error);
+      const errMsg = error?.message ?? '';
+      const isDuplicate =
+        errMsg.includes('ERR_DUPLICATE_ATTENDANCE_SLOT') || errMsg.includes('duplicate key');
+      if (isDuplicate) {
+        try {
+          const { data: userData } = await supabase.from('profiles').select('name').eq('id', scannedUserId).single();
+          const metrics = await fetchSessionBalanceMetrics(supabase, scannedUserId);
+          setResult({
+            success: true,
+            userName: userData?.name || '회원',
+            message: `이미 출석 처리된 수업입니다 (잔여 ${metrics.remaining}회)`,
+            remainingSessions: metrics.remaining,
+          });
+        } catch {
+          setResult({ success: true, message: '이미 출석 처리된 수업입니다.' });
+        }
+        return;
+      }
       const errMsg = error?.message ?? '';
       const isNoSession =
         errMsg.includes('ERR_NO_SESSIONS') ||
@@ -136,6 +164,8 @@ const QRScanner = ({ setView, goBack }) => {
       }
       setResult({ success: false, message: msg });
       if (navigator.vibrate) navigator.vibrate([100, 50, 100]);
+    } finally {
+      processCheckIn.lock = false;
     }
   };
 
