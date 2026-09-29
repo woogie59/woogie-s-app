@@ -227,13 +227,15 @@ serve(async (req) => {
     if (finalTargetId) {
       if (ANNOUNCEMENT_PUSH_QA_ONLY && eventKind === "member_announcement") {
         const supabaseAdmin = adminClient();
-        const { data: targetProfile, error: tErr } = await supabaseAdmin
+        const { data: targetProfiles, error: tErr } = await supabaseAdmin
           .from("profiles")
           .select("name")
-          .eq("onesignal_id", finalTargetId)
-          .maybeSingle();
+          .eq("onesignal_id", finalTargetId);
         if (tErr) throw new Error(`대상 확인 실패: ${JSON.stringify(tErr)}`);
-        if (!isAnnouncementQaName(targetProfile?.name)) {
+        const allowed =
+          (targetProfiles || []).length > 0 &&
+          (targetProfiles || []).every((p) => isAnnouncementQaName(p?.name));
+        if (!allowed) {
           return new Response(
             JSON.stringify({
               skipped: true,
