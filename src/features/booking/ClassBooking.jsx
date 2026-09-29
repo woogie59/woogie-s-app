@@ -26,7 +26,10 @@ import {
   stripBookingPwaFromUrl,
 } from '../../utils/bookingPwaState';
 import { isSlotBlocked } from '../../utils/trainerBlockedSlots';
-import { isDayOpen } from '../../utils/labdotWeekSchedulePolicy';
+import {
+  isResolvedDateOpen,
+  resolveDateAvailability,
+} from '../../utils/labdotWeekSchedulePolicy';
 
 const ICON_STROKE = 1;
 /** 1:1 — one booking per slot; used for full/disabled state only (no UI count) */
@@ -54,19 +57,6 @@ const addDays = (d, n) => {
 };
 
 const weekDayLabelsKo = ['월', '화', '수', '목', '금', '토', '일'];
-function normalizeAvailableHours(raw) {
-  if (raw == null) return [];
-  let arr = raw;
-  if (typeof raw === 'string') {
-    try {
-      arr = JSON.parse(raw);
-    } catch {
-      return [];
-    }
-  }
-  if (!Array.isArray(arr)) return [];
-  return [...new Set(arr.map((x) => Number(x)).filter((h) => Number.isInteger(h) && h >= 0 && h <= 23))].sort((a, b) => a - b);
-}
 
 /** Hour 0–23 from "HH:mm" time slot */
 function slotHourFromTime(time) {
@@ -84,6 +74,7 @@ const ClassBooking = ({ user, profileName = '', setView, goBack }) => {
   const [loading, setLoading] = useState(false);
   const [settings, setSettings] = useState([]);
   const [holidays, setHolidays] = useState([]);
+  const [openDates, setOpenDates] = useState([]);
   const [blockedSlots, setBlockedSlots] = useState([]);
   /** Non-blocking toast when next week is still locked */
   const [weekToast, setWeekToast] = useState(null);
@@ -197,10 +188,15 @@ const ClassBooking = ({ user, profileName = '', setView, goBack }) => {
     };
     const fetchHolidays = async () => {
       const { data, error } = await supabase.from('trainer_holidays').select('date');
-      setHolidays(error ? [] : (data || []).map((h) => h.date));
+      setHolidays(error ? [] : (data || []).map((h) => String(h.date).slice(0, 10)));
+    };
+    const fetchOpenDates = async () => {
+      const { data, error } = await supabase.from('trainer_open_dates').select('date, available_hours');
+      setOpenDates(error ? [] : data || []);
     };
     fetchSettings();
     fetchHolidays();
+    fetchOpenDates();
   }, []);
 
   useEffect(() => {
@@ -233,16 +229,8 @@ const ClassBooking = ({ user, profileName = '', setView, goBack }) => {
 
   const countSlot = (dateStr, time) => bookings.filter((b) => b.date === dateStr && b.time === time).length;
 
-  const getDaySetting = (dateStr) => {
-    const d = new Date(`${dateStr}T12:00:00`);
-    const dayOfWeek = d.getDay();
-    const row = settings.find((s) => s.day_of_week === dayOfWeek);
-    return row
-      ? { ...row, available_hours: normalizeAvailableHours(row.available_hours) }
-      : { off: dayOfWeek === 0, available_hours: [] };
-  };
-
-  const isHoliday = (dateStr) => holidays.includes(dateStr);
+  const getDaySetting = (dateStr) =>
+    resolveDateAvailability(settings, dateStr, { holidays, openDates });
 
   const toMins = (t) => {
     const [h, m] = String(t).split(':').map(Number);
@@ -267,18 +255,16 @@ const ClassBooking = ({ user, profileName = '', setView, goBack }) => {
   const generateTimeSlots = useCallback(() => {
     if (!selectedDate) return [];
     const dateStr = selectedDate;
-    if (isHoliday(dateStr)) return [];
     if (getDaySetting(dateStr).off) return [];
 
     const hours = getDaySetting(dateStr).available_hours || [];
     return hours.map((h) => `${String(h).padStart(2, '0')}:00`);
-  }, [selectedDate, settings, holidays]);
+  }, [selectedDate, settings, holidays, openDates]);
 
   const slotRemaining = (time) => Math.max(0, MAX_PER_SLOT - countSlot(selectedDate, time));
 
   const isSlotBookable = (time) => {
     if (!selectedDate) return false;
-    if (isHoliday(selectedDate)) return false;
     if (getDaySetting(selectedDate).off) return false;
     if (!isHourInAvailableMatrix(selectedDate, time)) return false;
     if (isSlotBlocked(blockedSlots, selectedDate, time)) return false;
@@ -472,10 +458,11 @@ const ClassBooking = ({ user, profileName = '', setView, goBack }) => {
                 const isSelected = selectedDate === dateStr;
                 const isToday = dateStr === todayKey;
                 const isPast = dateStr < todayKey;
-                const isHolidayDate = isHoliday(dateStr);
                 const hasMine = myDatesWithBooking.has(dateStr);
                 const isWeekendDay = dow === 0 || dow === 6;
-                const weekendOpen = isWeekendDay && isDayOpen(settings, dow);
+                const dateResolved = getDaySetting(dateStr);
+                const isHolidayDate = dateResolved.source === 'holiday';
+                const weekendOpen = isWeekendDay && !isPast && isResolvedDateOpen(dateResolved);
                 return (
                   <button
                     key={dateStr}
@@ -530,9 +517,7 @@ const ClassBooking = ({ user, profileName = '', setView, goBack }) => {
             {selectedDate && (
               <>
                 <p className="text-xs font-bold text-gray-400 tracking-wider mb-3">시간 선택</p>
-                {isHoliday(selectedDate) ? (
-                  <p className="text-center text-sm font-light text-gray-500 py-12 tracking-wide">휴무일입니다.</p>
-                ) : getDaySetting(selectedDate).off ? (
+                {getDaySetting(selectedDate).off ? (
                   <p className="text-center text-sm font-light text-gray-500 py-12 tracking-wide">휴무일입니다.</p>
                 ) : loading ? (
                   <p className="text-center text-sm text-gray-400 py-12 font-light">불러오는 중…</p>

@@ -12,15 +12,18 @@ import {
 } from '../../utils/trainerBlockedSlots';
 import {
   DEFAULT_SLOT_START_HOUR,
+  defaultHoursForOpenDate,
   detectPanelExpandNeeds,
   isDayOpen,
   isWeekendBulkActive,
   isWeekendDow,
   normalizeTrainerHours,
+  resolveDateAvailability,
   visiblePanelHours,
   WEEKDAY_PANEL_END_HOUR,
   WEEKDAY_PRESET_14_22,
   WEEKEND_BULK_HOURS,
+  ymdKey,
 } from '../../utils/labdotWeekSchedulePolicy';
 import { invokeOtBlockGoogleSync } from '../../utils/googleCalendarOtSync';
 import { invokeNotifyMemberEvents } from '../../utils/notifications';
@@ -32,7 +35,7 @@ const WEEKEND_ORDER = [6, 0];
 const PANEL_TABS = [
   { id: 'template', label: '주간 템플릿' },
   { id: 'blocks', label: '예약처리' },
-  { id: 'holidays', label: '휴무일' },
+  { id: 'holidays', label: '날짜 예외' },
 ];
 
 const emptyWeek = () =>
@@ -57,19 +60,22 @@ function formatHourBtn(h) {
  * @param {string} [props.className]
  * @param {() => void} [props.onBlocksChanged]
  * @param {() => void} [props.onSettingsChanged]
+ * @param {(payload: { holidays: object[], openDates: object[] }) => void} [props.onOverridesLoaded]
  */
 const AdminBookingSettingsPanel = forwardRef(function AdminBookingSettingsPanel(
-  { variant = 'page', className = '', onBlocksChanged, onSettingsChanged, onSettingsLoaded },
+  { variant = 'page', className = '', onBlocksChanged, onSettingsChanged, onSettingsLoaded, onOverridesLoaded },
   ref
 ) {
   const { showAlert } = useGlobalModal();
   const [settings, setSettings] = useState(emptyWeek);
   const [holidays, setHolidays] = useState([]);
+  const [openDates, setOpenDates] = useState([]);
   const [blockedSlots, setBlockedSlots] = useState([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saveToast, setSaveToast] = useState(false);
   const [newHolidayDate, setNewHolidayDate] = useState('');
+  const [newOpenDate, setNewOpenDate] = useState('');
   const [settingsOpen, setSettingsOpen] = useState(variant === 'page');
   const [activeTab, setActiveTab] = useState('template');
   const [hourModal, setHourModal] = useState(null);
@@ -90,12 +96,28 @@ const AdminBookingSettingsPanel = forwardRef(function AdminBookingSettingsPanel(
     const today = todayKeyLocal();
     const { data: sett, error: e1 } = await supabase.from('trainer_settings').select('*').order('day_of_week');
     const { data: hols, error: e2 } = await supabase.from('trainer_holidays').select('*').order('date', { ascending: false });
+    const { data: opens, error: eOpen } = await supabase
+      .from('trainer_open_dates')
+      .select('*')
+      .order('date', { ascending: false });
     const { data: blocks, error: e3 } = await supabase
       .from('trainer_blocked_slots')
       .select('*')
       .gte('block_date', today)
       .order('block_date', { ascending: true })
       .order('block_time', { ascending: true });
+    const holidayRows = e2 ? [] : hols || [];
+    const openRows = eOpen ? [] : (opens || []).map((row) => ({
+      ...row,
+      date: ymdKey(row.date),
+      available_hours: normalizeTrainerHours(row.available_hours),
+    }));
+    setHolidays(holidayRows);
+    setOpenDates(openRows);
+    onOverridesLoaded?.({ holidays: holidayRows, openDates: openRows });
+    if (eOpen) {
+      console.warn('[AdminBookingSettingsPanel] trainer_open_dates:', eOpen.message);
+    }
     const { data: mems, error: e4 } = await supabase
       .from('profiles')
       .select('id, name, email')
@@ -125,7 +147,6 @@ const AdminBookingSettingsPanel = forwardRef(function AdminBookingSettingsPanel(
         setExpandInitialized(true);
       }
     }
-    setHolidays(e2 ? [] : hols || []);
     setBlockedSlots(e3 ? [] : blocks || []);
     setMembers(e4 ? [] : mems || []);
     setLoading(false);
@@ -438,17 +459,132 @@ const AdminBookingSettingsPanel = forwardRef(function AdminBookingSettingsPanel(
   const addHoliday = async () => {
     if (!newHolidayDate) return;
     const { error } = await supabase.from('trainer_holidays').insert({ date: newHolidayDate, label: newHolidayDate });
-    if (!error) {
-      setNewHolidayDate('');
-      fetchData();
-    } else {
-      showAlert({ message: '추가 실패: ' + error.message });
+    if (error) {
+      showAlert({
+        message: error.message.includes('unique') ? '이미 등록된 휴무일입니다.' : '추가 실패: ' + error.message,
+      });
+      return;
     }
+    await supabase.from('trainer_open_dates').delete().eq('date', newHolidayDate);
+    setNewHolidayDate('');
+    await fetchData();
+    onSettingsChanged?.();
   };
 
   const removeHoliday = async (id) => {
-    await supabase.from('trainer_holidays').delete().eq('id', id);
-    fetchData();
+    const { error } = await supabase.from('trainer_holidays').delete().eq('id', id);
+    if (error) {
+      showAlert({ message: '삭제 실패: ' + error.message });
+      return;
+    }
+    await fetchData();
+    onSettingsChanged?.();
+  };
+
+  const addOpenDateOverride = async (dateStr) => {
+    const ymd = ymdKey(dateStr);
+    if (!ymd) return false;
+    const hours = defaultHoursForOpenDate(settings, ymd);
+    const { error } = await supabase.from('trainer_open_dates').upsert(
+      { date: ymd, available_hours: hours, label: '이 날짜만 오픈' },
+      { onConflict: 'date' }
+    );
+    if (error) {
+      showAlert({ message: '오픈 설정 실패: ' + error.message });
+      return false;
+    }
+    await supabase.from('trainer_holidays').delete().eq('date', ymd);
+    return true;
+  };
+
+  const addOpenDateFromTab = async () => {
+    if (!newOpenDate) return;
+    const ok = await addOpenDateOverride(newOpenDate);
+    if (!ok) return;
+    setNewOpenDate('');
+    await fetchData();
+    onSettingsChanged?.();
+  };
+
+  const removeOpenDate = async (idOrDate) => {
+    const query = typeof idOrDate === 'string' && idOrDate.length === 10
+      ? supabase.from('trainer_open_dates').delete().eq('date', idOrDate)
+      : supabase.from('trainer_open_dates').delete().eq('id', idOrDate);
+    const { error } = await query;
+    if (error) {
+      showAlert({ message: '삭제 실패: ' + error.message });
+      return;
+    }
+    await fetchData();
+    onSettingsChanged?.();
+  };
+
+  const handleDateOnlyHoliday = async () => {
+    if (!holdDate) return;
+    setHoldSaving(true);
+    try {
+      const { error } = await supabase.from('trainer_holidays').insert({ date: holdDate, label: '하루 휴무' });
+      if (error) {
+        showAlert({
+          message: error.message.includes('unique') ? '이미 이 날짜는 하루 휴무입니다.' : '휴무 설정 실패: ' + error.message,
+        });
+        return;
+      }
+      await supabase.from('trainer_open_dates').delete().eq('date', holdDate);
+      setHourModal(null);
+      await fetchData();
+      onSettingsChanged?.();
+    } finally {
+      setHoldSaving(false);
+    }
+  };
+
+  const handleClearDateHoliday = async () => {
+    if (!holdDate) return;
+    setHoldSaving(true);
+    try {
+      const { error } = await supabase.from('trainer_holidays').delete().eq('date', holdDate);
+      if (error) {
+        showAlert({ message: '휴무 해제 실패: ' + error.message });
+        return;
+      }
+      setHourModal(null);
+      await fetchData();
+      onSettingsChanged?.();
+    } finally {
+      setHoldSaving(false);
+    }
+  };
+
+  const handleDateOnlyOpen = async () => {
+    if (!holdDate) return;
+    setHoldSaving(true);
+    try {
+      const ok = await addOpenDateOverride(holdDate);
+      if (!ok) return;
+      setHourModal(null);
+      await fetchData();
+      onSettingsChanged?.();
+    } finally {
+      setHoldSaving(false);
+    }
+  };
+
+  const handleClearDateOpen = async () => {
+    if (!holdDate) return;
+    setHoldSaving(true);
+    try {
+      const { error } = await supabase.from('trainer_open_dates').delete().eq('date', holdDate);
+      if (error) {
+        showAlert({ message: '오픈 해제 실패: ' + error.message });
+        return;
+      }
+      setHourModal(null);
+      await fetchData();
+      onSettingsChanged?.();
+    } finally {
+      setHoldSaving(false);
+    }
   };
 
   const bothWeekendBulkOn = useMemo(() => {
@@ -520,11 +656,200 @@ const AdminBookingSettingsPanel = forwardRef(function AdminBookingSettingsPanel(
       : `${dayName(hourModal.dow)}요일 ${formatHourLabel(hourModal.hour)}`
     : '';
 
+  const holdResolved = holdDate
+    ? resolveDateAvailability(settings, holdDate, { holidays, openDates })
+    : null;
+  const holdIsHoliday = holdResolved?.source === 'holiday';
+  const holdIsOpenOverride = holdResolved?.source === 'open_date';
+  const weeklyDayOff = hourModal
+    ? !isDayOpen(settings, hourModal.dow)
+    : false;
+  const dateBadge = holdIsHoliday
+    ? { text: '이 날짜 · 하루 휴무', className: 'bg-red-100 text-red-800 ring-1 ring-red-200' }
+    : holdIsOpenOverride
+      ? { text: '이 날짜만 · 오픈', className: 'bg-emerald-100 text-emerald-800 ring-1 ring-emerald-200' }
+      : hourModal?.active
+        ? { text: '주간 · 예약 가능', className: 'bg-emerald-100 text-emerald-800 ring-1 ring-emerald-200' }
+        : { text: '주간 · 비활성', className: 'bg-slate-200 text-slate-600 ring-1 ring-slate-300' };
+
+  const hourModalLayer = hourModal ? (
+    <div
+      className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center bg-black/50 p-4 backdrop-blur-sm"
+      role="dialog"
+      aria-modal="true"
+      aria-label="시간 슬롯 작업"
+      onClick={closeHourModal}
+    >
+      <div
+        className="w-full max-w-sm rounded-2xl bg-white shadow-xl border border-slate-200/90 overflow-hidden max-h-[90vh] overflow-y-auto"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-start justify-between gap-2 px-4 pt-4 pb-2">
+          <div>
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-[#064e3b]/70">시간 슬롯</p>
+            <p className="text-base font-semibold text-slate-900 mt-0.5">{modalDayLabel}</p>
+            <div className="mt-1.5">
+              <span className={`inline-flex rounded-full px-2 py-0.5 text-[10px] font-bold tracking-wide ${dateBadge.className}`}>
+                {dateBadge.text}
+              </span>
+            </div>
+          </div>
+          <button type="button" onClick={closeHourModal} className="p-1 rounded-lg text-slate-400 hover:bg-slate-100" aria-label="닫기">
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+
+        <div className="px-4 pb-4 space-y-3">
+          <div className="rounded-xl border border-[#064e3b]/25 bg-[#064e3b]/5 p-3 space-y-2">
+            <p className="text-xs font-semibold text-[#064e3b]">이 날짜만 (주간과 별개)</p>
+            <p className="text-[10px] text-slate-600 leading-relaxed">
+              이번 주 토요일만 닫고 다음 주 토요일은 열려 있게 할 때 사용합니다. 주간 템플릿은 그대로 둡니다.
+            </p>
+            <input
+              type="date"
+              value={holdDate}
+              onChange={(e) => setHoldDate(e.target.value)}
+              className="w-full bg-white border border-slate-200 rounded-lg px-2 py-2 text-sm"
+            />
+            {holdIsHoliday ? (
+              <button
+                type="button"
+                onClick={handleClearDateHoliday}
+                disabled={holdSaving || addBookingSaving || !holdDate}
+                className="w-full py-2.5 rounded-xl border border-red-200 bg-white text-red-800 text-sm font-semibold hover:bg-red-50 disabled:opacity-50"
+              >
+                {holdSaving ? '처리 중…' : '이 날짜 휴무 해제'}
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={handleDateOnlyHoliday}
+                disabled={holdSaving || addBookingSaving || !holdDate}
+                className="w-full py-2.5 rounded-xl bg-slate-800 text-white text-sm font-semibold hover:bg-slate-900 disabled:opacity-50"
+              >
+                {holdSaving ? '처리 중…' : '이 날짜만 하루 휴무'}
+              </button>
+            )}
+            {holdIsOpenOverride ? (
+              <button
+                type="button"
+                onClick={handleClearDateOpen}
+                disabled={holdSaving || addBookingSaving || !holdDate}
+                className="w-full py-2.5 rounded-xl border border-emerald-200 bg-white text-emerald-900 text-sm font-semibold hover:bg-emerald-50 disabled:opacity-50"
+              >
+                {holdSaving ? '처리 중…' : '이 날짜만 오픈 해제'}
+              </button>
+            ) : weeklyDayOff ? (
+              <button
+                type="button"
+                onClick={handleDateOnlyOpen}
+                disabled={holdSaving || addBookingSaving || !holdDate}
+                className="w-full py-2.5 rounded-xl bg-[#064e3b] text-white text-sm font-semibold hover:bg-[#043d2d] disabled:opacity-50"
+              >
+                {holdSaving ? '처리 중…' : '이 날짜만 오픈'}
+                <span className="block text-[10px] font-normal text-emerald-100/80 mt-0.5">
+                  주간은 끈 채로, 선택한 날만 회원 예약 열기
+                </span>
+              </button>
+            ) : null}
+          </div>
+
+          <div className="rounded-xl border border-emerald-200/80 bg-emerald-50/50 p-3 space-y-2">
+            <p className="text-xs font-semibold text-emerald-900">수업 추가</p>
+            <p className="text-[10px] text-emerald-800/80 leading-relaxed">
+              관리자는 1시간 이내 슬롯도 회원 수업을 등록할 수 있습니다.
+            </p>
+            <select
+              value={addBookingMemberId}
+              onChange={(e) => setAddBookingMemberId(e.target.value)}
+              className="w-full bg-white border border-slate-200 rounded-lg px-2 py-2 text-sm text-slate-900"
+            >
+              <option value="">회원 선택</option>
+              {members.map((m) => (
+                <option key={m.id} value={m.id}>
+                  {m.name || m.email || m.id}
+                </option>
+              ))}
+            </select>
+            <button
+              type="button"
+              onClick={handleAdminAddBooking}
+              disabled={addBookingSaving || !holdDate || !addBookingMemberId}
+              className="w-full py-2.5 rounded-xl bg-[#064e3b] text-white text-sm font-semibold hover:bg-[#043d2d] disabled:opacity-50"
+            >
+              {addBookingSaving ? '등록 중…' : '수업 추가'}
+            </button>
+          </div>
+
+          {hourModal.active ? (
+            <>
+              <button
+                type="button"
+                onClick={handleWeeklyDeactivate}
+                disabled={saving || addBookingSaving}
+                className="w-full py-3 rounded-xl border border-slate-200 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+              >
+                매주 이 시간 끄기
+                <span className="block text-[10px] font-normal text-slate-400 mt-0.5">모든 주의 같은 요일·시간에 적용됩니다</span>
+              </button>
+
+              <div className="rounded-xl border border-slate-200/90 bg-slate-50/80 p-3 space-y-2">
+                <p className="text-xs font-semibold text-slate-800">이 시간만 휴무</p>
+                <p className="text-[10px] text-slate-500 leading-relaxed">
+                  하루 전체가 아니라 선택한 날짜·시간 한 칸만 막습니다. (Google Calendar 미연동)
+                </p>
+                <button
+                  type="button"
+                  onClick={handleDayOffSlot}
+                  disabled={holdSaving || addBookingSaving || !holdDate}
+                  className="w-full py-2.5 rounded-xl bg-slate-700 text-white text-sm font-semibold hover:bg-slate-800 disabled:opacity-50"
+                >
+                  {holdSaving ? '처리 중…' : '이 시간만 휴무 (OFF)'}
+                </button>
+              </div>
+
+              <div className="rounded-xl border border-amber-200/80 bg-amber-50/50 p-3 space-y-2">
+                <p className="text-xs font-semibold text-amber-900">OT 예약처리</p>
+                <p className="text-[10px] text-amber-800/80">OT 수업 — Google Calendar에 자동 등록됩니다.</p>
+                <input
+                  type="text"
+                  value={holdMemberName}
+                  onChange={(e) => setHoldMemberName(e.target.value)}
+                  placeholder="OT 대상 이름 (예: 홍길동)"
+                  className="w-full bg-white border border-slate-200 rounded-lg px-2 py-2 text-sm"
+                />
+                <button
+                  type="button"
+                  onClick={handleHoldSlot}
+                  disabled={holdSaving || addBookingSaving || !holdDate || !holdMemberName.trim()}
+                  className="w-full py-2.5 rounded-xl bg-amber-600 text-white text-sm font-semibold hover:bg-amber-700 disabled:opacity-50"
+                >
+                  {holdSaving ? '처리 중…' : 'OT 적용'}
+                </button>
+              </div>
+            </>
+          ) : (
+            <button
+              type="button"
+              onClick={handleWeeklyActivate}
+              disabled={saving}
+              className="w-full py-3 rounded-xl border border-slate-200 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+            >
+              매주 이 시간 켜기
+              <span className="block text-[10px] font-normal text-slate-400 mt-0.5">모든 주의 같은 요일·시간에 적용됩니다</span>
+            </button>
+          )}
+        </div>
+      </div>
+    </div>
+  ) : null;
+
   const templateBody = (
     <div className="space-y-5">
       <p className="text-xs text-slate-500 leading-relaxed">
-        기본 표시: 평일 {DEFAULT_SLOT_START_HOUR}:00~{WEEKDAY_PANEL_END_HOUR}:00 · 주말 {DEFAULT_SLOT_START_HOUR}:00~18:00.
-        비활성(회색) 칸 탭 → 설정 창 · 활성(녹색) 칸 탭 → 수업 추가·비활성화·휴무·OT.
+        주간 템플릿은 <span className="font-semibold text-slate-700">매주 같은 요일</span>에 적용됩니다.
+        이번 주 토만 닫고 다음 주 토는 열려 있게 하려면, 주간에서 토를 끄지 말고 캘린더에서
+        「이 날짜만 하루 휴무」를 쓰세요. 반대로 매주 토가 꺼져 있으면 「이 날짜만 오픈」으로 그 날만 엽니다.
       </p>
 
       {/* Weekdays */}
@@ -680,164 +1005,76 @@ const AdminBookingSettingsPanel = forwardRef(function AdminBookingSettingsPanel(
   );
 
   const holidaysBody = (
-    <div>
-      <h3 className="text-[#064e3b] font-bold mb-2 text-sm">특정 휴무일</h3>
-      <div className="flex flex-wrap gap-2 mb-2">
-        <input
-          type="date"
-          value={newHolidayDate}
-          onChange={(e) => setNewHolidayDate(e.target.value)}
-          className="flex-1 min-w-0 bg-white border border-slate-200 rounded-lg px-2 py-1.5 text-sm text-slate-900"
-        />
-        <button type="button" onClick={addHoliday} className="shrink-0 bg-[#064e3b] text-white text-sm font-semibold px-3 py-1.5 rounded-lg">
-          추가
-        </button>
+    <div className="space-y-6">
+      <p className="text-xs text-slate-500 leading-relaxed">
+        주간 템플릿과 별개로 <span className="font-semibold text-slate-700">특정 날짜만</span> 닫거나 엽니다.
+        이번 주 토요일만 휴무이고 다음 주 토요일은 수업이면 여기에서 각각 설정하세요.
+      </p>
+      <div>
+        <h3 className="text-[#064e3b] font-bold mb-2 text-sm">이 날짜만 하루 휴무</h3>
+        <div className="flex flex-wrap gap-2 mb-2">
+          <input
+            type="date"
+            value={newHolidayDate}
+            onChange={(e) => setNewHolidayDate(e.target.value)}
+            className="flex-1 min-w-0 bg-white border border-slate-200 rounded-lg px-2 py-1.5 text-sm text-slate-900"
+          />
+          <button type="button" onClick={addHoliday} className="shrink-0 bg-slate-800 text-white text-sm font-semibold px-3 py-1.5 rounded-lg">
+            휴무 추가
+          </button>
+        </div>
+        <div className="space-y-1.5 max-h-40 overflow-y-auto pr-0.5">
+          {holidays.slice(0, 20).map((h) => (
+            <div
+              key={h.id}
+              className="flex items-center justify-between px-2 py-1.5 bg-white rounded-lg border border-slate-100 text-xs"
+            >
+              <span className="font-mono text-slate-800">{ymdKey(h.date)}</span>
+              <button type="button" onClick={() => removeHoliday(h.id)} className="text-red-500 hover:underline">
+                삭제
+              </button>
+            </div>
+          ))}
+          {holidays.length === 0 ? (
+            <p className="text-xs text-slate-400 py-2 text-center">등록된 하루 휴무가 없습니다.</p>
+          ) : null}
+        </div>
       </div>
-      <div className="space-y-1.5 max-h-48 overflow-y-auto pr-0.5">
-        {holidays.slice(0, 20).map((h) => (
-          <div
-            key={h.id}
-            className="flex items-center justify-between px-2 py-1.5 bg-white rounded-lg border border-slate-100 text-xs"
-          >
-            <span className="font-mono text-slate-800">{h.date}</span>
-            <button type="button" onClick={() => removeHoliday(h.id)} className="text-red-500 hover:underline">
-              삭제
-            </button>
-          </div>
-        ))}
+      <div>
+        <h3 className="text-[#064e3b] font-bold mb-2 text-sm">이 날짜만 오픈</h3>
+        <p className="text-[10px] text-slate-500 mb-2 leading-relaxed">
+          주간에서 토·일이 꺼져 있어도, 선택한 날만 회원 예약을 엽니다.
+        </p>
+        <div className="flex flex-wrap gap-2 mb-2">
+          <input
+            type="date"
+            value={newOpenDate}
+            onChange={(e) => setNewOpenDate(e.target.value)}
+            className="flex-1 min-w-0 bg-white border border-slate-200 rounded-lg px-2 py-1.5 text-sm text-slate-900"
+          />
+          <button type="button" onClick={addOpenDateFromTab} className="shrink-0 bg-[#064e3b] text-white text-sm font-semibold px-3 py-1.5 rounded-lg">
+            오픈 추가
+          </button>
+        </div>
+        <div className="space-y-1.5 max-h-40 overflow-y-auto pr-0.5">
+          {openDates.slice(0, 20).map((row) => (
+            <div
+              key={row.id}
+              className="flex items-center justify-between px-2 py-1.5 bg-emerald-50/70 rounded-lg border border-emerald-100 text-xs"
+            >
+              <span className="font-mono text-slate-800">{ymdKey(row.date)}</span>
+              <button type="button" onClick={() => removeOpenDate(row.id)} className="text-red-500 hover:underline">
+                삭제
+              </button>
+            </div>
+          ))}
+          {openDates.length === 0 ? (
+            <p className="text-xs text-slate-400 py-2 text-center">날짜만 연 예외가 없습니다.</p>
+          ) : null}
+        </div>
       </div>
     </div>
   );
-
-  const hourModalLayer = hourModal ? (
-    <div
-      className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center bg-black/50 p-4 backdrop-blur-sm"
-      role="dialog"
-      aria-modal="true"
-      aria-label="시간 슬롯 작업"
-      onClick={closeHourModal}
-    >
-      <div
-        className="w-full max-w-sm rounded-2xl bg-white shadow-xl border border-slate-200/90 overflow-hidden"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="flex items-start justify-between gap-2 px-4 pt-4 pb-2">
-          <div>
-            <p className="text-[10px] font-semibold uppercase tracking-wider text-[#064e3b]/70">시간 슬롯</p>
-            <p className="text-base font-semibold text-slate-900 mt-0.5">{modalDayLabel}</p>
-            <div className="mt-1.5">
-              <span
-                className={`inline-flex rounded-full px-2 py-0.5 text-[10px] font-bold tracking-wide ${
-                  hourModal.active
-                    ? 'bg-emerald-100 text-emerald-800 ring-1 ring-emerald-200'
-                    : 'bg-slate-200 text-slate-600 ring-1 ring-slate-300'
-                }`}
-              >
-                {hourModal.active ? '주간 · 예약 가능' : '주간 · 비활성'}
-              </span>
-            </div>
-          </div>
-          <button type="button" onClick={closeHourModal} className="p-1 rounded-lg text-slate-400 hover:bg-slate-100" aria-label="닫기">
-            <X className="h-5 w-5" />
-          </button>
-        </div>
-
-        <div className="px-4 pb-4 space-y-3">
-          <div className="rounded-xl border border-emerald-200/80 bg-emerald-50/50 p-3 space-y-2">
-            <p className="text-xs font-semibold text-emerald-900">수업 추가</p>
-            <p className="text-[10px] text-emerald-800/80 leading-relaxed">
-              관리자는 1시간 이내 슬롯도 회원 수업을 등록할 수 있습니다.
-            </p>
-            <select
-              value={addBookingMemberId}
-              onChange={(e) => setAddBookingMemberId(e.target.value)}
-              className="w-full bg-white border border-slate-200 rounded-lg px-2 py-2 text-sm text-slate-900"
-            >
-              <option value="">회원 선택</option>
-              {members.map((m) => (
-                <option key={m.id} value={m.id}>
-                  {m.name || m.email || m.id}
-                </option>
-              ))}
-            </select>
-            <button
-              type="button"
-              onClick={handleAdminAddBooking}
-              disabled={addBookingSaving || !holdDate || !addBookingMemberId}
-              className="w-full py-2.5 rounded-xl bg-[#064e3b] text-white text-sm font-semibold hover:bg-[#043d2d] disabled:opacity-50"
-            >
-              {addBookingSaving ? '등록 중…' : '수업 추가'}
-            </button>
-          </div>
-
-          {hourModal.active ? (
-            <>
-              <button
-                type="button"
-                onClick={handleWeeklyDeactivate}
-                disabled={saving || addBookingSaving}
-                className="w-full py-3 rounded-xl border border-slate-200 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
-              >
-                비활성화
-                <span className="block text-[10px] font-normal text-slate-400 mt-0.5">매주 이 요일·시간 예약 끄기</span>
-              </button>
-
-              <div className="rounded-xl border border-slate-200/90 bg-slate-50/80 p-3 space-y-2">
-                <p className="text-xs font-semibold text-slate-800">이 날짜만 휴무</p>
-                <p className="text-[10px] text-slate-500 leading-relaxed">
-                  주간 설정은 유지하고, 선택한 날짜·시간만 예약을 막습니다. (Google Calendar 미연동)
-                </p>
-                <input
-                  type="date"
-                  value={holdDate}
-                  onChange={(e) => setHoldDate(e.target.value)}
-                  className="w-full bg-white border border-slate-200 rounded-lg px-2 py-2 text-sm"
-                />
-                <button
-                  type="button"
-                  onClick={handleDayOffSlot}
-                  disabled={holdSaving || addBookingSaving || !holdDate}
-                  className="w-full py-2.5 rounded-xl bg-slate-800 text-white text-sm font-semibold hover:bg-slate-900 disabled:opacity-50"
-                >
-                  {holdSaving ? '처리 중…' : '휴무 (OFF)'}
-                </button>
-              </div>
-
-              <div className="rounded-xl border border-amber-200/80 bg-amber-50/50 p-3 space-y-2">
-                <p className="text-xs font-semibold text-amber-900">OT 예약처리</p>
-                <p className="text-[10px] text-amber-800/80">OT 수업 — Google Calendar에 자동 등록됩니다.</p>
-                <input
-                  type="text"
-                  value={holdMemberName}
-                  onChange={(e) => setHoldMemberName(e.target.value)}
-                  placeholder="OT 대상 이름 (예: 홍길동)"
-                  className="w-full bg-white border border-slate-200 rounded-lg px-2 py-2 text-sm"
-                />
-                <button
-                  type="button"
-                  onClick={handleHoldSlot}
-                  disabled={holdSaving || addBookingSaving || !holdDate || !holdMemberName.trim()}
-                  className="w-full py-2.5 rounded-xl bg-amber-600 text-white text-sm font-semibold hover:bg-amber-700 disabled:opacity-50"
-                >
-                  {holdSaving ? '처리 중…' : 'OT 적용'}
-                </button>
-              </div>
-            </>
-          ) : (
-            <button
-              type="button"
-              onClick={handleWeeklyActivate}
-              disabled={saving}
-              className="w-full py-3 rounded-xl bg-[#064e3b] text-white text-sm font-semibold hover:bg-[#043d2d] disabled:opacity-50"
-            >
-              활성화
-              <span className="block text-[10px] font-normal text-emerald-100/80 mt-0.5">매주 이 요일·시간 예약 켜기</span>
-            </button>
-          )}
-        </div>
-      </div>
-    </div>
-  ) : null;
 
   const body = (
     <>
@@ -864,6 +1101,12 @@ const AdminBookingSettingsPanel = forwardRef(function AdminBookingSettingsPanel(
                 {tab.label}
                 {tab.id === 'blocks' && blockedSlots.length > 0 ? (
                   <span className="ml-1 text-[9px] text-amber-600">({blockedSlots.length})</span>
+                ) : null}
+                {tab.id === 'holidays' && holidays.length + openDates.length > 0 ? (
+                  <span className="ml-1 text-[9px] text-[#064e3b]">({holidays.length + openDates.length})</span>
+                ) : null}
+                {tab.id === 'holidays' && holidays.length + openDates.length > 0 ? (
+                  <span className="ml-1 text-[9px] text-[#064e3b]">({holidays.length + openDates.length})</span>
                 ) : null}
               </button>
             ))}

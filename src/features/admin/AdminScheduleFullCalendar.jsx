@@ -128,7 +128,8 @@ const AdminScheduleFullCalendar = ({
           <p className="text-xs text-slate-600 leading-relaxed">
             <span className="font-semibold text-[#064e3b]">빈 칸 탭</span>
             <span className="text-slate-400 mx-1">→</span>
-            설정 창에서 주간 ON/OFF · 휴무 · OT를 선택하세요. (자동 활성화 없음)
+            「이 날짜만 하루 휴무」 또는 「이 날짜만 오픈」으로 이번 주와 다음 주를 따로 관리하세요.
+            주간 ON/OFF는 모든 주에 적용됩니다.
           </p>
           <div className="flex flex-wrap gap-x-3 gap-y-1.5 text-[10px] font-medium text-slate-600">
             <span className="inline-flex items-center gap-1.5">

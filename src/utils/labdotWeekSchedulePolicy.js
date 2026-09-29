@@ -16,14 +16,96 @@ export const WEEKEND_BULK_HOURS = [10, 11, 12, 13, 14, 15, 16, 17, 18];
 /** 평일 프리셋 14~22 */
 export const WEEKDAY_PRESET_14_22 = [14, 15, 16, 17, 18, 19, 20, 21, 22];
 
-export function isTrainerHourAvailable(settings, date) {
+export function ymdFromDate(date) {
+  if (!(date instanceof Date) || Number.isNaN(date.getTime())) return '';
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+}
+
+export function ymdKey(value) {
+  if (!value) return '';
+  if (typeof value === 'string') return value.slice(0, 10);
+  if (value instanceof Date) return ymdFromDate(value);
+  if (typeof value === 'object' && value.date) return String(value.date).slice(0, 10);
+  return '';
+}
+
+function holidayDateSet(holidays) {
+  const set = new Set();
+  for (const h of holidays || []) {
+    const y = ymdKey(h);
+    if (y) set.add(y);
+  }
+  return set;
+}
+
+function openDateMap(openDates) {
+  const map = new Map();
+  for (const o of openDates || []) {
+    const y = ymdKey(o);
+    if (!y) continue;
+    map.set(y, normalizeTrainerHours(o?.available_hours));
+  }
+  return map;
+}
+
+/**
+ * 주간 템플릿이 꺼져 있을 때 「이 날짜만 오픈」에 넣을 기본 시간.
+ */
+export function defaultHoursForOpenDate(settings, ymd) {
+  const dow = dayOfWeekFromYmd(ymd);
+  const row = (settings || []).find((s) => s.day_of_week === dow);
+  const weekly = normalizeTrainerHours(row?.available_hours);
+  if (weekly.length) {
+    return dow === 6 ? weekly.filter((h) => h >= SATURDAY_OPEN_HOUR) : weekly;
+  }
+  if (dow === 6) return WEEKEND_BULK_HOURS.filter((h) => h >= SATURDAY_OPEN_HOUR);
+  if (dow === 0) return [...WEEKEND_BULK_HOURS];
+  return [...WEEKDAY_PRESET_14_22];
+}
+
+/**
+ * 특정 날짜의 실제 오픈 여부. 우선순위: 이 날짜만 오픈 → 휴무일 → 주간 템플릿.
+ * @returns {{ off: boolean, available_hours: number[], source: 'open_date' | 'holiday' | 'weekly' }}
+ */
+export function resolveDateAvailability(settings, ymd, extras = {}) {
+  const dateStr = ymdKey(ymd);
+  if (!dateStr) return { off: true, available_hours: [], source: 'weekly' };
+
+  const opens = openDateMap(extras.openDates);
+  if (opens.has(dateStr)) {
+    const hours = opens.get(dateStr) || [];
+    return { off: hours.length === 0, available_hours: hours, source: 'open_date' };
+  }
+
+  if (holidayDateSet(extras.holidays).has(dateStr)) {
+    return { off: true, available_hours: [], source: 'holiday' };
+  }
+
+  const dow = dayOfWeekFromYmd(dateStr);
+  const row = (settings || []).find((s) => s.day_of_week === dow);
+  if (!row || row.off) return { off: true, available_hours: [], source: 'weekly' };
+  let hours = normalizeTrainerHours(row.available_hours);
+  if (dow === 6) hours = hours.filter((h) => h >= SATURDAY_OPEN_HOUR);
+  return { off: hours.length === 0, available_hours: hours, source: 'weekly' };
+}
+
+export function isResolvedDateOpen(resolved) {
+  return Boolean(resolved && !resolved.off && (resolved.available_hours || []).length > 0);
+}
+
+/**
+ * @param {object} [extras]
+ * @param {unknown[]} [extras.holidays]
+ * @param {unknown[]} [extras.openDates]
+ */
+export function isTrainerHourAvailable(settings, date, extras = {}) {
   if (!(date instanceof Date) || Number.isNaN(date.getTime())) return false;
   const dow = date.getDay();
   const hour = date.getHours();
   if (dow === 6 && hour < SATURDAY_OPEN_HOUR) return false;
-  const row = (settings || []).find((s) => s.day_of_week === dow);
-  if (!row || row.off) return false;
-  return normalizeTrainerHours(row.available_hours).includes(hour);
+  const resolved = resolveDateAvailability(settings, ymdFromDate(date), extras);
+  if (resolved.off) return false;
+  return resolved.available_hours.includes(hour);
 }
 
 export function isWeekendDow(dow) {

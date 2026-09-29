@@ -135,6 +135,8 @@ export default function App() {
   const [calendarActionBusy, setCalendarActionBusy] = useState(false);
   const bookingPanelRef = useRef(null);
   const [trainerScheduleSettings, setTrainerScheduleSettings] = useState([]);
+  const [scheduleHolidays, setScheduleHolidays] = useState([]);
+  const [scheduleOpenDates, setScheduleOpenDates] = useState([]);
 
   // Salary Configuration (Persist in LocalStorage)
   const [salaryConfig, setSalaryConfig] = useState(() => {
@@ -884,16 +886,26 @@ export default function App() {
   );
 
   const isCalendarSlotAvailable = useCallback(
-    (date) => isTrainerHourAvailable(trainerScheduleSettings, date),
-    [trainerScheduleSettings]
+    (date) =>
+      isTrainerHourAvailable(trainerScheduleSettings, date, {
+        holidays: scheduleHolidays,
+        openDates: scheduleOpenDates,
+      }),
+    [trainerScheduleSettings, scheduleHolidays, scheduleOpenDates]
   );
 
   const scheduleSettingsStamp = React.useMemo(
     () =>
-      trainerScheduleSettings
-        .map((s) => `${s.day_of_week}:${s.off ? 1 : 0}:${(s.available_hours || []).join(',')}`)
-        .join('|'),
-    [trainerScheduleSettings]
+      [
+        trainerScheduleSettings
+          .map((s) => `${s.day_of_week}:${s.off ? 1 : 0}:${(s.available_hours || []).join(',')}`)
+          .join('|'),
+        (scheduleHolidays || []).map((h) => String(h.date || h).slice(0, 10)).join(','),
+        (scheduleOpenDates || [])
+          .map((o) => `${String(o.date || '').slice(0, 10)}:${(o.available_hours || []).join('-')}`)
+          .join(','),
+      ].join('#'),
+    [trainerScheduleSettings, scheduleHolidays, scheduleOpenDates]
   );
 
   useEffect(() => {
@@ -1225,6 +1237,10 @@ export default function App() {
                     onBlocksChanged={fetchRevenueData}
                     onSettingsChanged={fetchRevenueData}
                     onSettingsLoaded={setTrainerScheduleSettings}
+                    onOverridesLoaded={({ holidays, openDates }) => {
+                      setScheduleHolidays(holidays || []);
+                      setScheduleOpenDates(openDates || []);
+                    }}
                   />
                 </div>
 
