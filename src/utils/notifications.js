@@ -119,3 +119,20 @@ export async function invokeNotifyMemberEvents(userId, title, message, eventKind
   if (error) console.error('🚨 [notify-member-events]', error);
   return { data, error: error ?? null };
 }
+
+/**
+ * Admin-only: push every active member with a stored OneSignal player id.
+ */
+export async function invokeNotifyAllMembers(title, message, eventKind = 'member_announcement') {
+  const { data, error } = await supabase.functions.invoke('notify-member-events', {
+    body: {
+      broadcast: 'members',
+      title,
+      message,
+      event_kind: eventKind,
+    },
+  });
+  console.log('📡 [notify-member-events broadcast]', data);
+  if (error) console.error('🚨 [notify-member-events broadcast]', error);
+  return { data, error: error ?? null };
+}

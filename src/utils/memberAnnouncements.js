@@ -1,4 +1,5 @@
 import { supabase } from '../lib/supabaseClient';
+import { invokeNotifyAllMembers } from './notifications';
 
 /** @returns {Promise<{ id: string, title: string, body: string, published_at?: string } | null>} */
 export async function fetchActiveMemberAnnouncement() {
@@ -28,4 +29,17 @@ export async function confirmMemberAnnouncement(announcementId, { dismissPermane
     throw new Error(data?.error || 'confirm_failed');
   }
   return data;
+}
+
+function previewAnnouncementBody(body, max = 160) {
+  const text = String(body || '').replace(/\s+/g, ' ').trim();
+  if (text.length <= max) return text;
+  return `${text.slice(0, Math.max(0, max - 1))}…`;
+}
+
+/** Phone push to all active members. Does not throw — returns { error }. */
+export async function notifyMembersAnnouncementPublished(title, body) {
+  const heading = String(title || '').trim() || 'LAB DOT · 공지';
+  const message = previewAnnouncementBody(body) || '새 공지가 게시되었습니다.';
+  return invokeNotifyAllMembers(heading, message, 'member_announcement');
 }

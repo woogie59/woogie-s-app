@@ -3,6 +3,7 @@ import { Megaphone, Pencil, Plus, Trash2, X } from 'lucide-react';
 import { supabase } from '../../lib/supabaseClient';
 import BackButton from '../../components/ui/BackButton';
 import { useGlobalModal } from '../../context/GlobalModalContext';
+import { notifyMembersAnnouncementPublished } from '../../utils/memberAnnouncements';
 
 const ICON_STROKE = 1.5;
 
@@ -25,6 +26,7 @@ function AnnouncementEditorModal({ open, initial, onClose, onSaved }) {
   const [title, setTitle] = useState('');
   const [body, setBody] = useState('');
   const [publishNow, setPublishNow] = useState(true);
+  const [sendPush, setSendPush] = useState(true);
   const [saving, setSaving] = useState(false);
 
   const initialId = initial?.id ?? null;
@@ -37,6 +39,7 @@ function AnnouncementEditorModal({ open, initial, onClose, onSaved }) {
     setTitle(initialTitle);
     setBody(initialBody);
     setPublishNow(initialId ? initialPublished : true);
+    setSendPush(true);
   }, [open, initialId, initialTitle, initialBody, initialPublished]);
 
   const requestClose = useCallback(() => {
@@ -85,13 +88,15 @@ function AnnouncementEditorModal({ open, initial, onClose, onSaved }) {
     setSaving(true);
     try {
       const now = new Date().toISOString();
+      const becomingPublished = Boolean(publishNow && !initialPublished);
+      let saveMsg = '공지가 저장되었습니다.';
       if (initial?.id) {
         const payload = {
           title: t,
           body: b,
           updated_at: now,
         };
-        if (publishNow && !initial.is_published) {
+        if (becomingPublished) {
           payload.is_published = true;
           payload.published_at = now;
         } else if (!publishNow && initial.is_published) {
@@ -102,7 +107,7 @@ function AnnouncementEditorModal({ open, initial, onClose, onSaved }) {
           .update(payload)
           .eq('id', initial.id);
         if (error) throw error;
-        showAlert({ message: '공지가 수정되었습니다.' });
+        saveMsg = becomingPublished ? '공지가 게시되었습니다.' : '공지가 수정되었습니다.';
       } else {
         const { error } = await supabase.from('member_announcements').insert({
           title: t,
@@ -111,8 +116,21 @@ function AnnouncementEditorModal({ open, initial, onClose, onSaved }) {
           published_at: publishNow ? now : null,
         });
         if (error) throw error;
-        showAlert({ message: publishNow ? '공지가 게시되었습니다.' : '공지가 저장되었습니다.' });
+        saveMsg = publishNow ? '공지가 게시되었습니다.' : '공지가 저장되었습니다.';
       }
+
+      if (sendPush && becomingPublished) {
+        const { data: pushData, error: pushErr } = await notifyMembersAnnouncementPublished(t, b);
+        if (pushErr) {
+          saveMsg += ' 공지는 저장됐지만 휴대폰 푸시는 보내지지 않았습니다.';
+        } else if (pushData?.skipped) {
+          saveMsg += ' 알림을 받을 회원이 없어 푸시는 생략했습니다.';
+        } else if (typeof pushData?.sent === 'number' && pushData.sent > 0) {
+          saveMsg += ` 휴대폰 알림 ${pushData.sent}명에게 발송했습니다.`;
+        }
+      }
+
+      showAlert({ message: saveMsg });
       onSaved?.();
       onClose();
     } catch (e) {
@@ -185,15 +203,33 @@ function AnnouncementEditorModal({ open, initial, onClose, onSaved }) {
             />
           </div>
           {!initialId || !initialPublished ? (
-            <label className="flex items-center gap-2.5 cursor-pointer select-none">
-              <input
-                type="checkbox"
-                checked={publishNow}
-                onChange={(e) => setPublishNow(e.target.checked)}
-                className="h-4 w-4 rounded border-gray-300 text-[#064e3b] focus:ring-[#064e3b]/30"
-              />
-              <span className="text-sm text-gray-700">저장과 동시에 게시</span>
-            </label>
+            <div className="space-y-3">
+              <label className="flex items-center gap-2.5 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={publishNow}
+                  onChange={(e) => setPublishNow(e.target.checked)}
+                  className="h-4 w-4 rounded border-gray-300 text-[#064e3b] focus:ring-[#064e3b]/30"
+                />
+                <span className="text-sm text-gray-700">저장과 동시에 게시</span>
+              </label>
+              {publishNow ? (
+                <label className="flex items-start gap-2.5 cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={sendPush}
+                    onChange={(e) => setSendPush(e.target.checked)}
+                    className="mt-0.5 h-4 w-4 rounded border-gray-300 text-[#064e3b] focus:ring-[#064e3b]/30"
+                  />
+                  <span>
+                    <span className="block text-sm text-gray-700">휴대폰 푸시 보내기</span>
+                    <span className="block mt-0.5 text-xs text-gray-500">
+                      알림을 허용한 회원 휴대폰으로 바로 도착합니다. 앱을 열면 홈 팝업도 그대로 보입니다.
+                    </span>
+                  </span>
+                </label>
+              ) : null}
+            </div>
           ) : null}
         </form>
         <div className="px-6 py-4 border-t border-gray-100 flex gap-2 justify-end bg-gray-50/60 shrink-0">
@@ -275,7 +311,19 @@ export default function AdminMemberAnnouncements({ goBack }) {
       showAlert({ message: error.message });
       return;
     }
-    showToast('공지를 다시 게시했습니다.');
+    const { data: pushData, error: pushErr } = await notifyMembersAnnouncementPublished(
+      row.title,
+      row.body
+    );
+    if (pushErr) {
+      showToast('다시 게시했습니다. 휴대폰 푸시는 보내지지 않았습니다.');
+    } else if (pushData?.skipped) {
+      showToast('다시 게시했습니다. 알림을 받을 회원이 없어 푸시는 생략했습니다.');
+    } else if (typeof pushData?.sent === 'number' && pushData.sent > 0) {
+      showToast(`다시 게시했습니다. 휴대폰 알림 ${pushData.sent}명에게 발송했습니다.`);
+    } else {
+      showToast('공지를 다시 게시했습니다.');
+    }
     load();
   };
 
@@ -302,7 +350,7 @@ export default function AdminMemberAnnouncements({ goBack }) {
           <div>
             <h1 className="text-2xl font-semibold tracking-tight text-neutral-950">회원 공지</h1>
             <p className="mt-2 text-sm text-neutral-500">
-              제목·내용만 게시합니다. 회원 홈 첫 로그인 시 팝업으로 노출됩니다.
+              게시하면 알림을 허용한 회원 휴대폰으로 푸시가 가고, 앱을 열면 홈 팝업으로도 보입니다.
             </p>
           </div>
           <button
@@ -315,7 +363,7 @@ export default function AdminMemberAnnouncements({ goBack }) {
           </button>
         </div>
         <p className="mt-4 rounded-xl border border-emerald-200/80 bg-emerald-50/90 px-4 py-3 text-xs text-emerald-900 leading-relaxed">
-          게시 중인 공지는 <span className="font-semibold">전체 회원</span> 홈에서 팝업으로 노출됩니다.
+          게시 시 <span className="font-semibold">휴대폰 푸시</span>가 발송되고, 앱 홈에서도 팝업으로 노출됩니다.
         </p>
       </header>
 

@@ -282,6 +282,11 @@ export default function App() {
       }
       if (!data || typeof data !== 'object') return;
       const action = data.labdot_action;
+      if (action === 'member_announcement') {
+        window.dispatchEvent(new Event('labdot-open-announcement'));
+        navigate('client_home');
+        return;
+      }
       if (action !== 'admin_timeline' && action !== 'admin_schedule') return;
       const bd = data.booking_date;
       if (typeof bd === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(bd)) {

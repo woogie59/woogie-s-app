@@ -125,6 +125,20 @@ const ClientHome = ({ user, logout, setView }) => {
 
   useEffect(() => {
     if (!user?.id) return undefined;
+    const onOpenFromPush = () => {
+      announcementFetchedRef.current = false;
+      setActiveAnnouncement(null);
+      void fetchActiveMemberAnnouncement().then((ann) => {
+        if (ann) setActiveAnnouncement(ann);
+        announcementFetchedRef.current = true;
+      });
+    };
+    window.addEventListener('labdot-open-announcement', onOpenFromPush);
+    return () => window.removeEventListener('labdot-open-announcement', onOpenFromPush);
+  }, [user?.id]);
+
+  useEffect(() => {
+    if (!user?.id) return undefined;
     const ch = supabase
       .channel(`profile-athlete-badge:${user.id}`)
       .on(
