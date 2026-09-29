@@ -56,6 +56,11 @@ async function onesignalCreate(payload: Record<string, unknown>) {
       body,
     });
     const data = await response.json();
+    const subscribedError =
+      Array.isArray(data.errors) &&
+      data.errors.some((e) => String(e).toLowerCase().includes("not subscribed"));
+    if (data.id) return data;
+    if (subscribedError) return { skipped: true, reason: "not_subscribed", errors: data.errors };
     if (response.ok && !data.errors) return data;
     last = data;
     if (response.status !== 401 && response.status !== 403) {
