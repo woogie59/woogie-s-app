@@ -3,7 +3,7 @@ import { Megaphone, Pencil, Plus, Trash2, X } from 'lucide-react';
 import { supabase } from '../../lib/supabaseClient';
 import BackButton from '../../components/ui/BackButton';
 import { useGlobalModal } from '../../context/GlobalModalContext';
-import { notifyMembersAnnouncementPublished } from '../../utils/memberAnnouncements';
+import { notifyMembersAnnouncementPublished, ANNOUNCEMENT_PUSH_QA_ONLY, ANNOUNCEMENT_PUSH_QA_NAME } from '../../utils/memberAnnouncements';
 
 const ICON_STROKE = 1.5;
 
@@ -126,7 +126,9 @@ function AnnouncementEditorModal({ open, initial, onClose, onSaved }) {
         } else if (pushData?.skipped) {
           saveMsg += ' 알림을 받을 회원이 없어 푸시는 생략했습니다.';
         } else if (typeof pushData?.sent === 'number' && pushData.sent > 0) {
-          saveMsg += ` 휴대폰 알림 ${pushData.sent}명에게 발송했습니다.`;
+          saveMsg += ANNOUNCEMENT_PUSH_QA_ONLY
+            ? ` ${ANNOUNCEMENT_PUSH_QA_NAME}에게 휴대폰 알림을 보냈습니다.`
+            : ` 휴대폰 알림 ${pushData.sent}명에게 발송했습니다.`;
         }
       }
 
@@ -224,7 +226,9 @@ function AnnouncementEditorModal({ open, initial, onClose, onSaved }) {
                   <span>
                     <span className="block text-sm text-gray-700">휴대폰 푸시 보내기</span>
                     <span className="block mt-0.5 text-xs text-gray-500">
-                      알림을 허용한 회원 휴대폰으로 바로 도착합니다. 앱을 열면 홈 팝업도 그대로 보입니다.
+                      {ANNOUNCEMENT_PUSH_QA_ONLY
+                        ? `테스트 중에는 ${ANNOUNCEMENT_PUSH_QA_NAME}에게만 휴대폰 알림이 갑니다. 다른 회원에게는 보내지 않습니다.`
+                        : '알림을 허용한 회원 휴대폰으로 바로 도착합니다. 앱을 열면 홈 팝업도 그대로 보입니다.'}
                     </span>
                   </span>
                 </label>
@@ -320,7 +324,11 @@ export default function AdminMemberAnnouncements({ goBack }) {
     } else if (pushData?.skipped) {
       showToast('다시 게시했습니다. 알림을 받을 회원이 없어 푸시는 생략했습니다.');
     } else if (typeof pushData?.sent === 'number' && pushData.sent > 0) {
-      showToast(`다시 게시했습니다. 휴대폰 알림 ${pushData.sent}명에게 발송했습니다.`);
+      showToast(
+        ANNOUNCEMENT_PUSH_QA_ONLY
+          ? `다시 게시했습니다. ${ANNOUNCEMENT_PUSH_QA_NAME}에게 휴대폰 알림을 보냈습니다.`
+          : `다시 게시했습니다. 휴대폰 알림 ${pushData.sent}명에게 발송했습니다.`
+      );
     } else {
       showToast('공지를 다시 게시했습니다.');
     }
@@ -350,7 +358,9 @@ export default function AdminMemberAnnouncements({ goBack }) {
           <div>
             <h1 className="text-2xl font-semibold tracking-tight text-neutral-950">회원 공지</h1>
             <p className="mt-2 text-sm text-neutral-500">
-              게시하면 알림을 허용한 회원 휴대폰으로 푸시가 가고, 앱을 열면 홈 팝업으로도 보입니다.
+              {ANNOUNCEMENT_PUSH_QA_ONLY
+                ? `테스트가 끝날 때까지 휴대폰 알림은 ${ANNOUNCEMENT_PUSH_QA_NAME}에게만 갑니다. 다른 회원 휴대폰에는 보내지 않습니다.`
+                : '게시하면 알림을 허용한 회원 휴대폰으로 푸시가 가고, 앱을 열면 홈 팝업으로도 보입니다.'}
             </p>
           </div>
           <button
@@ -363,7 +373,16 @@ export default function AdminMemberAnnouncements({ goBack }) {
           </button>
         </div>
         <p className="mt-4 rounded-xl border border-emerald-200/80 bg-emerald-50/90 px-4 py-3 text-xs text-emerald-900 leading-relaxed">
-          게시 시 <span className="font-semibold">휴대폰 푸시</span>가 발송되고, 앱 홈에서도 팝업으로 노출됩니다.
+          {ANNOUNCEMENT_PUSH_QA_ONLY ? (
+            <>
+              휴대폰 푸시는 테스트용으로 <span className="font-semibold">{ANNOUNCEMENT_PUSH_QA_NAME}</span>
+              에게만 발송됩니다. 다른 회원에게는 알림이 가지 않습니다.
+            </>
+          ) : (
+            <>
+              게시 시 <span className="font-semibold">휴대폰 푸시</span>가 발송되고, 앱 홈에서도 팝업으로 노출됩니다.
+            </>
+          )}
         </p>
       </header>
 

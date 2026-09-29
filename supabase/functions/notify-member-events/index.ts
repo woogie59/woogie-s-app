@@ -12,6 +12,13 @@ const corsHeaders = {
 };
 
 const ID_CHUNK = 200;
+/** Until announcement-push QA is done, only this profile receives `member_announcement` pushes. */
+const ANNOUNCEMENT_PUSH_QA_ONLY = true;
+const ANNOUNCEMENT_PUSH_QA_NAME = "테스트용1";
+
+function isAnnouncementQaName(name: unknown) {
+  return String(name ?? "").trim() === ANNOUNCEMENT_PUSH_QA_NAME;
+}
 
 function adminClient() {
   return createClient(
@@ -133,23 +140,27 @@ serve(async (req) => {
       await requireAdmin(req, supabaseAdmin);
       const { data: rows, error: listErr } = await supabaseAdmin
         .from("profiles")
-        .select("id, onesignal_id")
+        .select("id, onesignal_id, name")
         .eq("status", "active");
 
       if (listErr) {
         throw new Error(`회원 목록 조회 실패: ${JSON.stringify(listErr)}`);
       }
 
+      const qaRows =
+        ANNOUNCEMENT_PUSH_QA_ONLY && eventKind === "member_announcement"
+          ? (rows || []).filter((r) => isAnnouncementQaName(r?.name))
+          : rows || [];
       const externalUserIds = [
         ...new Set(
-          (rows || [])
+          qaRows
             .map((r) => String(r?.id || "").trim())
             .filter((id) => id.length > 0)
         ),
       ];
       const playerIds = [
         ...new Set(
-          (rows || [])
+          qaRows
             .map((r) => String(r?.onesignal_id || "").trim())
             .filter((id) => id.length > 0)
         ),
@@ -173,7 +184,10 @@ serve(async (req) => {
           JSON.stringify({
             dry_run: true,
             success: true,
-            audience: "all_members",
+            audience:
+              ANNOUNCEMENT_PUSH_QA_ONLY && eventKind === "member_announcement"
+                ? "qa_member"
+                : "all_members",
             event_kind: eventKind,
             sent: Math.max(externalUserIds.length, playerIds.length),
             external_targets: externalUserIds.length,
@@ -196,7 +210,10 @@ serve(async (req) => {
       return new Response(
         JSON.stringify({
           success: true,
-          audience: "all_members",
+          audience:
+            ANNOUNCEMENT_PUSH_QA_ONLY && eventKind === "member_announcement"
+              ? "qa_member"
+              : "all_members",
           event_kind: eventKind,
           sent: Math.max(externalUserIds.length, playerIds.length),
           external_targets: externalUserIds.length,
@@ -208,6 +225,26 @@ serve(async (req) => {
     }
 
     if (finalTargetId) {
+      if (ANNOUNCEMENT_PUSH_QA_ONLY && eventKind === "member_announcement") {
+        const supabaseAdmin = adminClient();
+        const { data: targetProfile, error: tErr } = await supabaseAdmin
+          .from("profiles")
+          .select("name")
+          .eq("onesignal_id", finalTargetId)
+          .maybeSingle();
+        if (tErr) throw new Error(`대상 확인 실패: ${JSON.stringify(tErr)}`);
+        if (!isAnnouncementQaName(targetProfile?.name)) {
+          return new Response(
+            JSON.stringify({
+              skipped: true,
+              reason: "qa_only",
+              allowed_name: ANNOUNCEMENT_PUSH_QA_NAME,
+              event_kind: eventKind,
+            }),
+            { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+      }
       const data = await sendToPlayerIds([finalTargetId], title, message, extraData);
       return new Response(
         JSON.stringify({ success: true, audience: "member", event_kind: eventKind, data }),
@@ -217,6 +254,27 @@ serve(async (req) => {
 
     if (!userId) {
       throw new Error("user_id 또는 targetId가 필요합니다.");
+    }
+
+    if (ANNOUNCEMENT_PUSH_QA_ONLY && eventKind === "member_announcement") {
+      const supabaseAdmin = adminClient();
+      const { data: targetProfile, error: tErr } = await supabaseAdmin
+        .from("profiles")
+        .select("name")
+        .eq("id", userId)
+        .maybeSingle();
+      if (tErr) throw new Error(`대상 확인 실패: ${JSON.stringify(tErr)}`);
+      if (!isAnnouncementQaName(targetProfile?.name)) {
+        return new Response(
+          JSON.stringify({
+            skipped: true,
+            reason: "qa_only",
+            allowed_name: ANNOUNCEMENT_PUSH_QA_NAME,
+            event_kind: eventKind,
+          }),
+          { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
     }
 
     const data = await sendToExternalUserIds([userId], title, message, extraData);
