@@ -17,13 +17,57 @@ import {
 } from '../../utils/weeklyScheduleGridExport';
 import './adminScheduleCalendar.css';
 
+const SLOT_MIN_HOUR = 7;
+const SLOT_MAX_HOUR = 23;
+
+function overlayRange(anchor) {
+  const base = anchor instanceof Date && !Number.isNaN(anchor.getTime()) ? anchor : new Date();
+  const start = new Date(base.getFullYear(), base.getMonth(), 1);
+  start.setDate(start.getDate() - 7);
+  const end = new Date(base.getFullYear(), base.getMonth() + 1, 1);
+  end.setDate(end.getDate() + 14);
+  return { start, end };
+}
+
+function buildAvailabilityOverlayEvents(getSlotLaneState, anchor) {
+  if (!getSlotLaneState) return [];
+  const { start, end } = overlayRange(anchor);
+  const events = [];
+  const cursor = new Date(start.getFullYear(), start.getMonth(), start.getDate());
+  while (cursor < end) {
+    const y = cursor.getFullYear();
+    const m = cursor.getMonth();
+    const d = cursor.getDate();
+    const ymd = toYmd(cursor);
+    for (let h = SLOT_MIN_HOUR; h < SLOT_MAX_HOUR; h++) {
+      const slot = new Date(y, m, d, h, 0, 0, 0);
+      const state = getSlotLaneState(slot);
+      if (state !== 'date_off') continue;
+      events.push({
+        id: `lane-${ymd}-${h}-date_off`,
+        title: 'OFF',
+        start: slot,
+        end: new Date(y, m, d, h + 1, 0, 0, 0),
+        display: 'block',
+        classNames: ['labdot-date-off-event'],
+        editable: false,
+        overlap: true,
+        extendedProps: { isAvailability: true, laneState: state },
+      });
+    }
+    cursor.setDate(cursor.getDate() + 1);
+  }
+  return events;
+}
+
 /**
  * @param {object} props
  * @param {import('@fullcalendar/core').EventInput[]} props.events
  * @param {(info: import('@fullcalendar/core').EventClickArg) => void} props.onEventClick
  * @param {(info: import('@fullcalendar/interaction').DateClickArg) => void} [props.onSlotClick]
  * @param {(date: Date) => boolean} [props.isSlotAvailable]
- * @param {string} [props.scheduleSettingsStamp] — changes trigger slot lane repaint
+ * @param {(date: Date) => 'available' | 'weekly_off' | 'date_off' | 'holiday'} [props.getSlotLaneState]
+ * @param {string} [props.scheduleSettingsStamp] — changes remount lanes + OFF chips
  * @param {boolean} [props.loading]
  * @param {Date} [props.initialDate]
  */
@@ -32,6 +76,7 @@ const AdminScheduleFullCalendar = ({
   onEventClick,
   onSlotClick,
   isSlotAvailable,
+  getSlotLaneState,
   scheduleSettingsStamp,
   loading,
   initialDate,
@@ -39,18 +84,36 @@ const AdminScheduleFullCalendar = ({
   const calRef = useRef(null);
   const [exporting, setExporting] = useState(false);
   const [copying, setCopying] = useState(false);
+  const [viewDate, setViewDate] = useState(() =>
+    initialDate instanceof Date && !Number.isNaN(initialDate.getTime()) ? initialDate : new Date()
+  );
+  const [viewType, setViewType] = useState('timeGridWeek');
   const { showToast } = useGlobalModal();
+
+  useEffect(() => {
+    if (initialDate instanceof Date && !Number.isNaN(initialDate.getTime())) {
+      setViewDate(initialDate);
+    }
+  }, [initialDate]);
+
+  const overlayEvents = useMemo(
+    () => buildAvailabilityOverlayEvents(getSlotLaneState, viewDate),
+    [getSlotLaneState, viewDate, scheduleSettingsStamp]
+  );
+
+  const mergedEvents = useMemo(() => [...overlayEvents, ...(events || [])], [overlayEvents, events]);
+
+  const handleDatesSet = useCallback((arg) => {
+    if (arg?.view?.type) setViewType(arg.view.type);
+    const d = arg?.view?.currentStart;
+    if (d instanceof Date && !Number.isNaN(d.getTime())) setViewDate(d);
+  }, []);
 
   const validRange = useMemo(() => {
     const end = new Date();
     end.setFullYear(end.getFullYear() + 1);
     return { start: '2000-01-01', end: end.toISOString().slice(0, 10) };
   }, []);
-
-  useEffect(() => {
-    const api = calRef.current?.getApi?.();
-    if (api) api.render();
-  }, [scheduleSettingsStamp]);
 
   const fetchVisibleWeekBookings = useCallback(async () => {
     const api = calRef.current?.getApi?.() ?? null;
@@ -140,6 +203,10 @@ const AdminScheduleFullCalendar = ({
               주간 비활성
             </span>
             <span className="inline-flex items-center gap-1.5">
+              <span className="h-3 w-5 rounded-sm ring-1 ring-rose-400/80 labdot-legend-date-off" aria-hidden />
+              이 날짜만 꺼짐
+            </span>
+            <span className="inline-flex items-center gap-1.5">
               <span className="h-3 w-5 rounded-sm bg-[#064e3b]" aria-hidden />
               수업
             </span>
@@ -189,10 +256,12 @@ const AdminScheduleFullCalendar = ({
           </div>
         )}
         <FullCalendar
+          key={scheduleSettingsStamp || 'cal'}
           ref={calRef}
           plugins={[dayGridPlugin, timeGridPlugin, listPlugin, interactionPlugin]}
-          initialView="timeGridWeek"
-          initialDate={initialDate}
+          initialView={viewType}
+          initialDate={viewDate}
+          datesSet={handleDatesSet}
           locale={koLocale}
           headerToolbar={{
             left: 'prev,next today',
@@ -221,7 +290,13 @@ const AdminScheduleFullCalendar = ({
             if (!d) return [];
             const classes = ['labdot-slot-hour'];
             if (onSlotClick) classes.push('labdot-slot-clickable');
-            if (isSlotAvailable?.(d)) {
+            if (getSlotLaneState) {
+              const state = getSlotLaneState(d);
+              if (state === 'available') classes.push('labdot-slot-available');
+              else if (state === 'date_off') classes.push('labdot-slot-date-off');
+              else if (state === 'holiday') classes.push('labdot-slot-holiday');
+              else classes.push('labdot-slot-closed');
+            } else if (isSlotAvailable?.(d)) {
               classes.push('labdot-slot-available');
             } else if (isSlotAvailable) {
               classes.push('labdot-slot-closed');
@@ -232,9 +307,14 @@ const AdminScheduleFullCalendar = ({
           height="auto"
           contentHeight={typeof window !== 'undefined' && window.innerWidth < 640 ? 520 : 640}
           weekends
-          events={events}
+          events={mergedEvents}
           eventClick={(info) => {
             info.jsEvent.preventDefault();
+            if (info?.event?.extendedProps?.isAvailability) {
+              if (!onSlotClick) return;
+              onSlotClick({ date: info.event.start, jsEvent: info.jsEvent });
+              return;
+            }
             if (onEventClick) onEventClick(info);
           }}
           dateClick={(info) => {

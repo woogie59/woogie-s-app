@@ -42,7 +42,7 @@ import AdminExerciseLibrary from './pages/admin/AdminExerciseLibrary';
 import AdminMemberAnnouncements from './pages/admin/AdminMemberAnnouncements';
 import AdminBookingSettingsPanel from './features/admin/AdminBookingSettingsPanel';
 import AdminScheduleFullCalendar from './features/admin/AdminScheduleFullCalendar';
-import { isTrainerHourAvailable, normalizeTrainerHours } from './utils/labdotWeekSchedulePolicy';
+import { getTrainerHourLaneState, isTrainerHourAvailable, normalizeTrainerHours } from './utils/labdotWeekSchedulePolicy';
 import { buildAdminCalendarEvents, buildBlockedCalendarEvents } from './utils/adminScheduleCalendarEvents';
 import { blockedSlotDisplayTitle, blockedSlotUsesGoogleCalendar } from './utils/trainerBlockedSlots';
 
@@ -895,6 +895,15 @@ export default function App() {
     [trainerScheduleSettings, scheduleHolidays, scheduleOpenDates]
   );
 
+  const getCalendarSlotLaneState = useCallback(
+    (date) =>
+      getTrainerHourLaneState(trainerScheduleSettings, date, {
+        holidays: scheduleHolidays,
+        openDates: scheduleOpenDates,
+      }),
+    [trainerScheduleSettings, scheduleHolidays, scheduleOpenDates]
+  );
+
   const scheduleSettingsStamp = React.useMemo(
     () =>
       [
@@ -1211,6 +1220,7 @@ export default function App() {
                       initialDate={scheduleCalendarSeed ?? undefined}
                       onSlotClick={handleCalendarSlotClick}
                       isSlotAvailable={isCalendarSlotAvailable}
+                      getSlotLaneState={getCalendarSlotLaneState}
                       scheduleSettingsStamp={scheduleSettingsStamp}
                       onEventClick={(info) => {
                         const block = info?.event?.extendedProps?.block;

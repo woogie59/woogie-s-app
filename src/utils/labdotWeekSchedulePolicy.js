@@ -114,10 +114,27 @@ export function isResolvedDateOpen(resolved) {
  * @param {unknown[]} [extras.openDates]
  */
 export function isTrainerHourAvailable(settings, date, extras = {}) {
-  if (!(date instanceof Date) || Number.isNaN(date.getTime())) return false;
-  const resolved = resolveDateAvailability(settings, ymdFromDate(date), extras);
-  if (resolved.off) return false;
-  return resolved.available_hours.includes(date.getHours());
+  return getTrainerHourLaneState(settings, date, extras) === 'available';
+}
+
+/**
+ * Calendar lane: weekly template vs this-date override.
+ * @returns {'available' | 'weekly_off' | 'date_off' | 'holiday'}
+ */
+export function getTrainerHourLaneState(settings, date, extras = {}) {
+  if (!(date instanceof Date) || Number.isNaN(date.getTime())) return 'weekly_off';
+  const ymd = ymdFromDate(date);
+  const hour = date.getHours();
+  const resolved = resolveDateAvailability(settings, ymd, extras);
+  const weeklyOn = weeklyHoursForYmd(settings, ymd).includes(hour);
+
+  if (resolved.source === 'holiday') return 'holiday';
+  if (resolved.source === 'open_date') {
+    if (!resolved.off && (resolved.available_hours || []).includes(hour)) return 'available';
+    return weeklyOn ? 'date_off' : 'weekly_off';
+  }
+  if (resolved.off) return 'weekly_off';
+  return (resolved.available_hours || []).includes(hour) ? 'available' : 'weekly_off';
 }
 
 export function isWeekendDow(dow) {

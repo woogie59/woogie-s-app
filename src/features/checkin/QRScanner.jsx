@@ -52,12 +52,6 @@ const QRScanner = ({ setView, goBack }) => {
           .eq('id', data.id);
         if (statusErr) console.warn('[QRScanner] booking status update:', statusErr);
       }
-        const { error: statusErr } = await supabase
-          .from('bookings')
-          .update({ status: 'completed' })
-          .eq('id', data.id);
-        if (statusErr) console.warn('[QRScanner] booking status update:', statusErr);
-      }
 
       const { data: userData } = await supabase.from('profiles').select('name').eq('id', scannedUserId).single();
 

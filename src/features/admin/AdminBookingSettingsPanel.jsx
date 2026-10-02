@@ -489,15 +489,30 @@ const AdminBookingSettingsPanel = forwardRef(function AdminBookingSettingsPanel(
     if (!ymd) return false;
     const next = normalizeTrainerHours(hours);
     const weekly = weeklyHoursForYmd(settings, ymd);
+    const nextHolidays = holidays.filter((h) => ymdKey(h.date) !== ymd);
+    let nextOpens;
+    if (hoursEqual(next, weekly)) {
+      nextOpens = openDates.filter((o) => ymdKey(o.date) !== ymd);
+    } else {
+      const row = { date: ymd, available_hours: next, label };
+      const idx = openDates.findIndex((o) => ymdKey(o.date) === ymd);
+      nextOpens = idx >= 0 ? openDates.map((o, i) => (i === idx ? { ...o, ...row } : o)) : [row, ...openDates];
+    }
+    setHolidays(nextHolidays);
+    setOpenDates(nextOpens);
+    onOverridesLoaded?.({ holidays: nextHolidays, openDates: nextOpens });
+
     if (hoursEqual(next, weekly)) {
       const { error: delOpenErr } = await supabase.from('trainer_open_dates').delete().eq('date', ymd);
       if (delOpenErr) {
         showAlert({ message: '예외 해제 실패: ' + delOpenErr.message });
+        await fetchData();
         return false;
       }
       const { error: delHolErr } = await supabase.from('trainer_holidays').delete().eq('date', ymd);
       if (delHolErr) {
         showAlert({ message: '휴무 해제 실패: ' + delHolErr.message });
+        await fetchData();
         return false;
       }
       return true;
@@ -508,6 +523,7 @@ const AdminBookingSettingsPanel = forwardRef(function AdminBookingSettingsPanel(
     );
     if (error) {
       showAlert({ message: '날짜 예외 저장 실패: ' + error.message });
+      await fetchData();
       return false;
     }
     await supabase.from('trainer_holidays').delete().eq('date', ymd);
@@ -574,6 +590,14 @@ const AdminBookingSettingsPanel = forwardRef(function AdminBookingSettingsPanel(
     if (!holdDate) return;
     setHoldSaving(true);
     try {
+      const nextHolidays = holidays.some((h) => ymdKey(h.date) === holdDate)
+        ? holidays
+        : [{ date: holdDate, label: '하루 휴무' }, ...holidays];
+      const nextOpens = openDates.filter((o) => ymdKey(o.date) !== holdDate);
+      setHolidays(nextHolidays);
+      setOpenDates(nextOpens);
+      onOverridesLoaded?.({ holidays: nextHolidays, openDates: nextOpens });
+
       const { error } = await supabase.from('trainer_holidays').insert({ date: holdDate, label: '하루 휴무' });
       if (error) {
         showAlert({
@@ -594,6 +618,10 @@ const AdminBookingSettingsPanel = forwardRef(function AdminBookingSettingsPanel(
     if (!holdDate) return;
     setHoldSaving(true);
     try {
+      const nextHolidays = holidays.filter((h) => ymdKey(h.date) !== holdDate);
+      setHolidays(nextHolidays);
+      onOverridesLoaded?.({ holidays: nextHolidays, openDates });
+
       const { error } = await supabase.from('trainer_holidays').delete().eq('date', holdDate);
       if (error) {
         showAlert({ message: '휴무 해제 실패: ' + error.message });
@@ -625,6 +653,10 @@ const AdminBookingSettingsPanel = forwardRef(function AdminBookingSettingsPanel(
     if (!holdDate) return;
     setHoldSaving(true);
     try {
+      const nextOpens = openDates.filter((o) => ymdKey(o.date) !== holdDate);
+      setOpenDates(nextOpens);
+      onOverridesLoaded?.({ holidays, openDates: nextOpens });
+
       const { error } = await supabase.from('trainer_open_dates').delete().eq('date', holdDate);
       if (error) {
         showAlert({ message: '오픈 해제 실패: ' + error.message });
