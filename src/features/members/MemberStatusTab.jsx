@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import toast from 'react-hot-toast';
 import { motion as Motion } from 'framer-motion';
 import { Trash2 } from 'lucide-react';
@@ -46,7 +46,6 @@ export default function MemberStatusTab({ userId, profile, memberLevel, onRefres
   const [saving, setSaving] = useState(false);
   const [selectedLevel, setSelectedLevel] = useState('');
   const [isLevelDropdownOpen, setIsLevelDropdownOpen] = useState(false);
-  const levelDropdownRef = useRef(null);
   const [customComment, setCustomComment] = useState('');
   const [masterExamStatus, setMasterExamStatus] = useState('idle');
   const [titleDefinitions, setTitleDefinitions] = useState([]);
@@ -154,13 +153,6 @@ export default function MemberStatusTab({ userId, profile, memberLevel, onRefres
   }, []);
 
   const displayName = profile?.name || '회원';
-
-  useEffect(() => {
-    if (!isLevelDropdownOpen) return undefined;
-    const close = () => setIsLevelDropdownOpen(false);
-    window.addEventListener('scroll', close, true);
-    return () => window.removeEventListener('scroll', close, true);
-  }, [isLevelDropdownOpen]);
 
   const selectedLevelNumber = useMemo(() => {
     const n = Number.parseInt(selectedLevel, 10);
@@ -616,7 +608,7 @@ export default function MemberStatusTab({ userId, profile, memberLevel, onRefres
             <div className="border-t border-white/10 pt-6">
               <h3 className="text-zinc-400 text-xs font-bold uppercase tracking-widest">레벨 부여</h3>
               <p className="mt-2 text-sm text-zinc-500">회원의 목표 레벨(1~10)을 선택하세요.</p>
-              <div className="relative mt-3" ref={levelDropdownRef}>
+              <div className="relative mt-3">
                 {/* Trigger button */}
                 <button
                   type="button"
@@ -644,7 +636,7 @@ export default function MemberStatusTab({ userId, profile, memberLevel, onRefres
                       className="fixed inset-0 z-40"
                       onClick={() => setIsLevelDropdownOpen(false)}
                     />
-                    <div className="absolute left-0 right-0 z-50 mt-1 max-h-80 overflow-y-auto rounded-lg border border-zinc-800 bg-[#111] shadow-2xl">
+                    <div className="absolute left-0 right-0 z-50 mt-1 max-h-80 overflow-y-auto overscroll-contain rounded-lg border border-zinc-800 bg-[#111] shadow-2xl">
                       {LEVEL_OPTIONS.map((opt) => {
                         const isSelected = selectedLevel === opt.value;
                         return (
