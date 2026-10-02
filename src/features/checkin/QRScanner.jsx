@@ -119,7 +119,6 @@ const QRScanner = ({ setView, goBack }) => {
         }
         return;
       }
-      const errMsg = error?.message ?? '';
       const isNoSession =
         errMsg.includes('ERR_NO_SESSIONS') ||
         errMsg.includes('NO_SESSIONS_LEFT') ||
