@@ -40,7 +40,7 @@ export function isSlotBlocked(blocks, dateStr, time) {
 /** Calendar / list label for trainer_blocked_slots row */
 export function blockedSlotDisplayTitle(row) {
   const memberName = String(row?.member_name || '').trim();
-  if (memberName) return `${memberName}님수업`;
+  if (memberName) return `${memberName}님 오티`;
   if (row?.kind === 'hold') return '휴무';
   return row?.label || 'OT';
 }

@@ -1,3 +1,5 @@
+import { blockedSlotDisplayTitle } from './trainerBlockedSlots';
+
 /**
  * Map merged schedule items (App.jsx mergedItemsByDate) → FullCalendar EventInput.
  * Session block length: 50 minutes (LabDot PT).
@@ -66,9 +68,8 @@ export function buildBlockedCalendarEvents(blocks) {
     const start = new Date(`${dateKey}T${pad2(parts.h)}:${pad2(parts.m)}:00`);
     if (Number.isNaN(start.getTime())) return;
     const end = new Date(start.getTime() + SESSION_MS);
-    const memberName = String(row.member_name || '').trim();
     const isHold = row.kind === 'hold';
-    const title = memberName ? `${memberName}님수업` : isHold ? '휴무' : row.label || 'OT';
+    const title = blockedSlotDisplayTitle(row);
     out.push({
       id: `block-${row.id}`,
       title,

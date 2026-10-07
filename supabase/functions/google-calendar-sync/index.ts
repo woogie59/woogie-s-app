@@ -22,10 +22,10 @@ function formatEventSummary(userName: string): string {
   return `${n}님 수업`;
 }
 
-/** OT hold: `{이름}님수업` (no space before 수업). */
+/** OT hold: `{이름}님 오티`. */
 function formatOtEventSummary(memberName: string): string {
   const n = (memberName || "").trim() || "회원";
-  return `${n}님수업`;
+  return `${n}님 오티`;
 }
 
 /**

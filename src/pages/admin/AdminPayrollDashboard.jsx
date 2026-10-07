@@ -98,45 +98,6 @@ function addMinutesToHhMm(hhmm, addMin = 60) {
   return `${String(h).padStart(2, '0')}:${String(min).padStart(2, '0')}`;
 }
 
-const BLACK_BORDER = {
-  top: { style: 'thin', color: { rgb: '000000' } },
-  left: { style: 'thin', color: { rgb: '000000' } },
-  bottom: { style: 'thin', color: { rgb: '000000' } },
-  right: { style: 'thin', color: { rgb: '000000' } },
-};
-
-const ALIGN = { horizontal: 'center', vertical: 'center', wrapText: true };
-
-function baseCellStyle({ bold = false } = {}) {
-  return {
-    font: { name: '맑은 고딕', sz: 11, bold },
-    alignment: ALIGN,
-    border: BLACK_BORDER,
-  };
-}
-
-function applyAttendanceExportStyles(ws, headerRow0, nCols, nRows) {
-  if (!nCols || !nRows) return;
-  const lastR = headerRow0 + nRows - 1;
-  for (let r = headerRow0; r <= lastR; r++) {
-    for (let c = 0; c < nCols; c++) {
-      const addr = XLSX.utils.encode_cell({ r, c });
-      const cell = ws[addr] || { t: 's', v: '' };
-      ws[addr] = cell;
-      if (typeof cell.v === 'number' && Number.isFinite(cell.v)) cell.t = 'n';
-      else cell.t = 's';
-      cell.s = baseCellStyle({ bold: r === headerRow0 });
-    }
-  }
-  ws['!ref'] = XLSX.utils.encode_range({
-    s: { r: headerRow0, c: 0 },
-    e: { r: lastR, c: nCols - 1 },
-  });
-  const colW = [6, 14, 10, 12, 10, 12, 10, 10, 10, 12];
-  ws['!cols'] = Array.from({ length: nCols }, (_, i) => ({ wch: colW[i] ?? 12 }));
-  ws['!rows'] = Array.from({ length: nRows }, (_, i) => (i === 0 ? { hpt: 22 } : { hpt: 20 }));
-}
-
 /** Per-user sum of `session_batches.remaining_count` (pack rows). */
 function sumRemainingCountByUser(rows) {
   const m = {};
@@ -164,10 +125,60 @@ function formatWonKo(value) {
   return Math.round(value).toLocaleString('ko-KR');
 }
 
-/** 급여표 `판매공제 단가` — 40,000 / 60,000 (콤마, 원 미포함) */
-function formatPayrollUnitPriceCell(value) {
-  if (value == null || !Number.isFinite(value) || value <= 0) return '';
-  return Math.round(value).toLocaleString('ko-KR');
+/** 판매공제 단가. 수업료 수식이 곱할 수 있게 숫자로 둔다. */
+function payrollUnitPriceNumber(value) {
+  const n = Math.round(Number(value) || 0);
+  return n > 0 ? n : '';
+}
+
+const BLACK_BORDER = {
+  top: { style: 'thin', color: { rgb: '000000' } },
+  left: { style: 'thin', color: { rgb: '000000' } },
+  bottom: { style: 'thin', color: { rgb: '000000' } },
+  right: { style: 'thin', color: { rgb: '000000' } },
+};
+
+function promoteFormulaCells(ws) {
+  if (!ws['!ref']) return;
+  const range = XLSX.utils.decode_range(ws['!ref']);
+  for (let r = range.s.r; r <= range.e.r; r += 1) {
+    for (let c = range.s.c; c <= range.e.c; c += 1) {
+      const addr = XLSX.utils.encode_cell({ r, c });
+      const cell = ws[addr];
+      if (!cell || typeof cell.v !== 'string' || !cell.v.startsWith('=')) continue;
+      cell.f = cell.v.slice(1);
+      delete cell.v;
+      cell.t = 'n';
+    }
+  }
+}
+
+function applyAttendanceExportStyles(ws, headerRow0, nCols, nRows) {
+  if (!nCols || !nRows) return;
+  const lastR = headerRow0 + nRows - 1;
+  for (let r = headerRow0; r <= lastR; r += 1) {
+    for (let c = 0; c < nCols; c += 1) {
+      const addr = XLSX.utils.encode_cell({ r, c });
+      const cell = ws[addr] || { t: 's', v: '' };
+      ws[addr] = cell;
+      if (cell.f) cell.t = 'n';
+      else if (typeof cell.v === 'number' && Number.isFinite(cell.v)) cell.t = 'n';
+      else cell.t = 's';
+      const style = {
+        font: { name: '맑은 고딕', sz: 11, bold: r === headerRow0 },
+        alignment: { horizontal: 'center', vertical: 'center', wrapText: true },
+        border: BLACK_BORDER,
+      };
+      if (cell.t === 'n' && c > 0) style.numFmt = '#,##0';
+      cell.s = style;
+    }
+  }
+  ws['!ref'] = XLSX.utils.encode_range({
+    s: { r: headerRow0, c: 0 },
+    e: { r: lastR, c: nCols - 1 },
+  });
+  const colW = [6, 14, 10, 12, 10, 14, 12, 10, 10, 12];
+  ws['!cols'] = Array.from({ length: nCols }, (_, i) => ({ wch: colW[i] ?? 12 }));
 }
 
 function formatUnitPriceLabel(stats) {
@@ -179,7 +190,7 @@ function formatUnitPriceLabel(stats) {
   return { unitLabel: '회원권별 상이', monthPayout: stats.sum };
 }
 
-/** 스프레드시트 급여표 붙여넣기용 (재등록·수업료·합계는 시트에서 입력/자동계산) */
+/** 스프레드시트 급여표. 수업료·잔여 수업·합계는 수식 */
 const PAYROLL_LEDGER_HEADER = [
   'no',
   '회원명',
@@ -206,7 +217,7 @@ function buildPayrollBatchRow(member, batch, conductedInMonth, allUserLogs, assi
     '',
     registered,
     remainingAtMonthStart,
-    formatPayrollUnitPriceCell(unitPriceWon),
+    payrollUnitPriceNumber(unitPriceWon),
     '',
     conductedInMonth,
     remaining,
@@ -251,7 +262,7 @@ function buildPayrollFallbackRow(member, uid, conductedInMonth, ctx) {
     '',
     totalPurchased || '',
     remainingAtMonthStart,
-    formatPayrollUnitPriceCell(unitPriceWon),
+    payrollUnitPriceNumber(unitPriceWon),
     '',
     conductedInMonth,
     remaining,
@@ -332,7 +343,19 @@ function buildPayrollLedgerRows(
   }
 
   const dataRows = rawRows.map((row, idx) => [idx + 1, ...row]);
-  return { header: PAYROLL_LEDGER_HEADER, dataRows };
+  return { header: PAYROLL_LEDGER_HEADER, dataRows: withPayrollLessonFormulas(dataRows) };
+}
+
+/** 수업료 = 판매공제 단가 × 30%, 잔여 수업 = 잔여세션 − 진행 수업, 합계 = 수업료 × 진행 수업 */
+function withPayrollLessonFormulas(dataRows) {
+  return dataRows.map((row, i) => {
+    const excelRow = i + 2;
+    const next = [...row];
+    next[6] = `=IF(F${excelRow}="","",ROUND(F${excelRow}*0.3,0))`;
+    next[8] = `=IF(OR(E${excelRow}="",H${excelRow}=""),"",E${excelRow}-H${excelRow})`;
+    next[9] = `=IF(OR(G${excelRow}="",H${excelRow}=""),"",G${excelRow}*H${excelRow})`;
+    return next;
+  });
 }
 
 function buildPayrollExportBundle(members, sessionBatches, payrollCtx, selectedDate) {
@@ -603,6 +626,7 @@ const AdminPayrollDashboard = ({ goBack }) => {
     if (payroll.dataRows.length) {
       const aoa = [payroll.header, ...payroll.dataRows];
       const ws = XLSX.utils.aoa_to_sheet(aoa);
+      promoteFormulaCells(ws);
       applyAttendanceExportStyles(ws, 0, payroll.header.length, 1 + payroll.dataRows.length);
       XLSX.utils.book_append_sheet(wb, ws, '수업');
     }
