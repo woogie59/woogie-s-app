@@ -153,12 +153,43 @@ function promoteFormulaCells(ws) {
   }
 }
 
-function applyAttendanceExportStyles(ws, headerRow0, nCols, nRows) {
+/** 수업 시트도 써밋 양식과 같은 칸: 인센티브율 I2, 회원 표 B5. */
+function buildSummitAlignedPayrollSheet(header, dataRows) {
+  const aoa = Array.from({ length: 4 }, () => []);
+  aoa.push(header);
+  dataRows.forEach((row) => aoa.push(row));
+  const body = XLSX.utils.aoa_to_sheet(aoa);
+  const ws = {};
+  const range = XLSX.utils.decode_range(body['!ref']);
+  for (let r = range.s.r; r <= range.e.r; r += 1) {
+    for (let c = range.s.c; c <= range.e.c; c += 1) {
+      const src = body[XLSX.utils.encode_cell({ r, c })];
+      if (!src) continue;
+      ws[XLSX.utils.encode_cell({ r, c: c + 1 })] = src;
+    }
+  }
+  ws.G2 = { t: 's', v: '인센티브율' };
+  ws.I2 = { t: 'n', v: 0.3, z: '0%' };
+  ws['!ref'] = XLSX.utils.encode_range({
+    s: { r: 1, c: 1 },
+    e: { r: 4 + dataRows.length, c: 1 + header.length - 1 },
+  });
+  promoteFormulaCells(ws);
+  applyAttendanceExportStyles(ws, 4, header.length, 1 + dataRows.length, 1);
+  ws.I2.s = {
+    ...(ws.I2.s || {}),
+    font: { name: '맑은 고딕', sz: 11, bold: true },
+    numFmt: '0%',
+  };
+  return ws;
+}
+
+function applyAttendanceExportStyles(ws, headerRow0, nCols, nRows, colOffset = 0) {
   if (!nCols || !nRows) return;
   const lastR = headerRow0 + nRows - 1;
   for (let r = headerRow0; r <= lastR; r += 1) {
     for (let c = 0; c < nCols; c += 1) {
-      const addr = XLSX.utils.encode_cell({ r, c });
+      const addr = XLSX.utils.encode_cell({ r, c: c + colOffset });
       const cell = ws[addr] || { t: 's', v: '' };
       ws[addr] = cell;
       if (cell.f) cell.t = 'n';
@@ -173,12 +204,22 @@ function applyAttendanceExportStyles(ws, headerRow0, nCols, nRows) {
       cell.s = style;
     }
   }
+  const ref = ws['!ref'] ? XLSX.utils.decode_range(ws['!ref']) : null;
   ws['!ref'] = XLSX.utils.encode_range({
-    s: { r: headerRow0, c: 0 },
-    e: { r: lastR, c: nCols - 1 },
+    s: {
+      r: Math.min(headerRow0, ref?.s.r ?? headerRow0),
+      c: Math.min(colOffset, ref?.s.c ?? colOffset),
+    },
+    e: {
+      r: Math.max(lastR, ref?.e.r ?? lastR),
+      c: Math.max(colOffset + nCols - 1, ref?.e.c ?? colOffset + nCols - 1),
+    },
   });
   const colW = [6, 14, 10, 12, 10, 14, 12, 10, 10, 12];
-  ws['!cols'] = Array.from({ length: nCols }, (_, i) => ({ wch: colW[i] ?? 12 }));
+  ws['!cols'] = [
+    { wch: 3 },
+    ...Array.from({ length: nCols }, (_, i) => ({ wch: colW[i] ?? 12 })),
+  ];
 }
 
 function formatUnitPriceLabel(stats) {
@@ -346,14 +387,16 @@ function buildPayrollLedgerRows(
   return { header: PAYROLL_LEDGER_HEADER, dataRows: withPayrollLessonFormulas(dataRows) };
 }
 
-/** 수업료 = 판매공제 단가 × 30%, 잔여 수업 = 잔여세션 − 진행 수업, 합계 = 수업료 × 진행 수업 */
+/** 써밋 양식: 회원 표는 6행부터, 수업료 = 판매공제 단가(G) × 인센티브율($I$2) */
+const SUMMIT_MEMBER_FIRST_ROW = 6;
+
 function withPayrollLessonFormulas(dataRows) {
   return dataRows.map((row, i) => {
-    const excelRow = i + 2;
+    const excelRow = SUMMIT_MEMBER_FIRST_ROW + i;
     const next = [...row];
-    next[6] = `=IF(F${excelRow}="","",ROUND(F${excelRow}*0.3,0))`;
-    next[8] = `=IF(OR(E${excelRow}="",H${excelRow}=""),"",E${excelRow}-H${excelRow})`;
-    next[9] = `=IF(OR(G${excelRow}="",H${excelRow}=""),"",G${excelRow}*H${excelRow})`;
+    next[6] = `=G${excelRow}*$I$2`;
+    next[8] = `=F${excelRow}-I${excelRow}`;
+    next[9] = `=H${excelRow}*I${excelRow}`;
     return next;
   });
 }
@@ -624,10 +667,7 @@ const AdminPayrollDashboard = ({ goBack }) => {
     const wb = XLSX.utils.book_new();
 
     if (payroll.dataRows.length) {
-      const aoa = [payroll.header, ...payroll.dataRows];
-      const ws = XLSX.utils.aoa_to_sheet(aoa);
-      promoteFormulaCells(ws);
-      applyAttendanceExportStyles(ws, 0, payroll.header.length, 1 + payroll.dataRows.length);
+      const ws = buildSummitAlignedPayrollSheet(payroll.header, payroll.dataRows);
       XLSX.utils.book_append_sheet(wb, ws, '수업');
     }
 
@@ -663,8 +703,8 @@ const AdminPayrollDashboard = ({ goBack }) => {
       });
       showToast(
         mode === 'html'
-          ? '급여·매출 표(가운데 정렬·테두리)가 복사되었습니다. 시트에 붙여넣기(Cmd+V) 하세요.'
-          : '급여·매출 데이터가 복사되었습니다. 필요한 구간만 붙여넣기(Cmd+V) 하세요.',
+          ? '회원 표를 복사했습니다. 써밋 양식의 no 칸(B5)에 붙여넣으면 수업료가 인센티브율($I$2)로 계산됩니다.'
+          : '회원 표를 복사했습니다. 써밋 양식의 no 칸(B5)에 붙여넣기(Cmd+V) 하세요.',
       );
     } catch (err) {
       console.error('Failed to copy payroll:', err);
