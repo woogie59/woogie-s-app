@@ -165,7 +165,11 @@ function buildSummitAlignedPayrollSheet(header, dataRows) {
     for (let c = range.s.c; c <= range.e.c; c += 1) {
       const src = body[XLSX.utils.encode_cell({ r, c })];
       if (!src) continue;
-      ws[XLSX.utils.encode_cell({ r, c: c + 1 })] = src;
+      const cell = { ...src };
+      if (typeof cell.v === 'string' && cell.v.startsWith('=')) {
+        cell.v = shiftRelativeFormulaRows(cell.v, SUMMIT_MEMBER_FIRST_ROW - CLIPBOARD_MEMBER_FIRST_ROW);
+      }
+      ws[XLSX.utils.encode_cell({ r, c: c + 1 })] = cell;
     }
   }
   ws.G2 = { t: 's', v: '인센티브율' };
@@ -387,17 +391,25 @@ function buildPayrollLedgerRows(
   return { header: PAYROLL_LEDGER_HEADER, dataRows: withPayrollLessonFormulas(dataRows) };
 }
 
-/** 써밋 양식: 회원 표는 6행부터, 수업료 = 판매공제 단가(G) × 인센티브율($I$2) */
+/** 붙여넣기 표는 헤더가 1행. 시트에 붙이면 상대 행이 맞춰지고, $I$2(인센티브율)는 고정된다. */
+const CLIPBOARD_MEMBER_FIRST_ROW = 2;
 const SUMMIT_MEMBER_FIRST_ROW = 6;
 
 function withPayrollLessonFormulas(dataRows) {
   return dataRows.map((row, i) => {
-    const excelRow = SUMMIT_MEMBER_FIRST_ROW + i;
+    const excelRow = CLIPBOARD_MEMBER_FIRST_ROW + i;
     const next = [...row];
     next[6] = `=G${excelRow}*$I$2`;
     next[8] = `=F${excelRow}-I${excelRow}`;
     next[9] = `=H${excelRow}*I${excelRow}`;
     return next;
+  });
+}
+
+function shiftRelativeFormulaRows(formula, delta) {
+  return String(formula).replace(/(\$?)([A-Z]+)(\$?)(\d+)/g, (match, absCol, col, absRow, row) => {
+    if (absRow === '$') return match;
+    return `${absCol}${col}${Number(row) + delta}`;
   });
 }
 
