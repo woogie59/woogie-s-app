@@ -743,7 +743,7 @@ const ClientHome = ({ user, logout, setView }) => {
             return (
               <>
                 <div
-                  className={`mt-3 border-t border-white/15 pt-2.5 flex items-start justify-between gap-4 ${hasRentals ? 'cursor-pointer' : ''}`}
+                  className={`mt-3 border-t border-white/15 pt-2.5 flex items-start justify-between gap-4 ${hasRentals ? 'cursor-pointer select-none touch-manipulation' : ''}`}
                   role={hasRentals ? 'button' : undefined}
                   aria-expanded={hasRentals ? showMemDetail : undefined}
                   onClick={hasRentals ? () => setShowMemDetail((v) => !v) : undefined}
@@ -767,14 +767,20 @@ const ClientHome = ({ user, logout, setView }) => {
                   </div>
                 )}
                 {hasRentals && (
-                  <div className="mt-1 flex justify-center">
+                  <button
+                    type="button"
+                    onClick={() => setShowMemDetail((v) => !v)}
+                    aria-expanded={showMemDetail}
+                    aria-label={showMemDetail ? '회원권 상세 접기' : '회원권 상세 펼치기'}
+                    className="mt-0.5 -mb-1 flex w-full cursor-pointer justify-center py-1.5 select-none touch-manipulation"
+                  >
                     <ChevronDown
                       size={16}
                       strokeWidth={2}
                       aria-hidden
-                      className={`text-white/50 transition-transform duration-200 ${showMemDetail ? 'rotate-180' : ''}`}
+                      className={`text-white/50 transition-transform duration-200 pointer-events-none ${showMemDetail ? 'rotate-180' : ''}`}
                     />
-                  </div>
+                  </button>
                 )}
               </>
             );
