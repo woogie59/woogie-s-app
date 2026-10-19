@@ -25,14 +25,14 @@ import {
   DASHBOARD_TILE_SUBTITLE_CLASS,
   DASHBOARD_TILE_TITLE_CLASS,
 } from '../../components/member/BiteSizedKnowledgeCard';
-import { membershipPeriodLabel, formatEndKo, kstTodayYmd } from '../../components/member/MembershipPeriodCard';
+import { membershipPeriodLabel, formatEndKo, formatPeriodRange, kstTodayYmd } from '../../components/member/MembershipPeriodCard';
 import { hasUnreadAthleteBoard } from '../../utils/athleteBoardNotifications';
 
 /** MVP: 라이브러리·트레이닝 일지 진입 UI 비표시 — 라우트/화면은 유지 */
 const MVP_HIDE_LIBRARY_AND_TRAINING_NAV = true;
 
 /** QA 샘플 (테스트용1 전용): 실제 회원권 기간은 DB 필드 승인 후 연결 */
-const QA_MEMBERSHIP_SAMPLE = { title: '테스트 회원권', end: '2026-12-31' };
+const QA_MEMBERSHIP_SAMPLE = { title: '테스트 회원권', start: '2026-10-01', end: '2026-12-31' };
 /** Admin RPC 출석 INSERT와 동일한 Realtime 채널 (필터 user_id=eq.<uuid>와 함께 사용). */
 const memberAttendanceChannelName = (userId) => `qr-check-in-channel:${String(userId)}`;
 
@@ -712,6 +712,7 @@ const ClientHome = ({ user, logout, setView }) => {
           )}
           {isQaProfile && (() => {
             const endYmd = profile?.membership_end || QA_MEMBERSHIP_SAMPLE.end;
+            const startYmd = profile?.membership_start || QA_MEMBERSHIP_SAMPLE.start;
             const daysLeft = Math.round(
               (Date.parse(`${endYmd}T00:00:00+09:00`) - Date.parse(`${kstTodayYmd()}T00:00:00+09:00`)) / 86400000,
             );
@@ -728,13 +729,13 @@ const ClientHome = ({ user, logout, setView }) => {
               <div className={`min-w-0 ${QA_HERO_VARIANT === 'B' ? '' : 'text-right'}`} aria-label="회원권 기간">
                 <p className="text-sm text-white/70 font-medium">회원권</p>
                 <p className="mt-1 text-base font-semibold text-white">{membershipPeriodLabel(daysLeft)}</p>
-                <p className="mt-1 text-xs text-white/70">만료 {formatEndKo(endYmd)}</p>
+                <p className="mt-1 text-xs text-white/70">{startYmd ? formatPeriodRange(startYmd, endYmd) : `만료 ${formatEndKo(endYmd)}`}</p>
               </div>
             );
             const todayMs = Date.parse(`${kstTodayYmd()}T00:00:00+09:00`);
             const rentals = [
-              { key: 'locker', label: '사물함', end: profile?.locker_end, Icon: DoorClosed },
-              { key: 'wear', label: '운동복', end: profile?.wear_end, Icon: Shirt },
+              { key: 'locker', label: '사물함', start: profile?.locker_start, end: profile?.locker_end, Icon: DoorClosed },
+              { key: 'wear', label: '운동복', start: profile?.wear_start, end: profile?.wear_end, Icon: Shirt },
             ]
               .map((r) => ({ ...r, days: r.end ? Math.round((Date.parse(`${r.end}T00:00:00+09:00`) - todayMs) / 86400000) : null }))
               .filter((r) => r.days !== null && r.days >= 0);
@@ -752,17 +753,15 @@ const ClientHome = ({ user, logout, setView }) => {
                 </div>
                 {hasRentals && showMemDetail && (
                   <div className="mt-3 space-y-1.5 border-t border-white/15 pt-3 text-xs text-white/85">
-                    <div className="flex items-center justify-between">
-                      <span className="font-medium text-white">회원권</span>
-                      <span className="tabular-nums">만료 {formatEndKo(endYmd)} · <b>D-{daysLeft}</b></span>
-                    </div>
-                    {rentals.map(({ key, label, end, days, Icon }) => (
+                    {rentals.map(({ key, label, start, end, days, Icon }) => (
                       <div key={key} className="flex items-center justify-between">
                         <span className="inline-flex items-center gap-1.5 font-medium text-white">
                           <Icon size={13} strokeWidth={BENTO_ICON_STROKE} aria-hidden />
                           {label}
                         </span>
-                        <span className="tabular-nums">만료 {formatEndKo(end)} · <b>D-{days}</b></span>
+                        <span className="tabular-nums">
+                          {start ? formatPeriodRange(start, end) : `만료 ${formatEndKo(end)}`} · <b>D-{days}</b>
+                        </span>
                       </div>
                     ))}
                   </div>

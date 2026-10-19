@@ -5,6 +5,17 @@ export const formatEndKo = (ymd) =>
     new Date(`${ymd}T00:00:00+09:00`),
   );
 
+
+/** "2026. 10. 1. ~ 11. 1." 형식 기간 표시 (연도가 다르면 끝에도 연도 표기) */
+export const formatPeriodRange = (startYmd, endYmd) => {
+  const fmt = (ymd, withYear) => {
+    const [y, m, d] = ymd.split('-').map(Number);
+    return withYear ? `${y}. ${m}. ${d}.` : `${m}. ${d}.`;
+  };
+  const sameYear = startYmd.slice(0, 4) === endYmd.slice(0, 4);
+  return `${fmt(startYmd, true)} ~ ${fmt(endYmd, !sameYear)}`;
+};
+
 export const kstTodayYmd = () =>
   new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Seoul', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
 
