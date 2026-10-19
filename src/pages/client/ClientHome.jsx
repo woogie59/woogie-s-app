@@ -668,10 +668,23 @@ const ClientHome = ({ user, logout, setView }) => {
                 <Skeleton className="h-14 w-40 bg-white/15 rounded-xl" />
               ) : upcomingBooking ? (
                 <>
-                  <p className="text-5xl font-extrabold tracking-tighter tabular-nums text-white leading-none">
-                    {formatTime24hStatic(upcomingBooking?.time)}
-                  </p>
-                  <p className="text-sm text-white/90 mt-1.5">{formatUpcomingDateLabel(upcomingBooking)}</p>
+                  {isQaProfile ? (
+                    <p className="flex flex-wrap items-baseline gap-x-2.5 gap-y-1">
+                      <span className="text-5xl font-extrabold tracking-tighter tabular-nums text-white leading-none">
+                        {formatTime24hStatic(upcomingBooking?.time)}
+                      </span>
+                      <span className="text-2xl font-semibold text-white/60 tabular-nums leading-none">
+                        {formatUpcomingDateLabel(upcomingBooking)}
+                      </span>
+                    </p>
+                  ) : (
+                    <>
+                      <p className="text-5xl font-extrabold tracking-tighter tabular-nums text-white leading-none">
+                        {formatTime24hStatic(upcomingBooking?.time)}
+                      </p>
+                      <p className="text-sm text-white/90 mt-1.5">{formatUpcomingDateLabel(upcomingBooking)}</p>
+                    </>
+                  )}
                 </>
               ) : (
                 <p className="text-[13px] font-medium text-white/90 mt-2">
