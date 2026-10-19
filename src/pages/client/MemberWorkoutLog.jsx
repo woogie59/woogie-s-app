@@ -197,11 +197,11 @@ export default function MemberWorkoutLog({ user, setView, goBack }) {
                   const isToday = date === today;
                   const firstPart = (personalEntry?.parts?.[0] || '개인').slice(0, 2);
                   const tint = pt > 0 && personal > 0
-                    ? 'bg-gradient-to-br from-sky-50/80 to-emerald-50/80 text-slate-900'
+                    ? 'bg-gradient-to-br from-sky-100 to-emerald-100 text-slate-900'
                     : pt > 0
-                      ? 'bg-sky-50/80 text-sky-900'
+                      ? 'bg-sky-100 text-sky-900'
                       : personal > 0
-                        ? 'bg-emerald-50/80 text-[#064e3b]'
+                        ? 'bg-emerald-100 text-[#064e3b]'
                         : 'text-gray-700';
                   return (
                     <button
@@ -211,12 +211,12 @@ export default function MemberWorkoutLog({ user, setView, goBack }) {
                       aria-pressed={isSelected}
                       aria-label={`${m}월 ${i + 1}일, PT ${pt}회, 개인운동 ${personal}회${isToday ? ', 오늘' : ''}`}
                       onClick={() => setSelected(date)}
-                      className={`flex min-h-[52px] flex-col items-center justify-center gap-0.5 rounded-xl text-sm font-medium ${isSelected ? 'bg-[#064e3b] text-white' : tint} ${isToday && !isSelected ? 'ring-2 ring-[#064e3b]' : ''} disabled:bg-transparent disabled:text-gray-300 disabled:ring-0`}
+                      className={`flex min-h-[52px] flex-col items-center justify-start gap-0.5 rounded-xl pt-1.5 text-sm font-medium ${isSelected ? 'bg-[#064e3b] text-white' : tint} ${isToday && !isSelected ? 'ring-2 ring-[#064e3b]' : ''} disabled:bg-transparent disabled:text-gray-300 disabled:ring-0`}
                     >
                       <span className="leading-none">{i + 1}</span>
                       {(pt > 0 || personal > 0) && (
                         <span aria-hidden="true" className={`flex flex-col items-center text-[10px] leading-[1.2] ${isSelected ? 'text-white/90' : ''}`}>
-                          {pt > 0 && <span className={isSelected ? '' : 'text-sky-600'}>PT</span>}
+                          {pt > 0 && <span className={isSelected ? '' : 'font-bold text-sky-600'}>PT</span>}
                           {personal > 0 && <span className={isSelected ? '' : 'text-[#064e3b]'}>{firstPart}</span>}
                         </span>
                       )}
@@ -243,8 +243,11 @@ export default function MemberWorkoutLog({ user, setView, goBack }) {
                 {dayRows.length ? (
                   <ul className="mt-2 divide-y divide-gray-100">
                     {dayRows.map((e) => (
-                      <li key={e.id} className="py-3">
-                        <p className="text-sm font-medium">{kstTime(e.at)} · {e.kind === 'pt' ? 'PT' : '개인운동'}</p>
+                      <li key={e.id} className="flex items-center gap-2 py-3">
+                        <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${e.kind === 'pt' ? 'bg-sky-100 text-sky-800' : 'bg-emerald-100 text-[#064e3b]'}`}>
+                          {e.kind === 'pt' ? 'PT' : '개인운동'}
+                        </span>
+                        <p className="text-sm font-medium">{kstTime(e.at)}</p>
                       </li>
                     ))}
                   </ul>
@@ -261,7 +264,7 @@ export default function MemberWorkoutLog({ user, setView, goBack }) {
                       type="button"
                       aria-pressed={parts.includes(p)}
                       onClick={() => togglePart(p)}
-                      className={`min-h-11 rounded-full border px-3 text-sm ${parts.includes(p) ? 'border-[#064e3b] bg-emerald-50 text-[#064e3b]' : 'border-gray-200 text-gray-600'}`}
+                      className={`min-h-11 rounded-full border px-3 text-sm ${parts.includes(p) ? 'border-transparent bg-[#064e3b] font-semibold text-white' : 'border-transparent bg-gray-100 text-gray-600'}`}
                     >
                       {p}
                     </button>
