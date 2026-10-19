@@ -61,6 +61,14 @@ const formatUpcomingDateLabel = (b) => {
  *  모듈 스코프라 같은 SPA 세션 내 언마운트/리마운트에만 유지되고, 새로고침하면 초기화된다. */
 const qaHomeSnapshot = { userId: null, batches: null, logs: null, bookings: null };
 
+/** 깔끔한 짧은 화살표 (일정 목록용) — 막대 길이를 절반으로 줄인 디자인 */
+const ShortArrow = ({ className = '' }) => (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" className={className} aria-hidden>
+    <path d="M13 5l7 7-7 7" />
+    <path d="M12 12h8" />
+  </svg>
+);
+
 const ClientHome = ({ user, logout, setView }) => {
   const { showAlert } = useGlobalModal();
   const [profile, setProfile] = useState(null);
@@ -658,7 +666,7 @@ const ClientHome = ({ user, logout, setView }) => {
 
       <main className="flex-1 flex flex-col px-5 gap-4 pb-6 overflow-y-auto scrollable min-h-0">
         {/* 1. Upcoming Class — read-only billboard; 전체 일정은「수업 예약 및 일정」화면 */}
-        <div className="w-full rounded-2xl bg-gradient-to-r from-[#0f2818] to-[#1a4026] px-4 py-3.5 text-left text-white shadow-lg border border-white/10 shrink-0">
+        <div className={`w-full rounded-2xl ${isQaProfile ? 'bg-[#064e3b]' : 'bg-gradient-to-r from-[#0f2818] to-[#1a4026]'} px-5 py-4 text-left text-white shadow-lg border border-white/10 shrink-0`}>
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0 flex-1">
               <p className="text-sm text-white/70 font-medium mb-1">다음 수업</p>
@@ -765,7 +773,7 @@ const ClientHome = ({ user, logout, setView }) => {
           })()}
 
           {isQaProfile ? (
-            <div className="flex items-stretch gap-2">
+            <div className="flex items-stretch gap-3">
               <button
                 type="button"
                 onClick={() => setView('class_booking')}
@@ -787,7 +795,7 @@ const ClientHome = ({ user, logout, setView }) => {
                   type="button"
                   onClick={() => setView('hall_of_fame_member_self')}
                   aria-label="나의 상태"
-                  className={`relative w-[104px] shrink-0 rounded-2xl border flex flex-col items-start justify-center gap-1.5 px-4 py-3.5 text-white shadow-sm transition-transform duration-100 active:scale-[0.96] active:shadow-none ${
+                  className={`relative flex-1 rounded-2xl border flex flex-col items-start justify-center gap-1.5 px-4 py-3.5 text-white shadow-sm transition-transform duration-100 active:scale-[0.96] active:shadow-none ${
                     hasAthleteBoardNew
                       ? 'border-purple-400/60 bg-gradient-to-r from-zinc-900 to-black ring-2 ring-purple-500/30 animate-pulse'
                       : 'border-transparent bg-gradient-to-r from-zinc-900 to-black'
@@ -843,15 +851,20 @@ const ClientHome = ({ user, logout, setView }) => {
                           className={`list-none flex justify-between items-center py-4 border-b cursor-pointer ${isQaProfile ? 'border-b-2 border-gray-200 transition-all duration-100 active:bg-gray-100 active:scale-[0.99]' : 'border-gray-100'}`}
                           onClick={() => setCancelIntent(booking)}
                         >
-                          <div className="flex items-center justify-between gap-4 w-full">
-                            <div className="min-w-0">
-                              <p className="text-sm text-slate-800 font-medium">
+                          <div className="flex items-center justify-between gap-3 w-full">
+                            {isQaProfile && <span className="h-1.5 w-1.5 rounded-full bg-[#064e3b] shrink-0" aria-hidden />}
+                            <div className="min-w-0 flex-1">
+                              <p className={`text-sm ${isQaProfile ? 'text-slate-900 font-semibold' : 'text-slate-800 font-medium'}`}>
                                 {formatUpcomingDateLabel(booking)} {formatTime24hStatic(booking.time)}
                               </p>
                             </div>
-                            <span className="text-gray-300 text-lg" aria-hidden>
-                              &gt;
-                            </span>
+                            {isQaProfile ? (
+                              <ShortArrow className="text-[#064e3b]/70 shrink-0" />
+                            ) : (
+                              <span className="text-gray-300 text-lg" aria-hidden>
+                                &gt;
+                              </span>
+                            )}
                           </div>
                         </li>
                       );
@@ -948,6 +961,15 @@ const ClientHome = ({ user, logout, setView }) => {
             </button>
           )}
         </div>
+      {isQaProfile && (
+        <footer className="px-5 pb-6">
+          <div className="border-t border-gray-100 pt-5 text-center space-y-1">
+            <p className="text-[11px] font-semibold tracking-[0.32em] text-[#064e3b]">LAB DOT</p>
+            <p className="text-[11px] text-gray-400">대표 [이름] · 문의 [연락처]</p>
+            <p className="text-[10px] text-gray-300">© 2026 LAB DOT. All rights reserved.</p>
+          </div>
+        </footer>
+      )}
       </main>
 
       {/* Session History Modal */}

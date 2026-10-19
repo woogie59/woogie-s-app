@@ -1,4 +1,5 @@
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';import { isQaProfileName } from '../../utils/bookingDateKeys';
+
 import { motion, AnimatePresence } from 'framer-motion';
 import { Check, Lock } from 'lucide-react';
 import { supabase } from '../../lib/supabaseClient';
@@ -28,6 +29,8 @@ const MemberCancelBookingModals = ({
   onAfterSuccessConfirm,
   onRequestPolicyLock,
 }) => {
+  const isQaMember = isQaProfileName(memberDisplayName);
+
   const { showAlert } = useGlobalModal();
   const [showCancelPolicyLockModal, setShowCancelPolicyLockModal] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
@@ -164,7 +167,7 @@ const MemberCancelBookingModals = ({
               {cancelDeleteModalView === 'success' ? (
                 <div className="flex min-h-[220px] flex-col items-center justify-center text-center">
                   <div
-                    className="mb-5 flex h-16 w-16 items-center justify-center rounded-full bg-gradient-to-br from-emerald-50 to-emerald-100/80 ring-1 ring-emerald-500/25"
+                    className={`mb-5 flex h-16 w-16 items-center justify-center rounded-full ${isQaMember ? 'bg-emerald-50' : 'bg-gradient-to-br from-emerald-50 to-emerald-100/80'} ring-1 ring-emerald-500/25`}
                     aria-hidden
                   >
                     <Check className="h-8 w-8 text-emerald-600" strokeWidth={2.5} />
@@ -173,7 +176,7 @@ const MemberCancelBookingModals = ({
                   <button
                     type="button"
                     onClick={closeCancelSuccessAndRefresh}
-                    className="mt-8 w-full max-w-xs py-3.5 rounded-xl font-semibold text-white bg-gradient-to-r from-emerald-600 to-emerald-700 hover:from-emerald-500 hover:to-emerald-600 active:scale-[0.98] transition-all shadow-lg shadow-emerald-900/20 border border-emerald-600/30"
+                    className={`mt-8 w-full max-w-xs py-3.5 rounded-xl font-semibold text-white ${isQaMember ? 'bg-[#064e3b] hover:bg-[#053d2f]' : 'bg-gradient-to-r from-emerald-600 to-emerald-700 hover:from-emerald-500 hover:to-emerald-600'} active:scale-[0.98] transition-all shadow-lg shadow-emerald-900/20 border border-emerald-600/30`}
                   >
                     확인
                   </button>
@@ -210,7 +213,7 @@ const MemberCancelBookingModals = ({
                     <button
                       type="button"
                       onClick={confirmDeleteAction}
-                      className="px-5 py-3 rounded-xl font-medium text-white bg-gradient-to-r from-emerald-600 to-emerald-700 hover:from-emerald-500 hover:to-emerald-600 active:scale-[0.98] transition-all shadow-lg shadow-emerald-900/20 border border-emerald-600/30 min-w-[80px]"
+                      className={`px-5 py-3 rounded-xl font-medium text-white ${isQaMember ? 'bg-[#064e3b] hover:bg-[#053d2f]' : 'bg-gradient-to-r from-emerald-600 to-emerald-700 hover:from-emerald-500 hover:to-emerald-600'} active:scale-[0.98] transition-all shadow-lg shadow-emerald-900/20 border border-emerald-600/30 min-w-[80px]`}
                     >
                       예, 취소할게요
                     </button>
