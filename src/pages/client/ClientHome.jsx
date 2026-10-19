@@ -795,14 +795,14 @@ const ClientHome = ({ user, logout, setView }) => {
                   type="button"
                   onClick={() => setView('hall_of_fame_member_self')}
                   aria-label="나의 상태"
-                  className={`relative flex-1 rounded-2xl border flex flex-col items-start justify-center gap-1.5 px-4 py-3.5 text-white shadow-sm transition-transform duration-100 active:scale-[0.96] active:shadow-none ${
+                  className={`relative flex-1 flex flex-col items-start gap-1.5 rounded-2xl border bg-white px-4 py-3.5 text-left shadow-sm cursor-pointer transition-all duration-100 active:scale-[0.96] active:shadow-none active:bg-gray-100 ${
                     hasAthleteBoardNew
-                      ? 'border-purple-400/60 bg-gradient-to-r from-zinc-900 to-black ring-2 ring-purple-500/30 animate-pulse'
-                      : 'border-transparent bg-gradient-to-r from-zinc-900 to-black'
+                      ? 'border-emerald-200 hover:border-[#064e3b]/40'
+                      : 'border-gray-100 hover:border-[#064e3b]/40'
                   }`}
                 >
-                  <User size={22} strokeWidth={BENTO_ICON_STROKE} className="text-white/90 shrink-0" aria-hidden />
-                  <span className="text-base font-semibold text-white tracking-tight leading-snug whitespace-nowrap">나의 상태</span>
+                  <User size={22} strokeWidth={BENTO_ICON_STROKE} className="text-[#064e3b] shrink-0" aria-hidden />
+                  <span className="text-base font-semibold text-slate-900 tracking-tight leading-snug whitespace-nowrap">나의 상태</span>
                   {hasAthleteBoardNew && (
                     <span className="absolute -top-1 -right-1 h-2.5 w-2.5 rounded-full bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.55)]" aria-hidden />
                   )}
