@@ -738,11 +738,10 @@ const ClientHome = ({ user, logout, setView }) => {
             );
           })()}
           {(() => {
-            // TODO: 사물함/운동복 기간 컬럼이 DB에 아직 없음(REST로 확인) — 스키마 승인 전까지 QA 목 데이터로 레이아웃만 표시
             const todayMs = Date.parse(`${kstTodayYmd()}T00:00:00+09:00`);
             const rentals = [
-              { key: 'locker', label: '사물함', end: '2026-11-01', Icon: DoorClosed },
-              { key: 'wear', label: '운동복', end: '2026-10-25', Icon: Shirt },
+              { key: 'locker', label: '사물함', end: profile?.locker_end, Icon: DoorClosed },
+              { key: 'wear', label: '운동복', end: profile?.wear_end, Icon: Shirt },
             ]
               .map((r) => ({ ...r, days: r.end ? Math.round((Date.parse(`${r.end}T00:00:00+09:00`) - todayMs) / 86400000) : null }))
               .filter((r) => r.days !== null && r.days >= 0);
