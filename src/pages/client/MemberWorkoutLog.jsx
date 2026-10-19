@@ -67,6 +67,7 @@ export default function MemberWorkoutLog({ user, setView, goBack }) {
   const [parts, setParts] = useState([]);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState(null);
+  const [savedFlash, setSavedFlash] = useState(false);
 
   const load = useCallback(async () => {
     if (!user?.id) return;
@@ -99,7 +100,7 @@ export default function MemberWorkoutLog({ user, setView, goBack }) {
   const days = new Date(Date.UTC(year, m, 0)).getUTCDate();
   const dayRows = summary.monthly.filter((e) => kstYmd(e.at) === selected);
   const selectedEntry = entries.find((e) => e.kind === 'personal' && kstYmd(e.at) === selected);
-  const selectedPersonal = Boolean(selectedEntry);
+  // selectedPersonal removed: auto-save replaces the button state
 
   useEffect(() => {
     setParts(selectedEntry?.parts ?? []);
@@ -110,28 +111,38 @@ export default function MemberWorkoutLog({ user, setView, goBack }) {
 
   const goHome = () => (goBack ? goBack() : setView('client_home'));
 
-  async function save() {
+  async function save(nextParts) {
     if (!user?.id || saving) return;
+    const toSave = nextParts ?? parts;
     setSaving(true);
     setSaveError(null);
     try {
       if (selectedEntry) {
-        const { error } = await supabase.from('member_workout_entries').update({ parts }).eq('id', selectedEntry.id);
+        const { error } = await supabase.from('member_workout_entries').update({ parts: toSave }).eq('id', selectedEntry.id);
         if (error) throw error;
-        setEntries((old) => old.map((e) => (e.id === selectedEntry.id ? { ...e, parts } : e)));
+        setEntries((old) => old.map((e) => (e.id === selectedEntry.id ? { ...e, parts: toSave } : e)));
       } else {
         const now = new Date();
         const hhmmss = new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Seoul', hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23' }).format(now);
-        const row = { user_id: user.id, at: new Date(`${selected}T${hhmmss}+09:00`).toISOString(), kind: 'personal', parts };
+        const row = { user_id: user.id, at: new Date(`${selected}T${hhmmss}+09:00`).toISOString(), kind: 'personal', parts: toSave };
         const { data, error } = await supabase.from('member_workout_entries').insert([row]).select().single();
         if (error) throw error;
         setEntries((old) => [...old, { id: data.id, at: data.at, kind: 'personal', parts: data.parts || [] }]);
       }
+      setSavedFlash(true);
+      setTimeout(() => setSavedFlash(false), 2000);
     } catch {
       setSaveError('저장하지 못했습니다. 다시 시도해 주세요.');
     } finally {
       setSaving(false);
     }
+  }
+
+  function togglePart(p) {
+    if (saving) return;
+    const next = parts.includes(p) ? parts.filter((x) => x !== p) : [...parts, p];
+    setParts(next);
+    save(next);
   }
 
   return (
@@ -180,15 +191,17 @@ export default function MemberWorkoutLog({ user, setView, goBack }) {
                   const date = `${month}-${String(i + 1).padStart(2, '0')}`;
                   const rows = summary.monthly.filter((e) => kstYmd(e.at) === date);
                   const pt = rows.filter((e) => e.kind === 'pt').length;
+                  const personalEntry = rows.find((e) => e.kind === 'personal');
                   const personal = rows.length - pt;
                   const isSelected = date === selected;
                   const isToday = date === today;
-                  const kindFill = pt > 0 && personal > 0
-                    ? 'bg-gradient-to-br from-sky-100 via-sky-100 to-emerald-100 text-slate-900'
+                  const firstPart = (personalEntry?.parts?.[0] || '개인').slice(0, 2);
+                  const tint = pt > 0 && personal > 0
+                    ? 'bg-gradient-to-br from-sky-50/80 to-emerald-50/80 text-slate-900'
                     : pt > 0
-                      ? 'bg-sky-100 text-sky-900'
+                      ? 'bg-sky-50/80 text-sky-900'
                       : personal > 0
-                        ? 'bg-emerald-100 text-[#064e3b]'
+                        ? 'bg-emerald-50/80 text-[#064e3b]'
                         : 'text-gray-700';
                   return (
                     <button
@@ -198,31 +211,33 @@ export default function MemberWorkoutLog({ user, setView, goBack }) {
                       aria-pressed={isSelected}
                       aria-label={`${m}월 ${i + 1}일, PT ${pt}회, 개인운동 ${personal}회${isToday ? ', 오늘' : ''}`}
                       onClick={() => setSelected(date)}
-                      className={`flex min-h-[52px] flex-col items-center justify-center gap-1 rounded-xl text-sm font-medium ${isSelected ? 'bg-[#064e3b] text-white' : kindFill} ${isToday && !isSelected ? 'ring-2 ring-[#064e3b]' : ''} disabled:bg-transparent disabled:text-gray-300 disabled:ring-0`}
+                      className={`flex min-h-[52px] flex-col items-center justify-center gap-0.5 rounded-xl text-sm font-medium ${isSelected ? 'bg-[#064e3b] text-white' : tint} ${isToday && !isSelected ? 'ring-2 ring-[#064e3b]' : ''} disabled:bg-transparent disabled:text-gray-300 disabled:ring-0`}
                     >
-                      <span>{i + 1}</span>
+                      <span className="leading-none">{i + 1}</span>
+                      {(pt > 0 || personal > 0) && (
+                        <span aria-hidden="true" className={`flex flex-col items-center text-[10px] leading-[1.2] ${isSelected ? 'text-white/90' : ''}`}>
+                          {pt > 0 && <span className={isSelected ? '' : 'text-sky-600'}>PT</span>}
+                          {personal > 0 && <span className={isSelected ? '' : 'text-[#064e3b]'}>{firstPart}</span>}
+                        </span>
+                      )}
                     </button>
                   );
                 })}
               </div>
-              <p className="mt-3 text-xs text-gray-600">
-                <span className="mr-1 inline-block h-3 w-3 rounded-md bg-sky-100 ring-1 ring-sky-300 align-[-2px]" aria-hidden="true" /> PT
-                <span className="ml-3 mr-1 inline-block h-3 w-3 rounded-md bg-emerald-100 ring-1 ring-emerald-300 align-[-2px]" aria-hidden="true" /> 개인운동
-                <span className="ml-3 mr-1 inline-block h-3 w-3 rounded-md ring-2 ring-[#064e3b] align-[-2px]" aria-hidden="true" /> 오늘
-              </p>
+
             </section>
 
             <section className="rounded-xl border border-gray-200 bg-white px-4 py-2.5" aria-label="운동 기록 요약">
               <p className="text-sm text-gray-700 tabular-nums">
                 <span className="font-semibold text-slate-900">{month === today.slice(0, 7) ? '이번 달' : `${m}월`} {summary.count}회</span>
                 <span className="text-gray-400"> · </span>PT {ptCount} · 개인운동 {personalCount}
-                <span className="text-gray-400"> · </span>지난주 {summary.last} → 이번 주 {summary.current}
               </p>
             </section>
 
             <section className="rounded-2xl border border-gray-200 bg-white p-4" aria-labelledby="workout-day">
-              <h2 id="workout-day" className="font-semibold">
+              <h2 id="workout-day" className="font-semibold flex items-center gap-2">
                 {Number(selected.slice(5, 7))}월 {Number(selected.slice(8))}일 ({WEEKDAYS[(new Date(`${selected}T12:00:00+09:00`).getUTCDay() + 6) % 7]}){selected === today ? ' · 오늘' : ''}
+                {savedFlash && <span role="status" className="text-xs font-medium text-[#064e3b]">저장됨</span>}
               </h2>
               <div aria-live="polite" aria-atomic="true">
                 {dayRows.length ? (
@@ -245,23 +260,14 @@ export default function MemberWorkoutLog({ user, setView, goBack }) {
                       key={p}
                       type="button"
                       aria-pressed={parts.includes(p)}
-                      onClick={() => setParts((old) => (old.includes(p) ? old.filter((x) => x !== p) : [...old, p]))}
+                      onClick={() => togglePart(p)}
                       className={`min-h-11 rounded-full border px-3 text-sm ${parts.includes(p) ? 'border-[#064e3b] bg-emerald-50 text-[#064e3b]' : 'border-gray-200 text-gray-600'}`}
                     >
                       {p}
                     </button>
                   ))}
                 </div>
-                <button
-                  type="button"
-                  disabled={saving}
-                  aria-busy={saving}
-                  onClick={save}
-                  className="mt-3 min-h-12 w-full rounded-xl bg-[#064e3b] px-4 text-sm font-semibold text-white disabled:opacity-50"
-                >
-                  {saving ? '저장 중...' : selectedPersonal ? '부위 저장' : '개인운동 기록'}
-                </button>
-                <p className="mt-2 text-xs text-gray-500">직접 기록 · 하루 1회</p>
+                <p className="mt-3 text-xs text-gray-500">{saving ? '저장 중…' : '부위를 누르면 바로 저장됩니다 · 하루 1회'}</p>
                 {saveError && <p role="alert" className="mt-2 text-sm text-amber-900">{saveError}</p>}
               </div>
             </section>
