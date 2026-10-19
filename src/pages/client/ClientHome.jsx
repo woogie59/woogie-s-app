@@ -655,7 +655,11 @@ const ClientHome = ({ user, logout, setView }) => {
             </button>
           </div>
           {isQaProfile && (
-            <MembershipPeriodCard title={QA_MEMBERSHIP_SAMPLE.title} end={QA_MEMBERSHIP_SAMPLE.end} />
+            profile?.membership_end ? (
+              <MembershipPeriodCard title="회원권" end={profile.membership_end} />
+            ) : (
+              <MembershipPeriodCard title={QA_MEMBERSHIP_SAMPLE.title} end={QA_MEMBERSHIP_SAMPLE.end} badge="샘플" />
+            )
           )}
         </div>
 

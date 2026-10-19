@@ -19,7 +19,7 @@ function membershipPeriodLabel(daysLeft) {
  * 회원권 남은 기간 표시 (짐매니오 회원 홈 "회원권" 영역 이식).
  * 현재는 테스트용1의 QA 샘플 값으로만 렌더링 — 실제 종료일은 DB 필드 승인 후 연결.
  */
-export default function MembershipPeriodCard({ title, end }) {
+export default function MembershipPeriodCard({ title, end, badge }) {
   const today = kstTodayYmd();
   const daysLeft = Math.round(
     (Date.parse(`${end}T00:00:00+09:00`) - Date.parse(`${today}T00:00:00+09:00`)) / 86400000,
@@ -28,7 +28,9 @@ export default function MembershipPeriodCard({ title, end }) {
     <div className="mt-4 border-t border-white/15 pt-3" aria-label="회원권 기간">
       <div className="flex items-center justify-between gap-3">
         <p className="text-sm text-white/70 font-medium">회원권</p>
-        <span className="rounded-full bg-white/15 px-2 py-0.5 text-[10px] font-semibold text-white/80">샘플</span>
+        {badge && (
+          <span className="rounded-full bg-white/15 px-2 py-0.5 text-[10px] font-semibold text-white/80">{badge}</span>
+        )}
       </div>
       <p className="mt-1 text-lg font-semibold text-white">{membershipPeriodLabel(daysLeft)}</p>
       <p className="mt-1 text-xs text-white/70">

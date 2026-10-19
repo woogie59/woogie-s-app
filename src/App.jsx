@@ -1463,7 +1463,7 @@ export default function App() {
           )}
 
           {session && view === 'member_workout_log' && String(userProfileName || '').trim() === NEXT_WEEK_BOOKING_QA_PROFILE_NAME && (
-            <MemberWorkoutLog setView={navigate} goBack={goBack} />
+            <MemberWorkoutLog user={session.user} setView={navigate} goBack={goBack} />
           )}
 
           {session && view === 'training_log' && (
