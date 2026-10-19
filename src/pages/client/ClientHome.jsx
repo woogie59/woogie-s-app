@@ -654,24 +654,9 @@ const ClientHome = ({ user, logout, setView }) => {
               <span aria-hidden>›</span>
             </button>
           </div>
-          {isQaProfile && upcomingBooking && (() => {
-            const state = getBookingCheckInState(upcomingBooking);
-            if (state === 'completed') {
-              return <p className="mt-3 text-sm font-semibold text-emerald-200">출석 완료</p>;
-            }
-            if (state === 'active') {
-              return (
-                <button
-                  type="button"
-                  onClick={() => handleTokenPress(upcomingBooking)}
-                  className="mt-3 rounded-full bg-white px-4 py-2 text-sm font-semibold text-[#064e3b] shadow-sm"
-                >
-                  {isCheckInSubmitting ? '처리 중...' : '출석하기'}
-                </button>
-              );
-            }
-            return null;
-          })()}
+          {isQaProfile && upcomingBooking && getBookingCheckInState(upcomingBooking) === 'completed' && (
+            <p className="mt-3 text-sm font-semibold text-emerald-200">출석 완료</p>
+          )}
           {isQaProfile && (
             profile?.membership_end ? (
               <MembershipPeriodCard title="회원권" end={profile.membership_end} />
