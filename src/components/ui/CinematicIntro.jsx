@@ -12,7 +12,6 @@ const WORD = 'LAB DOT'.split('');
  * Silent Luxury splash: white field, deep green dot + LAB DOT.
  * 1) Dot springs in with a soft halo pulse.
  * 2) Wordmark letters rise one by one, tracking eases open.
- * 3) Hairline draws itself under the wordmark.
  * 4) Short hold, then the layer fades out and onComplete fires.
  */
 const CinematicIntro = ({ onComplete }) => {
@@ -78,14 +77,6 @@ const CinematicIntro = ({ onComplete }) => {
             </motion.span>
           ))}
         </div>
-        {/* Hairline draw */}
-        <motion.span
-          className="h-px bg-[#064e3b]/30"
-          initial={{ width: 0, opacity: 0 }}
-          animate={{ width: 88, opacity: 1 }}
-          transition={{ duration: 0.5, delay: 0.95, ease: [0.22, 1, 0.36, 1] }}
-          aria-hidden
-        />
       </div>
     </motion.div>
   );

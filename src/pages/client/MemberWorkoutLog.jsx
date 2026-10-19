@@ -248,7 +248,7 @@ export default function MemberWorkoutLog({ user, setView, goBack }) {
                       aria-pressed={isSelected}
                       aria-label={`${m}월 ${i + 1}일, PT ${pt}회, 개인운동 ${personal}회${isToday ? ', 오늘' : ''}`}
                       onClick={() => setSelected(date)}
-                      className={`flex min-h-[56px] flex-col items-center justify-start gap-1 rounded-xl pt-2 text-sm font-medium ${isSelected ? (pt > 0 ? 'bg-[#4e7f66] text-white' : 'bg-[#064e3b] text-white') : tint} ${isToday && !isSelected ? 'ring-2 ring-[#064e3b]' : ''} disabled:bg-transparent disabled:text-gray-300 disabled:ring-0`}
+                      className={`flex min-h-[56px] flex-col items-center justify-start gap-1 rounded-xl pt-2 text-sm font-medium ${isSelected ? (pt > 0 ? 'bg-[#527f97] text-white' : 'bg-[#064e3b] text-white') : tint} ${isToday && !isSelected ? 'ring-2 ring-[#064e3b]' : ''} disabled:bg-transparent disabled:text-gray-300 disabled:ring-0`}
                     >
                       <span className="leading-none">{i + 1}</span>
                       {((pt > 0 && ptFirst) || (pt === 0 && personal > 0)) && (
@@ -316,7 +316,7 @@ export default function MemberWorkoutLog({ user, setView, goBack }) {
                           type="button"
                           aria-pressed={ptParts.includes(p)}
                           onClick={() => togglePtPart(p)}
-                          className={`min-h-11 rounded-full border px-3 text-sm ${ptParts.includes(p) ? 'border-transparent bg-[#4e7f66] font-semibold text-white' : 'border-transparent bg-gray-100 text-gray-600'}`}
+                          className={`min-h-11 rounded-full border px-3 text-sm ${ptParts.includes(p) ? 'border-transparent bg-[#527f97] font-semibold text-white' : 'border-transparent bg-gray-100 text-gray-600'}`}
                         >
                           {p}
                         </button>

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { LogOut, ChevronRight, Calendar, BookOpen, Check, User, Dumbbell } from 'lucide-react';
+import { LogOut, ChevronRight, Calendar, BookOpen, Check, User, Dumbbell, X } from 'lucide-react';
 import { supabase } from '../../lib/supabaseClient';
 import { deriveSessionFocus, formatKoreanDateFromYmd } from '../../features/training/trainingLogUtils';
 import {
@@ -62,12 +62,6 @@ const formatUpcomingDateLabel = (b) => {
 const qaHomeSnapshot = { userId: null, batches: null, logs: null, bookings: null };
 
 /** 깔끔한 짧은 화살표 (일정 목록용) — 막대 길이를 절반으로 줄인 디자인 */
-const ShortArrow = ({ className = '' }) => (
-  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" className={className} aria-hidden>
-    <path d="M13 5l7 7-7 7" />
-    <path d="M12 12h8" />
-  </svg>
-);
 
 const ClientHome = ({ user, logout, setView }) => {
   const { showAlert } = useGlobalModal();
@@ -828,7 +822,7 @@ const ClientHome = ({ user, logout, setView }) => {
 
           {(!isQaProfile || upcomingClasses.length > 0) && (
           <div className="mt-3 space-y-3">
-            <p className="text-sm font-medium text-gray-500">{isQaProfile ? '이번 주 일정' : '나의 다가오는 일정'}</p>
+            <p className="text-sm font-semibold text-gray-700">{isQaProfile ? '이번 주 일정' : '나의 다가오는 일정'}</p>
             {loadingBookings && !displayBookings.length ? (
               <div className="space-y-2">
                 <Skeleton className="h-4 w-40 rounded" />
@@ -859,7 +853,9 @@ const ClientHome = ({ user, logout, setView }) => {
                               </p>
                             </div>
                             {isQaProfile ? (
-                              <ShortArrow className="text-[#064e3b]/70 shrink-0" />
+                              <span className="flex h-9 w-9 -my-2 items-center justify-center shrink-0 text-gray-300" aria-hidden>
+                                <X size={14} strokeWidth={1.8} />
+                              </span>
                             ) : (
                               <span className="text-gray-300 text-lg" aria-hidden>
                                 &gt;
