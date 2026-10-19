@@ -274,10 +274,6 @@ export default function MemberWorkoutLog({ user, setView, goBack }) {
                     <dt className="text-gray-500">자주 운동한 요일</dt>
                     <dd className="mt-1 font-medium">{summary.weekday?.labels.join(' · ')}요일 <span className="font-normal text-gray-500">(각 {summary.weekday?.count}회)</span></dd>
                   </div>
-                  <div>
-                    <dt className="text-gray-500">자주 운동한 시간대</dt>
-                    <dd className="mt-1 font-medium">{summary.time?.labels.join(' · ')} <span className="font-normal text-gray-500">(각 {summary.time?.count}회)</span></dd>
-                  </div>
                 </dl>
               ) : (
                 <p className="mt-3 text-sm text-gray-500">운동 기록이 쌓이면 표시됩니다.</p>
