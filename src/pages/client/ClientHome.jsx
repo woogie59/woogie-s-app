@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { LogOut, ChevronRight, Calendar, BookOpen, Check, User } from 'lucide-react';
+import { LogOut, ChevronRight, Calendar, BookOpen, Check, User, Dumbbell } from 'lucide-react';
 import { supabase } from '../../lib/supabaseClient';
 import { deriveSessionFocus, formatKoreanDateFromYmd } from '../../features/training/trainingLogUtils';
 import {
@@ -18,17 +18,21 @@ import { parseBookingToLocalDate, NEXT_WEEK_BOOKING_QA_PROFILE_NAME } from '../.
 import MemberCancelBookingModals from '../../components/member/MemberCancelBookingModals';
 import MemberAnnouncementModal from '../../components/member/MemberAnnouncementModal';
 import { fetchActiveMemberAnnouncement } from '../../utils/memberAnnouncements';
-import BiteSizedKnowledgeCard, {
+import {
   DASHBOARD_TILE_CLASS,
   DASHBOARD_TILE_ICON_SIZE,
   DASHBOARD_TILE_ICON_STROKE,
   DASHBOARD_TILE_SUBTITLE_CLASS,
   DASHBOARD_TILE_TITLE_CLASS,
 } from '../../components/member/BiteSizedKnowledgeCard';
+import MembershipPeriodCard from '../../components/member/MembershipPeriodCard';
 import { hasUnreadAthleteBoard } from '../../utils/athleteBoardNotifications';
 
 /** MVP: 라이브러리·트레이닝 일지 진입 UI 비표시 — 라우트/화면은 유지 */
 const MVP_HIDE_LIBRARY_AND_TRAINING_NAV = true;
+
+/** QA 샘플 (테스트용1 전용): 실제 회원권 기간은 DB 필드 승인 후 연결 */
+const QA_MEMBERSHIP_SAMPLE = { title: '테스트 회원권', end: '2026-12-31' };
 /** Admin RPC 출석 INSERT와 동일한 Realtime 채널 (필터 user_id=eq.<uuid>와 함께 사용). */
 const memberAttendanceChannelName = (userId) => `qr-check-in-channel:${String(userId)}`;
 
@@ -552,6 +556,9 @@ const ClientHome = ({ user, logout, setView }) => {
 
   const sessionRemainBadgeLabel = useMemo(() => `잔여 ${sessionMetrics.remaining}회`, [sessionMetrics.remaining]);
 
+  /** 테스트용1 전용 기능 게이트 (NEXT_WEEK_BOOKING_QA_PROFILE_NAME과 동일 계정) */
+  const isQaProfile = String(profile?.name || '').trim() === NEXT_WEEK_BOOKING_QA_PROFILE_NAME;
+
   if (!user) {
     return (
       <div className="min-h-[100dvh] flex flex-col items-center justify-center bg-gray-50 px-6">
@@ -647,19 +654,19 @@ const ClientHome = ({ user, logout, setView }) => {
               <span aria-hidden>›</span>
             </button>
           </div>
+          {isQaProfile && (
+            <MembershipPeriodCard title={QA_MEMBERSHIP_SAMPLE.title} end={QA_MEMBERSHIP_SAMPLE.end} />
+          )}
         </div>
 
         {/* 2. Open schedule flow */}
         <div className="flex flex-col gap-3 pb-2">
           {(() => {
             const showStatus = Boolean(profile?.is_athlete_system_enabled);
-            const showInsight = profile?.name === NEXT_WEEK_BOOKING_QA_PROFILE_NAME;
-            if (!showStatus && !showInsight) return null;
+            if (!showStatus) return null;
 
             return (
-              <div
-                className={`grid w-full gap-3 ${showStatus && showInsight ? 'grid-cols-2' : 'grid-cols-1'}`}
-              >
+              <div className="grid w-full gap-3 grid-cols-1">
                 {showStatus ? (
                   <button
                     type="button"
@@ -688,7 +695,6 @@ const ClientHome = ({ user, logout, setView }) => {
                     </div>
                   </button>
                 ) : null}
-                {showInsight ? <BiteSizedKnowledgeCard className="h-full" /> : null}
               </div>
             );
           })()}
@@ -706,6 +712,23 @@ const ClientHome = ({ user, logout, setView }) => {
             </div>
             <ChevronRight size={22} strokeWidth={BENTO_ICON_STROKE} className="text-gray-400 shrink-0 self-center" aria-hidden />
           </button>
+
+          {isQaProfile && (
+            <button
+              type="button"
+              onClick={() => setView('member_workout_log')}
+              className="w-full flex flex-row items-center justify-between text-left gap-4 min-w-0 cursor-pointer transition-colors duration-200 hover:text-[#064e3b]"
+            >
+              <div className="flex flex-row items-center gap-3 min-w-0 flex-1">
+                <Dumbbell size={24} strokeWidth={BENTO_ICON_STROKE} className="text-[#064e3b] shrink-0" aria-hidden />
+                <div className="flex flex-col justify-center min-w-0 text-left">
+                  <span className="text-xl font-semibold text-slate-900 tracking-tight leading-snug">내 운동 기록</span>
+                  <span className="text-xs text-gray-400 mt-0.5">캘린더로 보는 운동 기록 · 테스트</span>
+                </div>
+              </div>
+              <ChevronRight size={22} strokeWidth={BENTO_ICON_STROKE} className="text-gray-400 shrink-0 self-center" aria-hidden />
+            </button>
+          )}
 
           <div className="space-y-3">
             <p className="text-sm font-medium text-gray-500">나의 다가오는 일정</p>

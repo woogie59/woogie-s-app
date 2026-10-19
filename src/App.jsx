@@ -32,6 +32,7 @@ import RegisterView from './pages/auth/RegisterView';
 import ResetPasswordView from './pages/auth/ResetPasswordView';
 
 import ClientHome from './pages/client/ClientHome';
+import MemberWorkoutLog from './pages/client/MemberWorkoutLog';
 import MemberExerciseLibrary from './pages/client/MemberExerciseLibrary';
 
 import AdminHome from './pages/admin/AdminHome';
@@ -1459,6 +1460,10 @@ export default function App() {
           {/* 클래스 예약 */}
           {session && view === 'class_booking' && (
             <ClassBooking user={session.user} profileName={userProfileName} setView={navigate} goBack={goBack} />
+          )}
+
+          {session && view === 'member_workout_log' && String(userProfileName || '').trim() === NEXT_WEEK_BOOKING_QA_PROFILE_NAME && (
+            <MemberWorkoutLog setView={navigate} goBack={goBack} />
           )}
 
           {session && view === 'training_log' && (
