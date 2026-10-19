@@ -786,7 +786,7 @@ const ClientHome = ({ user, logout, setView }) => {
 
           {(!isQaProfile || upcomingClasses.length > 1) && (
           <div className="mt-3 space-y-3">
-            <p className="text-sm font-medium text-gray-500">나의 다가오는 일정</p>
+            <p className="text-sm font-medium text-gray-500">{isQaProfile ? '이번 주 일정' : '나의 다가오는 일정'}</p>
             {loadingBookings && !myBookings.length ? (
               <div className="space-y-2">
                 <Skeleton className="h-4 w-40 rounded" />
