@@ -196,7 +196,7 @@ export default function MemberWorkoutLog({ user, setView, goBack }) {
         </div>
         <div className="flex min-w-0 flex-col items-center text-center">
           <LabDotBrand variant="header" />
-          <p className="mt-2.5 mb-2 text-xs font-light tracking-[0.12em] text-gray-500">내 운동 기록</p>
+          <p className="mt-2.5 mb-2 text-xs font-light tracking-[0.12em] text-gray-500">운동기록</p>
         </div>
         <div className="flex items-center justify-end">
           <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs text-emerald-800">테스트</span>
@@ -238,13 +238,11 @@ export default function MemberWorkoutLog({ user, setView, goBack }) {
                   const isToday = date === today;
                   const firstPart = (personalEntry?.parts?.[0] || '개인').slice(0, 2);
                   const ptFirst = rows.find((e) => e.kind === 'pt')?.parts?.[0]?.slice(0, 2) || '';
-                  const tint = pt > 0 && personal > 0
-                    ? 'bg-gradient-to-br from-sky-100 to-emerald-100 text-slate-900'
-                    : pt > 0
-                      ? 'bg-sky-100 text-sky-900'
-                      : personal > 0
-                        ? 'bg-emerald-100 text-[#064e3b]'
-                        : 'text-gray-700';
+                  const tint = pt > 0
+                    ? 'bg-sky-100 text-sky-900'
+                    : personal > 0
+                      ? 'bg-emerald-100 text-[#064e3b]'
+                      : 'text-gray-700';
                   return (
                     <button
                       key={date}
@@ -256,11 +254,9 @@ export default function MemberWorkoutLog({ user, setView, goBack }) {
                       className={`flex min-h-[56px] flex-col items-center justify-start gap-1 rounded-xl pt-2 text-sm font-medium ${isSelected ? 'bg-[#064e3b] text-white' : tint} ${isToday && !isSelected ? 'ring-2 ring-[#064e3b]' : ''} disabled:bg-transparent disabled:text-gray-300 disabled:ring-0`}
                     >
                       <span className="leading-none">{i + 1}</span>
-                      {(pt > 0 || personal > 0) && (
-                        <span aria-hidden="true" className={`flex items-center justify-center whitespace-nowrap text-[11px] leading-none ${isSelected ? 'text-white/90' : ''}`}>
-                          {pt > 0 && <span className={isSelected ? '' : 'font-bold text-sky-600'}>PT{ptFirst && personal === 0 ? `·${ptFirst}` : ''}</span>}
-                          {pt > 0 && personal > 0 && <span className="mx-0.5 text-gray-400">·</span>}
-                          {personal > 0 && <span className={isSelected ? '' : 'text-[#064e3b]'}>{firstPart}</span>}
+                      {((pt > 0 && ptFirst) || (pt === 0 && personal > 0)) && (
+                        <span aria-hidden="true" className={`whitespace-nowrap text-[11px] leading-none ${isSelected ? 'text-white/90' : ''}`}>
+                          {pt > 0 ? ptFirst : firstPart}
                         </span>
                       )}
                     </button>
