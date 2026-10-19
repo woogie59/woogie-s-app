@@ -563,9 +563,10 @@ export default function App() {
     return `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, '0')}-${String(x.getDate()).padStart(2, '0')}`;
   };
 
-  const fetchRevenueData = async () => {
+  const fetchRevenueData = async (opts) => {
     if (!supabase) return;
-    setIsRevenueLoading(true);
+    const silent = !!opts?.silent;
+    if (!silent) setIsRevenueLoading(true);
     const isAdminSchedule = view === 'admin_schedule';
 
     let startDate;
@@ -668,7 +669,7 @@ export default function App() {
       setMonthlyScheduledCount(0);
       setMonthlyPackSalesKrw(0);
     } finally {
-      setIsRevenueLoading(false);
+      if (!silent) setIsRevenueLoading(false);
     }
   };
 
@@ -939,6 +940,28 @@ export default function App() {
     })();
     return () => {
       cancelled = true;
+    };
+  }, [view]);
+
+  // 관리자 일정 화면: 예약/출석/차단 변경 실시간 반영
+  useEffect(() => {
+    if (view !== 'admin_schedule' || !supabase) return undefined;
+    let t = null;
+    const scheduleRefetch = () => {
+      if (t) clearTimeout(t);
+      t = setTimeout(() => {
+        fetchRevenueData({ silent: true });
+      }, 400);
+    };
+    const ch = supabase
+      .channel('admin_schedule_rt')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'bookings' }, scheduleRefetch)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'attendance_logs' }, scheduleRefetch)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'trainer_blocked_slots' }, scheduleRefetch)
+      .subscribe();
+    return () => {
+      if (t) clearTimeout(t);
+      supabase.removeChannel(ch);
     };
   }, [view]);
 

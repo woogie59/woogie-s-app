@@ -15,10 +15,23 @@ import {
   getMonday,
   toYmd,
 } from '../../utils/weeklyScheduleGridExport';
+import AdminDayAgenda from './AdminDayAgenda';
 import './adminScheduleCalendar.css';
 
 const SLOT_MIN_HOUR = 7;
 const SLOT_MAX_HOUR = 23;
+
+function pad2(n) {
+  return String(n).padStart(2, '0');
+}
+
+function escapeHtml(s) {
+  return String(s ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
 
 function overlayRange(anchor) {
   const base = anchor instanceof Date && !Number.isNaN(anchor.getTime()) ? anchor : new Date();
@@ -60,6 +73,13 @@ function buildAvailabilityOverlayEvents(getSlotLaneState, anchor) {
   return events;
 }
 
+const VIEW_TABS = [
+  { key: 'agenda', label: '일' },
+  { key: 'timeGridWeek', label: '주' },
+  { key: 'dayGridMonth', label: '월' },
+  { key: 'listWeek', label: '목록' },
+];
+
 /**
  * @param {object} props
  * @param {import('@fullcalendar/core').EventInput[]} props.events
@@ -88,26 +108,106 @@ const AdminScheduleFullCalendar = ({
     initialDate instanceof Date && !Number.isNaN(initialDate.getTime()) ? initialDate : new Date()
   );
   const [viewType, setViewType] = useState('timeGridWeek');
+  // 안 A: 모바일 기본 = 일 단위 아젠다
+  const [viewMode, setViewMode] = useState(() =>
+    typeof window !== 'undefined' && window.innerWidth < 640 ? 'agenda' : 'calendar'
+  );
+  const [agendaDate, setAgendaDate] = useState(() =>
+    initialDate instanceof Date && !Number.isNaN(initialDate.getTime()) ? initialDate : new Date()
+  );
   const { showToast } = useGlobalModal();
 
   useEffect(() => {
     if (initialDate instanceof Date && !Number.isNaN(initialDate.getTime())) {
       setViewDate(initialDate);
+      setAgendaDate(initialDate);
     }
   }, [initialDate]);
 
+  // OFF 칩은 그리드에서 제거하고, 월 보기 "쉬는 날" 음영 계산에만 사용
   const overlayEvents = useMemo(
     () => buildAvailabilityOverlayEvents(getSlotLaneState, viewDate),
     [getSlotLaneState, viewDate, scheduleSettingsStamp]
   );
 
-  const mergedEvents = useMemo(() => [...overlayEvents, ...(events || [])], [overlayEvents, events]);
+  const offDateSet = useMemo(() => {
+    const off = new Set(overlayEvents.map((ev) => toYmd(ev.start)));
+    const busy = new Set(
+      (events || [])
+        .map((ev) => (ev.start instanceof Date ? toYmd(ev.start) : null))
+        .filter(Boolean)
+    );
+    off.forEach((k) => {
+      if (busy.has(k)) off.delete(k);
+    });
+    return off;
+  }, [overlayEvents, events]);
+
+  // 안 C: 월 보기 날짜별 수업 수 + 처리 필요(예약처리 차단) 건수
+  const monthCounts = useMemo(() => {
+    const counts = {};
+    (events || []).forEach((ev) => {
+      const s = ev.start instanceof Date ? ev.start : new Date(ev.start);
+      if (Number.isNaN(s.getTime())) return;
+      const key = toYmd(s);
+      if (!counts[key]) counts[key] = { total: 0, attention: 0 };
+      counts[key].total += 1;
+      if (ev.extendedProps?.isBlock && ev.extendedProps?.block?.kind !== 'hold') {
+        counts[key].attention += 1;
+      }
+    });
+    return counts;
+  }, [events]);
+
+  // 주간 총 수업 횟수 (보이는 주 기준, 차단/휴무 제외, 실시간 refetch와 함께 갱신)
+  const weekStats = useMemo(() => {
+    const monday = getMonday(viewDate);
+    const start = new Date(monday.getFullYear(), monday.getMonth(), monday.getDate());
+    const end = new Date(start);
+    end.setDate(end.getDate() + 7);
+    let total = 0;
+    let done = 0;
+    (events || []).forEach((ev) => {
+      if (ev.extendedProps?.isBlock) return;
+      const st = ev.start instanceof Date ? ev.start : new Date(ev.start);
+      if (Number.isNaN(st.getTime()) || st < start || st >= end) return;
+      total += 1;
+      if (ev.extendedProps?.item?.status === 'Completed') done += 1;
+    });
+    return { total, done, start, end };
+  }, [events, viewDate]);
 
   const handleDatesSet = useCallback((arg) => {
     if (arg?.view?.type) setViewType(arg.view.type);
     const d = arg?.view?.currentStart;
     if (d instanceof Date && !Number.isNaN(d.getTime())) setViewDate(d);
   }, []);
+
+  const selectTab = useCallback(
+    (key) => {
+      if (key === 'agenda') {
+        setViewMode('agenda');
+        return;
+      }
+      setViewMode('calendar');
+      const api = calRef.current?.getApi?.();
+      if (api) {
+        api.changeView(key, agendaDate);
+        setTimeout(() => api.updateSize(), 50);
+      }
+    },
+    [agendaDate]
+  );
+
+  const handleAgendaSelectDate = useCallback(
+    (d) => {
+      setAgendaDate(d);
+      if (viewMode === 'calendar') {
+        calRef.current?.getApi?.()?.gotoDate(d);
+      }
+    },
+    [viewMode]
+  );
 
   const validRange = useMemo(() => {
     const end = new Date();
@@ -117,12 +217,7 @@ const AdminScheduleFullCalendar = ({
 
   const fetchVisibleWeekBookings = useCallback(async () => {
     const api = calRef.current?.getApi?.() ?? null;
-    if (!api) {
-      window.alert('캘린더를 준비하는 중입니다. 잠시 후 다시 시도해주세요.');
-      return null;
-    }
-
-    const anchor = api.getDate();
+    const anchor = api ? api.getDate() : agendaDate;
     const monday = getMonday(anchor);
     const weekEndExcl = new Date(monday);
     weekEndExcl.setDate(weekEndExcl.getDate() + 7);
@@ -140,7 +235,7 @@ const AdminScheduleFullCalendar = ({
     if (error) throw error;
     const rows = (data || []).filter((b) => b && b.status !== 'cancelled');
     return { monday, weekEndExcl, rows };
-  }, []);
+  }, [agendaDate]);
 
   const handleExportWeeklyXlsx = async () => {
     setExporting(true);
@@ -195,32 +290,47 @@ const AdminScheduleFullCalendar = ({
           </p>
           <div className="flex flex-wrap gap-x-3 gap-y-1.5 text-[10px] font-medium text-slate-600">
             <span className="inline-flex items-center gap-1.5">
-              <span className="h-3 w-5 rounded-sm bg-emerald-100 ring-1 ring-emerald-300/80" aria-hidden />
-              예약 가능
+              <span className="h-3 w-5 rounded-sm bg-[#064e3b]" aria-hidden />
+              수업
             </span>
             <span className="inline-flex items-center gap-1.5">
-              <span className="h-3 w-5 rounded-sm bg-slate-100 ring-1 ring-slate-300 labdot-legend-closed" aria-hidden />
-              주간 비활성
+              <span className="h-3 w-5 rounded-sm bg-white ring-2 ring-rose-300" aria-hidden />
+              예약처리(차단)
+            </span>
+            <span className="inline-flex items-center gap-1.5">
+              <span className="h-3 w-5 rounded-sm bg-slate-200" aria-hidden />
+              휴무
+            </span>
+            <span className="inline-flex items-center gap-1.5">
+              <span className="h-3 w-5 rounded-sm bg-emerald-100 ring-1 ring-emerald-300/80" aria-hidden />
+              예약 가능
             </span>
             <span className="inline-flex items-center gap-1.5">
               <span className="h-3 w-5 rounded-sm ring-1 ring-rose-400/80 labdot-legend-date-off" aria-hidden />
               이 날짜만 꺼짐
             </span>
-            <span className="inline-flex items-center gap-1.5">
-              <span className="h-3 w-5 rounded-sm bg-[#064e3b]" aria-hidden />
-              수업
-            </span>
-            <span className="inline-flex items-center gap-1.5">
-              <span className="h-3 w-5 rounded-sm bg-slate-500" aria-hidden />
-              휴무
-            </span>
-            <span className="inline-flex items-center gap-1.5">
-              <span className="h-3 w-5 rounded-sm bg-amber-500" aria-hidden />
-              OT
-            </span>
           </div>
         </div>
       ) : null}
+
+      <div className="labdot-view-switch" role="tablist" aria-label="일정 보기 방식">
+        {VIEW_TABS.map((t) => {
+          const on = t.key === 'agenda' ? viewMode === 'agenda' : viewMode === 'calendar' && viewType === t.key;
+          return (
+            <button
+              key={t.key}
+              type="button"
+              role="tab"
+              aria-selected={on}
+              className={on ? 'on' : ''}
+              onClick={() => selectTab(t.key)}
+            >
+              {t.label}
+            </button>
+          );
+        })}
+      </div>
+
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-end gap-2">
         <button
           type="button"
@@ -249,7 +359,33 @@ const AdminScheduleFullCalendar = ({
           {exporting ? '파일 만드는 중…' : '주간 일정 엑셀 다운로드'}
         </button>
       </div>
-      <div className="labdot-fc-wrap relative rounded-2xl border border-[#064e3b]/15 bg-white shadow-sm overflow-hidden">
+
+      {viewMode === 'agenda' ? (
+        <div className="labdot-fc-wrap relative rounded-2xl border border-[#064e3b]/15 bg-white shadow-sm overflow-hidden p-3">
+          {loading && (
+            <div className="absolute inset-0 z-10 bg-white/70 backdrop-blur-[1px] flex items-center justify-center">
+              <p className="text-sm font-medium text-[#064e3b]">일정 불러오는 중…</p>
+            </div>
+          )}
+          <AdminDayAgenda
+            date={agendaDate}
+            onSelectDate={handleAgendaSelectDate}
+            events={events || []}
+            onEventClick={onEventClick}
+          />
+        </div>
+      ) : null}
+
+      {viewMode === 'calendar' && viewType === 'timeGridWeek' ? (
+        <div className="labdot-week-stat" role="status">
+          이번 주 총 수업 <b>{weekStats.total}건</b>
+          <span>완료 {weekStats.done} · 예약 {weekStats.total - weekStats.done}</span>
+        </div>
+      ) : null}
+
+      <div
+        className={`labdot-fc-wrap relative rounded-2xl border border-[#064e3b]/15 bg-white shadow-sm overflow-hidden ${viewMode === 'agenda' ? 'labdot-cal-hidden' : ''}`}
+      >
         {loading && (
           <div className="absolute inset-0 z-10 bg-white/70 backdrop-blur-[1px] flex items-center justify-center">
             <p className="text-sm font-medium text-[#064e3b]">일정 불러오는 중…</p>
@@ -266,7 +402,7 @@ const AdminScheduleFullCalendar = ({
           headerToolbar={{
             left: 'prev,next today',
             center: 'title',
-            right: 'dayGridMonth,timeGridWeek,timeGridDay,listWeek',
+            right: '',
           }}
           buttonText={{
             today: '오늘',
@@ -307,7 +443,7 @@ const AdminScheduleFullCalendar = ({
           height="auto"
           contentHeight={typeof window !== 'undefined' && window.innerWidth < 640 ? 520 : 640}
           weekends
-          events={mergedEvents}
+          events={events || []}
           eventClick={(info) => {
             info.jsEvent.preventDefault();
             if (info?.event?.extendedProps?.isAvailability) {
@@ -318,10 +454,40 @@ const AdminScheduleFullCalendar = ({
             if (onEventClick) onEventClick(info);
           }}
           dateClick={(info) => {
+            if (info?.view?.type === 'dayGridMonth') {
+              setAgendaDate(info.date);
+              setViewMode('agenda');
+              return;
+            }
             if (!onSlotClick) return;
             info.jsEvent.preventDefault();
             onSlotClick(info);
           }}
+          eventContent={(arg) => {
+            if (arg.view.type === 'dayGridMonth' || arg.view.type.startsWith('list')) return true;
+            const s = arg.event.start;
+            const hm = s ? `${pad2(s.getHours())}:${pad2(s.getMinutes())}` : arg.timeText;
+            return {
+              html: `<div class="labdot-ev"><span class="labdot-ev-t">${hm}</span><span class="labdot-ev-n">${escapeHtml(arg.event.title)}</span></div>`,
+            };
+          }}
+          dayCellContent={(arg) => {
+            if (arg.view.type !== 'dayGridMonth') return undefined;
+            const c = monthCounts[toYmd(arg.date)];
+            return {
+              html:
+                `<div class="labdot-month-cell"><span class="labdot-month-d">${escapeHtml(arg.dayNumberText)}</span>` +
+                (c
+                  ? `<span class="labdot-month-n">${c.total}${c.attention ? `<em>${c.attention}</em>` : ''}</span>`
+                  : '') +
+                `</div>`,
+            };
+          }}
+          dayCellClassNames={(arg) =>
+            arg.view?.type === 'dayGridMonth' && offDateSet.has(toYmd(arg.date))
+              ? ['labdot-month-off']
+              : []
+          }
           eventDisplay="block"
           dayMaxEvents
           nowIndicator

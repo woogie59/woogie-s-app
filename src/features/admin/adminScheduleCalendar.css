@@ -211,3 +211,286 @@
     gap: 0.25rem;
   }
 }
+
+/* ===== 일정관리 리디자인 (안 A 일 아젠다 + 안 B 차분한 주간 그리드 + 안 C 월간 요약) ===== */
+
+/* 뷰 전환 탭 (일/주/월/목록) */
+.labdot-view-switch {
+  display: flex;
+  gap: 6px;
+  background: #eef3f0;
+  border-radius: 12px;
+  padding: 4px;
+}
+.labdot-view-switch button {
+  flex: 1;
+  padding: 9px 0;
+  border: none;
+  border-radius: 9px;
+  background: transparent;
+  font-size: 13px;
+  font-weight: 700;
+  color: #5b6f64;
+  cursor: pointer;
+  min-height: 40px;
+}
+.labdot-view-switch button.on {
+  background: #fff;
+  color: #064e3b;
+  box-shadow: 0 1px 3px rgba(6, 78, 59, 0.18);
+}
+
+.labdot-cal-hidden {
+  position: absolute;
+  visibility: hidden;
+  pointer-events: none;
+  width: 100%;
+  top: 0;
+  left: 0;
+  z-index: -1;
+}
+
+/* --- 안 B: 블록 색 하나로, 상태는 모양으로 --- */
+.labdot-fc-wrap .fc .fc-event.labdot-session-scheduled {
+  background: #064e3b;
+  color: #ecfdf5;
+  box-shadow: none;
+}
+.labdot-fc-wrap .fc .fc-event.labdot-session-done {
+  background: #064e3b;
+  color: #ecfdf5;
+  opacity: 0.5;
+  box-shadow: none;
+}
+.labdot-fc-wrap .fc .fc-event.labdot-slot-blocked {
+  background: #ffffff;
+  color: #b91c1c;
+  border: 1.5px solid #fca5a5 !important;
+  box-shadow: none;
+}
+.labdot-fc-wrap .fc .fc-event.labdot-slot-hold {
+  background: #e2e8f0;
+  color: #64748b;
+  border: none !important;
+  box-shadow: none;
+}
+
+/* 주간 블록 내용: 시간 전체 표시 + 이름 */
+.labdot-fc-wrap .fc .labdot-ev {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.15;
+  overflow: hidden;
+}
+.labdot-fc-wrap .fc .labdot-ev-t {
+  font-size: 11px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+.labdot-fc-wrap .fc .labdot-ev-n {
+  font-size: 10px;
+  font-weight: 500;
+  opacity: 0.88;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.labdot-fc-wrap .fc .fc-timegrid-event .fc-event-main {
+  padding: 2px 3px;
+}
+
+/* 현재시간 선: 블록 아래로 (취소선처럼 보이는 문제 해소) */
+.labdot-fc-wrap .fc .fc-timegrid-now-indicator-container {
+  z-index: 0;
+}
+.labdot-fc-wrap .fc .fc-timegrid-now-indicator-line {
+  border-color: #dc2626;
+  border-style: dashed;
+  border-width: 1.5px 0 0;
+  opacity: 0.65;
+}
+.labdot-fc-wrap .fc .fc-timegrid-now-indicator-arrow {
+  display: none;
+}
+.labdot-fc-wrap .fc .fc-timegrid-col-events {
+  z-index: 1;
+}
+
+/* --- 안 C: 월 보기는 숫자만 --- */
+.labdot-fc-wrap .fc .fc-dayGridMonth-view .fc-daygrid-day-events,
+.labdot-fc-wrap .fc .fc-dayGridMonth-view .fc-daygrid-day-bottom {
+  display: none;
+}
+.labdot-fc-wrap .fc .labdot-month-cell {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 3px;
+  padding: 2px;
+  min-height: 46px;
+}
+.labdot-fc-wrap .fc .labdot-month-d {
+  font-size: 12px;
+  font-weight: 700;
+  color: #33413a;
+}
+.labdot-fc-wrap .fc .labdot-month-n {
+  display: inline-block;
+  background: #e3f2ea;
+  color: #064e3b;
+  font-size: 11px;
+  font-weight: 800;
+  border-radius: 6px;
+  padding: 1px 7px;
+}
+.labdot-fc-wrap .fc .labdot-month-n em {
+  font-style: normal;
+  color: #b91c1c;
+  margin-left: 3px;
+}
+.labdot-fc-wrap .fc .fc-daygrid-day.labdot-month-off {
+  background: #f4f6f5;
+}
+.labdot-fc-wrap .fc .fc-daygrid-day.labdot-month-off .labdot-month-d {
+  color: #b3bcb6;
+}
+.labdot-fc-wrap .fc .fc-daygrid-day-frame {
+  cursor: pointer;
+}
+
+/* --- 안 A: 일 단위 아젠다 --- */
+.labdot-agenda-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+.labdot-agenda-head p {
+  font-size: 15px;
+  font-weight: 800;
+  color: #12382a;
+}
+.labdot-agenda-head button {
+  width: 40px;
+  height: 40px;
+  border: 1px solid #e2e8e4;
+  border-radius: 10px;
+  background: #fff;
+  font-size: 20px;
+  color: #4b5e54;
+  cursor: pointer;
+}
+.labdot-agenda-days {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  padding-bottom: 10px;
+}
+.labdot-agenda-days button {
+  flex: 0 0 auto;
+  padding: 8px 13px;
+  border-radius: 20px;
+  background: #fff;
+  border: 1px solid #e2e8e4;
+  font-size: 13px;
+  color: #4b5e54;
+  font-weight: 600;
+  cursor: pointer;
+}
+.labdot-agenda-days button.on {
+  background: #064e3b;
+  color: #fff;
+  border-color: #064e3b;
+}
+.labdot-agenda-row {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  text-align: left;
+  background: #fff;
+  border: none;
+  border-radius: 14px;
+  padding: 14px 16px;
+  margin-bottom: 10px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+  cursor: pointer;
+}
+.labdot-agenda-row .t {
+  width: 52px;
+  flex: 0 0 auto;
+  font-size: 17px;
+  font-weight: 800;
+  color: #064e3b;
+}
+.labdot-agenda-row .info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+.labdot-agenda-row .name {
+  font-size: 15px;
+  font-weight: 700;
+  color: #1f2b25;
+}
+.labdot-agenda-row .sub {
+  font-size: 12px;
+  color: #7c8a81;
+  margin-top: 2px;
+}
+.labdot-agenda-row .badge {
+  flex: 0 0 auto;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 5px 9px;
+  border-radius: 8px;
+}
+.labdot-agenda-row .b-ok { background: #e3f2ea; color: #064e3b; }
+.labdot-agenda-row .b-done { background: #eceeed; color: #98a29b; }
+.labdot-agenda-row .b-wait { background: #fdeaea; color: #b3261e; }
+.labdot-agenda-row .b-off { background: #eceeed; color: #98a29b; }
+.labdot-agenda-row.k-done,
+.labdot-agenda-row.k-off { opacity: 0.6; }
+.labdot-agenda-empty {
+  text-align: center;
+  padding: 48px 0;
+  font-size: 13px;
+  color: #8a978e;
+}
+
+/* 상태 색: fc-event-main 에 직접 (FC 기본 fc-h-event .fc-event-main color 규칙 대응) */
+.labdot-fc-wrap .fc .fc-event.labdot-slot-blocked .fc-event-main {
+  color: #b91c1c;
+}
+.labdot-fc-wrap .fc .fc-event.labdot-slot-hold .fc-event-main {
+  color: #64748b;
+}
+
+/* 슬롯 높이 강제 (slotMinHeight 옵션이 적용되지 않는 환경 대응) */
+.labdot-fc-wrap .fc .fc-timegrid-slots tr {
+  height: 48px;
+}
+
+/* 주간 총 수업 횟수 */
+.labdot-week-stat {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  background: #fff;
+  border: 1px solid rgba(6, 78, 59, 0.15);
+  border-radius: 12px;
+  padding: 10px 14px;
+  font-size: 13px;
+  color: #33413a;
+}
+.labdot-week-stat b {
+  color: #064e3b;
+  font-size: 16px;
+  font-weight: 800;
+}
+.labdot-week-stat span {
+  color: #8a978e;
+  font-size: 11px;
+  margin-left: auto;
+}
