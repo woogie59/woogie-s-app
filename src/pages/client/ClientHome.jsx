@@ -795,14 +795,14 @@ const ClientHome = ({ user, logout, setView }) => {
                   type="button"
                   onClick={() => setView('hall_of_fame_member_self')}
                   aria-label="나의 상태"
-                  className={`relative flex-1 flex flex-col items-start gap-1.5 rounded-2xl border bg-white px-4 py-3.5 text-left shadow-sm cursor-pointer transition-all duration-100 active:scale-[0.96] active:shadow-none active:bg-gray-100 ${
+                  className={`relative flex-1 flex flex-col items-start gap-1.5 rounded-2xl border bg-zinc-900 px-4 py-3.5 text-left shadow-sm cursor-pointer transition-all duration-100 active:scale-[0.96] active:shadow-none active:bg-zinc-800 ${
                     hasAthleteBoardNew
-                      ? 'border-emerald-200 hover:border-[#064e3b]/40'
-                      : 'border-gray-100 hover:border-[#064e3b]/40'
+                      ? 'border-emerald-400/50'
+                      : 'border-transparent'
                   }`}
                 >
-                  <User size={22} strokeWidth={BENTO_ICON_STROKE} className="text-[#064e3b] shrink-0" aria-hidden />
-                  <span className="text-base font-semibold text-slate-900 tracking-tight leading-snug whitespace-nowrap">나의 상태</span>
+                  <User size={22} strokeWidth={BENTO_ICON_STROKE} className="text-white/90 shrink-0" aria-hidden />
+                  <span className="text-base font-semibold text-white tracking-tight leading-snug whitespace-nowrap">나의 상태</span>
                   {hasAthleteBoardNew && (
                     <span className="absolute -top-1 -right-1 h-2.5 w-2.5 rounded-full bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.55)]" aria-hidden />
                   )}
@@ -961,16 +961,16 @@ const ClientHome = ({ user, logout, setView }) => {
             </button>
           )}
         </div>
+      </main>
       {isQaProfile && (
-        <footer className="px-5 pb-6">
+        <footer className="shrink-0 px-5 pb-6 pt-2 bg-gray-50">
           <div className="border-t border-gray-100 pt-5 text-center space-y-1">
             <p className="text-[11px] font-semibold tracking-[0.32em] text-[#064e3b]">LAB DOT</p>
-            <p className="text-[11px] text-gray-400">대표 [이름] · 문의 [연락처]</p>
+            <p className="text-[11px] text-gray-400">대표 권태욱 · 문의 010-9630-0096</p>
             <p className="text-[10px] text-gray-300">© 2026 LAB DOT. All rights reserved.</p>
           </div>
         </footer>
       )}
-      </main>
 
       {/* Session History Modal */}
       <AnimatePresence>
