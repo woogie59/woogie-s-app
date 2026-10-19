@@ -654,6 +654,24 @@ const ClientHome = ({ user, logout, setView }) => {
               <span aria-hidden>›</span>
             </button>
           </div>
+          {isQaProfile && upcomingBooking && (() => {
+            const state = getBookingCheckInState(upcomingBooking);
+            if (state === 'completed') {
+              return <p className="mt-3 text-sm font-semibold text-emerald-200">출석 완료</p>;
+            }
+            if (state === 'active') {
+              return (
+                <button
+                  type="button"
+                  onClick={() => handleTokenPress(upcomingBooking)}
+                  className="mt-3 rounded-full bg-white px-4 py-2 text-sm font-semibold text-[#064e3b] shadow-sm"
+                >
+                  {isCheckInSubmitting ? '처리 중...' : '출석하기'}
+                </button>
+              );
+            }
+            return null;
+          })()}
           {isQaProfile && (
             profile?.membership_end ? (
               <MembershipPeriodCard title="회원권" end={profile.membership_end} />
@@ -665,7 +683,7 @@ const ClientHome = ({ user, logout, setView }) => {
 
         {/* 2. Open schedule flow */}
         <div className="flex flex-col gap-3 pb-2">
-          {(() => {
+          {!isQaProfile && (() => {
             const showStatus = Boolean(profile?.is_athlete_system_enabled);
             if (!showStatus) return null;
 
@@ -703,6 +721,43 @@ const ClientHome = ({ user, logout, setView }) => {
             );
           })()}
 
+          {isQaProfile ? (
+            <div className="flex items-stretch gap-3">
+              <button
+                type="button"
+                onClick={() => setView('class_booking')}
+                className="flex-1 flex flex-col items-start gap-2 rounded-2xl border border-gray-100 bg-white p-4 text-left shadow-sm cursor-pointer transition-colors duration-200 hover:border-[#064e3b]/40"
+              >
+                <Calendar size={22} strokeWidth={BENTO_ICON_STROKE} className="text-[#064e3b] shrink-0" aria-hidden />
+                <span className="text-base font-semibold text-slate-900 tracking-tight leading-snug">수업 예약 및 일정</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setView('member_workout_log')}
+                className="flex-1 flex flex-col items-start gap-2 rounded-2xl border border-gray-100 bg-white p-4 text-left shadow-sm cursor-pointer transition-colors duration-200 hover:border-[#064e3b]/40"
+              >
+                <Dumbbell size={22} strokeWidth={BENTO_ICON_STROKE} className="text-[#064e3b] shrink-0" aria-hidden />
+                <span className="text-base font-semibold text-slate-900 tracking-tight leading-snug">내 운동 기록</span>
+              </button>
+              {Boolean(profile?.is_athlete_system_enabled) && (
+                <button
+                  type="button"
+                  onClick={() => setView('hall_of_fame_member_self')}
+                  aria-label="나의 상태"
+                  className={`relative w-14 shrink-0 rounded-2xl border flex items-center justify-center text-white shadow-[0_0_24px_rgba(0,0,0,0.45)] hover:border-purple-500/50 ${
+                    hasAthleteBoardNew
+                      ? 'border-purple-400/60 bg-gradient-to-r from-zinc-900 to-black ring-2 ring-purple-500/30 animate-pulse'
+                      : 'border-purple-500/30 bg-gradient-to-r from-zinc-900 to-black'
+                  }`}
+                >
+                  <User size={20} strokeWidth={1.8} className="text-white/90" aria-hidden />
+                  {hasAthleteBoardNew && (
+                    <span className="absolute -top-1 -right-1 h-2.5 w-2.5 rounded-full bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.55)]" aria-hidden />
+                  )}
+                </button>
+              )}
+            </div>
+          ) : (
           <button
             type="button"
             onClick={() => setView('class_booking')}
@@ -717,23 +772,9 @@ const ClientHome = ({ user, logout, setView }) => {
             <ChevronRight size={22} strokeWidth={BENTO_ICON_STROKE} className="text-gray-400 shrink-0 self-center" aria-hidden />
           </button>
 
-          {isQaProfile && (
-            <button
-              type="button"
-              onClick={() => setView('member_workout_log')}
-              className="w-full flex flex-row items-center justify-between text-left gap-4 min-w-0 cursor-pointer transition-colors duration-200 hover:text-[#064e3b]"
-            >
-              <div className="flex flex-row items-center gap-3 min-w-0 flex-1">
-                <Dumbbell size={24} strokeWidth={BENTO_ICON_STROKE} className="text-[#064e3b] shrink-0" aria-hidden />
-                <div className="flex flex-col justify-center min-w-0 text-left">
-                  <span className="text-xl font-semibold text-slate-900 tracking-tight leading-snug">내 운동 기록</span>
-                  <span className="text-xs text-gray-400 mt-0.5">캘린더로 보는 운동 기록 · 테스트</span>
-                </div>
-              </div>
-              <ChevronRight size={22} strokeWidth={BENTO_ICON_STROKE} className="text-gray-400 shrink-0 self-center" aria-hidden />
-            </button>
           )}
 
+          {(!isQaProfile || upcomingClasses.length > 1) && (
           <div className="space-y-3">
             <p className="text-sm font-medium text-gray-500">나의 다가오는 일정</p>
             {loadingBookings && !myBookings.length ? (
@@ -746,12 +787,12 @@ const ClientHome = ({ user, logout, setView }) => {
             ) : (
               <div>
                 <ul className="list-none m-0 p-0">
-                  {upcomingClasses.map((booking, index) => {
+                  {(isQaProfile ? upcomingClasses.slice(1) : upcomingClasses).map((booking, index) => {
                     const state = getBookingCheckInState(booking);
                     const isActive = state === 'active';
                     const isCompleted = state === 'completed';
 
-                    if (index > 0) {
+                    if (index > 0 || isQaProfile) {
                       return (
                         <li
                           key={booking.id}
@@ -832,6 +873,7 @@ const ClientHome = ({ user, logout, setView }) => {
               </div>
             )}
           </div>
+          )}
 
           {!MVP_HIDE_LIBRARY_AND_TRAINING_NAV && (
             <button
