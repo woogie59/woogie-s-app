@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { LogOut, ChevronRight, Calendar, BookOpen, Check, User, Dumbbell, X } from 'lucide-react';
+import { LogOut, ChevronRight, Calendar, BookOpen, Check, User, Dumbbell, X, DoorClosed, Shirt } from 'lucide-react';
 import { supabase } from '../../lib/supabaseClient';
 import { deriveSessionFocus, formatKoreanDateFromYmd } from '../../features/training/trainingLogUtils';
 import {
@@ -737,6 +737,31 @@ const ClientHome = ({ user, logout, setView }) => {
               </div>
             );
           })()}
+          {(() => {
+            // TODO: 사물함/운동복 기간 컬럼이 DB에 아직 없음(REST로 확인) — 스키마 승인 전까지 QA 목 데이터로 레이아웃만 표시
+            const todayMs = Date.parse(`${kstTodayYmd()}T00:00:00+09:00`);
+            const rentals = [
+              { key: 'locker', label: '사물함', end: '2026-11-01', Icon: DoorClosed },
+              { key: 'wear', label: '운동복', end: '2026-10-25', Icon: Shirt },
+            ]
+              .map((r) => ({ ...r, days: r.end ? Math.round((Date.parse(`${r.end}T00:00:00+09:00`) - todayMs) / 86400000) : null }))
+              .filter((r) => r.days !== null && r.days >= 0);
+            if (!rentals.length) return null;
+            return (
+              <div className="mt-2.5 flex flex-wrap items-center gap-2">
+                {rentals.map(({ key, label, days, Icon }) => (
+                  <span
+                    key={key}
+                    className="inline-flex items-center gap-1.5 rounded-full bg-white/15 px-2.5 py-1 text-xs font-medium text-white/80"
+                  >
+                    <Icon size={13} strokeWidth={BENTO_ICON_STROKE} aria-hidden />
+                    {label}
+                    <span className="tabular-nums font-semibold text-white">D-{days}</span>
+                  </span>
+                ))}
+              </div>
+            );
+          })()}
         </div>
 
         {/* 2. Open schedule flow */}
@@ -972,7 +997,7 @@ const ClientHome = ({ user, logout, setView }) => {
         </div>
       </main>
       {isQaProfile && (
-        <footer className="shrink-0 px-5 pb-6 pt-2 bg-gray-50">
+        <footer className="shrink-0 px-5 pb-4 pt-2 bg-gray-50">
           <div className="border-t border-gray-100 pt-5 text-center space-y-1">
             <p className="text-[11px] font-semibold tracking-[0.32em] text-[#064e3b]">LAB DOT</p>
             <p className="text-[11px] text-gray-400">대표 권태욱 · 문의 010-9630-0096</p>
