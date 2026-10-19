@@ -735,7 +735,7 @@ const ClientHome = ({ user, logout, setView }) => {
               <button
                 type="button"
                 onClick={() => setView('class_booking')}
-                className="flex-1 flex flex-col items-start gap-1.5 rounded-2xl border border-gray-100 bg-white px-4 py-3.5 text-left shadow-sm cursor-pointer transition-colors duration-200 hover:border-[#064e3b]/40"
+                className="flex-1 flex flex-col items-start gap-1.5 rounded-2xl border border-gray-100 bg-white px-4 py-3.5 text-left shadow-sm cursor-pointer transition-all duration-100 hover:border-[#064e3b]/40 active:scale-[0.96] active:shadow-none active:bg-gray-100"
               >
                 <Calendar size={22} strokeWidth={BENTO_ICON_STROKE} className="text-[#064e3b] shrink-0" aria-hidden />
                 <span className="text-base font-semibold text-slate-900 tracking-tight leading-snug break-keep">수업 예약</span>
@@ -743,7 +743,7 @@ const ClientHome = ({ user, logout, setView }) => {
               <button
                 type="button"
                 onClick={() => setView('member_workout_log')}
-                className="flex-1 flex flex-col items-start gap-1.5 rounded-2xl border border-gray-100 bg-white px-4 py-3.5 text-left shadow-sm cursor-pointer transition-colors duration-200 hover:border-[#064e3b]/40"
+                className="flex-1 flex flex-col items-start gap-1.5 rounded-2xl border border-gray-100 bg-white px-4 py-3.5 text-left shadow-sm cursor-pointer transition-all duration-100 hover:border-[#064e3b]/40 active:scale-[0.96] active:shadow-none active:bg-gray-100"
               >
                 <Dumbbell size={22} strokeWidth={BENTO_ICON_STROKE} className="text-[#064e3b] shrink-0" aria-hidden />
                 <span className="text-base font-semibold text-slate-900 tracking-tight leading-snug whitespace-nowrap">운동기록</span>
@@ -753,7 +753,7 @@ const ClientHome = ({ user, logout, setView }) => {
                   type="button"
                   onClick={() => setView('hall_of_fame_member_self')}
                   aria-label="나의 상태"
-                  className={`relative w-[104px] shrink-0 rounded-2xl border flex flex-col items-start justify-center gap-1.5 px-4 py-3.5 text-white shadow-sm ${
+                  className={`relative w-[104px] shrink-0 rounded-2xl border flex flex-col items-start justify-center gap-1.5 px-4 py-3.5 text-white shadow-sm transition-transform duration-100 active:scale-[0.96] active:shadow-none ${
                     hasAthleteBoardNew
                       ? 'border-purple-400/60 bg-gradient-to-r from-zinc-900 to-black ring-2 ring-purple-500/30 animate-pulse'
                       : 'border-transparent bg-gradient-to-r from-zinc-900 to-black'
@@ -806,7 +806,7 @@ const ClientHome = ({ user, logout, setView }) => {
                       return (
                         <li
                           key={booking.id}
-                          className={`list-none flex justify-between items-center py-4 border-b cursor-pointer ${isQaProfile ? 'border-b-2 border-gray-200' : 'border-gray-100'}`}
+                          className={`list-none flex justify-between items-center py-4 border-b cursor-pointer ${isQaProfile ? 'border-b-2 border-gray-200 transition-all duration-100 active:bg-gray-100 active:scale-[0.99]' : 'border-gray-100'}`}
                           onClick={() => setCancelIntent(booking)}
                         >
                           <div className="flex items-center justify-between gap-4 w-full">
