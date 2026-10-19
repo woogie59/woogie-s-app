@@ -669,7 +669,7 @@ const ClientHome = ({ user, logout, setView }) => {
               <div className={`min-w-0 ${QA_HERO_VARIANT === 'B' ? 'text-right' : ''}`}>
                 <p className="text-sm text-white/70 font-medium">PT 잔여</p>
                 <p className="mt-1 text-white tabular-nums">
-                  <span className="text-3xl font-extrabold tracking-tight">{sessionMetrics.remaining}</span>
+                  <span className="text-[40px] leading-[44px] font-extrabold tracking-tight">{sessionMetrics.remaining}</span>
                   <span className="ml-1 text-lg font-semibold text-white/80">회</span>
                 </p>
               </div>
@@ -678,7 +678,7 @@ const ClientHome = ({ user, logout, setView }) => {
               <div className={`min-w-0 ${QA_HERO_VARIANT === 'B' ? '' : 'text-right'}`} aria-label="회원권 기간">
                 <p className="text-sm text-white/70 font-medium">회원권</p>
                 <p className="mt-1 text-base font-semibold text-white">{membershipPeriodLabel(daysLeft)}</p>
-                <p className="mt-1 text-xs text-white/70">회원권 · 만료 {formatEndKo(endYmd)}</p>
+                <p className="mt-1 text-xs text-white/70">만료 {formatEndKo(endYmd)}</p>
               </div>
             );
             return (
@@ -753,10 +753,10 @@ const ClientHome = ({ user, logout, setView }) => {
                   type="button"
                   onClick={() => setView('hall_of_fame_member_self')}
                   aria-label="나의 상태"
-                  className={`relative w-[104px] shrink-0 rounded-2xl border flex flex-col items-start justify-center gap-1.5 px-4 py-3.5 text-white shadow-[0_0_24px_rgba(0,0,0,0.45)] hover:border-purple-500/50 ${
+                  className={`relative w-[104px] shrink-0 rounded-2xl border flex flex-col items-start justify-center gap-1.5 px-4 py-3.5 text-white shadow-sm ${
                     hasAthleteBoardNew
                       ? 'border-purple-400/60 bg-gradient-to-r from-zinc-900 to-black ring-2 ring-purple-500/30 animate-pulse'
-                      : 'border-purple-500/30 bg-gradient-to-r from-zinc-900 to-black'
+                      : 'border-transparent bg-gradient-to-r from-zinc-900 to-black'
                   }`}
                 >
                   <User size={22} strokeWidth={BENTO_ICON_STROKE} className="text-white/90 shrink-0" aria-hidden />
@@ -785,7 +785,7 @@ const ClientHome = ({ user, logout, setView }) => {
           )}
 
           {(!isQaProfile || upcomingClasses.length > 1) && (
-          <div className="space-y-3">
+          <div className="mt-3 space-y-3">
             <p className="text-sm font-medium text-gray-500">나의 다가오는 일정</p>
             {loadingBookings && !myBookings.length ? (
               <div className="space-y-2">
