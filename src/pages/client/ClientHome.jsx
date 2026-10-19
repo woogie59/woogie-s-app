@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { LogOut, ChevronRight, Calendar, BookOpen, Check, User, Dumbbell, X, DoorClosed, Shirt } from 'lucide-react';
+import { LogOut, ChevronRight, ChevronDown, Calendar, BookOpen, Check, User, Dumbbell, X, DoorClosed, Shirt } from 'lucide-react';
 import { supabase } from '../../lib/supabaseClient';
 import { deriveSessionFocus, formatKoreanDateFromYmd } from '../../features/training/trainingLogUtils';
 import {
@@ -595,6 +595,7 @@ const ClientHome = ({ user, logout, setView }) => {
   const sessionRemainBadgeLabel = useMemo(() => `잔여 ${sessionMetrics.remaining}회`, [sessionMetrics.remaining]);
 
   const QA_HERO_VARIANT = 'A';
+  const [showMemDetail, setShowMemDetail] = useState(false);
 
   if (!user) {
     return (
@@ -730,14 +731,6 @@ const ClientHome = ({ user, logout, setView }) => {
                 <p className="mt-1 text-xs text-white/70">만료 {formatEndKo(endYmd)}</p>
               </div>
             );
-            return (
-              <div className="mt-3 border-t border-white/15 pt-2.5 flex items-start justify-between gap-4">
-                {QA_HERO_VARIANT === 'B' ? membershipBlock : ptBlock}
-                {QA_HERO_VARIANT === 'B' ? ptBlock : membershipBlock}
-              </div>
-            );
-          })()}
-          {(() => {
             const todayMs = Date.parse(`${kstTodayYmd()}T00:00:00+09:00`);
             const rentals = [
               { key: 'locker', label: '사물함', end: profile?.locker_end, Icon: DoorClosed },
@@ -745,20 +738,46 @@ const ClientHome = ({ user, logout, setView }) => {
             ]
               .map((r) => ({ ...r, days: r.end ? Math.round((Date.parse(`${r.end}T00:00:00+09:00`) - todayMs) / 86400000) : null }))
               .filter((r) => r.days !== null && r.days >= 0);
-            if (!rentals.length) return null;
+            const hasRentals = rentals.length > 0;
             return (
-              <div className="mt-2.5 flex flex-wrap items-center gap-2">
-                {rentals.map(({ key, label, days, Icon }) => (
-                  <span
-                    key={key}
-                    className="inline-flex items-center gap-1.5 rounded-full bg-white/15 px-2.5 py-1 text-xs font-medium text-white/80"
-                  >
-                    <Icon size={13} strokeWidth={BENTO_ICON_STROKE} aria-hidden />
-                    {label}
-                    <span className="tabular-nums font-semibold text-white">D-{days}</span>
-                  </span>
-                ))}
-              </div>
+              <>
+                <div
+                  className={`mt-3 border-t border-white/15 pt-2.5 flex items-start justify-between gap-4 ${hasRentals ? 'cursor-pointer' : ''}`}
+                  role={hasRentals ? 'button' : undefined}
+                  aria-expanded={hasRentals ? showMemDetail : undefined}
+                  onClick={hasRentals ? () => setShowMemDetail((v) => !v) : undefined}
+                >
+                  {QA_HERO_VARIANT === 'B' ? membershipBlock : ptBlock}
+                  {QA_HERO_VARIANT === 'B' ? ptBlock : membershipBlock}
+                </div>
+                {hasRentals && showMemDetail && (
+                  <div className="mt-3 space-y-1.5 border-t border-white/15 pt-3 text-xs text-white/85">
+                    <div className="flex items-center justify-between">
+                      <span className="font-medium text-white">회원권</span>
+                      <span className="tabular-nums">만료 {formatEndKo(endYmd)} · <b>D-{daysLeft}</b></span>
+                    </div>
+                    {rentals.map(({ key, label, end, days, Icon }) => (
+                      <div key={key} className="flex items-center justify-between">
+                        <span className="inline-flex items-center gap-1.5 font-medium text-white">
+                          <Icon size={13} strokeWidth={BENTO_ICON_STROKE} aria-hidden />
+                          {label}
+                        </span>
+                        <span className="tabular-nums">만료 {formatEndKo(end)} · <b>D-{days}</b></span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {hasRentals && (
+                  <div className="mt-1 flex justify-center">
+                    <ChevronDown
+                      size={16}
+                      strokeWidth={2}
+                      aria-hidden
+                      className={`text-white/50 transition-transform duration-200 ${showMemDetail ? 'rotate-180' : ''}`}
+                    />
+                  </div>
+                )}
+              </>
             );
           })()}
         </div>
