@@ -207,6 +207,14 @@ export default function MemberWorkoutLog({ user, setView, goBack }) {
               </p>
             </section>
 
+            <section className="rounded-xl border border-gray-200 bg-white px-4 py-2.5" aria-label="운동 기록 요약">
+              <p className="text-sm text-gray-700 tabular-nums">
+                <span className="font-semibold text-slate-900">{month === today.slice(0, 7) ? '이번 달' : `${m}월`} {summary.count}회</span>
+                <span className="text-gray-400"> · </span>PT {ptCount} · 개인운동 {personalCount}
+                <span className="text-gray-400"> · </span>지난주 {summary.last} → 이번 주 {summary.current}
+              </p>
+            </section>
+
             <section className="rounded-2xl border border-gray-200 bg-white p-4" aria-labelledby="workout-day">
               <h2 id="workout-day" className="font-semibold">
                 {Number(selected.slice(5, 7))}월 {Number(selected.slice(8))}일 ({WEEKDAYS[(new Date(`${selected}T12:00:00+09:00`).getUTCDay() + 6) % 7]}){selected === today ? ' · 오늘' : ''}
@@ -253,32 +261,9 @@ export default function MemberWorkoutLog({ user, setView, goBack }) {
               </div>
             </section>
 
-            <section className="rounded-2xl bg-gradient-to-r from-[#0f2818] to-[#1a4026] p-5 text-white shadow-lg border border-white/10" aria-label="운동 기록 횟수">
-              <p className="text-sm text-white/80">{month === today.slice(0, 7) ? '이번 달' : `${year}년 ${m}월`} 운동 기록</p>
-              <p className="mt-1 text-3xl font-bold tabular-nums">{summary.count}회</p>
-              <p className="mt-2 text-sm text-white/80">PT {ptCount} · 개인운동 {personalCount}</p>
-              <div className="mt-4 border-t border-white/15 pt-3">
-                <p className="text-sm">지난주 {summary.last}회 <span aria-hidden="true">→</span> 이번 주 {summary.current}회</p>
-                <p className="mt-1 text-xs text-white/80">월요일 시작 · 이번 주는 오늘까지</p>
-              </div>
-            </section>
+            
 
-            <section className="rounded-2xl border border-gray-200 bg-white p-4">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <h2 className="font-semibold">{m}월 운동 패턴</h2>
-                <span className="text-xs text-gray-500">운동 기록 {summary.count}회 기준</span>
-              </div>
-              {summary.count ? (
-                <dl className="mt-3 space-y-3 text-sm">
-                  <div>
-                    <dt className="text-gray-500">자주 운동한 요일</dt>
-                    <dd className="mt-1 font-medium">{summary.weekday?.labels.join(' · ')}요일 <span className="font-normal text-gray-500">(각 {summary.weekday?.count}회)</span></dd>
-                  </div>
-                </dl>
-              ) : (
-                <p className="mt-3 text-sm text-gray-500">운동 기록이 쌓이면 표시됩니다.</p>
-              )}
-            </section>
+            
           </>
         )}
       </main>
