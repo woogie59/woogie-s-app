@@ -806,7 +806,7 @@ const ClientHome = ({ user, logout, setView }) => {
                       return (
                         <li
                           key={booking.id}
-                          className="list-none flex justify-between items-center py-4 border-b border-gray-100 cursor-pointer"
+                          className={`list-none flex justify-between items-center py-4 border-b cursor-pointer ${isQaProfile ? 'border-b-2 border-gray-200' : 'border-gray-100'}`}
                           onClick={() => setCancelIntent(booking)}
                         >
                           <div className="flex items-center justify-between gap-4 w-full">
