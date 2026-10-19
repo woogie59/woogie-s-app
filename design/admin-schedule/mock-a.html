@@ -1,0 +1,32 @@
+<!DOCTYPE html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+*{box-sizing:border-box;margin:0;font-family:-apple-system,'Noto Sans KR',sans-serif}
+body{background:#f4f6f5;padding:12px}
+h1{font-size:17px;font-weight:800;color:#12382a;margin:6px 2px 12px}
+.days{display:flex;gap:6px;overflow-x:auto;padding:2px 0 12px}
+.day{flex:0 0 auto;padding:8px 13px;border-radius:20px;background:#fff;border:1px solid #e2e8e4;font-size:13px;color:#4b5e54;font-weight:600}
+.day.on{background:#14532d;color:#fff;border-color:#14532d}
+.row{background:#fff;border-radius:14px;padding:14px 16px;margin-bottom:10px;display:flex;align-items:center;gap:12px;box-shadow:0 1px 2px rgba(0,0,0,.04)}
+.time{width:52px;font-size:17px;font-weight:800;color:#14532d}
+.info{flex:1}
+.name{font-size:15px;font-weight:700;color:#1f2b25}
+.sub{font-size:12px;color:#7c8a81;margin-top:2px}
+.badge{font-size:11px;font-weight:700;padding:5px 9px;border-radius:8px}
+.b-ok{background:#e3f2ea;color:#14532d}
+.b-ot{background:#fdeaea;color:#b3261e}
+.b-off{background:#eceeed;color:#98a29b}
+.add{width:100%;padding:13px;border:1.5px dashed #b9ccc2;border-radius:14px;background:none;color:#14532d;font-size:14px;font-weight:700;margin-top:4px}
+.sec{font-size:12px;color:#8a978e;margin:18px 2px 8px;font-weight:700}
+</style></head><body>
+<h1>일정 관리 <span style="font-size:12px;color:#8a978e;font-weight:600">안 A · 일 단위 아젠다</span></h1>
+<div class="days">
+<span class="day">월 19</span><span class="day on">화 20</span><span class="day">수 21</span><span class="day">목 22</span><span class="day">금 23</span><span class="day">토 24</span><span class="day">일 25</span>
+</div>
+<div class="row"><div class="time">06:00</div><div class="info"><div class="name">김하늘 회원</div><div class="sub">PT 50분 · 18회차/20회</div></div><span class="badge b-ok">예약</span></div>
+<div class="row"><div class="time">10:00</div><div class="info"><div class="name">이준수 회원</div><div class="sub">PT 50분 · 3회차/10회</div></div><span class="badge b-ok">예약</span></div>
+<div class="row" style="opacity:.55"><div class="time">14:00</div><div class="info"><div class="name">박서연 회원</div><div class="sub">오티(휴무처리) · 자동 예약 막힘</div></div><span class="badge b-off">휴무</span></div>
+<div class="row"><div class="time">18:00</div><div class="info"><div class="name">최민재 회원</div><div class="sub">PT 50분 · 7회차/20회</div></div><span class="badge b-ok">예약</span></div>
+<div class="row"><div class="time">21:00</div><div class="info"><div class="name">정유진 회원</div><div class="sub">오티 · 예약 확정 필요</div></div><span class="badge b-ot">대기</span></div>
+<button class="add">+ 이 시간대 수업 추가</button>
+<div class="sec">주간 그리드 · 월간 보기는 화면 상단 탭으로 전환</div>
+</body></html>

@@ -1,0 +1,36 @@
+<!DOCTYPE html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+*{box-sizing:border-box;margin:0;font-family:-apple-system,'Noto Sans KR',sans-serif}
+body{background:#f4f6f5;padding:12px}
+h1{font-size:17px;font-weight:800;color:#12382a;margin:6px 2px 10px}
+.bar{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
+.bar b{font-size:15px;color:#12382a}
+.nav span{display:inline-block;padding:5px 10px;background:#fff;border:1px solid #e2e8e4;border-radius:8px;font-size:12px;color:#4b5e54;font-weight:700;margin-left:4px}
+.grid{background:#fff;border-radius:14px;overflow:hidden;box-shadow:0 1px 2px rgba(0,0,0,.05)}
+table{width:100%;border-collapse:collapse;table-layout:fixed}
+th{font-size:11px;color:#7c8a81;padding:8px 2px;border-bottom:1px solid #eef1ef;font-weight:700}
+th.today{color:#14532d}
+td{border-right:1px solid #f2f5f3;height:44px;padding:2px;vertical-align:top;position:relative}
+td:last-child{border-right:none}
+tr.tm td{height:16px;font-size:10px;color:#a9b5ad;padding:0 4px;background:#fafbfa}
+.blk{background:#14532d;color:#fff;border-radius:7px;font-size:11px;font-weight:700;padding:5px 4px;min-height:26px;overflow:hidden}
+.blk.off{background:#e3e7e5;color:#98a29b}
+.blk.wait{background:#fff;color:#b3261e;border:1.5px solid #e5b6b3}
+.blk small{display:block;font-weight:400;font-size:10px;opacity:.85}
+.now{position:absolute;left:0;right:0;border-top:1.5px dashed #d9534f;z-index:0}
+td .blk{position:relative;z-index:1}
+.legend{font-size:11px;color:#7c8a81;margin-top:10px;line-height:1.8}
+.legend i{display:inline-block;width:10px;height:10px;border-radius:3px;margin:0 4px 0 10px;vertical-align:-1px}
+</style></head><body>
+<h1>일정 관리 <span style="font-size:12px;color:#8a978e;font-weight:600">안 B · 차분한 주간 그리드</span></h1>
+<div class="bar"><b>10/19(월) - 10/25(일)</b><div class="nav"><span>◀</span><span>오늘</span><span>▶</span></div></div>
+<div class="grid"><table>
+<tr><th style="width:34px"></th><th>월</th><th class="today">화</th><th>수</th><th>목</th><th>금</th><th>토</th></tr>
+<tr class="tm"><td>06</td><td><div class="blk">06:00<small>김하늘</small></div></td><td><div class="blk">06:00<small>이준수</small></div></td><td></td><td><div class="blk">06:00<small>김하늘</small></div></td><td></td><td></td></tr>
+<tr class="tm"><td>10</td><td><div class="blk">10:00<small>박서연</small></div></td><td><div class="blk">10:00<small>최민재</small></div></td><td><div class="blk">10:00<small>정유진</small></div></td><td><div class="blk">10:00<small>이준수</small></div></td><td><div class="blk">10:00<small>김하늘</small></div></td><td><div class="blk">10:00<small>박서연</small></div></td></tr>
+<tr class="tm"><td>14</td><td><div class="blk off">14:00<small>휴무</small></div></td><td><div class="blk wait">14:00<small>대기 1</small></div></td><td><div class="blk">14:00<small>최민재</small></div></td><td><div class="blk off">14:00<small>휴무</small></div></td><td><div class="blk">14:00<small>정유진</small></div></td><td></td></tr>
+<tr class="tm"><td>18</td><td><div class="blk">18:00<small>이준수</small></div></td><td><div class="now" style="top:20px"></div><div class="blk">18:00<small>김하늘</small></div></td><td><div class="blk">18:00<small>박서연</small></div></td><td><div class="blk">18:00<small>최민재</small></div></td><td><div class="blk">18:00<small>이준수</small></div></td><td></td></tr>
+<tr class="tm"><td>21</td><td></td><td><div class="blk wait">21:00<small>대기 2</small></div></td><td><div class="blk">21:00<small>정유진</small></div></td><td></td><td><div class="blk">21:00<small>김하늘</small></div></td><td></td></tr>
+</table></div>
+<div class="legend">블록 색은 하나만, 상태는 모양으로:<i style="background:#14532d"></i>확정 수업<i style="background:#fff;border:1.5px solid #e5b6b3"></i>처리 필요<i style="background:#e3e7e5"></i>휴무/OT 차단 · 점선=현재시간(블록 아래로 그려 취소선처럼 안 보임)</div>
+</body></html>
