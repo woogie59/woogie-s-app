@@ -753,14 +753,14 @@ const ClientHome = ({ user, logout, setView }) => {
                   type="button"
                   onClick={() => setView('hall_of_fame_member_self')}
                   aria-label="나의 상태"
-                  className={`relative w-20 shrink-0 rounded-2xl border flex flex-col items-center justify-center gap-1 text-white shadow-[0_0_24px_rgba(0,0,0,0.45)] hover:border-purple-500/50 ${
+                  className={`relative w-[104px] shrink-0 rounded-2xl border flex flex-col items-start justify-center gap-1.5 px-3 py-3 text-white shadow-[0_0_24px_rgba(0,0,0,0.45)] hover:border-purple-500/50 ${
                     hasAthleteBoardNew
                       ? 'border-purple-400/60 bg-gradient-to-r from-zinc-900 to-black ring-2 ring-purple-500/30 animate-pulse'
                       : 'border-purple-500/30 bg-gradient-to-r from-zinc-900 to-black'
                   }`}
                 >
-                  <User size={20} strokeWidth={1.8} className="text-white/90" aria-hidden />
-                  <span className="text-[11px] font-semibold text-white/90 leading-none">나의 상태</span>
+                  <User size={22} strokeWidth={BENTO_ICON_STROKE} className="text-white/90 shrink-0" aria-hidden />
+                  <span className="text-base font-semibold text-white tracking-tight leading-snug whitespace-nowrap">나의 상태</span>
                   {hasAthleteBoardNew && (
                     <span className="absolute -top-1 -right-1 h-2.5 w-2.5 rounded-full bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.55)]" aria-hidden />
                   )}
