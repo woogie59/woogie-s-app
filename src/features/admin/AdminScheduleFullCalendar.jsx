@@ -177,6 +177,24 @@ const AdminScheduleFullCalendar = ({
     return { total, done, start, end };
   }, [events, viewDate]);
 
+  // 월간 총 수업 횟수 (보이는 달 기준, 차단/휴무 제외, 실시간 refetch와 함께 갱신)
+  const monthStats = useMemo(() => {
+    const start = new Date(viewDate.getFullYear(), viewDate.getMonth(), 1);
+    const end = new Date(viewDate.getFullYear(), viewDate.getMonth() + 1, 1);
+    let total = 0;
+    let done = 0;
+    (events || []).forEach((ev) => {
+      if (ev.extendedProps?.isBlock) return;
+      const st = ev.start instanceof Date ? ev.start : new Date(ev.start);
+      if (Number.isNaN(st.getTime()) || st < start || st >= end) return;
+      total += 1;
+      if (ev.extendedProps?.item?.status === 'Completed') done += 1;
+    });
+    const nowD = new Date();
+    const isCurrent = nowD.getFullYear() === start.getFullYear() && nowD.getMonth() === start.getMonth();
+    return { total, done, label: isCurrent ? '이번 달' : `${start.getMonth() + 1}월` };
+  }, [events, viewDate]);
+
   const handleDatesSet = useCallback((arg) => {
     if (arg?.view?.type) setViewType(arg.view.type);
     const d = arg?.view?.currentStart;
@@ -380,6 +398,13 @@ const AdminScheduleFullCalendar = ({
         <div className="labdot-week-stat" role="status">
           이번 주 총 수업 <b>{weekStats.total}건</b>
           <span>완료 {weekStats.done} · 예약 {weekStats.total - weekStats.done}</span>
+        </div>
+      ) : null}
+
+      {viewMode === 'calendar' && viewType === 'dayGridMonth' ? (
+        <div className="labdot-week-stat" role="status">
+          {monthStats.label} 총 수업 <b>{monthStats.total}건</b>
+          <span>완료 {monthStats.done} · 예약 {monthStats.total - monthStats.done}</span>
         </div>
       ) : null}
 
