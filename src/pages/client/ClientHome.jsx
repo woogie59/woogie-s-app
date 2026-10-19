@@ -731,11 +731,11 @@ const ClientHome = ({ user, logout, setView }) => {
           })()}
 
           {isQaProfile ? (
-            <div className="flex items-stretch gap-3">
+            <div className="flex items-stretch gap-2">
               <button
                 type="button"
                 onClick={() => setView('class_booking')}
-                className="flex-1 flex flex-col items-start gap-1.5 rounded-2xl border border-gray-100 bg-white px-4 py-3 text-left shadow-sm cursor-pointer transition-colors duration-200 hover:border-[#064e3b]/40"
+                className="flex-1 flex flex-col items-start gap-1.5 rounded-2xl border border-gray-100 bg-white px-3 py-3 text-left shadow-sm cursor-pointer transition-colors duration-200 hover:border-[#064e3b]/40"
               >
                 <Calendar size={22} strokeWidth={BENTO_ICON_STROKE} className="text-[#064e3b] shrink-0" aria-hidden />
                 <span className="text-base font-semibold text-slate-900 tracking-tight leading-snug break-keep">수업 예약</span>
@@ -743,7 +743,7 @@ const ClientHome = ({ user, logout, setView }) => {
               <button
                 type="button"
                 onClick={() => setView('member_workout_log')}
-                className="flex-1 flex flex-col items-start gap-1.5 rounded-2xl border border-gray-100 bg-white px-4 py-3 text-left shadow-sm cursor-pointer transition-colors duration-200 hover:border-[#064e3b]/40"
+                className="flex-1 flex flex-col items-start gap-1.5 rounded-2xl border border-gray-100 bg-white px-3 py-3 text-left shadow-sm cursor-pointer transition-colors duration-200 hover:border-[#064e3b]/40"
               >
                 <Dumbbell size={22} strokeWidth={BENTO_ICON_STROKE} className="text-[#064e3b] shrink-0" aria-hidden />
                 <span className="text-base font-semibold text-slate-900 tracking-tight leading-snug break-keep">내 운동 기록</span>
@@ -753,13 +753,14 @@ const ClientHome = ({ user, logout, setView }) => {
                   type="button"
                   onClick={() => setView('hall_of_fame_member_self')}
                   aria-label="나의 상태"
-                  className={`relative w-14 shrink-0 rounded-2xl border flex items-center justify-center text-white shadow-[0_0_24px_rgba(0,0,0,0.45)] hover:border-purple-500/50 ${
+                  className={`relative w-20 shrink-0 rounded-2xl border flex flex-col items-center justify-center gap-1 text-white shadow-[0_0_24px_rgba(0,0,0,0.45)] hover:border-purple-500/50 ${
                     hasAthleteBoardNew
                       ? 'border-purple-400/60 bg-gradient-to-r from-zinc-900 to-black ring-2 ring-purple-500/30 animate-pulse'
                       : 'border-purple-500/30 bg-gradient-to-r from-zinc-900 to-black'
                   }`}
                 >
                   <User size={20} strokeWidth={1.8} className="text-white/90" aria-hidden />
+                  <span className="text-[11px] font-semibold text-white/90 leading-none">나의 상태</span>
                   {hasAthleteBoardNew && (
                     <span className="absolute -top-1 -right-1 h-2.5 w-2.5 rounded-full bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.55)]" aria-hidden />
                   )}
