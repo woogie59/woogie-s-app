@@ -3,6 +3,9 @@
 -- 게이트: profiles.name = '테스트용1' 단일 계정만 대상. 다른 계정 데이터는 읽기만 하고 쓰지 않음.
 -- 1회 실행용.
 
+-- pg_net: 엣지 함수 호출용 (이미 활성화돼 있으면 no-op)
+create extension if not exists pg_net with schema extensions;
+
 begin;
 
 -- 1) 자동 출석: 시작 시각이 지난 당일 예약을 check_in_user와 동일 규칙으로 출석 처리 (멱등)
@@ -103,6 +106,22 @@ begin
       and lower(replace(btrim(coalesce(status, '')), '_', '-')) <> 'completed';
 
     n := n + 1;
+
+    -- 출석 푸시 (신규 처리된 건에만 1회; 멱등 스킵/잔여 부족 스킵 시 발송 없음)
+    perform net.http_post(
+      url := 'https://qleaffojoqeqlyrwxpeb.supabase.co/functions/v1/notify-member-events',
+      headers := jsonb_build_object(
+        'Content-Type', 'application/json',
+        'apikey', "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFsZWFmZm9qb3FlcWx5cnd4cGViIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzAzNzI2OTIsImV4cCI6MjA4NTk0ODY5Mn0.JGkOF597Ua1wZ3vQmeDJhsa8PdaJ3-sIruqkv6DGY0Y",
+        'Authorization', "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFsZWFmZm9qb3FlcWx5cnd4cGViIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzAzNzI2OTIsImV4cCI6MjA4NTk0ODY5Mn0.JGkOF597Ua1wZ3vQmeDJhsa8PdaJ3-sIruqkv6DGY0Y"
+      ),
+      body := jsonb_build_object(
+        'user_id', v_uid,
+        'title', 'LAB DOT · 출석',
+        'message', (split_part(v_time_norm, ':', 1)::int)::text || '시 수업이 출석처리 되었습니다',
+        'event_kind', 'attendance'
+      )
+    );
   end loop;
 
   return n;
