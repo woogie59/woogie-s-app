@@ -83,8 +83,6 @@ export default function MemberWorkoutLog({ user, setView, goBack }) {
         .filter((l) => isAttendanceLogCompletedForBalance(l) && l.check_in_at)
         .map((l) => ({ id: `att-${l.id}`, at: l.check_in_at, kind: 'pt', parts: [] }));
       setEntries([...personal, ...pt]);
-      const todayPersonal = personal.find((e) => kstYmd(e.at) === today);
-      setParts(todayPersonal?.parts ?? []);
     } catch {
       setLoadError(true);
     } finally {
@@ -100,8 +98,13 @@ export default function MemberWorkoutLog({ user, setView, goBack }) {
   const offset = firstDow === 0 ? 6 : firstDow - 1;
   const days = new Date(Date.UTC(year, m, 0)).getUTCDate();
   const dayRows = summary.monthly.filter((e) => kstYmd(e.at) === selected);
-  const todayEntry = entries.find((e) => e.kind === 'personal' && kstYmd(e.at) === today);
-  const todayPersonal = Boolean(todayEntry);
+  const selectedEntry = entries.find((e) => e.kind === 'personal' && kstYmd(e.at) === selected);
+  const selectedPersonal = Boolean(selectedEntry);
+
+  useEffect(() => {
+    setParts(selectedEntry?.parts ?? []);
+    // 선택한 날짜가 바뀌면 그 날의 기록을 편집 대상으로 불러온다
+  }, [selected, selectedEntry?.id, selectedEntry?.parts]);
   const ptCount = summary.monthly.filter((e) => e.kind === 'pt').length;
   const personalCount = summary.count - ptCount;
 
@@ -112,17 +115,18 @@ export default function MemberWorkoutLog({ user, setView, goBack }) {
     setSaving(true);
     setSaveError(null);
     try {
-      if (todayEntry) {
-        const { error } = await supabase.from('member_workout_entries').update({ parts }).eq('id', todayEntry.id);
+      if (selectedEntry) {
+        const { error } = await supabase.from('member_workout_entries').update({ parts }).eq('id', selectedEntry.id);
         if (error) throw error;
-        setEntries((old) => old.map((e) => (e.id === todayEntry.id ? { ...e, parts } : e)));
+        setEntries((old) => old.map((e) => (e.id === selectedEntry.id ? { ...e, parts } : e)));
       } else {
-        const row = { user_id: user.id, at: new Date().toISOString(), kind: 'personal', parts };
+        const now = new Date();
+        const hhmmss = new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Seoul', hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23' }).format(now);
+        const row = { user_id: user.id, at: new Date(`${selected}T${hhmmss}+09:00`).toISOString(), kind: 'personal', parts };
         const { data, error } = await supabase.from('member_workout_entries').insert([row]).select().single();
         if (error) throw error;
         setEntries((old) => [...old, { id: data.id, at: data.at, kind: 'personal', parts: data.parts || [] }]);
       }
-      setSelected(today);
     } catch {
       setSaveError('저장하지 못했습니다. 다시 시도해 주세요.');
     } finally {
@@ -214,8 +218,10 @@ export default function MemberWorkoutLog({ user, setView, goBack }) {
             </section>
 
             <section className="rounded-2xl border border-gray-200 bg-white p-4" aria-labelledby="personal-workout">
-              <h2 id="personal-workout" className="font-semibold">오늘 개인운동</h2>
-              {todayPersonal && <p role="status" className="mt-3 text-sm text-[#064e3b]">기록 완료</p>}
+              <h2 id="personal-workout" className="font-semibold">
+                {selected === today ? '오늘 개인운동' : `${Number(selected.slice(5, 7))}월 ${Number(selected.slice(8))}일 개인운동`}
+              </h2>
+              {selectedPersonal && <p role="status" className="mt-3 text-sm text-[#064e3b]">기록 완료</p>}
               <p className="mt-2 text-xs text-gray-600">운동 부위 (선택)</p>
               <div className="mt-3 flex flex-wrap gap-2" role="group" aria-label="운동 부위 선택 (선택 사항)">
                 {WORKOUT_PARTS.map((p) => (
@@ -237,7 +243,7 @@ export default function MemberWorkoutLog({ user, setView, goBack }) {
                 onClick={save}
                 className="mt-3 min-h-12 w-full rounded-xl bg-[#064e3b] px-4 text-sm font-semibold text-white disabled:opacity-50"
               >
-                {saving ? '저장 중...' : todayPersonal ? '부위 저장' : '오늘 개인운동 기록'}
+                {saving ? '저장 중...' : selectedPersonal ? '부위 저장' : '개인운동 기록'}
               </button>
               <p className="mt-2 text-xs text-gray-500">직접 기록 · 하루 1회</p>
               {saveError && <p role="alert" className="mt-2 text-sm text-amber-900">{saveError}</p>}
@@ -273,10 +279,6 @@ export default function MemberWorkoutLog({ user, setView, goBack }) {
                   <div>
                     <dt className="text-gray-500">자주 운동한 요일</dt>
                     <dd className="mt-1 font-medium">{summary.weekday?.labels.join(' · ')}요일 <span className="font-normal text-gray-500">(각 {summary.weekday?.count}회)</span></dd>
-                  </div>
-                  <div>
-                    <dt className="text-gray-500">자주 운동한 시간대</dt>
-                    <dd className="mt-1 font-medium">{summary.time?.labels.join(' · ')} <span className="font-normal text-gray-500">(각 {summary.time?.count}회)</span></dd>
                   </div>
                 </dl>
               ) : (

@@ -645,15 +645,17 @@ const ClientHome = ({ user, logout, setView }) => {
                 </p>
               )}
             </div>
-            <button
-              type="button"
-              onClick={() => setShowHistory(true)}
-              className="bg-white/20 backdrop-blur-sm rounded-full px-4 py-2 text-sm font-semibold text-white flex items-center gap-1 cursor-pointer transition hover:bg-white/30 shrink-0"
-              aria-label="멤버십 현황 열기"
-            >
-              {!isQaProfile && <span className="tabular-nums">{sessionRemainBadgeLabel}</span>}
-              <span aria-hidden>›</span>
-            </button>
+            {!isQaProfile && (
+              <button
+                type="button"
+                onClick={() => setShowHistory(true)}
+                className="bg-white/20 backdrop-blur-sm rounded-full px-4 py-2 text-sm font-semibold text-white flex items-center gap-1 cursor-pointer transition hover:bg-white/30 shrink-0"
+                aria-label="멤버십 현황 열기"
+              >
+                <span className="tabular-nums">{sessionRemainBadgeLabel}</span>
+                <span aria-hidden>›</span>
+              </button>
+            )}
           </div>
           {isQaProfile && upcomingBooking && getBookingCheckInState(upcomingBooking) === 'completed' && (
             <p className="mt-3 text-sm font-semibold text-emerald-200">출석 완료</p>
@@ -915,7 +917,7 @@ const ClientHome = ({ user, logout, setView }) => {
 
       {/* Session History Modal */}
       <AnimatePresence>
-        {showHistory && (
+        {showHistory && !isQaProfile && (
           <SessionHistoryModal user={user} onClose={() => setShowHistory(false)} />
         )}
       </AnimatePresence>
