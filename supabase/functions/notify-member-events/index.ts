@@ -197,13 +197,29 @@ serve(async (req) => {
         );
       }
 
+      // One create call per member chunk with the union audience in a single request.
+      // (Previously player ids and external user ids were sent in two separate calls and
+      //  OneSignal delivered both to the same device = duplicate push.)
+      const targets = (qaRows || [])
+        .map((r) => ({
+          playerId: String(r?.onesignal_id || "").trim(),
+          externalId: String(r?.id || "").trim(),
+        }))
+        .filter((t) => t.playerId.length > 0 || t.externalId.length > 0);
       const results = [];
-      for (let i = 0; i < playerIds.length; i += ID_CHUNK) {
-        results.push(await sendToPlayerIds(playerIds.slice(i, i + ID_CHUNK), title, message, extraData));
-      }
-      for (let i = 0; i < externalUserIds.length; i += ID_CHUNK) {
+      for (let i = 0; i < targets.length; i += ID_CHUNK) {
+        const chunk = targets.slice(i, i + ID_CHUNK);
+        const chunkPlayerIds = [...new Set(chunk.map((t) => t.playerId).filter((v) => v.length > 0))];
+        const chunkExternalIds = [...new Set(chunk.map((t) => t.externalId).filter((v) => v.length > 0))];
         results.push(
-          await sendToExternalUserIds(externalUserIds.slice(i, i + ID_CHUNK), title, message, extraData)
+          await onesignalCreate({
+            ...(chunkPlayerIds.length > 0 ? { include_player_ids: chunkPlayerIds } : {}),
+            ...(chunkExternalIds.length > 0 ? { include_external_user_ids: chunkExternalIds } : {}),
+            headings: { en: title, ko: title },
+            contents: { en: message, ko: message },
+            data: extraData,
+            target_channel: "push",
+          })
         );
       }
 

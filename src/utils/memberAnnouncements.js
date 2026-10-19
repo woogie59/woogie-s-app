@@ -1,5 +1,5 @@
 import { supabase } from '../lib/supabaseClient';
-import { fetchAdminOnesignalPlayerId, invokeNotifyAllMembers, invokeNotifyMemberTarget } from './notifications';
+import { invokeNotifyAllMembers } from './notifications';
 
 /** @returns {Promise<{ id: string, title: string, body: string, published_at?: string } | null>} */
 export async function fetchActiveMemberAnnouncement() {
@@ -41,18 +41,11 @@ function previewAnnouncementBody(body, max = 160) {
   return `${text.slice(0, Math.max(0, max - 1))}…`;
 }
 
-/** Phone push to active members and admin. Does not throw. */
+/** Phone push to active members (the broadcast audience already includes the admin device). Does not throw. */
 export async function notifyMembersAnnouncementPublished(title, body) {
   const heading = String(title || '').trim() || 'LAB DOT · 공지';
   const message = previewAnnouncementBody(body) || '새 공지가 게시되었습니다.';
+  // Single broadcast only — a separate targeted admin copy duplicated the admin's push.
   const broadcast = await invokeNotifyAllMembers(heading, message, 'member_announcement');
-  try {
-    const adminPlayerId = await fetchAdminOnesignalPlayerId();
-    if (adminPlayerId) {
-      await invokeNotifyMemberTarget(adminPlayerId, heading, message, 'member_announcement');
-    }
-  } catch (e) {
-    console.warn('[notifyMembersAnnouncementPublished] admin copy', e);
-  }
   return broadcast;
 }

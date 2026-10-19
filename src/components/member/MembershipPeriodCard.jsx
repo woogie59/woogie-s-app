@@ -1,15 +1,15 @@
 import React from 'react';
 
-const formatEndKo = (ymd) =>
+export const formatEndKo = (ymd) =>
   new Intl.DateTimeFormat('ko-KR', { timeZone: 'Asia/Seoul', month: 'long', day: 'numeric', weekday: 'short' }).format(
     new Date(`${ymd}T00:00:00+09:00`),
   );
 
-const kstTodayYmd = () =>
+export const kstTodayYmd = () =>
   new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Seoul', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
 
 /** 짐매니오 회원 홈 membershipExpiryLabel 이식 (만료까지 N일 / 오늘 만료 / 만료 N일 경과) */
-function membershipPeriodLabel(daysLeft) {
+export function membershipPeriodLabel(daysLeft) {
   if (!Number.isSafeInteger(daysLeft)) return '만료일 확인 필요';
   if (daysLeft < 0) return `만료 ${Math.abs(daysLeft)}일 경과`;
   return daysLeft === 0 ? '오늘 만료' : `만료까지 ${daysLeft}일`;
