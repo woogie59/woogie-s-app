@@ -182,28 +182,33 @@ export default function MemberWorkoutLog({ user, setView, goBack }) {
                   const pt = rows.filter((e) => e.kind === 'pt').length;
                   const personal = rows.length - pt;
                   const isSelected = date === selected;
+                  const isToday = date === today;
+                  const kindFill = pt > 0 && personal > 0
+                    ? 'bg-gradient-to-br from-sky-100 via-sky-100 to-emerald-100 text-slate-900'
+                    : pt > 0
+                      ? 'bg-sky-100 text-sky-900'
+                      : personal > 0
+                        ? 'bg-emerald-100 text-[#064e3b]'
+                        : 'text-gray-700';
                   return (
                     <button
                       key={date}
                       type="button"
                       disabled={date > today}
                       aria-pressed={isSelected}
-                      aria-label={`${m}월 ${i + 1}일, PT ${pt}회, 개인운동 ${personal}회${date === today ? ', 오늘' : ''}`}
+                      aria-label={`${m}월 ${i + 1}일, PT ${pt}회, 개인운동 ${personal}회${isToday ? ', 오늘' : ''}`}
                       onClick={() => setSelected(date)}
-                      className={`flex min-h-[52px] flex-col items-center justify-center gap-1 rounded-xl text-sm ${isSelected ? 'bg-[#064e3b] text-white' : date === today ? 'bg-emerald-50 text-[#064e3b]' : 'text-gray-700'} disabled:text-gray-300`}
+                      className={`flex min-h-[52px] flex-col items-center justify-center gap-1 rounded-xl text-sm font-medium ${isSelected ? 'bg-[#064e3b] text-white' : kindFill} ${isToday && !isSelected ? 'ring-2 ring-[#064e3b]' : ''} disabled:bg-transparent disabled:text-gray-300 disabled:ring-0`}
                     >
                       <span>{i + 1}</span>
-                      <span aria-hidden="true" className="flex h-1.5 gap-1">
-                        {pt > 0 && <span className={`h-1.5 w-1.5 rounded-full ${isSelected ? 'bg-sky-200' : 'bg-sky-600'}`} />}
-                        {personal > 0 && <span className={`h-1.5 w-1.5 rounded-full ${isSelected ? 'bg-white' : 'bg-[#064e3b]'}`} />}
-                      </span>
                     </button>
                   );
                 })}
               </div>
               <p className="mt-3 text-xs text-gray-600">
-                <span className="mr-1 inline-block h-1.5 w-1.5 rounded-full bg-sky-600" aria-hidden="true" /> PT
-                <span className="ml-3 mr-1 inline-block h-1.5 w-1.5 rounded-full bg-[#064e3b]" aria-hidden="true" /> 개인운동
+                <span className="mr-1 inline-block h-3 w-3 rounded-md bg-sky-100 ring-1 ring-sky-300 align-[-2px]" aria-hidden="true" /> PT
+                <span className="ml-3 mr-1 inline-block h-3 w-3 rounded-md bg-emerald-100 ring-1 ring-emerald-300 align-[-2px]" aria-hidden="true" /> 개인운동
+                <span className="ml-3 mr-1 inline-block h-3 w-3 rounded-md ring-2 ring-[#064e3b] align-[-2px]" aria-hidden="true" /> 오늘
               </p>
             </section>
 

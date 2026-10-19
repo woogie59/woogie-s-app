@@ -624,7 +624,7 @@ const ClientHome = ({ user, logout, setView }) => {
 
       <main className="flex-1 flex flex-col px-5 gap-4 pb-6 overflow-y-auto scrollable min-h-0">
         {/* 1. Upcoming Class — read-only billboard; 전체 일정은「수업 예약 및 일정」화면 */}
-        <div className="w-full rounded-2xl bg-gradient-to-r from-[#0f2818] to-[#1a4026] px-4 py-4 text-left text-white shadow-lg border border-white/10 shrink-0 sm:px-5 sm:py-5">
+        <div className="w-full rounded-2xl bg-gradient-to-r from-[#0f2818] to-[#1a4026] px-4 py-3.5 text-left text-white shadow-lg border border-white/10 shrink-0">
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0 flex-1">
               <p className="text-sm text-white/70 font-medium mb-1">다음 수업</p>
@@ -632,10 +632,10 @@ const ClientHome = ({ user, logout, setView }) => {
                 <Skeleton className="h-14 w-40 bg-white/15 rounded-xl" />
               ) : upcomingBooking ? (
                 <>
-                  <p className="text-6xl font-extrabold tracking-tighter tabular-nums text-white leading-none">
+                  <p className="text-5xl font-extrabold tracking-tighter tabular-nums text-white leading-none">
                     {formatTime24hStatic(upcomingBooking?.time)}
                   </p>
-                  <p className="text-base text-white/90 mt-2">{formatUpcomingDateLabel(upcomingBooking)}</p>
+                  <p className="text-sm text-white/90 mt-1.5">{formatUpcomingDateLabel(upcomingBooking)}</p>
                 </>
               ) : (
                 <p className="text-[13px] font-medium text-white/90 mt-2">
@@ -669,7 +669,7 @@ const ClientHome = ({ user, logout, setView }) => {
               <div className={`min-w-0 ${QA_HERO_VARIANT === 'B' ? 'text-right' : ''}`}>
                 <p className="text-sm text-white/70 font-medium">PT 잔여</p>
                 <p className="mt-1 text-white tabular-nums">
-                  <span className="text-4xl font-extrabold tracking-tight">{sessionMetrics.remaining}</span>
+                  <span className="text-3xl font-extrabold tracking-tight">{sessionMetrics.remaining}</span>
                   <span className="ml-1 text-lg font-semibold text-white/80">회</span>
                 </p>
               </div>
@@ -677,12 +677,12 @@ const ClientHome = ({ user, logout, setView }) => {
             const membershipBlock = (
               <div className={`min-w-0 ${QA_HERO_VARIANT === 'B' ? '' : 'text-right'}`} aria-label="회원권 기간">
                 <p className="text-sm text-white/70 font-medium">회원권</p>
-                <p className="mt-1 text-lg font-semibold text-white">{membershipPeriodLabel(daysLeft)}</p>
+                <p className="mt-1 text-base font-semibold text-white">{membershipPeriodLabel(daysLeft)}</p>
                 <p className="mt-1 text-xs text-white/70">회원권 · 만료 {formatEndKo(endYmd)}</p>
               </div>
             );
             return (
-              <div className="mt-4 border-t border-white/15 pt-3 flex items-start justify-between gap-4">
+              <div className="mt-3 border-t border-white/15 pt-2.5 flex items-start justify-between gap-4">
                 {QA_HERO_VARIANT === 'B' ? membershipBlock : ptBlock}
                 {QA_HERO_VARIANT === 'B' ? ptBlock : membershipBlock}
               </div>
@@ -735,7 +735,7 @@ const ClientHome = ({ user, logout, setView }) => {
               <button
                 type="button"
                 onClick={() => setView('class_booking')}
-                className="flex-1 flex flex-col items-start gap-1.5 rounded-2xl border border-gray-100 bg-white px-3 py-3 text-left shadow-sm cursor-pointer transition-colors duration-200 hover:border-[#064e3b]/40"
+                className="flex-1 flex flex-col items-start gap-1.5 rounded-2xl border border-gray-100 bg-white px-4 py-3.5 text-left shadow-sm cursor-pointer transition-colors duration-200 hover:border-[#064e3b]/40"
               >
                 <Calendar size={22} strokeWidth={BENTO_ICON_STROKE} className="text-[#064e3b] shrink-0" aria-hidden />
                 <span className="text-base font-semibold text-slate-900 tracking-tight leading-snug break-keep">수업 예약</span>
@@ -743,7 +743,7 @@ const ClientHome = ({ user, logout, setView }) => {
               <button
                 type="button"
                 onClick={() => setView('member_workout_log')}
-                className="flex-1 flex flex-col items-start gap-1.5 rounded-2xl border border-gray-100 bg-white px-3 py-3 text-left shadow-sm cursor-pointer transition-colors duration-200 hover:border-[#064e3b]/40"
+                className="flex-1 flex flex-col items-start gap-1.5 rounded-2xl border border-gray-100 bg-white px-4 py-3.5 text-left shadow-sm cursor-pointer transition-colors duration-200 hover:border-[#064e3b]/40"
               >
                 <Dumbbell size={22} strokeWidth={BENTO_ICON_STROKE} className="text-[#064e3b] shrink-0" aria-hidden />
                 <span className="text-base font-semibold text-slate-900 tracking-tight leading-snug break-keep">내 운동 기록</span>
@@ -753,7 +753,7 @@ const ClientHome = ({ user, logout, setView }) => {
                   type="button"
                   onClick={() => setView('hall_of_fame_member_self')}
                   aria-label="나의 상태"
-                  className={`relative w-[104px] shrink-0 rounded-2xl border flex flex-col items-start justify-center gap-1.5 px-3 py-3 text-white shadow-[0_0_24px_rgba(0,0,0,0.45)] hover:border-purple-500/50 ${
+                  className={`relative w-[104px] shrink-0 rounded-2xl border flex flex-col items-start justify-center gap-1.5 px-4 py-3.5 text-white shadow-[0_0_24px_rgba(0,0,0,0.45)] hover:border-purple-500/50 ${
                     hasAthleteBoardNew
                       ? 'border-purple-400/60 bg-gradient-to-r from-zinc-900 to-black ring-2 ring-purple-500/30 animate-pulse'
                       : 'border-purple-500/30 bg-gradient-to-r from-zinc-900 to-black'
