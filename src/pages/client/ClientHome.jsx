@@ -25,7 +25,7 @@ import {
   DASHBOARD_TILE_SUBTITLE_CLASS,
   DASHBOARD_TILE_TITLE_CLASS,
 } from '../../components/member/BiteSizedKnowledgeCard';
-import MembershipPeriodCard from '../../components/member/MembershipPeriodCard';
+import { membershipPeriodLabel, formatEndKo, kstTodayYmd } from '../../components/member/MembershipPeriodCard';
 import { hasUnreadAthleteBoard } from '../../utils/athleteBoardNotifications';
 
 /** MVP: 라이브러리·트레이닝 일지 진입 UI 비표시 — 라우트/화면은 유지 */
@@ -556,6 +556,7 @@ const ClientHome = ({ user, logout, setView }) => {
 
   const sessionRemainBadgeLabel = useMemo(() => `잔여 ${sessionMetrics.remaining}회`, [sessionMetrics.remaining]);
 
+  const QA_HERO_VARIANT = 'A';
   /** 테스트용1 전용 기능 게이트 (NEXT_WEEK_BOOKING_QA_PROFILE_NAME과 동일 계정) */
   const isQaProfile = String(profile?.name || '').trim() === NEXT_WEEK_BOOKING_QA_PROFILE_NAME;
 
@@ -650,20 +651,41 @@ const ClientHome = ({ user, logout, setView }) => {
               className="bg-white/20 backdrop-blur-sm rounded-full px-4 py-2 text-sm font-semibold text-white flex items-center gap-1 cursor-pointer transition hover:bg-white/30 shrink-0"
               aria-label="멤버십 현황 열기"
             >
-              <span className="tabular-nums">{sessionRemainBadgeLabel}</span>
+              {!isQaProfile && <span className="tabular-nums">{sessionRemainBadgeLabel}</span>}
               <span aria-hidden>›</span>
             </button>
           </div>
           {isQaProfile && upcomingBooking && getBookingCheckInState(upcomingBooking) === 'completed' && (
             <p className="mt-3 text-sm font-semibold text-emerald-200">출석 완료</p>
           )}
-          {isQaProfile && (
-            profile?.membership_end ? (
-              <MembershipPeriodCard title="회원권" end={profile.membership_end} />
-            ) : (
-              <MembershipPeriodCard title={QA_MEMBERSHIP_SAMPLE.title} end={QA_MEMBERSHIP_SAMPLE.end} badge="샘플" />
-            )
-          )}
+          {isQaProfile && (() => {
+            const endYmd = profile?.membership_end || QA_MEMBERSHIP_SAMPLE.end;
+            const daysLeft = Math.round(
+              (Date.parse(`${endYmd}T00:00:00+09:00`) - Date.parse(`${kstTodayYmd()}T00:00:00+09:00`)) / 86400000,
+            );
+            const ptBlock = (
+              <div className={`min-w-0 ${QA_HERO_VARIANT === 'B' ? 'text-right' : ''}`}>
+                <p className="text-sm text-white/70 font-medium">PT 잔여</p>
+                <p className="mt-1 text-white tabular-nums">
+                  <span className="text-4xl font-extrabold tracking-tight">{sessionMetrics.remaining}</span>
+                  <span className="ml-1 text-lg font-semibold text-white/80">회</span>
+                </p>
+              </div>
+            );
+            const membershipBlock = (
+              <div className={`min-w-0 ${QA_HERO_VARIANT === 'B' ? '' : 'text-right'}`} aria-label="회원권 기간">
+                <p className="text-sm text-white/70 font-medium">회원권</p>
+                <p className="mt-1 text-lg font-semibold text-white">{membershipPeriodLabel(daysLeft)}</p>
+                <p className="mt-1 text-xs text-white/70">회원권 · 만료 {formatEndKo(endYmd)}</p>
+              </div>
+            );
+            return (
+              <div className="mt-4 border-t border-white/15 pt-3 flex items-start justify-between gap-4">
+                {QA_HERO_VARIANT === 'B' ? membershipBlock : ptBlock}
+                {QA_HERO_VARIANT === 'B' ? ptBlock : membershipBlock}
+              </div>
+            );
+          })()}
         </div>
 
         {/* 2. Open schedule flow */}
