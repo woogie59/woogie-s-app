@@ -818,7 +818,7 @@ const ClientHome = ({ user, logout, setView }) => {
 
           )}
 
-          {(!isQaProfile || upcomingClasses.length > 1) && (
+          {(!isQaProfile || upcomingClasses.length > 0) && (
           <div className="mt-3 space-y-3">
             <p className="text-sm font-medium text-gray-500">{isQaProfile ? '이번 주 일정' : '나의 다가오는 일정'}</p>
             {loadingBookings && !displayBookings.length ? (
@@ -831,7 +831,7 @@ const ClientHome = ({ user, logout, setView }) => {
             ) : (
               <div>
                 <ul className="list-none m-0 p-0">
-                  {(isQaProfile ? upcomingClasses.slice(1) : upcomingClasses).map((booking, index) => {
+                  {upcomingClasses.map((booking, index) => {
                     const state = getBookingCheckInState(booking);
                     const isActive = state === 'active';
                     const isCompleted = state === 'completed';
