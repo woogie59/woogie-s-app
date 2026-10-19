@@ -237,6 +237,7 @@ export default function MemberWorkoutLog({ user, setView, goBack }) {
                   const isSelected = date === selected;
                   const isToday = date === today;
                   const firstPart = (personalEntry?.parts?.[0] || '개인').slice(0, 2);
+                  const ptFirst = rows.find((e) => e.kind === 'pt')?.parts?.[0]?.slice(0, 2) || '';
                   const tint = pt > 0 && personal > 0
                     ? 'bg-gradient-to-br from-sky-100 to-emerald-100 text-slate-900'
                     : pt > 0
@@ -252,12 +253,13 @@ export default function MemberWorkoutLog({ user, setView, goBack }) {
                       aria-pressed={isSelected}
                       aria-label={`${m}월 ${i + 1}일, PT ${pt}회, 개인운동 ${personal}회${isToday ? ', 오늘' : ''}`}
                       onClick={() => setSelected(date)}
-                      className={`flex min-h-[62px] flex-col items-center justify-start gap-1 rounded-xl pt-2 text-sm font-medium ${isSelected ? 'bg-[#064e3b] text-white' : tint} ${isToday && !isSelected ? 'ring-2 ring-[#064e3b]' : ''} disabled:bg-transparent disabled:text-gray-300 disabled:ring-0`}
+                      className={`flex min-h-[56px] flex-col items-center justify-start gap-1 rounded-xl pt-2 text-sm font-medium ${isSelected ? 'bg-[#064e3b] text-white' : tint} ${isToday && !isSelected ? 'ring-2 ring-[#064e3b]' : ''} disabled:bg-transparent disabled:text-gray-300 disabled:ring-0`}
                     >
                       <span className="leading-none">{i + 1}</span>
                       {(pt > 0 || personal > 0) && (
-                        <span aria-hidden="true" className={`flex flex-col items-center gap-0.5 text-[11px] leading-[1.25] ${isSelected ? 'text-white/90' : ''}`}>
-                          {pt > 0 && <span className={isSelected ? '' : 'font-bold text-sky-600'}>PT</span>}
+                        <span aria-hidden="true" className={`flex items-center justify-center whitespace-nowrap text-[11px] leading-none ${isSelected ? 'text-white/90' : ''}`}>
+                          {pt > 0 && <span className={isSelected ? '' : 'font-bold text-sky-600'}>PT{ptFirst && personal === 0 ? `·${ptFirst}` : ''}</span>}
+                          {pt > 0 && personal > 0 && <span className="mx-0.5 text-gray-400">·</span>}
                           {personal > 0 && <span className={isSelected ? '' : 'text-[#064e3b]'}>{firstPart}</span>}
                         </span>
                       )}
@@ -314,7 +316,7 @@ export default function MemberWorkoutLog({ user, setView, goBack }) {
                 </div>
                 {selectedPt && (
                   <>
-                    <p className="mt-4 text-xs text-sky-800">PT 부위 (선택)</p>
+                    <p className="mt-4 text-xs text-sky-800">PT 운동부위 (선택)</p>
                     <div className="mt-2 flex flex-wrap gap-2" role="group" aria-label="PT 운동 부위 선택 (선택 사항)">
                       {WORKOUT_PARTS.map((p) => (
                         <button
