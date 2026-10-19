@@ -738,7 +738,7 @@ const ClientHome = ({ user, logout, setView }) => {
                 className="flex-1 flex flex-col items-start gap-2 rounded-2xl border border-gray-100 bg-white p-4 text-left shadow-sm cursor-pointer transition-colors duration-200 hover:border-[#064e3b]/40"
               >
                 <Calendar size={22} strokeWidth={BENTO_ICON_STROKE} className="text-[#064e3b] shrink-0" aria-hidden />
-                <span className="text-base font-semibold text-slate-900 tracking-tight leading-snug break-keep">수업 예약 및 일정</span>
+                <span className="text-base font-semibold text-slate-900 tracking-tight leading-snug break-keep">수업 예약</span>
               </button>
               <button
                 type="button"
