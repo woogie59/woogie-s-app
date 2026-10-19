@@ -116,7 +116,7 @@ const ACTIVE_NEXT_WEEK_UNLOCK = NEXT_WEEK_UNLOCK.SATURDAY_1PM;
 export const NEXT_WEEK_BOOKING_QA_PROFILE_NAME = '테스트용1';
 
 /** QA 계정 전체: 신기능이 실시간 적용되는 프로필 이름들 (송이담 추가 — 사용자 지시 2026-10-19, 회원권 10/30 설정과 함께 승인) */
-export const QA_PROFILE_NAMES = [NEXT_WEEK_BOOKING_QA_PROFILE_NAME, '송이담'];
+export const QA_PROFILE_NAMES = [NEXT_WEEK_BOOKING_QA_PROFILE_NAME, '송이담', '테스트2'];
 
 /** QA 계정 여부 (프로필 이름 기준, 앞뒤 공백 무시) */
 export const isQaProfileName = (profileName) => QA_PROFILE_NAMES.includes(String(profileName || '').trim());
