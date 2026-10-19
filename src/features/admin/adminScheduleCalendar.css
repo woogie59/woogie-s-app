@@ -494,3 +494,12 @@
   font-size: 11px;
   margin-left: auto;
 }
+
+/* 주간 블록 시간 라벨 잘림 수정 */
+.labdot-fc-wrap .fc .fc-timegrid-event {
+  padding: 1px 2px;
+}
+.labdot-fc-wrap .fc .labdot-ev-t {
+  font-size: 10px;
+  letter-spacing: -0.2px;
+}

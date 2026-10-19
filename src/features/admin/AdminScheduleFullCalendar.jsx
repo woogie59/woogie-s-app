@@ -413,6 +413,7 @@ const AdminScheduleFullCalendar = ({
           }}
           titleFormat={{ year: 'numeric', month: 'long' }}
           dayHeaderFormat={{ weekday: 'short', month: 'numeric', day: 'numeric' }}
+          views={{ dayGridMonth: { dayHeaderFormat: { weekday: 'short' } } }}
           slotMinTime="07:00:00"
           slotMaxTime="23:00:00"
           allDaySlot={false}
