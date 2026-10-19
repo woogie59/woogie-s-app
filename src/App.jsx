@@ -10,7 +10,7 @@ import { emitSessionBalanceRefresh } from './utils/sessionBalanceEvents';
 import { invokeNotifyMemberEvents } from './utils/notifications';
 import { invokeOtBlockGoogleSync } from './utils/googleCalendarOtSync';
 import { clearBookingPwaState } from './utils/bookingPwaState';
-import { NEXT_WEEK_BOOKING_QA_PROFILE_NAME } from './utils/bookingDateKeys';
+import { isQaProfileName } from './utils/bookingDateKeys';
 import {
   readPersistedView,
   writePersistedView,
@@ -1079,7 +1079,7 @@ export default function App() {
             <MemberAthleteView userId={session.user.id} goBack={goBack} />
           )}
 
-          {session && view === 'member_exercise_library' && userProfileName !== NEXT_WEEK_BOOKING_QA_PROFILE_NAME && (
+          {session && view === 'member_exercise_library' && !isQaProfileName(userProfileName) && (
             <MemberExerciseLibrary goBack={() => navigate('client_home')} />
           )}
 
@@ -1462,7 +1462,7 @@ export default function App() {
             <ClassBooking user={session.user} profileName={userProfileName} setView={navigate} goBack={goBack} />
           )}
 
-          {session && view === 'member_workout_log' && String(userProfileName || '').trim() === NEXT_WEEK_BOOKING_QA_PROFILE_NAME && (
+          {session && view === 'member_workout_log' && isQaProfileName(userProfileName) && (
             <MemberWorkoutLog user={session.user} setView={navigate} goBack={goBack} />
           )}
 

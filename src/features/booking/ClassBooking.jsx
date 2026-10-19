@@ -14,7 +14,7 @@ import MemberCancelBookingModals from '../../components/member/MemberCancelBooki
 import { emitSessionBalanceRefresh } from '../../utils/sessionBalanceEvents';
 import {
   isMemberAppBookingAllowed,
-  isNextWeekBookingUnlockedKST,
+  isNextWeekBookingUnlockedKST, isQaProfileName,
   isSlotTooSoonForMemberBooking,
   MEMBER_BOOKING_ONE_HOUR_MESSAGE,
   NEXT_WEEK_LOCKED_BANNER_HTML,
@@ -581,9 +581,11 @@ const ClassBooking = ({ user, profileName = '', setView, goBack }) => {
                               >
                                 {time}
                               </span>
-                              <span className="text-[10px] font-semibold tracking-[0.12em] text-white/95">
-                                내 예약
-                              </span>
+                              {!isQaProfileName(profileName) && (
+                                <span className="text-[10px] font-semibold tracking-[0.12em] text-white/95">
+                                  내 예약
+                                </span>
+                              )}
                             </>
                           ) : isOther ? (
                             <span className="tabular-nums">{time}</span>

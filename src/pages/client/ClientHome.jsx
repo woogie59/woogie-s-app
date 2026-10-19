@@ -14,7 +14,7 @@ import { useGlobalModal } from '../../context/GlobalModalContext';
 import LabDotBrand from '../../components/ui/LabDotBrand';
 import Skeleton from '../../components/ui/Skeleton';
 import SessionHistoryModal from '../../features/members/SessionHistoryModal';
-import { parseBookingToLocalDate, NEXT_WEEK_BOOKING_QA_PROFILE_NAME } from '../../utils/bookingDateKeys';
+import { parseBookingToLocalDate, isQaProfileName } from '../../utils/bookingDateKeys';
 import MemberCancelBookingModals from '../../components/member/MemberCancelBookingModals';
 import MemberAnnouncementModal from '../../components/member/MemberAnnouncementModal';
 import { fetchActiveMemberAnnouncement } from '../../utils/memberAnnouncements';
@@ -57,6 +57,10 @@ const formatUpcomingDateLabel = (b) => {
   return `${dt.getMonth() + 1}월 ${dt.getDate()}일 (${KO_WEEKDAYS_SHORT[dt.getDay()]})`;
 };
 
+/** 테스트용1 전용: 화면 복귀 후 리패치 동안 이전 값을 유지하기 위한 인메모리 스냅샷.
+ *  모듈 스코프라 같은 SPA 세션 내 언마운트/리마운트에만 유지되고, 새로고침하면 초기화된다. */
+const qaHomeSnapshot = { userId: null, batches: null, logs: null, bookings: null };
+
 const ClientHome = ({ user, logout, setView }) => {
   const { showAlert } = useGlobalModal();
   const [profile, setProfile] = useState(null);
@@ -71,6 +75,8 @@ const ClientHome = ({ user, logout, setView }) => {
   const [sessionBatches, setSessionBatches] = useState([]);
   /** attendance_logs rows for eligible count (with bookings, excludes zombies). */
   const [attendanceLogs, setAttendanceLogs] = useState([]);
+  /** 첫 세션 지표 로딩 완료 여부 (테스트용1 스냅샷 폴백 판정용) */
+  const [metricsLoaded, setMetricsLoaded] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
   const [showCheckInDoneModal, setShowCheckInDoneModal] = useState(false);
   const [cancelIntent, setCancelIntent] = useState(null);
@@ -167,6 +173,7 @@ const ClientHome = ({ user, logout, setView }) => {
     const m = await fetchSessionBalanceMetrics(supabase, user.id);
     setSessionBatches(Array.isArray(m.batches) ? m.batches : []);
     setAttendanceLogs(Array.isArray(m.logs) ? m.logs : []);
+    setMetricsLoaded(true);
   }, [user]);
 
   useEffect(() => {
@@ -425,15 +432,26 @@ const ClientHome = ({ user, logout, setView }) => {
     return `최근 기록: ${md} - ${focus}`;
   }, [latestReport]);
 
+  /** 테스트용1 전용 기능 게이트 (NEXT_WEEK_BOOKING_QA_PROFILE_NAME과 동일 계정) */
+  const isQaProfile = isQaProfileName(profile?.name);
+
+  const displayBookings = useMemo(() => {
+    if (myBookings?.length) return myBookings;
+    if (isQaProfile && loadingBookings && qaHomeSnapshot.userId === user?.id && qaHomeSnapshot.bookings?.length) {
+      return qaHomeSnapshot.bookings;
+    }
+    return myBookings || [];
+  }, [myBookings, isQaProfile, loadingBookings, user?.id]);
+
   const upcomingBooking = useMemo(() => {
-    if (!myBookings?.length) return null;
+    if (!displayBookings?.length) return null;
     const now = new Date();
-    const future = myBookings
+    const future = displayBookings
       .map((b) => ({ b, dt: bookingDateTime(b) }))
       .filter((x) => x.dt && x.dt >= now)
       .sort((a, b) => a.dt - b.dt);
     return future[0]?.b ?? null;
-  }, [myBookings]);
+  }, [displayBookings]);
 
   const isBookingCheckedIn = useCallback(
     (booking) => {
@@ -531,10 +549,10 @@ const ClientHome = ({ user, logout, setView }) => {
   }, [fetchMyBookings, loadSessionMetrics]);
 
   const upcomingClasses = useMemo(() => {
-    if (!myBookings?.length) return [];
+    if (!displayBookings?.length) return [];
     const now = new Date();
     const lowerBound = new Date(now.getTime() - 60 * 60000);
-    return myBookings
+    return displayBookings
       .map((b) => ({ b, dt: bookingDateTime(b) }))
       .filter((x) => {
         // Keep classes that started within last 60m (check-in grace window) + future classes.
@@ -543,22 +561,38 @@ const ClientHome = ({ user, logout, setView }) => {
       })
       .sort((a, b) => a.dt - b.dt)
       .map((x) => x.b);
-  }, [myBookings]);
+  }, [displayBookings]);
+
+  // 테스트용1 전용: 리패치 완료 전까지 이전 스냅샷으로 잔여/일정을 유지해 0회 플래시와 빈 스켈레톤 방지
+  useEffect(() => {
+    if (!isQaProfile || !metricsLoaded || !user?.id) return;
+    qaHomeSnapshot.userId = user.id;
+    qaHomeSnapshot.batches = sessionBatches;
+    qaHomeSnapshot.logs = attendanceLogs;
+  }, [isQaProfile, metricsLoaded, sessionBatches, attendanceLogs, user?.id]);
+
+  useEffect(() => {
+    if (!isQaProfile || !user?.id || loadingBookings) return;
+    qaHomeSnapshot.userId = user.id;
+    qaHomeSnapshot.bookings = myBookings;
+  }, [isQaProfile, myBookings, loadingBookings, user?.id]);
 
   const sessionMetrics = useMemo(() => {
-    const batches = Array.isArray(sessionBatches) ? sessionBatches : [];
-    const logs = Array.isArray(attendanceLogs) ? attendanceLogs : [];
+    let batches = Array.isArray(sessionBatches) ? sessionBatches : [];
+    let logs = Array.isArray(attendanceLogs) ? attendanceLogs : [];
+    if (isQaProfile && !metricsLoaded && qaHomeSnapshot.userId === user?.id && qaHomeSnapshot.batches) {
+      batches = qaHomeSnapshot.batches;
+      logs = qaHomeSnapshot.logs || [];
+    }
     const totalPurchased = sumTotalPurchasedFromBatches(batches);
     const usedSessionCount = countCompletedAttendanceLogs(logs);
     const remaining = computeRemainingSessions(totalPurchased, usedSessionCount);
     return { totalPurchased, usedSessionCount, remaining };
-  }, [sessionBatches, attendanceLogs]);
+  }, [sessionBatches, attendanceLogs, isQaProfile, metricsLoaded, user?.id]);
 
   const sessionRemainBadgeLabel = useMemo(() => `잔여 ${sessionMetrics.remaining}회`, [sessionMetrics.remaining]);
 
   const QA_HERO_VARIANT = 'A';
-  /** 테스트용1 전용 기능 게이트 (NEXT_WEEK_BOOKING_QA_PROFILE_NAME과 동일 계정) */
-  const isQaProfile = String(profile?.name || '').trim() === NEXT_WEEK_BOOKING_QA_PROFILE_NAME;
 
   if (!user) {
     return (
@@ -628,7 +662,7 @@ const ClientHome = ({ user, logout, setView }) => {
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0 flex-1">
               <p className="text-sm text-white/70 font-medium mb-1">다음 수업</p>
-              {loadingBookings && !myBookings.length ? (
+              {loadingBookings && !displayBookings.length ? (
                 <Skeleton className="h-14 w-40 bg-white/15 rounded-xl" />
               ) : upcomingBooking ? (
                 <>
@@ -639,7 +673,7 @@ const ClientHome = ({ user, logout, setView }) => {
                 </>
               ) : (
                 <p className="text-[13px] font-medium text-white/90 mt-2">
-                  {String(profile?.name || '').trim() === NEXT_WEEK_BOOKING_QA_PROFILE_NAME
+                  {isQaProfile
                     ? '예약 없음'
                     : '예약 없음 · 수업 예약 및 일정에서 잡아보세요.'}
                 </p>
@@ -787,7 +821,7 @@ const ClientHome = ({ user, logout, setView }) => {
           {(!isQaProfile || upcomingClasses.length > 1) && (
           <div className="mt-3 space-y-3">
             <p className="text-sm font-medium text-gray-500">{isQaProfile ? '이번 주 일정' : '나의 다가오는 일정'}</p>
-            {loadingBookings && !myBookings.length ? (
+            {loadingBookings && !displayBookings.length ? (
               <div className="space-y-2">
                 <Skeleton className="h-4 w-40 rounded" />
                 <Skeleton className="h-4 w-48 rounded" />
