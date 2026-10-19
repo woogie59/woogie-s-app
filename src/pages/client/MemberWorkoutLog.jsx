@@ -16,9 +16,6 @@ const kstYmd = (iso) =>
   new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Seoul', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date(iso));
 const kstHour = (iso) =>
   Number(new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Seoul', hour: '2-digit', hourCycle: 'h23' }).format(new Date(iso)));
-const kstTime = (iso) =>
-  new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Seoul', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(new Date(iso));
-
 const addDays = (ymd, delta) => {
   const d = new Date(`${ymd}T12:00:00+09:00`);
   d.setUTCDate(d.getUTCDate() + delta);
@@ -286,7 +283,6 @@ export default function MemberWorkoutLog({ user, setView, goBack }) {
                         <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${e.kind === 'pt' ? 'bg-sky-100 text-sky-800' : 'bg-emerald-100 text-[#064e3b]'}`}>
                           {e.kind === 'pt' ? 'PT' : '개인운동'}
                         </span>
-                        <p className="text-sm font-medium">{kstTime(e.at)}</p>
                         {e.parts?.length > 0 && <p className="text-xs opacity-80">{e.parts.join(' · ')}</p>}
                       </li>
                     ))}
