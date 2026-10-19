@@ -65,6 +65,7 @@ export default function MemberWorkoutLog({ user, setView, goBack }) {
   const [loadError, setLoadError] = useState(false);
   const [selected, setSelected] = useState(today);
   const [parts, setParts] = useState([]);
+  const [ptParts, setPtParts] = useState([]);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState(null);
   const [savedFlash, setSavedFlash] = useState(false);
@@ -79,10 +80,17 @@ export default function MemberWorkoutLog({ user, setView, goBack }) {
         supabase.from('attendance_logs').select('id, status, check_in_at').eq('user_id', user.id),
       ]);
       if (weRes.error) throw weRes.error;
-      const personal = (weRes.data || []).map((r) => ({ id: r.id, at: r.at, kind: 'personal', parts: r.parts || [] }));
+      const personal = (weRes.data || []).filter((r) => r.kind !== 'pt').map((r) => ({ id: r.id, at: r.at, kind: 'personal', parts: r.parts || [] }));
+      const ptPartsByDay = new Map();
+      for (const r of weRes.data || []) {
+        if (r.kind === 'pt') ptPartsByDay.set(kstYmd(r.at), { id: r.id, parts: r.parts || [] });
+      }
       const pt = (logsRes.error ? [] : logsRes.data || [])
         .filter((l) => isAttendanceLogCompletedForBalance(l) && l.check_in_at)
-        .map((l) => ({ id: `att-${l.id}`, at: l.check_in_at, kind: 'pt', parts: [] }));
+        .map((l) => {
+          const pp = ptPartsByDay.get(kstYmd(l.check_in_at));
+          return { id: `att-${l.id}`, at: l.check_in_at, kind: 'pt', parts: pp?.parts || [], ptEntryId: pp?.id || null };
+        });
       setEntries([...personal, ...pt]);
     } catch {
       setLoadError(true);
@@ -102,10 +110,12 @@ export default function MemberWorkoutLog({ user, setView, goBack }) {
   const selectedEntry = entries.find((e) => e.kind === 'personal' && kstYmd(e.at) === selected);
   // selectedPersonal removed: auto-save replaces the button state
 
+  const selectedPt = dayRows.find((e) => e.kind === 'pt');
   useEffect(() => {
     setParts(selectedEntry?.parts ?? []);
+    setPtParts(selectedPt?.parts ?? []);
     // 선택한 날짜가 바뀌면 그 날의 기록을 편집 대상으로 불러온다
-  }, [selected, selectedEntry?.id, selectedEntry?.parts]);
+  }, [selected, selectedEntry?.id, selectedEntry?.parts, selectedPt?.id, selectedPt?.parts]);
   const ptCount = summary.monthly.filter((e) => e.kind === 'pt').length;
   const personalCount = summary.count - ptCount;
 
@@ -143,6 +153,37 @@ export default function MemberWorkoutLog({ user, setView, goBack }) {
     const next = parts.includes(p) ? parts.filter((x) => x !== p) : [...parts, p];
     setParts(next);
     save(next);
+  }
+
+  async function savePt(nextParts) {
+    if (!user?.id || saving || !selectedPt) return;
+    setSaving(true);
+    setSaveError(null);
+    try {
+      if (selectedPt.ptEntryId) {
+        const { error } = await supabase.from('member_workout_entries').update({ parts: nextParts }).eq('id', selectedPt.ptEntryId);
+        if (error) throw error;
+        setEntries((old) => old.map((e) => (e.id === selectedPt.id ? { ...e, parts: nextParts } : e)));
+      } else {
+        const row = { user_id: user.id, at: selectedPt.at, kind: 'pt', parts: nextParts };
+        const { data, error } = await supabase.from('member_workout_entries').insert([row]).select().single();
+        if (error) throw error;
+        setEntries((old) => old.map((e) => (e.id === selectedPt.id ? { ...e, parts: data.parts || [], ptEntryId: data.id } : e)));
+      }
+      setSavedFlash(true);
+      setTimeout(() => setSavedFlash(false), 2000);
+    } catch {
+      setSaveError('저장하지 못했습니다. 다시 시도해 주세요.');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  function togglePtPart(p) {
+    if (saving) return;
+    const next = ptParts.includes(p) ? ptParts.filter((x) => x !== p) : [...ptParts, p];
+    setPtParts(next);
+    savePt(next);
   }
 
   return (
@@ -241,13 +282,14 @@ export default function MemberWorkoutLog({ user, setView, goBack }) {
               </h2>
               <div aria-live="polite" aria-atomic="true">
                 {dayRows.length ? (
-                  <ul className="mt-2 divide-y divide-gray-100">
+                  <ul className="mt-2 space-y-2">
                     {dayRows.map((e) => (
-                      <li key={e.id} className="flex items-center gap-2 py-3">
+                      <li key={e.id} className={`flex items-center gap-2 rounded-xl px-3 py-2.5 ${e.kind === 'pt' ? 'bg-sky-50 text-sky-900' : 'bg-emerald-50 text-[#064e3b]'}`}>
                         <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${e.kind === 'pt' ? 'bg-sky-100 text-sky-800' : 'bg-emerald-100 text-[#064e3b]'}`}>
                           {e.kind === 'pt' ? 'PT' : '개인운동'}
                         </span>
                         <p className="text-sm font-medium">{kstTime(e.at)}</p>
+                        {e.parts?.length > 0 && <p className="text-xs opacity-80">{e.parts.join(' · ')}</p>}
                       </li>
                     ))}
                   </ul>
@@ -270,6 +312,24 @@ export default function MemberWorkoutLog({ user, setView, goBack }) {
                     </button>
                   ))}
                 </div>
+                {selectedPt && (
+                  <>
+                    <p className="mt-4 text-xs text-sky-800">PT 부위 (선택)</p>
+                    <div className="mt-2 flex flex-wrap gap-2" role="group" aria-label="PT 운동 부위 선택 (선택 사항)">
+                      {WORKOUT_PARTS.map((p) => (
+                        <button
+                          key={p}
+                          type="button"
+                          aria-pressed={ptParts.includes(p)}
+                          onClick={() => togglePtPart(p)}
+                          className={`min-h-11 rounded-full border px-3 text-sm ${ptParts.includes(p) ? 'border-transparent bg-sky-600 font-semibold text-white' : 'border-transparent bg-gray-100 text-gray-600'}`}
+                        >
+                          {p}
+                        </button>
+                      ))}
+                    </div>
+                  </>
+                )}
                 <p className="mt-3 text-xs text-gray-500">{saving ? '저장 중…' : '부위를 누르면 바로 저장됩니다'}</p>
                 {saveError && <p role="alert" className="mt-2 text-sm text-amber-900">{saveError}</p>}
               </div>
