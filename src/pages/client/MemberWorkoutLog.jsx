@@ -200,16 +200,16 @@ export default function MemberWorkoutLog({ user, setView, goBack }) {
                     >
                       <span>{i + 1}</span>
                       <span aria-hidden="true" className="flex h-1.5 gap-1">
-                        {pt > 0 && <span className={`h-1.5 w-1.5 rounded-full ${isSelected ? 'bg-white' : 'bg-[#064e3b]'}`} />}
-                        {personal > 0 && <span className={`h-1.5 w-1.5 rounded-full ${isSelected ? 'bg-sky-200' : 'bg-sky-600'}`} />}
+                        {pt > 0 && <span className={`h-1.5 w-1.5 rounded-full ${isSelected ? 'bg-sky-200' : 'bg-sky-600'}`} />}
+                        {personal > 0 && <span className={`h-1.5 w-1.5 rounded-full ${isSelected ? 'bg-white' : 'bg-[#064e3b]'}`} />}
                       </span>
                     </button>
                   );
                 })}
               </div>
               <p className="mt-3 text-xs text-gray-600">
-                <span className="mr-1 inline-block h-1.5 w-1.5 rounded-full bg-[#064e3b]" aria-hidden="true" /> PT
-                <span className="ml-3 mr-1 inline-block h-1.5 w-1.5 rounded-full bg-sky-600" aria-hidden="true" /> 개인운동
+                <span className="mr-1 inline-block h-1.5 w-1.5 rounded-full bg-sky-600" aria-hidden="true" /> PT
+                <span className="ml-3 mr-1 inline-block h-1.5 w-1.5 rounded-full bg-[#064e3b]" aria-hidden="true" /> 개인운동
               </p>
             </section>
 
