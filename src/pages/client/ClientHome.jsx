@@ -735,7 +735,7 @@ const ClientHome = ({ user, logout, setView }) => {
               <button
                 type="button"
                 onClick={() => setView('class_booking')}
-                className="flex-1 flex flex-col items-start gap-2 rounded-2xl border border-gray-100 bg-white p-4 text-left shadow-sm cursor-pointer transition-colors duration-200 hover:border-[#064e3b]/40"
+                className="flex-1 flex flex-col items-start gap-1.5 rounded-2xl border border-gray-100 bg-white px-4 py-3 text-left shadow-sm cursor-pointer transition-colors duration-200 hover:border-[#064e3b]/40"
               >
                 <Calendar size={22} strokeWidth={BENTO_ICON_STROKE} className="text-[#064e3b] shrink-0" aria-hidden />
                 <span className="text-base font-semibold text-slate-900 tracking-tight leading-snug break-keep">수업 예약</span>
@@ -743,7 +743,7 @@ const ClientHome = ({ user, logout, setView }) => {
               <button
                 type="button"
                 onClick={() => setView('member_workout_log')}
-                className="flex-1 flex flex-col items-start gap-2 rounded-2xl border border-gray-100 bg-white p-4 text-left shadow-sm cursor-pointer transition-colors duration-200 hover:border-[#064e3b]/40"
+                className="flex-1 flex flex-col items-start gap-1.5 rounded-2xl border border-gray-100 bg-white px-4 py-3 text-left shadow-sm cursor-pointer transition-colors duration-200 hover:border-[#064e3b]/40"
               >
                 <Dumbbell size={22} strokeWidth={BENTO_ICON_STROKE} className="text-[#064e3b] shrink-0" aria-hidden />
                 <span className="text-base font-semibold text-slate-900 tracking-tight leading-snug break-keep">내 운동 기록</span>
