@@ -267,7 +267,7 @@ export default function MemberWorkoutLog({ user, setView, goBack }) {
                     </button>
                   ))}
                 </div>
-                <p className="mt-3 text-xs text-gray-500">{saving ? '저장 중…' : '부위를 누르면 바로 저장됩니다 · 하루 1회'}</p>
+                <p className="mt-3 text-xs text-gray-500">{saving ? '저장 중…' : '부위를 누르면 바로 저장됩니다'}</p>
                 {saveError && <p role="alert" className="mt-2 text-sm text-amber-900">{saveError}</p>}
               </div>
             </section>
