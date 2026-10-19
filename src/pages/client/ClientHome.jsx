@@ -630,7 +630,11 @@ const ClientHome = ({ user, logout, setView }) => {
                   <p className="text-base text-white/90 mt-2">{formatUpcomingDateLabel(upcomingBooking)}</p>
                 </>
               ) : (
-                <p className="text-[13px] font-medium text-white/90 mt-2">예약 없음 · 수업 예약 및 일정에서 잡아보세요.</p>
+                <p className="text-[13px] font-medium text-white/90 mt-2">
+                  {String(profile?.name || '').trim() === NEXT_WEEK_BOOKING_QA_PROFILE_NAME
+                    ? '예약 없음'
+                    : '예약 없음 · 수업 예약 및 일정에서 잡아보세요.'}
+                </p>
               )}
             </div>
             <button
