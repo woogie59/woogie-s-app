@@ -5,7 +5,7 @@ import { supabase } from '../../lib/supabaseClient';
 import { isAttendanceLogCompletedForBalance } from '../../utils/sessionHelpers';
 
 /**
- * 내 운동 기록 (짐매니오 /m/workout 이식) — 테스트용1 전용.
+ * 내 운동 기록 (짐매니오 /m/workout 이식).
  * 개인운동: member_workout_entries 테이블 (본인 행만, RLS).
  * PT: 기존 attendance_logs의 완료 출석에서 파생.
  */
@@ -195,9 +195,7 @@ export default function MemberWorkoutLog({ user, setView, goBack }) {
           <LabDotBrand variant="header" />
           <p className="mt-2.5 mb-2 text-xs font-light tracking-[0.12em] text-gray-500">운동기록</p>
         </div>
-        <div className="flex items-center justify-end">
-          <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs text-emerald-800">테스트</span>
-        </div>
+        <div className="flex items-center justify-end" aria-hidden />
       </header>
 
       <main className="flex-1 flex flex-col px-5 gap-4 pb-6 overflow-y-auto scrollable min-h-0">
