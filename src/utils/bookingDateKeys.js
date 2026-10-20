@@ -121,6 +121,13 @@ export const QA_PROFILE_NAMES = [NEXT_WEEK_BOOKING_QA_PROFILE_NAME, '송이담',
 /** QA 계정 여부 (프로필 이름 기준, 앞뒤 공백 무시) */
 export const isQaProfileName = (profileName) => QA_PROFILE_NAMES.includes(String(profileName || '').trim());
 
+/**
+ * 신규 회원 홈/달력/예약 UI 게이트 — 2026-10-20 전체 회원 오픈으로 항상 true.
+ * 주의: "다음 주 예약" 토요일 1시 잠금 우회는 이 함수가 아니라 isQaProfileName(QA 계정)만 적용.
+ * 롤백 시 이 함수를 (profileName) => isQaProfileName(profileName) 로 되돌리면 QA 계정만 신규 UI.
+ */
+export const isNewMemberUiEnabled = () => true;
+
 /** "다음 주" 잠금 시 탭/토스트 — 운영 문구 (요청 확정) */
 const NEXT_WEEK_OPEN_COPY = '다음 주 예약은 토요일 1시에 오픈됩니다.';
 

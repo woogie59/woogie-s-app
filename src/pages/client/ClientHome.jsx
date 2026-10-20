@@ -14,7 +14,7 @@ import { useGlobalModal } from '../../context/GlobalModalContext';
 import LabDotBrand from '../../components/ui/LabDotBrand';
 import Skeleton from '../../components/ui/Skeleton';
 import SessionHistoryModal from '../../features/members/SessionHistoryModal';
-import { parseBookingToLocalDate, isQaProfileName } from '../../utils/bookingDateKeys';
+import { parseBookingToLocalDate, isNewMemberUiEnabled } from '../../utils/bookingDateKeys';
 import MemberCancelBookingModals from '../../components/member/MemberCancelBookingModals';
 import MemberAnnouncementModal from '../../components/member/MemberAnnouncementModal';
 import { fetchActiveMemberAnnouncement } from '../../utils/memberAnnouncements';
@@ -31,8 +31,6 @@ import { hasUnreadAthleteBoard } from '../../utils/athleteBoardNotifications';
 /** MVP: 라이브러리·트레이닝 일지 진입 UI 비표시 — 라우트/화면은 유지 */
 const MVP_HIDE_LIBRARY_AND_TRAINING_NAV = true;
 
-/** QA 샘플 (테스트용1 전용): 실제 회원권 기간은 DB 필드 승인 후 연결 */
-const QA_MEMBERSHIP_SAMPLE = { title: '테스트 회원권', start: '2026-10-01', end: '2026-12-31' };
 /** Admin RPC 출석 INSERT와 동일한 Realtime 채널 (필터 user_id=eq.<uuid>와 함께 사용). */
 const memberAttendanceChannelName = (userId) => `qr-check-in-channel:${String(userId)}`;
 
@@ -434,16 +432,16 @@ const ClientHome = ({ user, logout, setView }) => {
     return `최근 기록: ${md} - ${focus}`;
   }, [latestReport]);
 
-  /** 테스트용1 전용 기능 게이트 (NEXT_WEEK_BOOKING_QA_PROFILE_NAME과 동일 계정) */
-  const isQaProfile = isQaProfileName(profile?.name);
+  /** 신규 회원 홈 UI — 2026-10-20 전체 회원 오픈 */
+  const isNewUi = isNewMemberUiEnabled();
 
   const displayBookings = useMemo(() => {
     if (myBookings?.length) return myBookings;
-    if (isQaProfile && loadingBookings && qaHomeSnapshot.userId === user?.id && qaHomeSnapshot.bookings?.length) {
+    if (isNewUi && loadingBookings && qaHomeSnapshot.userId === user?.id && qaHomeSnapshot.bookings?.length) {
       return qaHomeSnapshot.bookings;
     }
     return myBookings || [];
-  }, [myBookings, isQaProfile, loadingBookings, user?.id]);
+  }, [myBookings, isNewUi, loadingBookings, user?.id]);
 
   const upcomingBooking = useMemo(() => {
     if (!displayBookings?.length) return null;
@@ -567,22 +565,22 @@ const ClientHome = ({ user, logout, setView }) => {
 
   // 테스트용1 전용: 리패치 완료 전까지 이전 스냅샷으로 잔여/일정을 유지해 0회 플래시와 빈 스켈레톤 방지
   useEffect(() => {
-    if (!isQaProfile || !metricsLoaded || !user?.id) return;
+    if (!isNewUi || !metricsLoaded || !user?.id) return;
     qaHomeSnapshot.userId = user.id;
     qaHomeSnapshot.batches = sessionBatches;
     qaHomeSnapshot.logs = attendanceLogs;
-  }, [isQaProfile, metricsLoaded, sessionBatches, attendanceLogs, user?.id]);
+  }, [isNewUi, metricsLoaded, sessionBatches, attendanceLogs, user?.id]);
 
   useEffect(() => {
-    if (!isQaProfile || !user?.id || loadingBookings) return;
+    if (!isNewUi || !user?.id || loadingBookings) return;
     qaHomeSnapshot.userId = user.id;
     qaHomeSnapshot.bookings = myBookings;
-  }, [isQaProfile, myBookings, loadingBookings, user?.id]);
+  }, [isNewUi, myBookings, loadingBookings, user?.id]);
 
   const sessionMetrics = useMemo(() => {
     let batches = Array.isArray(sessionBatches) ? sessionBatches : [];
     let logs = Array.isArray(attendanceLogs) ? attendanceLogs : [];
-    if (isQaProfile && !metricsLoaded && qaHomeSnapshot.userId === user?.id && qaHomeSnapshot.batches) {
+    if (isNewUi && !metricsLoaded && qaHomeSnapshot.userId === user?.id && qaHomeSnapshot.batches) {
       batches = qaHomeSnapshot.batches;
       logs = qaHomeSnapshot.logs || [];
     }
@@ -590,7 +588,7 @@ const ClientHome = ({ user, logout, setView }) => {
     const usedSessionCount = countCompletedAttendanceLogs(logs);
     const remaining = computeRemainingSessions(totalPurchased, usedSessionCount);
     return { totalPurchased, usedSessionCount, remaining };
-  }, [sessionBatches, attendanceLogs, isQaProfile, metricsLoaded, user?.id]);
+  }, [sessionBatches, attendanceLogs, isNewUi, metricsLoaded, user?.id]);
 
   const sessionRemainBadgeLabel = useMemo(() => `잔여 ${sessionMetrics.remaining}회`, [sessionMetrics.remaining]);
 
@@ -661,7 +659,7 @@ const ClientHome = ({ user, logout, setView }) => {
 
       <main className="flex-1 flex flex-col px-5 gap-4 pb-6 overflow-y-auto scrollable min-h-0">
         {/* 1. Upcoming Class — read-only billboard; 전체 일정은「수업 예약 및 일정」화면 */}
-        <div className={`w-full rounded-2xl ${isQaProfile ? 'bg-[#064e3b]' : 'bg-gradient-to-r from-[#0f2818] to-[#1a4026]'} px-5 py-4 text-left text-white shadow-lg border border-white/10 shrink-0`}>
+        <div className={`w-full rounded-2xl ${isNewUi ? 'bg-[#064e3b]' : 'bg-gradient-to-r from-[#0f2818] to-[#1a4026]'} px-5 py-4 text-left text-white shadow-lg border border-white/10 shrink-0`}>
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0 flex-1">
               <p className="text-sm text-white/70 font-medium mb-1">다음 수업</p>
@@ -669,7 +667,7 @@ const ClientHome = ({ user, logout, setView }) => {
                 <Skeleton className="h-14 w-40 bg-white/15 rounded-xl" />
               ) : upcomingBooking ? (
                 <>
-                  {isQaProfile ? (
+                  {isNewUi ? (
                     <p className="flex flex-wrap items-baseline gap-x-2.5 gap-y-1">
                       <span className="text-5xl font-extrabold tracking-tighter tabular-nums text-white leading-none">
                         {formatTime24hStatic(upcomingBooking?.time)}
@@ -689,13 +687,13 @@ const ClientHome = ({ user, logout, setView }) => {
                 </>
               ) : (
                 <p className="text-[13px] font-medium text-white/90 mt-2">
-                  {isQaProfile
+                  {isNewUi
                     ? '예약 없음'
                     : '예약 없음 · 수업 예약 및 일정에서 잡아보세요.'}
                 </p>
               )}
             </div>
-            {!isQaProfile && (
+            {!isNewUi && (
               <button
                 type="button"
                 onClick={() => setShowHistory(true)}
@@ -707,15 +705,17 @@ const ClientHome = ({ user, logout, setView }) => {
               </button>
             )}
           </div>
-          {isQaProfile && upcomingBooking && getBookingCheckInState(upcomingBooking) === 'completed' && (
+          {isNewUi && upcomingBooking && getBookingCheckInState(upcomingBooking) === 'completed' && (
             <p className="mt-3 text-sm font-semibold text-emerald-200">출석 완료</p>
           )}
-          {isQaProfile && (() => {
-            const endYmd = profile?.membership_end || QA_MEMBERSHIP_SAMPLE.end;
-            const startYmd = profile?.membership_start || QA_MEMBERSHIP_SAMPLE.start;
-            const daysLeft = Math.round(
-              (Date.parse(`${endYmd}T00:00:00+09:00`) - Date.parse(`${kstTodayYmd()}T00:00:00+09:00`)) / 86400000,
-            );
+          {isNewUi && (() => {
+            const endYmd = profile?.membership_end || null;
+            const startYmd = profile?.membership_start || null;
+            const daysLeft = endYmd
+              ? Math.round(
+                  (Date.parse(`${endYmd}T00:00:00+09:00`) - Date.parse(`${kstTodayYmd()}T00:00:00+09:00`)) / 86400000,
+                )
+              : null;
             const ptBlock = (
               <div className={`min-w-0 ${QA_HERO_VARIANT === 'B' ? 'text-right' : ''}`}>
                 <p className="text-sm text-white/70 font-medium">PT 잔여</p>
@@ -725,7 +725,7 @@ const ClientHome = ({ user, logout, setView }) => {
                 </p>
               </div>
             );
-            const membershipBlock = (
+            const membershipBlock = !endYmd ? null : (
               <div className={`min-w-0 ${QA_HERO_VARIANT === 'B' ? '' : 'text-right'}`} aria-label="회원권 기간">
                 <p className="text-sm text-white/70 font-medium">회원권</p>
                 <p className="mt-1 text-base font-semibold text-white">{membershipPeriodLabel(daysLeft)}</p>
@@ -789,7 +789,7 @@ const ClientHome = ({ user, logout, setView }) => {
 
         {/* 2. Open schedule flow */}
         <div className="flex flex-col gap-3 pb-2">
-          {!isQaProfile && (() => {
+          {!isNewUi && (() => {
             const showStatus = Boolean(profile?.is_athlete_system_enabled);
             if (!showStatus) return null;
 
@@ -827,7 +827,7 @@ const ClientHome = ({ user, logout, setView }) => {
             );
           })()}
 
-          {isQaProfile ? (
+          {isNewUi ? (
             <div className="flex items-stretch gap-3">
               <button
                 type="button"
@@ -881,9 +881,9 @@ const ClientHome = ({ user, logout, setView }) => {
 
           )}
 
-          {(!isQaProfile || upcomingClasses.length > 0) && (
+          {(!isNewUi || upcomingClasses.length > 0) && (
           <div className="mt-3 space-y-3">
-            <p className="text-sm font-semibold text-gray-700">{isQaProfile ? '이번 주 일정' : '나의 다가오는 일정'}</p>
+            <p className="text-sm font-semibold text-gray-700">{isNewUi ? '이번 주 일정' : '나의 다가오는 일정'}</p>
             {loadingBookings && !displayBookings.length ? (
               <div className="space-y-2">
                 <Skeleton className="h-4 w-40 rounded" />
@@ -899,21 +899,21 @@ const ClientHome = ({ user, logout, setView }) => {
                     const isActive = state === 'active';
                     const isCompleted = state === 'completed';
 
-                    if (index > 0 || isQaProfile) {
+                    if (index > 0 || isNewUi) {
                       return (
                         <li
                           key={booking.id}
-                          className={`list-none flex justify-between items-center py-4 border-b cursor-pointer ${isQaProfile ? 'border-b-2 border-gray-200 transition-all duration-100 active:bg-gray-100 active:scale-[0.99]' : 'border-gray-100'}`}
+                          className={`list-none flex justify-between items-center py-4 border-b cursor-pointer ${isNewUi ? 'border-b-2 border-gray-200 transition-all duration-100 active:bg-gray-100 active:scale-[0.99]' : 'border-gray-100'}`}
                           onClick={() => setCancelIntent(booking)}
                         >
                           <div className="flex items-center justify-between gap-3 w-full">
-                            {isQaProfile && <span className="h-1.5 w-1.5 rounded-full bg-[#064e3b] shrink-0" aria-hidden />}
+                            {isNewUi && <span className="h-1.5 w-1.5 rounded-full bg-[#064e3b] shrink-0" aria-hidden />}
                             <div className="min-w-0 flex-1">
-                              <p className={`text-sm ${isQaProfile ? 'text-slate-900 font-semibold' : 'text-slate-800 font-medium'}`}>
+                              <p className={`text-sm ${isNewUi ? 'text-slate-900 font-semibold' : 'text-slate-800 font-medium'}`}>
                                 {formatUpcomingDateLabel(booking)} {formatTime24hStatic(booking.time)}
                               </p>
                             </div>
-                            {isQaProfile ? (
+                            {isNewUi ? (
                               <span className="flex h-9 w-9 -my-2 items-center justify-center shrink-0 text-gray-300" aria-hidden>
                                 <X size={14} strokeWidth={1.8} />
                               </span>
@@ -1019,7 +1019,7 @@ const ClientHome = ({ user, logout, setView }) => {
           )}
         </div>
       </main>
-      {isQaProfile && (
+      {isNewUi && (
         <footer className="shrink-0 px-5 pb-4 pt-2 bg-gray-50">
           <div className="border-t border-gray-100 pt-5 text-center space-y-1">
             <p className="text-[11px] font-semibold tracking-[0.32em] text-[#064e3b]">LAB DOT</p>
@@ -1031,7 +1031,7 @@ const ClientHome = ({ user, logout, setView }) => {
 
       {/* Session History Modal */}
       <AnimatePresence>
-        {showHistory && !isQaProfile && (
+        {showHistory && !isNewUi && (
           <SessionHistoryModal user={user} onClose={() => setShowHistory(false)} />
         )}
       </AnimatePresence>

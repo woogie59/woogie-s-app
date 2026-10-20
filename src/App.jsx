@@ -10,7 +10,7 @@ import { emitSessionBalanceRefresh } from './utils/sessionBalanceEvents';
 import { invokeNotifyMemberEvents } from './utils/notifications';
 import { invokeOtBlockGoogleSync } from './utils/googleCalendarOtSync';
 import { clearBookingPwaState } from './utils/bookingPwaState';
-import { isQaProfileName } from './utils/bookingDateKeys';
+import { isNewMemberUiEnabled } from './utils/bookingDateKeys';
 import {
   readPersistedView,
   writePersistedView,
@@ -1102,7 +1102,7 @@ export default function App() {
             <MemberAthleteView userId={session.user.id} goBack={goBack} />
           )}
 
-          {session && view === 'member_exercise_library' && !isQaProfileName(userProfileName) && (
+          {session && view === 'member_exercise_library' && !isNewMemberUiEnabled() && (
             <MemberExerciseLibrary goBack={() => navigate('client_home')} />
           )}
 
@@ -1485,7 +1485,7 @@ export default function App() {
             <ClassBooking user={session.user} profileName={userProfileName} setView={navigate} goBack={goBack} />
           )}
 
-          {session && view === 'member_workout_log' && isQaProfileName(userProfileName) && (
+          {session && view === 'member_workout_log' && isNewMemberUiEnabled() && (
             <MemberWorkoutLog user={session.user} setView={navigate} goBack={goBack} />
           )}
 
