@@ -504,15 +504,30 @@
   letter-spacing: -0.2px;
 }
 
-/* 요일·날짜별 슬롯 가용/비활성 배경 (배경 이벤트 방식) */
-.labdot-fc-wrap .fc .fc-bg-event.labdot-bg-available {
+/* 요일·날짜별 슬롯 가용/비활성 배경 (배경 이벤트 방식) — 평평한 면 색만, 시간 텍스트/테두리/라운드 없이 */
+.labdot-fc-wrap .fc .fc-bg-event.labdot-bg-available,
+.labdot-fc-wrap .fc .fc-bg-event.labdot-bg-closed,
+.labdot-fc-wrap .fc .fc-bg-event.labdot-bg-off {
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
   opacity: 1;
+}
+
+.labdot-fc-wrap .fc .fc-bg-event.labdot-bg-available .fc-event-title,
+.labdot-fc-wrap .fc .fc-bg-event.labdot-bg-available .fc-event-time,
+.labdot-fc-wrap .fc .fc-bg-event.labdot-bg-closed .fc-event-title,
+.labdot-fc-wrap .fc .fc-bg-event.labdot-bg-closed .fc-event-time,
+.labdot-fc-wrap .fc .fc-bg-event.labdot-bg-off .fc-event-title,
+.labdot-fc-wrap .fc .fc-bg-event.labdot-bg-off .fc-event-time {
+  display: none;
+}
+
+.labdot-fc-wrap .fc .fc-bg-event.labdot-bg-available {
   background-color: rgba(209, 250, 229, 0.55);
-  box-shadow: inset 3px 0 0 rgba(16, 185, 129, 0.55);
 }
 
 .labdot-fc-wrap .fc .fc-bg-event.labdot-bg-closed {
-  opacity: 1;
   background-color: #eef2f6;
   background-image: repeating-linear-gradient(
     -45deg,
@@ -521,20 +536,17 @@
     rgba(226, 232, 240, 0.5) 6px,
     rgba(226, 232, 240, 0.5) 12px
   );
-  box-shadow: inset 3px 0 0 rgba(148, 163, 184, 0.45);
 }
 
 .labdot-fc-wrap .fc .fc-bg-event.labdot-bg-off {
-  opacity: 1;
   background-color: rgba(226, 232, 240, 0.75);
   background-image: repeating-linear-gradient(
     -45deg,
-    rgba(100, 116, 139, 0.12),
-    rgba(100, 116, 139, 0.12) 6px,
-    rgba(226, 232, 240, 0.7) 6px,
-    rgba(226, 232, 240, 0.7) 12px
+    rgba(100, 116, 139, 0.18),
+    rgba(100, 116, 139, 0.18) 6px,
+    rgba(226, 232, 240, 0.75) 6px,
+    rgba(226, 232, 240, 0.75) 12px
   );
-  box-shadow: inset 3px 0 0 rgba(100, 116, 139, 0.5);
 }
 
 .labdot-fc-wrap .fc .fc-timegrid-col.fc-day-today .fc-bg-event.labdot-bg-available {

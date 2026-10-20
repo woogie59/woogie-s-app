@@ -517,6 +517,8 @@ const AdminScheduleFullCalendar = ({
           }}
           eventContent={(arg) => {
             if (arg.view.type === 'dayGridMonth' || arg.view.type.startsWith('list')) return true;
+            // 슬롯 가용/비활성 배경 이벤트는 텍스트 없이 면 색만
+            if (arg.event.extendedProps?.availabilityBg) return { html: '' };
             const s = arg.event.start;
             const hm = s ? `${pad2(s.getHours())}:${pad2(s.getMinutes())}` : arg.timeText;
             return {
