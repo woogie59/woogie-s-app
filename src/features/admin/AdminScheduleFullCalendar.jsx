@@ -130,6 +130,41 @@ const AdminScheduleFullCalendar = ({
     [getSlotLaneState, viewDate, scheduleSettingsStamp]
   );
 
+  // 주간/일간 그리드: 요일·날짜별 예약 가능/비활성 슬롯을 배경 이벤트로 칠한다.
+  const availabilityBgEvents = useMemo(() => {
+    if (!getSlotLaneState) return [];
+    if (viewType !== 'timeGridWeek' && viewType !== 'timeGridDay') return [];
+    const base = viewType === 'timeGridDay' ? viewDate : getMonday(viewDate);
+    const dayCount = viewType === 'timeGridDay' ? 1 : 7;
+    const out = [];
+    for (let d = 0; d < dayCount; d += 1) {
+      const day = new Date(base.getFullYear(), base.getMonth(), base.getDate() + d);
+      for (let hour = 7; hour <= 22; hour += 1) {
+        const slotDate = new Date(day.getFullYear(), day.getMonth(), day.getDate(), hour, 0, 0);
+        const state = getSlotLaneState(slotDate);
+        let cls = null;
+        if (state === 'available') cls = 'labdot-bg-available';
+        else if (state === 'date_off' || state === 'holiday') cls = 'labdot-bg-off';
+        else if (state && state !== 'out_of_range') cls = 'labdot-bg-closed';
+        if (!cls) continue;
+        out.push({
+          id: `avbg-${toYmd(slotDate)}-${hour}`,
+          start: slotDate,
+          end: new Date(day.getFullYear(), day.getMonth(), day.getDate(), hour + 1, 0, 0),
+          display: 'background',
+          classNames: [cls],
+          extendedProps: { availabilityBg: true },
+        });
+      }
+    }
+    return out;
+  }, [getSlotLaneState, viewType, viewDate, scheduleSettingsStamp]);
+
+  const calendarEvents = useMemo(
+    () => [...(events || []), ...availabilityBgEvents],
+    [events, availabilityBgEvents]
+  );
+
   const offDateSet = useMemo(() => {
     const off = new Set(overlayEvents.map((ev) => toYmd(ev.start)));
     const busy = new Set(
@@ -388,7 +423,7 @@ const AdminScheduleFullCalendar = ({
           <AdminDayAgenda
             date={agendaDate}
             onSelectDate={handleAgendaSelectDate}
-            events={events || []}
+            events={calendarEvents}
             onEventClick={onEventClick}
           />
         </div>
@@ -450,26 +485,17 @@ const AdminScheduleFullCalendar = ({
           slotLaneClassNames={(arg) => {
             const d = arg?.date;
             if (!d) return [];
+            // 슬롯 가용/비활성 색상은 요일별 배경 이벤트(availabilityBgEvents)가 그린다.
+            // FullCalendar slotLane은 주 전체를 가로지르는 한 행이라 요일별 칠하기가 불가능하다.
             const classes = ['labdot-slot-hour'];
             if (onSlotClick) classes.push('labdot-slot-clickable');
-            if (getSlotLaneState) {
-              const state = getSlotLaneState(d);
-              if (state === 'available') classes.push('labdot-slot-available');
-              else if (state === 'date_off') classes.push('labdot-slot-date-off');
-              else if (state === 'holiday') classes.push('labdot-slot-holiday');
-              else classes.push('labdot-slot-closed');
-            } else if (isSlotAvailable?.(d)) {
-              classes.push('labdot-slot-available');
-            } else if (isSlotAvailable) {
-              classes.push('labdot-slot-closed');
-            }
             return classes;
           }}
           expandRows
           height="auto"
           contentHeight={typeof window !== 'undefined' && window.innerWidth < 640 ? 520 : 640}
           weekends
-          events={events || []}
+          events={calendarEvents}
           eventClick={(info) => {
             info.jsEvent.preventDefault();
             if (info?.event?.extendedProps?.isAvailability) {
