@@ -37,7 +37,7 @@ function describeEvent(ev) {
   const done = p.item?.status === 'Completed';
   return {
     kind: done ? 'done' : 'ok',
-    name: `${ev.title || '회원'} 회원`,
+    name: ev.title ? `${ev.title} 회원` : '회원',
     sub: done ? '수업 완료' : 'PT · 예약됨',
     badge: done ? '완료' : '예약',
   };
@@ -66,6 +66,8 @@ export default function AdminDayAgenda({ date, onSelectDate, events, onEventClic
   const dayEvents = useMemo(() => {
     return (events || [])
       .filter((ev) => {
+        const p = ev.extendedProps || {};
+        if (p.availabilityBg || p.isAvailability || ev.display === 'background') return false;
         const s = ev.start instanceof Date ? ev.start : new Date(ev.start);
         return !Number.isNaN(s.getTime()) && toKey(s) === dayKey;
       })
