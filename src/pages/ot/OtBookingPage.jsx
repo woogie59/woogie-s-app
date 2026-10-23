@@ -21,6 +21,7 @@ import { invokeOtBlockGoogleSync } from '../../utils/googleCalendarOtSync';
 
 const DEEP_GREEN = '#064e3b';
 const DAY_LABELS = ['일', '월', '화', '수', '목', '금', '토'];
+/** 설계 가정(사용자 원문 요구에 없음): 신청 가능 범위를 앞으로 14일로 임의 제한. 변경 시 이 값만 바꾸면 된다. */
 const LOOKAHEAD_DAYS = 14;
 
 /** 검토용 데모 (?demo=1): 서버 없이 화면만 재생. 어떤 쓰기도 일어나지 않는다. */

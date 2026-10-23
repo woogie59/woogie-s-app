@@ -6,6 +6,21 @@ import { invokeOtBlockGoogleSync } from '../../utils/googleCalendarOtSync';
 
 const DEEP_GREEN = '#064e3b';
 
+/** 검토용 데모 (?demo=1): 더미 데이터로 화면만 재생. 어떤 읽기/쓰기도 서버에 나가지 않는다. */
+const IS_DEMO = typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('demo') === '1';
+
+const DEMO_LINKS = [
+  { id: 'demo-link-1', token: '11111111-2222-3333-4444-555555555555', label: '김OO님', max_sessions: 2, revoked_at: null, created_at: new Date().toISOString() },
+  { id: 'demo-link-2', token: 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee', label: '박OO님', max_sessions: 2, revoked_at: new Date().toISOString(), created_at: new Date().toISOString() },
+];
+
+const DEMO_BOOKINGS_BY_LINK = {
+  'demo-link-1': [
+    { id: 'demo-b1', link_id: 'demo-link-1', date: new Date(Date.now() + 3 * 86400000).toISOString().slice(0, 10), time: '15:00', name: '김오티', status: 'confirmed', block_id: 'demo-block-1' },
+    { id: 'demo-b2', link_id: 'demo-link-1', date: new Date(Date.now() - 3 * 86400000).toISOString().slice(0, 10), time: '14:00', name: '김오티', status: 'completed', block_id: 'demo-block-2' },
+  ],
+};
+
 function linkUrl(token) {
   return `${window.location.origin}/ot/${token}`;
 }
@@ -22,6 +37,12 @@ export default function AdminOtLinks({ goBack }) {
 
   const fetchAll = useCallback(async () => {
     setLoading(true);
+    if (IS_DEMO) {
+      setLinks(DEMO_LINKS);
+      setBookingsByLink(DEMO_BOOKINGS_BY_LINK);
+      setLoading(false);
+      return;
+    }
     const { data: linkRows, error } = await supabase
       .from('ot_links')
       .select('*')
@@ -55,8 +76,11 @@ export default function AdminOtLinks({ goBack }) {
     fetchAll();
   }, [fetchAll]);
 
+  const demoBlocked = () => showAlert({ message: '검토용 데모 화면입니다. 실제 발급·회수·동기화는 되지 않습니다.' });
+
   const handleCreate = async () => {
     if (creating) return;
+    if (IS_DEMO) { demoBlocked(); return; }
     setCreating(true);
     const { data, error } = await supabase
       .from('ot_links')
@@ -88,6 +112,7 @@ export default function AdminOtLinks({ goBack }) {
   };
 
   const handleRevoke = (link) => {
+    if (IS_DEMO) { demoBlocked(); return; }
     showConfirm({
       title: '링크 폐기',
       message: '이 링크를 폐기하면 더 이상 신청할 수 없습니다. 이미 잡힌 신청은 그대로 둡니다.',
@@ -108,6 +133,7 @@ export default function AdminOtLinks({ goBack }) {
 
   /** 캘린더 등록이 실패했을 때 수동 재시도 */
   const handleCalendarResync = async (booking) => {
+    if (IS_DEMO) { demoBlocked(); return; }
     if (!booking.block_id || syncingId) return;
     setSyncingId(booking.id);
     const record = {
