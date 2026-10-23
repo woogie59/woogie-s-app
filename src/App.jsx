@@ -36,6 +36,7 @@ import MemberWorkoutLog from './pages/client/MemberWorkoutLog';
 import MemberExerciseLibrary from './pages/client/MemberExerciseLibrary';
 
 import AdminHome from './pages/admin/AdminHome';
+import AdminOtLinks from './features/admin/AdminOtLinks';
 import AdminSettings from './pages/admin/AdminSettings';
 import AdminRoute from './pages/admin/AdminRoute';
 import AdminPayrollDashboard from './pages/admin/AdminPayrollDashboard';
@@ -1145,6 +1146,12 @@ export default function App() {
           {view === 'admin_member_announcements' && (
             <AdminRoute session={session} replaceView={replaceView} knownRole={userProfileRole}>
               <AdminMemberAnnouncements goBack={goBack} />
+            </AdminRoute>
+          )}
+
+          {view === 'ot_links' && (
+            <AdminRoute session={session} replaceView={replaceView} knownRole={userProfileRole}>
+              <AdminOtLinks goBack={() => navigate('admin_home')} />
             </AdminRoute>
           )}
 

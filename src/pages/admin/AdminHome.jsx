@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { motion } from 'framer-motion';
-import { LogOut, Users, Calendar, Archive, NotebookPen, ChevronDown, Table2, Dumbbell, Megaphone } from 'lucide-react';
+import { LogOut, Users, Calendar, Archive, NotebookPen, ChevronDown, Table2, Dumbbell, Megaphone, Link2 } from 'lucide-react';
 import { supabase } from '../../lib/supabaseClient';
 import { fetchMembersBalanceSummaries, fetchSessionBalanceMetrics } from '../../utils/sessionHelpers';
 import LabDotBrand from '../../components/ui/LabDotBrand';
@@ -381,6 +381,15 @@ const AdminHome = ({ setView, logout, onOpenTrainingLog, adminName }) => {
           >
             <Table2 size={26} strokeWidth={ICON_STROKE} className="text-[#064e3b] shrink-0" aria-hidden />
             <span className="text-sm font-medium text-slate-900 tracking-tight leading-snug pr-1">페이롤 · 출석</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => goMenu({ view: 'ot_links' })}
+            className="aspect-square w-full bg-white rounded-2xl border border-gray-100 shadow-sm p-5 flex flex-col items-start justify-between transition-all duration-200 hover:bg-gray-50 active:bg-gray-100 active:scale-[0.98] cursor-pointer text-left"
+          >
+            <Link2 size={26} strokeWidth={ICON_STROKE} className="text-[#064e3b] shrink-0" aria-hidden />
+            <span className="text-sm font-medium text-slate-900 tracking-tight leading-snug pr-1">오티 신청 링크</span>
           </button>
 
           <button
