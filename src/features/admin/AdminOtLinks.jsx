@@ -229,7 +229,6 @@ export default function AdminOtLinks({ goBack }) {
   };
 
   const handlePtDecide = (request, decision) => {
-    if (IS_DEMO) { demoBlocked(); return; }
     const name = nameOfLink(request.link_id);
     const label = decision === 'accepted' ? '승인' : '거절';
     showConfirm({
@@ -237,6 +236,7 @@ export default function AdminOtLinks({ goBack }) {
       message: `${name}님 ${String(request.requested_date).slice(0, 10)} ${request.requested_time} 신청을 ${label}합니다. 승인해도 예약은 자동으로 잡히지 않습니다. 실제 시간 확정은 기존 예약 화면에서 등록해 주세요.`,
       confirmLabel: label,
       onConfirm: async () => {
+        if (IS_DEMO) { demoBlocked(); return; }
         const { data, error } = await supabase.rpc('ot_admin_pt_decide', { p_request_id: request.id, p_decision: decision });
         if (error || !data?.ok) {
           showAlert({ message: `${label} 실패: ` + (error?.message || data?.reason || '') });

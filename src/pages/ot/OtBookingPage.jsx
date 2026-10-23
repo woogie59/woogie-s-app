@@ -471,7 +471,7 @@ export default function OtBookingPage({ token }) {
     };
     return (
       <Shell showBack onBack={() => setPhase('main')}>
-        <p className="text-lg font-medium tracking-tight mb-1">희망 날짜를 골라 주세요.</p>
+        <p className="text-lg font-medium tracking-tight mb-1">{ptFlow ? '피티 희망 날짜를 골라 주세요.' : '희망 날짜를 골라 주세요.'}</p>
         <p className="text-sm text-slate-400 mb-5">수업이 열리는 날만 고를 수 있습니다.</p>
 
         <div className="flex items-center justify-between mb-3">
@@ -530,7 +530,7 @@ export default function OtBookingPage({ token }) {
     return (
       <Shell showBack onBack={() => setPhase('date')}>
         <p className="text-lg font-medium tracking-tight mb-1">{formatDateLabel(selectedDate)}</p>
-        <p className="text-sm text-slate-400 mb-6">시간을 골라 주세요.</p>
+        <p className="text-sm text-slate-400 mb-6">{ptFlow ? '피티 희망 시간을 골라 주세요.' : '시간을 골라 주세요.'}</p>
         <div className="grid grid-cols-3 gap-3">
           {slotsForDate.map((s) => (
             <button
