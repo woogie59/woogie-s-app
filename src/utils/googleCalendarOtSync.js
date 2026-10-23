@@ -1,10 +1,11 @@
 import { supabase } from '../lib/supabaseClient';
 
 /**
- * OT blocked slot → google-calendar-sync (서버 경로).
+ * OT blocked slot → 캘린더 동기화 (서버 경로).
  * 브라우저가 공개 Edge를 직접 부르지 않고 관리자 RPC를 거친다.
- * RPC가 공유 비밀과 함께 서버에서 google-calendar-sync를 호출한다.
- * 전제: supabase/gcal_sync_hardening.sql 적용 (같은 배포).
+ * RPC는 작업 큐(ot_calendar_sync_jobs)에 적재만 하고, 실제 Google 호출은
+ * google-calendar-sync-v2 함수가 claim 단위로 처리한다.
+ * 전제: supabase/ot_calendar_outbox.sql + gcal_sync_hardening_v2.sql 적용 (같은 배포).
  */
 export async function invokeOtBlockGoogleSync(type, record, oldRecord = null) {
   const blockId = record?.id ?? oldRecord?.id ?? null;

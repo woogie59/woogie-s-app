@@ -405,7 +405,9 @@ const AdminBookingSettingsPanel = forwardRef(function AdminBookingSettingsPanel(
     }
     setHoldSaving(true);
     const time = formatHourLabel(hourModal.hour);
-    const { data, error } = await supabase
+    // 캘린더 동기화는 trainer_blocked_slots DB webhook이 자동 처리한다.
+    // 여기서 별도 INSERT 동기화를 호출하면 webhook과 경합해 이벤트가 중복 생성될 수 있다.
+    const { error } = await supabase
       .from('trainer_blocked_slots')
       .insert({
         block_date: holdDate,
@@ -413,9 +415,7 @@ const AdminBookingSettingsPanel = forwardRef(function AdminBookingSettingsPanel(
         label: 'OT',
         kind: 'ot',
         member_name: memberName,
-      })
-      .select()
-      .single();
+      });
     if (error) {
       setHoldSaving(false);
       showAlert({
@@ -423,13 +423,7 @@ const AdminBookingSettingsPanel = forwardRef(function AdminBookingSettingsPanel(
       });
       return;
     }
-    const sync = await invokeOtBlockGoogleSync('INSERT', data);
     setHoldSaving(false);
-    if (!sync.ok) {
-      showAlert({
-        message: '예약처리는 등록됐지만 Google Calendar 연동에 실패했습니다. 설정을 확인해 주세요.',
-      });
-    }
     setHourModal(null);
     await fetchData();
     onBlocksChanged?.();
