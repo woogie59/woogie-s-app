@@ -426,6 +426,11 @@ export default function App() {
       }
 
       await processAuth(session, 'INITIAL_SESSION');
+    }).catch(() => {
+      // A storage/network read failure must not suppress all later sign-ins.
+      // Keep any newer auth-event session; never turn a read error into sign-out.
+      setLoading(false);
+    }).finally(() => {
       initialAuthReady.current = true;
     });
 
