@@ -369,6 +369,15 @@ type SyncJob = {
 
 const MAX_ATTEMPTS = 20;
 
+// Names stay in the admin-only booking source, never the broadly readable block.
+async function privateOtName(db: ReturnType<typeof createClient>, blockId: string, fallback: unknown) {
+  const { data, error } = await db.from("ot_bookings")
+    .select("name").eq("block_id", blockId).eq("status", "confirmed").limit(2);
+  if (error || (data?.length ?? 0) > 1) throw Error("OT booking name unavailable");
+  return data?.length === 1 ? String(data[0].name ?? "").trim() : String(fallback ?? "").trim();
+}
+
+
 // 동기화 작업 큐(ot_calendar_sync_jobs)의 job 하나를 처리한다.
 // - claim: pending→processing 전이 + claim_token 부여 (단일 승자, 단일 UPDATE 문의 행 잠금)
 // - 완료/실패 기록(ack/fail)은 같은 claim_token일 때만 반영된다. sweeper가 회수해
@@ -487,7 +496,9 @@ async function processSyncJob(
       return finish({ skipped: true, reason: "not OT kind" });
     }
 
-    const memberName = String(brow.member_name ?? "").trim();
+    let memberName: string;
+    try { memberName = await privateOtName(supabase, blockId, brow.member_name); }
+    catch { return retry("OT booking name read failed"); }
     const range = toKstRange(normDate(String(brow.block_date ?? "")), String(brow.block_time ?? ""));
     if (!range) return retry("invalid block date/time");
     const eventBody = buildOtGoogleCalendarEventBody(memberName, range.start, range.end);
@@ -570,7 +581,11 @@ async function processSyncJob(
       // 쓰기 도중 블록이 삭제됐다 — 삭제 트랜잭션의 DELETE job이 같은 결정적 id로 정리한다.
       return finish({ action: "deleted during sync", eventId });
     }
+    let latestName: string;
+    try { latestName = await privateOtName(supabase, blockId, vrow.member_name); }
+    catch { return retry("OT booking name verify failed"); }
     const unchanged =
+      latestName === memberName &&
       normDate(String(vrow.block_date ?? "")) === normDate(String(brow.block_date ?? "")) &&
       String(vrow.block_time ?? "") === String(brow.block_time ?? "") &&
       String(vrow.member_name ?? "") === String(brow.member_name ?? "") &&

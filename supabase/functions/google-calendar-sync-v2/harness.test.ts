@@ -403,3 +403,19 @@ Deno.test("14. 2worker·서로 다른 job: 구 내용 PUT이 늦게 착륙(역�
   }
   if (db.jobs.get(jobA)!.status !== "done" || db.jobs.get(jobB)!.status !== "done") throw new Error("job 상태 오류");
 });
+
+Deno.test("private booking name: server source only, no block name write", async () => {
+  resetAll(); const b = B(); addBlock(b);
+  const bid = B(); db.bookings.set(bid, { id: bid, block_id: b, status: "confirmed", name: "제목더미" });
+  const job = addJob(b, "INSERT", "2026-10-23T12:00:00Z");
+  const r = await call({job_id:job});
+  if (r.status !== 200 || summaryOf(detId(b)) !== "제목더미님 오티") throw Error("private name missing");
+  if (db.blocks.get(b).member_name !== null) throw Error("public block name leaked");
+});
+Deno.test("ambiguous booking name: fail closed before Google write", async () => {
+  resetAll(); const b = B(); addBlock(b);
+  for (const name of ["더미A","더미B"]) { const id=B(); db.bookings.set(id,{id,block_id:b,status:"confirmed",name}); }
+  const job = addJob(b,"INSERT","2026-10-23T12:00:00Z");
+  const r=await call({job_id:job});
+  if(r.status!==502||googleCalls.length) throw Error("ambiguous name must not write");
+});
