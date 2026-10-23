@@ -1,5 +1,6 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState, useRef, useLayoutEffect } from 'react';
 import { ArrowLeft } from 'lucide-react';
+import { readWorkoutViewState, writeWorkoutViewState } from '../../utils/workoutViewState';
 import LabDotBrand from '../../components/ui/LabDotBrand';
 import { supabase } from '../../lib/supabaseClient';
 import { isAttendanceLogCompletedForBalance } from '../../utils/sessionHelpers';
@@ -56,16 +57,34 @@ function workoutSummary(entries, month, today) {
 
 export default function MemberWorkoutLog({ user, setView, goBack }) {
   const today = useMemo(() => kstYmd(new Date().toISOString()), []);
-  const [month, setMonth] = useState(today.slice(0, 7));
+  const restored = useRef(readWorkoutViewState(user?.id, today));
+  const scrollRef = useRef(null);
+  const scrollPosition = useRef(restored.current?.scroll || 0);
+  const scrollRestored = useRef(false);
+  const [month, setMonth] = useState(restored.current?.month || today.slice(0, 7));
   const [entries, setEntries] = useState([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
-  const [selected, setSelected] = useState(today);
+  const [selected, setSelected] = useState(restored.current?.selected || today);
   const [parts, setParts] = useState([]);
   const [ptParts, setPtParts] = useState([]);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState(null);
   const [savedFlash, setSavedFlash] = useState(false);
+
+  useLayoutEffect(() => {
+    if (!loading && !scrollRestored.current && scrollRef.current) {
+      scrollRef.current.scrollTop = restored.current?.scroll || 0;
+      scrollRestored.current = true;
+    }
+  }, [loading]);
+  useEffect(() => {
+    const persist = () => writeWorkoutViewState(user?.id, { month, selected, scroll: scrollPosition.current });
+    persist();
+    window.addEventListener('pagehide', persist);
+    document.addEventListener('visibilitychange', persist);
+    return () => { window.removeEventListener('pagehide', persist); document.removeEventListener('visibilitychange', persist); };
+  }, [month, selected, user?.id]);
 
   const load = useCallback(async () => {
     if (!user?.id) return;
@@ -94,7 +113,7 @@ export default function MemberWorkoutLog({ user, setView, goBack }) {
     } finally {
       setLoading(false);
     }
-  }, [user?.id, today]);
+  }, [user?.id]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -184,7 +203,7 @@ export default function MemberWorkoutLog({ user, setView, goBack }) {
   }
 
   return (
-    <div className="min-h-[100dvh] bg-gray-50 text-slate-900 flex flex-col pb-safe font-sans antialiased">
+    <div className="h-[100dvh] bg-gray-50 text-slate-900 flex flex-col pb-safe font-sans antialiased">
       <header className="grid shrink-0 grid-cols-[1fr_auto_1fr] items-start gap-2 px-5 pt-5 pb-3">
         <div className="flex items-center">
           <button type="button" onClick={goHome} aria-label="뒤로" className="p-2 -ml-2 rounded-xl text-gray-500 hover:text-slate-900 transition-colors">
@@ -198,7 +217,7 @@ export default function MemberWorkoutLog({ user, setView, goBack }) {
         <div className="flex items-center justify-end" aria-hidden />
       </header>
 
-      <main className="flex-1 flex flex-col px-5 gap-4 pb-6 overflow-y-auto scrollable min-h-0">
+      <main ref={scrollRef} onScroll={e => { scrollPosition.current = e.currentTarget.scrollTop; writeWorkoutViewState(user?.id, { month, selected, scroll: scrollPosition.current }); }} className="flex-1 flex flex-col px-5 gap-4 pb-6 overflow-y-auto scrollable min-h-0">
         {loading ? (
           <p className="mt-8 text-center text-sm text-gray-500">운동 기록을 불러오는 중입니다…</p>
         ) : loadError ? (
@@ -281,7 +300,7 @@ export default function MemberWorkoutLog({ user, setView, goBack }) {
                         <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${e.kind === 'pt' ? 'bg-sky-100 text-sky-800' : 'bg-emerald-100 text-[#064e3b]'}`}>
                           {e.kind === 'pt' ? 'PT' : '개인운동'}
                         </span>
-                        {e.parts?.length > 0 && <p className="text-xs opacity-80">{e.parts.join(' · ')}</p>}
+                        {e.parts?.length > 0 && <p className="min-w-0 flex-1 text-xs opacity-80">{e.parts.join(' · ')}</p>}
                       </li>
                     ))}
                   </ul>
@@ -296,6 +315,7 @@ export default function MemberWorkoutLog({ user, setView, goBack }) {
                     <button
                       key={p}
                       type="button"
+                      disabled={saving}
                       aria-pressed={parts.includes(p)}
                       onClick={() => togglePart(p)}
                       className={`min-h-11 rounded-full border px-3 text-sm ${parts.includes(p) ? 'border-transparent bg-[#064e3b] font-semibold text-white' : 'border-transparent bg-gray-100 text-gray-600'}`}
@@ -312,6 +332,7 @@ export default function MemberWorkoutLog({ user, setView, goBack }) {
                         <button
                           key={p}
                           type="button"
+                          disabled={saving}
                           aria-pressed={ptParts.includes(p)}
                           onClick={() => togglePtPart(p)}
                           className={`min-h-11 rounded-full border px-3 text-sm ${ptParts.includes(p) ? 'border-transparent bg-[#527f97] font-semibold text-white' : 'border-transparent bg-gray-100 text-gray-600'}`}

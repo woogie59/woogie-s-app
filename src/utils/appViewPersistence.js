@@ -11,6 +11,7 @@ export const PWA_KEY_LAST_VISITED_PATH = 'lastVisitedPath';
 
 const CLIENT_VIEWS = new Set([
   'client_home',
+  'member_workout_log',
   'class_booking',
   'training_log',
   'training_log_detail',
@@ -40,6 +41,10 @@ const ADMIN_VIEWS = new Set([
   'hall_of_fame_hub',
   'hall_of_fame_member',
 ]);
+
+export function isAppViewAllowed(view, role) {
+  return (role === 'admin' ? ADMIN_VIEWS : CLIENT_VIEWS).has(view);
+}
 
 /**
  * PWA: sessionStorage may be cleared or empty after suspend — prefer durable localStorage.
@@ -72,6 +77,7 @@ function readStorage(userId) {
 const PATH_TO_CLIENT_VIEW = {
   '/': 'client_home',
   '/home': 'client_home',
+  '/workout': 'member_workout_log',
   '/booking': 'class_booking',
   '/training': 'training_log',
   '/library': 'library',
@@ -118,6 +124,7 @@ function viewFromPath(path, role) {
 
 const VIEW_TO_PATH_CLIENT = {
   client_home: '/home',
+  member_workout_log: '/workout',
   class_booking: '/booking',
   training_log: '/training',
   training_log_detail: '/training',

@@ -9,10 +9,12 @@ import { runAutoCompleteDueBookings } from './utils/bookingAutoComplete';
 import { emitSessionBalanceRefresh } from './utils/sessionBalanceEvents';
 import { invokeNotifyMemberEvents } from './utils/notifications';
 import { invokeOtBlockGoogleSync } from './utils/googleCalendarOtSync';
+import { clearWorkoutViewState, isSameUserAuthResume } from './utils/workoutViewState';
 import { clearBookingPwaState } from './utils/bookingPwaState';
 import { isNewMemberUiEnabled } from './utils/bookingDateKeys';
 import {
   readPersistedView,
+  isAppViewAllowed,
   writePersistedView,
   clearPersistedView,
   writePwaLastVisitedPath,
@@ -302,9 +304,17 @@ export default function App() {
     return () => OneSignal.Notifications.removeEventListener('click', onNotificationClick);
   }, [oneSignalReady, navigate]);
 
+  const activeAuthUid = useRef(null);
+  const readyAuthUid = useRef(null);
   const processAuth = async (sessionData, authEvent) => {
+    const previousUid = activeAuthUid.current;
+    const nextUid = sessionData?.user?.id || null;
+    activeAuthUid.current = nextUid;
+    if (previousUid && previousUid !== nextUid) { readyAuthUid.current = null; clearWorkoutViewState(previousUid); setUserProfileRole(null); setUserProfileName(null); setLoading(true); }
     setSession(sessionData);
+    const sameUserResume = readyAuthUid.current === nextUid && isSameUserAuthResume(previousUid, nextUid, authEvent);
     if (!sessionData?.user?.id) {
+      readyAuthUid.current = null;
       setUserProfileRole(null);
       if (viewRef.current !== 'register') {
         replaceView('login');
@@ -313,7 +323,7 @@ export default function App() {
       return;
     }
 
-    if (authEvent === 'TOKEN_REFRESHED') {
+    if (authEvent === 'TOKEN_REFRESHED' && sameUserResume) {
       setLoading(false);
       return;
     }
@@ -336,12 +346,13 @@ export default function App() {
             }
             await new Promise((r) => setTimeout(r, 350));
           }
+          if (activeAuthUid.current !== nextUid) return;
           setUserProfileRole(profile?.role ?? null);
           setUserProfileName(profile?.name ?? null);
         } catch {
-          setUserProfileRole(null);
+          if (activeAuthUid.current === nextUid) setUserProfileRole(null);
         } finally {
-          setLoading(false);
+          if (activeAuthUid.current === nextUid) setLoading(false);
         }
       })();
       return;
@@ -362,13 +373,16 @@ export default function App() {
           .maybeSingle();
         data = retry;
       }
+      if (activeAuthUid.current !== nextUid) return;
+      readyAuthUid.current = nextUid;
       setUserProfileRole(data?.role ?? null);
       setUserProfileName(data?.name ?? null);
       const role = data?.role ?? null;
       const def = role === 'admin' ? 'admin_home' : 'client_home';
-      // SIGNED_IN: 방금 로그인 → 항상 홈. INITIAL_SESSION(새로고침/PWA 복귀) → 저장된 view 복원.
+      // Same-user SIGNED_IN also fires on visibility resume: refresh role, preserve view.
+      // Actual new/account-changed sign-in goes home; reload restores allowed view.
       // USER_UPDATED 등: replaceView 하지 않음(탭/예약 화면 유지).
-      if (authEvent === 'SIGNED_IN') {
+      if (authEvent === 'SIGNED_IN' && !sameUserResume) {
         replaceView(def);
       } else if (authEvent === 'INITIAL_SESSION') {
         const savedMemberId = readPersistedSelectedMemberId(sessionData.user.id);
@@ -378,17 +392,20 @@ export default function App() {
         if (p === 'hall_of_fame_member' && !savedMemberId) p = 'hall_of_fame_hub';
         if (p === 'member_detail' && !savedMemberId) p = 'member_list';
         replaceView(p || def);
+      } else if (!isAppViewAllowed(viewRef.current, role)) {
+        replaceView(def);
       }
     } catch {
+      if (activeAuthUid.current !== nextUid) return;
       setUserProfileRole(null);
       if (authEvent === 'INITIAL_SESSION' && sessionData?.user?.id) {
         const p = readPersistedView(sessionData.user.id, null);
         replaceView(p || 'client_home');
-      } else {
+      } else if (!sameUserResume || !isAppViewAllowed(viewRef.current, null)) {
         replaceView('client_home');
       }
     } finally {
-      setLoading(false);
+      if (activeAuthUid.current === nextUid) setLoading(false);
     }
   };
 
@@ -438,6 +455,7 @@ export default function App() {
   const handleLogout = async () => {
     const uid = session?.user?.id;
     if (uid) {
+      clearWorkoutViewState(uid);
       clearBookingPwaState(uid);
       clearPersistedView(uid);
     }
@@ -1493,7 +1511,7 @@ export default function App() {
           )}
 
           {session && view === 'member_workout_log' && isNewMemberUiEnabled() && (
-            <MemberWorkoutLog user={session.user} setView={navigate} goBack={goBack} />
+            <MemberWorkoutLog key={session.user.id} user={session.user} setView={navigate} goBack={goBack} />
           )}
 
           {session && view === 'training_log' && (
