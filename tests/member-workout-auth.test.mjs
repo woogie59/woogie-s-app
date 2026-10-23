@@ -1,0 +1,11 @@
+import fs from 'node:fs';import assert from 'node:assert/strict';import{isSameUserAuthResume}from'../src/utils/workoutViewState.js';import{isAppViewAllowed}from'../src/utils/appViewPersistence.js';
+const source=fs.readFileSync(new URL('../src/App.jsx',import.meta.url),'utf8');const body=source.split('const processAuth = async (sessionData, authEvent) => {')[1].split('\n  };')[0];const AsyncFunction=Object.getPrototypeOf(async()=>{}).constructor;
+let role='member',view='member_workout_log',clears=[],reads=0,navs=[];const activeAuthUid={current:'u1'},readyAuthUid={current:'u1'},viewRef={get current(){return view}};const supabase={from(){return{select(){return this},eq(){return this},async maybeSingle(){reads++;return{data:{role,name:'dummy'}}}}}};const deps={activeAuthUid,readyAuthUid,supabase,viewRef,isSameUserAuthResume,isAppViewAllowed,clearWorkoutViewState:u=>clears.push(u),setUserProfileRole:()=>{},setUserProfileName:()=>{},setLoading:()=>{},setSession:()=>{},replaceView:v=>{view=v;navs.push(v)},readPersistedSelectedMemberId:()=>null,setSelectedMemberId:()=>{},readPersistedView:()=> 'member_workout_log'};
+const run=new AsyncFunction(...Object.keys(deps),'sessionData','authEvent',body);const fire=(uid,event)=>run(...Object.values(deps),uid?{user:{id:uid}}:null,event);
+await fire('u1','SIGNED_IN');assert.equal(view,'member_workout_log');assert.equal(reads,1);assert.equal(navs.length,0);
+await fire('u1','TOKEN_REFRESHED');assert.equal(view,'member_workout_log');assert.equal(reads,1);
+role='admin';view='admin_payroll';await fire('u1','USER_UPDATED');assert.equal(view,'admin_payroll');role='member';await fire('u1','SIGNED_IN');assert.equal(view,'client_home');
+view='member_workout_log';await fire('u2','SIGNED_IN');assert.equal(view,'client_home');assert.deepEqual(clears,['u1']);
+view='member_workout_log';await fire(null,'SIGNED_OUT');assert.equal(view,'login');assert.deepEqual(clears,['u1','u2']);
+activeAuthUid.current=null;readyAuthUid.current=null;await fire('u3','INITIAL_SESSION');assert.equal(view,'member_workout_log');
+console.log('PASS actual App.processAuth function: same-user SIGNED_IN preserves view + profile recheck, token refresh, role loss blocks admin view, account switch/login/logout, initial view reload');

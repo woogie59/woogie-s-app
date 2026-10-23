@@ -1,5 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState, useRef, useLayoutEffect } from 'react';
 import { ArrowLeft } from 'lucide-react';
+import { useGlobalModal } from '../../context/GlobalModalContext';
+import { deleteOwnPersonalWorkout } from '../../utils/memberWorkoutDelete';
 import { readWorkoutViewState, writeWorkoutViewState } from '../../utils/workoutViewState';
 import LabDotBrand from '../../components/ui/LabDotBrand';
 import { supabase } from '../../lib/supabaseClient';
@@ -61,6 +63,8 @@ export default function MemberWorkoutLog({ user, setView, goBack }) {
   const scrollRef = useRef(null);
   const scrollPosition = useRef(restored.current?.scroll || 0);
   const scrollRestored = useRef(false);
+  const mutationLock = useRef(false);
+  const { showConfirm } = useGlobalModal();
   const [month, setMonth] = useState(restored.current?.month || today.slice(0, 7));
   const [entries, setEntries] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -138,8 +142,9 @@ export default function MemberWorkoutLog({ user, setView, goBack }) {
   const goHome = () => (goBack ? goBack() : setView('client_home'));
 
   async function save(nextParts) {
-    if (!user?.id || saving) return;
+    if (!user?.id || saving || mutationLock.current) return;
     const toSave = nextParts ?? parts;
+    mutationLock.current = true;
     setSaving(true);
     setSaveError(null);
     try {
@@ -160,19 +165,36 @@ export default function MemberWorkoutLog({ user, setView, goBack }) {
     } catch {
       setSaveError('저장하지 못했습니다. 다시 시도해 주세요.');
     } finally {
+      mutationLock.current = false;
       setSaving(false);
     }
   }
 
+  function askDelete(entry) {
+    if (saving || mutationLock.current || entry.kind !== 'personal') return;
+    showConfirm({ title: '개인운동 기록 삭제', message: `${Number(selected.slice(5, 7))}월 ${Number(selected.slice(8))}일 개인운동 기록을 삭제할까요? 삭제하면 되돌릴 수 없습니다.`, confirmLabel: '삭제', cancelLabel: '취소', onConfirm: async (close) => {
+      if (mutationLock.current) return;
+      mutationLock.current = true; setSaving(true); setSaveError(null);
+      try {
+        await deleteOwnPersonalWorkout(supabase, user.id, entry);
+        setEntries(old => old.filter(e => e.id !== entry.id));
+        setParts([]); setSavedFlash(false); close();
+      } catch (error) {
+        close(); setSaveError(error.message); await load();
+      } finally { mutationLock.current = false; setSaving(false); }
+    }});
+  }
+
   function togglePart(p) {
-    if (saving) return;
+    if (saving || mutationLock.current) return;
     const next = parts.includes(p) ? parts.filter((x) => x !== p) : [...parts, p];
     setParts(next);
     save(next);
   }
 
   async function savePt(nextParts) {
-    if (!user?.id || saving || !selectedPt) return;
+    if (!user?.id || saving || mutationLock.current || !selectedPt) return;
+    mutationLock.current = true;
     setSaving(true);
     setSaveError(null);
     try {
@@ -191,12 +213,13 @@ export default function MemberWorkoutLog({ user, setView, goBack }) {
     } catch {
       setSaveError('저장하지 못했습니다. 다시 시도해 주세요.');
     } finally {
+      mutationLock.current = false;
       setSaving(false);
     }
   }
 
   function togglePtPart(p) {
-    if (saving) return;
+    if (saving || mutationLock.current) return;
     const next = ptParts.includes(p) ? ptParts.filter((x) => x !== p) : [...ptParts, p];
     setPtParts(next);
     savePt(next);
@@ -301,6 +324,7 @@ export default function MemberWorkoutLog({ user, setView, goBack }) {
                           {e.kind === 'pt' ? 'PT' : '개인운동'}
                         </span>
                         {e.parts?.length > 0 && <p className="min-w-0 flex-1 text-xs opacity-80">{e.parts.join(' · ')}</p>}
+                        {e.kind === 'personal' && <button type="button" disabled={saving} onClick={() => askDelete(e)} aria-label="개인운동 기록 삭제" className="ml-auto min-h-11 shrink-0 rounded-lg px-3 text-sm text-red-700 disabled:opacity-40">삭제</button>}
                       </li>
                     ))}
                   </ul>

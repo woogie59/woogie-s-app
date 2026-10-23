@@ -1,0 +1,13 @@
+import assert from 'node:assert/strict';
+import {deleteOwnPersonalWorkout} from '../src/utils/memberWorkoutDelete.js';
+import {readWorkoutViewState,writeWorkoutViewState,clearWorkoutViewState,isSameUserAuthResume} from '../src/utils/workoutViewState.js';
+import {writePersistedView,readPersistedView,writePwaLastVisitedPath} from '../src/utils/appViewPersistence.js';
+const map=new Map();const storage={getItem:k=>map.get(k)||null,setItem:(k,v)=>map.set(k,v),removeItem:k=>map.delete(k)};global.localStorage=storage;global.window={localStorage:storage,sessionStorage:storage};
+let calls=[];const client=(result)=>({from(t){calls.push(['from',t]);return {delete(){calls.push(['delete']);return this},eq(k,v){calls.push([k,v]);return this},select(){return Promise.resolve(result)}}}});
+await deleteOwnPersonalWorkout(client({data:[{id:'personal1'}],error:null}),'u1',{id:'personal1',kind:'personal'});assert.deepEqual(calls,[['from','member_workout_entries'],['delete'],['id','personal1'],['user_id','u1'],['kind','personal']]);
+for(const result of [{data:[],error:null},{data:null,error:Error('denied')},{data:[{id:'other'}],error:null}])await assert.rejects(deleteOwnPersonalWorkout(client(result),'u1',{id:'personal1',kind:'personal'}));
+calls=[];await assert.rejects(deleteOwnPersonalWorkout(client({}),'u1',{id:'att-1',kind:'pt'}));assert.equal(calls.length,0);
+writeWorkoutViewState('u1',{month:'2026-10',selected:'2026-10-20',scroll:365});assert.deepEqual(readWorkoutViewState('u1','2026-10-23'),{month:'2026-10',selected:'2026-10-20',scroll:365});assert.equal(readWorkoutViewState('u2','2026-10-23'),null);clearWorkoutViewState('u1');assert.equal(readWorkoutViewState('u1','2026-10-23'),null);
+assert(isSameUserAuthResume('u1','u1','SIGNED_IN'));assert(!isSameUserAuthResume('u1','u2','SIGNED_IN'));assert(!isSameUserAuthResume(null,'u1','SIGNED_IN'));assert(!isSameUserAuthResume('u1',null,'SIGNED_OUT'));
+writePersistedView('u1','member_workout_log');assert.equal(readPersistedView('u1','member'),'member_workout_log');assert.notEqual(readPersistedView('u1','admin'),'member_workout_log');assert.equal(readPersistedView('u2','member'),null);writePwaLastVisitedPath('u1','member_workout_log',false);console.log('PASS delete scopes/error paths/PT rejection; uid UI state/clear; same-user resume vs account switch; workout view role allowlist');
+for(const value of [{month:'2026-02',selected:'2026-02-30',scroll:0,savedAt:Date.now()},{month:'2026-10',selected:'2026-10-20',scroll:0},{month:'2026-10',selected:'2026-10-20',scroll:0,savedAt:Date.now()+999999}]){map.set('labdot_workout_view_v1_bad',JSON.stringify(value));assert.equal(readWorkoutViewState('bad','2026-10-23'),null)}
