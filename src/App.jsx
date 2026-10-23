@@ -304,6 +304,7 @@ export default function App() {
     return () => OneSignal.Notifications.removeEventListener('click', onNotificationClick);
   }, [oneSignalReady, navigate]);
 
+  const initialAuthReady = useRef(false);
   const activeAuthUid = useRef(null);
   const readyAuthUid = useRef(null);
   const processAuth = async (sessionData, authEvent) => {
@@ -412,7 +413,7 @@ export default function App() {
   // [핵심] 앱이 켜질 때 & 로그인 상태 바뀔 때 실행됨
   useEffect(() => {
     // 1. Auto-login only if a valid session exists in storage (localStorage when rememberMe, sessionStorage otherwise)
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
       console.log('Initial session check:', session);
       const hashParams = new URLSearchParams(window.location.hash.substring(1));
       const type = hashParams.get('type');
@@ -424,7 +425,8 @@ export default function App() {
         return;
       }
 
-      processAuth(session, 'INITIAL_SESSION');
+      await processAuth(session, 'INITIAL_SESSION');
+      initialAuthReady.current = true;
     });
 
     // 2. 로그인/로그아웃 감시자 등록
@@ -445,6 +447,8 @@ export default function App() {
 
       // Initial load is handled by getSession() above — avoid double processAuth
       if (event === 'INITIAL_SESSION') return;
+      // Startup recovery can emit SIGNED_IN before getSession/profile restore completes.
+      if (event === 'SIGNED_IN' && !initialAuthReady.current) return;
       
       processAuth(session, event);
     });
