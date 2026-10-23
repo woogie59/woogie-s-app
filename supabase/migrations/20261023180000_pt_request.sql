@@ -16,9 +16,10 @@ CREATE TABLE IF NOT EXISTS public.ot_pt_requests (
 );
 
 CREATE INDEX IF NOT EXISTS ot_pt_requests_link_idx ON public.ot_pt_requests (link_id);
--- 링크당 활성(requested) 신청은 1건
+-- 링크당 활성 신청은 1건: 검토 중(requested)이거나 센터가 확인(accepted)한 신청이 있으면 추가 신청 불가
+-- (회원 취소/거절된 건은 다시 신청 가능)
 CREATE UNIQUE INDEX IF NOT EXISTS ot_pt_requests_one_active
-  ON public.ot_pt_requests (link_id) WHERE status = 'requested';
+  ON public.ot_pt_requests (link_id) WHERE status IN ('requested', 'accepted');
 
 ALTER TABLE public.ot_pt_requests ENABLE ROW LEVEL SECURITY;
 
@@ -85,6 +86,14 @@ BEGIN
   WHERE link_id = v_link.id AND status = 'confirmed';
   IF v_used < v_link.max_sessions OR v_pending > 0 THEN
     RETURN json_build_object('ok', false, 'reason', 'not_completed');
+  END IF;
+
+  -- 진행 중이거나 센터가 확인한 신청이 있으면 추가 신청 불가 (UI는 accepted 뒤 재신청 버튼을 노출하지 않음 — 동일 기준)
+  IF EXISTS (SELECT 1 FROM public.ot_pt_requests WHERE link_id = v_link.id AND status = 'requested') THEN
+    RETURN json_build_object('ok', false, 'reason', 'already_requested');
+  END IF;
+  IF EXISTS (SELECT 1 FROM public.ot_pt_requests WHERE link_id = v_link.id AND status = 'accepted') THEN
+    RETURN json_build_object('ok', false, 'reason', 'already_accepted');
   END IF;
 
   -- 희망 일시가 실제로 비는 시간인지(정규예약·홀드·OT와 충돌) 확인만 한다. 점유하지 않음.
@@ -204,3 +213,4 @@ REVOKE ALL ON FUNCTION public.ot_admin_pt_decide(uuid, text) FROM PUBLIC;
 
 GRANT EXECUTE ON FUNCTION public.ot_request_pt(uuid, date, text) TO anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.ot_cancel_pt_request(uuid, uuid) TO anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.ot_admin_pt_decide(uuid, text) TO authenticated;
