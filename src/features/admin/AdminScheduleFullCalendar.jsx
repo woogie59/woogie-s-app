@@ -498,6 +498,7 @@ const AdminScheduleFullCalendar = ({
           events={calendarEvents}
           eventClick={(info) => {
             info.jsEvent.preventDefault();
+            info.jsEvent.stopPropagation();
             if (info?.event?.extendedProps?.isAvailability) {
               if (!onSlotClick) return;
               onSlotClick({ date: info.event.start, jsEvent: info.jsEvent });

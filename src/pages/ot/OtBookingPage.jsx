@@ -715,12 +715,7 @@ export default function OtBookingPage({ token }) {
         <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center px-6">
           <div className="bg-white rounded-2xl p-6 w-full max-w-sm text-center">
             <p className="text-[15px] font-medium text-slate-900">
-              {formatDateLabel(String(cancelTarget.date).slice(0, 10))} {cancelTarget.time}
-            </p>
-            <p className="mt-2 text-sm text-slate-500 leading-relaxed">
-              이 오티 신청을 취소할까요?
-              <br />
-              자리는 바로 열리고 횟수는 돌아갑니다.
+              수업을 취소하시겠습니까?
             </p>
             <div className="mt-6 flex gap-3">
               <button

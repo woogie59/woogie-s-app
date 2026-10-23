@@ -1,3 +1,4 @@
+import OtCalendarActionDialog from './features/admin/OtCalendarActionDialog';
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { QrCode, Camera, ChevronRight, ChevronUp, BookOpen, LogOut, Plus, User, X, Search, ArrowLeft, Edit3, Save, Sparkles, MessageSquare, Calendar, Clock, ChevronLeft, Edit, Image, DollarSign, Download, Printer } from 'lucide-react';
@@ -135,6 +136,7 @@ export default function App() {
   const [isRevenueLoading, setIsRevenueLoading] = useState(false);
   /** OneSignal deep link → open schedule on a specific day */
   const [scheduleCalendarSeed, setScheduleCalendarSeed] = useState(null);
+  const [otCalendarBlock, setOtCalendarBlock] = useState(null);
   const [calendarActionModal, setCalendarActionModal] = useState(null);
   const [calendarActionBusy, setCalendarActionBusy] = useState(false);
   const bookingPanelRef = useRef(null);
@@ -904,16 +906,37 @@ export default function App() {
     [mergedItemsByDate, dashboardBlockedSlots],
   );
 
+  const openCalendarEvent = (info) => {
+    const block = info?.event?.extendedProps?.block;
+    if (info?.event?.extendedProps?.isBlock && block?.id) {
+      if (block.kind === 'ot') { setOtCalendarBlock(block); return; }
+      setCalendarActionModal({
+        isBlock: true,
+        block,
+        label: blockedSlotDisplayTitle(block),
+        date: String(block.block_date || info?.event?.extendedProps?.dateKey || ''),
+        time: String(block.block_time || ''),
+      });
+      return;
+    }
+    const item = info?.event?.extendedProps?.item;
+    const dateKey = info?.event?.extendedProps?.dateKey;
+    if (!item || !dateKey) return;
+    openCalendarActionModal(item);
+  };
+
   const handleCalendarSlotClick = useCallback(
     (info) => {
       const d = info?.date;
       if (!(d instanceof Date) || Number.isNaN(d.getTime())) return;
+      const occupied = adminCalendarEvents.find(ev => d >= ev.start && d < ev.end);
+      if (occupied) { openCalendarEvent({ event: { extendedProps: occupied.extendedProps } }); return; }
       const hour = d.getHours();
       const dow = d.getDay();
       const dateKey = toDateKey(d);
       bookingPanelRef.current?.openSlotModal?.({ dow, hour, dateKey });
     },
-    []
+    [adminCalendarEvents]
   );
 
   const isCalendarSlotAvailable = useCallback(
@@ -1280,23 +1303,7 @@ export default function App() {
                       isSlotAvailable={isCalendarSlotAvailable}
                       getSlotLaneState={getCalendarSlotLaneState}
                       scheduleSettingsStamp={scheduleSettingsStamp}
-                      onEventClick={(info) => {
-                        const block = info?.event?.extendedProps?.block;
-                        if (info?.event?.extendedProps?.isBlock && block?.id) {
-                          setCalendarActionModal({
-                            isBlock: true,
-                            block,
-                            label: blockedSlotDisplayTitle(block),
-                            date: String(block.block_date || info?.event?.extendedProps?.dateKey || ''),
-                            time: String(block.block_time || ''),
-                          });
-                          return;
-                        }
-                        const item = info?.event?.extendedProps?.item;
-                        const dateKey = info?.event?.extendedProps?.dateKey;
-                        if (!item || !dateKey) return;
-                        openCalendarActionModal(item);
-                      }}
+                      onEventClick={openCalendarEvent}
                     />
                   </div>
                   <AdminBookingSettingsPanel
@@ -1313,6 +1320,7 @@ export default function App() {
                   />
                 </div>
 
+                {otCalendarBlock ? <OtCalendarActionDialog block={otCalendarBlock} onClose={() => setOtCalendarBlock(null)} onChanged={fetchRevenueData} onUnlinked={(block) => { setOtCalendarBlock(null); setCalendarActionModal({ isBlock: true, block, label: blockedSlotDisplayTitle(block), date: String(block.block_date || ''), time: String(block.block_time || '') }); }} /> : null}
                 {calendarActionModal ? (
                   <div
                     className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-xl"
