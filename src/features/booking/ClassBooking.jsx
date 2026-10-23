@@ -206,7 +206,8 @@ const ClassBooking = ({ user, profileName = '', setView, goBack }) => {
       try {
         const [bookingsRes, blocksRes] = await Promise.all([
           supabase.from('bookings').select('*').eq('date', selectedDate),
-          supabase.from('trainer_blocked_slots').select('*').eq('block_date', selectedDate),
+          // 최소 읽기: 날짜·시간·kind만 (후보 migration 20261023180000 적용 후 동작)
+          supabase.rpc('get_blocked_slots_public', { p_date: selectedDate }),
         ]);
         if (bookingsRes.error) throw bookingsRes.error;
         setBookings(Array.isArray(bookingsRes.data) ? bookingsRes.data : []);
