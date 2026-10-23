@@ -402,32 +402,10 @@ BEGIN
 END;
 $$;
 
--- 11) 지난 신청 일괄 완료: 시작+1시간이 지난 confirmed를 completed로.
---     기존 auto_complete_due_bookings와 같은 "관리자가 앱에서 호출" 패턴.
-CREATE OR REPLACE FUNCTION public.ot_auto_complete_due()
-RETURNS json
-LANGUAGE plpgsql SECURITY DEFINER SET search_path = public
-AS $$
-DECLARE
-  v_count int;
-BEGIN
-  IF NOT EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role = 'admin') THEN
-    RETURN json_build_object('ok', false, 'reason', 'forbidden');
-  END IF;
-
-  WITH due AS (
-    SELECT id FROM public.ot_bookings
-    WHERE status = 'confirmed'
-      AND time ~ '^([01][0-9]|2[0-3]):00$'
-      AND ((date::text || ' ' || time)::timestamp AT TIME ZONE 'Asia/Seoul') + interval '1 hour' <= now()
-  )
-  UPDATE public.ot_bookings SET status = 'completed'
-  WHERE id IN (SELECT id FROM due);
-  GET DIAGNOSTICS v_count = ROW_COUNT;
-
-  RETURN json_build_object('ok', true, 'completed_count', v_count);
-END;
-$$;
+-- 11) (제거됨) 지난 신청 일괄/자동 완료 함수는 만들지 않는다.
+--     시간이 지났다고 완료 처리하면 미확인 노쇼까지 완료가 되어, 아직 정해지지 않은
+--     노쇼 정책을 우회한다. 완료 전이는 관리자가 출석을 확인한 뒤 건별로
+--     ot_admin_complete()를 호출하는 것만 허용한다.
 
 -- PUBLIC 기본 실행권 회수 후 명시 grant (독립 리뷰 권고)
 REVOKE ALL ON FUNCTION public._ot_available_hours(date) FROM PUBLIC;
@@ -438,7 +416,6 @@ REVOKE ALL ON FUNCTION public.ot_cancel(uuid, uuid) FROM PUBLIC;
 REVOKE ALL ON FUNCTION public.ot_report_sync(uuid, uuid, text) FROM PUBLIC;
 REVOKE ALL ON FUNCTION public.ot_admin_complete(uuid) FROM PUBLIC;
 REVOKE ALL ON FUNCTION public.ot_admin_cancel(uuid) FROM PUBLIC;
-REVOKE ALL ON FUNCTION public.ot_auto_complete_due() FROM PUBLIC;
 
 -- 오티 회원(비로그인 포함)이 호출하는 것
 GRANT EXECUTE ON FUNCTION public.ot_get_link(uuid) TO anon, authenticated;
@@ -449,5 +426,4 @@ GRANT EXECUTE ON FUNCTION public.ot_report_sync(uuid, uuid, text) TO anon, authe
 -- 관리자 전용 (로그인 + 함수 내부 role 검사 이중 방어)
 GRANT EXECUTE ON FUNCTION public.ot_admin_complete(uuid) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.ot_admin_cancel(uuid) TO authenticated;
-GRANT EXECUTE ON FUNCTION public.ot_auto_complete_due() TO authenticated;
 -- 내부 헬퍼는 외부 호출 불필요 (grant 없음)

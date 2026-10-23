@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { ArrowLeft, Link2, Plus, Copy, Ban, CalendarPlus, CheckCircle2, XCircle, RefreshCw } from 'lucide-react';
+import { ArrowLeft, Link2, Plus, Copy, Ban, CalendarPlus, CheckCircle2, XCircle } from 'lucide-react';
 import { supabase } from '../../lib/supabaseClient';
 import { useGlobalModal } from '../../context/GlobalModalContext';
 import { invokeOtBlockGoogleSync } from '../../utils/googleCalendarOtSync';
@@ -35,7 +35,6 @@ export default function AdminOtLinks({ goBack }) {
   const [newLabel, setNewLabel] = useState('');
   const [creating, setCreating] = useState(false);
   const [syncingId, setSyncingId] = useState(null);
-  const [completingDue, setCompletingDue] = useState(false);
 
   const fetchAll = useCallback(async () => {
     setLoading(true);
@@ -217,18 +216,12 @@ export default function AdminOtLinks({ goBack }) {
     });
   };
 
-  const handleCompleteDue = async () => {
-    if (IS_DEMO) { demoBlocked(); return; }
-    if (completingDue) return;
-    setCompletingDue(true);
-    const { data, error } = await supabase.rpc('ot_auto_complete_due');
-    setCompletingDue(false);
-    if (error || !data?.ok) {
-      showAlert({ message: '일괄 완료 실패: ' + (error?.message || data?.reason || '') });
-      return;
+  const isPastSlot = (b) => {
+    try {
+      return new Date(`${String(b.date).slice(0, 10)}T${b.time}:00+09:00`).getTime() < Date.now();
+    } catch {
+      return false;
     }
-    showAlert({ message: `지난 신청 ${data.completed_count ?? 0}건을 완료 처리했습니다.` });
-    await fetchAll();
   };
 
   const usageOf = (link) => {
@@ -280,16 +273,6 @@ export default function AdminOtLinks({ goBack }) {
           </button>
         </section>
 
-        <button
-          type="button"
-          onClick={handleCompleteDue}
-          disabled={completingDue}
-          className="w-full border border-gray-200 rounded-xl py-3 text-sm text-slate-600 active:bg-gray-50 flex items-center justify-center gap-2 disabled:opacity-40"
-        >
-          <RefreshCw size={15} strokeWidth={1.5} />
-          {completingDue ? '처리 중…' : '지난 신청 일괄 완료 처리'}
-        </button>
-
         {loading ? (
           <p className="text-sm text-slate-400">불러오는 중…</p>
         ) : links.length === 0 ? (
@@ -333,13 +316,16 @@ export default function AdminOtLinks({ goBack }) {
 
                 {(bookingsByLink[link.id] || []).length > 0 && (
                   <div className="mt-4 space-y-2 border-t border-gray-100 pt-4">
+                    <p className="text-[11px] text-slate-400">
+                      완료 처리는 실제 출석을 확인한 뒤 건별로 눌러 주세요. 시간이 지나도 자동으로 완료되지 않습니다(노쇼 정책 미정).
+                    </p>
                     {(bookingsByLink[link.id] || []).map((b) => (
                       <div key={b.id} className="space-y-1">
                         <div className="flex items-center justify-between gap-2">
                           <p className="text-sm text-slate-700">
                             {String(b.date).slice(0, 10)} {b.time}{' '}
                             <span className={`text-xs ${b.status === 'cancelled' ? 'text-slate-300 line-through' : 'text-slate-400'}`}>
-                              {b.status === 'confirmed' ? '신청됨' : b.status === 'completed' ? '완료' : '취소됨'}
+                              {b.status === 'confirmed' ? (isPastSlot(b) ? '신청됨 · 시간 지남' : '신청됨') : b.status === 'completed' ? '완료' : '취소됨'}
                             </span>
                           </p>
                           {b.status === 'confirmed' && (
