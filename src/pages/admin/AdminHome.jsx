@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { motion } from 'framer-motion';
-import { LogOut, Users, Calendar, Archive, NotebookPen, ChevronDown, Table2, Dumbbell, Megaphone, Link2 } from 'lucide-react';
+import { LogOut, Users, Calendar, Archive, NotebookPen, ChevronDown, Table2, Dumbbell, Megaphone, Link2, Activity } from 'lucide-react';
 import { supabase } from '../../lib/supabaseClient';
 import { fetchMembersBalanceSummaries, fetchSessionBalanceMetrics } from '../../utils/sessionHelpers';
 import LabDotBrand from '../../components/ui/LabDotBrand';
@@ -400,6 +400,15 @@ const AdminHome = ({ setView, logout, onOpenTrainingLog, adminName }) => {
             <Megaphone size={26} strokeWidth={ICON_STROKE} className="text-[#064e3b] shrink-0" aria-hidden />
             <span className="text-sm font-medium text-slate-900 tracking-tight leading-snug pr-1">회원 공지</span>
           </button>
+
+          <button
+            type="button"
+            onClick={() => goMenu({ view: 'hall_of_fame_hub' })}
+            className="aspect-square w-full bg-white rounded-2xl border border-gray-100 shadow-sm p-5 flex flex-col items-start justify-between transition-all duration-200 hover:bg-gray-50 active:bg-gray-100 active:scale-[0.98] cursor-pointer text-left"
+          >
+            <Activity size={26} strokeWidth={ICON_STROKE} className="text-[#064e3b] shrink-0" aria-hidden />
+            <span className="text-sm font-medium text-slate-900 tracking-tight leading-snug pr-1">상태창 관리</span>
+          </button>
         </nav>
 
         {!MVP_HIDE_LIBRARY_AND_TRAINING_NAV ? (
@@ -416,16 +425,7 @@ const AdminHome = ({ setView, logout, onOpenTrainingLog, adminName }) => {
             </button>
           </div>
         ) : null}
-        <div className="mt-4">
-          <button
-            type="button"
-            onClick={() => goMenu({ view: 'hall_of_fame_hub' })}
-            className="w-full rounded-2xl border border-amber-300/35 bg-gradient-to-r from-zinc-900 to-black p-5 text-left text-white shadow-[0_0_24px_rgba(0,0,0,0.45)] transition-all duration-200 hover:border-amber-300/50 active:scale-[0.99]"
-          >
-            <p className="text-[11px] uppercase tracking-[0.16em] text-zinc-400">Athlete System</p>
-            <p className="mt-1 text-sm font-semibold tracking-tight">상태창 관리</p>
-          </button>
-        </div>
+
       </section>
     </div>
   );
