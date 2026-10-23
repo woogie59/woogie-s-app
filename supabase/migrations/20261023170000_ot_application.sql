@@ -242,8 +242,10 @@ BEGIN
 
   -- 시간 자리를 OT 홀드로 막는다. (block_date, block_time) 기존 유니크 인덱스가
   -- 동시 삽입을 원자적으로 거부 → unique_violation은 slot_taken으로 변환.
-  INSERT INTO public.trainer_blocked_slots (block_date, block_time, label, kind, member_name)
-  VALUES (p_date, v_time, 'OT', 'ot', v_link.member_name)
+  -- 이름은 공용 테이블(trainer_blocked_slots, authenticated 전체 SELECT 정책)에 쓰지 않는다.
+  -- 대상자 이름은 토큰으로만 조회되는 ot_links/ot_bookings에만 둔다 (최소 데이터).
+  INSERT INTO public.trainer_blocked_slots (block_date, block_time, label, kind)
+  VALUES (p_date, v_time, 'OT', 'ot')
   RETURNING * INTO v_block;
 
   INSERT INTO public.ot_bookings (link_id, date, time, name, block_id)
@@ -311,41 +313,8 @@ BEGIN
 END;
 $$;
 
--- 8) 부수효과 보고: 클라이언트가 캘린더/푸시 호출을 마친 뒤 서버에 기록.
---    토큰 소유 링크의 본인 신청만 갱신 가능 (소유 검증 서버에서 수행).
---    보고가 없는 confirmed 신청은 관리자 화면에 "미등록/미알림"으로 표시된다.
-CREATE OR REPLACE FUNCTION public.ot_report_sync(p_token uuid, p_booking_id uuid, p_channel text)
-RETURNS json
-LANGUAGE plpgsql SECURITY DEFINER SET search_path = public
-AS $$
-DECLARE
-  v_link public.ot_links%ROWTYPE;
-BEGIN
-  IF p_channel NOT IN ('calendar', 'admin_push') THEN
-    RETURN json_build_object('ok', false, 'reason', 'invalid_channel');
-  END IF;
-
-  SELECT * INTO v_link FROM public.ot_links WHERE token = p_token;
-  IF NOT FOUND THEN
-    RETURN json_build_object('ok', false, 'reason', 'not_found');
-  END IF;
-
-  IF p_channel = 'calendar' THEN
-    UPDATE public.ot_bookings
-    SET calendar_synced_at = now()
-    WHERE id = p_booking_id AND link_id = v_link.id AND status IN ('confirmed', 'completed');
-  ELSE
-    UPDATE public.ot_bookings
-    SET admin_notified_at = now()
-    WHERE id = p_booking_id AND link_id = v_link.id AND status IN ('confirmed', 'completed');
-  END IF;
-
-  IF NOT FOUND THEN
-    RETURN json_build_object('ok', false, 'reason', 'not_found');
-  END IF;
-  RETURN json_build_object('ok', true);
-END;
-$$;
+-- 8) (제거됨) 클라이언트 부수효과 보고(ot_report_sync)는 공개 페이지의 임의 외부호출
+--    제거와 함께 폐기. 동기화 시각은 서버 경로(ot-booking-notify, google-calendar-sync)가 기록.
 
 -- 9) 관리자 완료 처리: confirmed → completed (횟수 계산은 confirmed+completed라
 --    전이해도 링크 상한에는 영향 없음. 기록 정합성용)
@@ -413,7 +382,6 @@ REVOKE ALL ON FUNCTION public.ot_get_link(uuid) FROM PUBLIC;
 REVOKE ALL ON FUNCTION public.ot_get_availability(date, date) FROM PUBLIC;
 REVOKE ALL ON FUNCTION public.ot_book(uuid, date, text) FROM PUBLIC;
 REVOKE ALL ON FUNCTION public.ot_cancel(uuid, uuid) FROM PUBLIC;
-REVOKE ALL ON FUNCTION public.ot_report_sync(uuid, uuid, text) FROM PUBLIC;
 REVOKE ALL ON FUNCTION public.ot_admin_complete(uuid) FROM PUBLIC;
 REVOKE ALL ON FUNCTION public.ot_admin_cancel(uuid) FROM PUBLIC;
 
@@ -422,7 +390,6 @@ GRANT EXECUTE ON FUNCTION public.ot_get_link(uuid) TO anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.ot_get_availability(date, date) TO anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.ot_book(uuid, date, text) TO anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.ot_cancel(uuid, uuid) TO anon, authenticated;
-GRANT EXECUTE ON FUNCTION public.ot_report_sync(uuid, uuid, text) TO anon, authenticated;
 -- 관리자 전용 (로그인 + 함수 내부 role 검사 이중 방어)
 GRANT EXECUTE ON FUNCTION public.ot_admin_complete(uuid) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.ot_admin_cancel(uuid) TO authenticated;

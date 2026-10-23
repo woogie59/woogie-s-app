@@ -24,8 +24,8 @@ function formatEventSummary(userName: string): string {
 
 /** OT hold: `{이름}님 오티`. */
 function formatOtEventSummary(memberName: string): string {
-  const n = (memberName || "").trim() || "회원";
-  return `${n}님 오티`;
+  const n = (memberName || "").trim();
+  return n ? `${n}님 오티` : "오티";
 }
 
 /**
@@ -354,9 +354,10 @@ async function handleTrainerBlockedSlotSync(
 
   const kind = String(row.kind || "ot");
   const memberName = String(row.member_name || "").trim();
-  if (kind !== "ot" || !memberName) {
-    return j({ skipped: true, reason: "not OT or missing member_name" });
+  if (kind !== "ot") {
+    return j({ skipped: true, reason: "not OT" });
   }
+  // 이름이 없는 OT block(공용 테이블 최소 데이터)은 '오티' 제목으로 등록한다.
 
   const dateS = normDate(String(row.block_date ?? ""));
   const timeS = String(row.block_time ?? "");
@@ -430,6 +431,17 @@ async function handleTrainerBlockedSlotSync(
   if (upErr) {
     console.error("[google-calendar-sync] save block id:", upErr);
     return j({ error: "Saved OT event but failed to store google_event_id", details: upErr.message }, 502);
+  }
+
+  // 오티 링크 신청이면 동기화 시각을 기록해 관리자 화면 배지를 해제한다 (실패해도 치명적이지 않음).
+  try {
+    await supabase
+      .from("ot_bookings")
+      .update({ calendar_synced_at: new Date().toISOString() })
+      .eq("block_id", row.id)
+      .is("calendar_synced_at", null);
+  } catch (e) {
+    console.error("[google-calendar-sync] mark ot_bookings synced:", e);
   }
 
   return j({ ok: true, action: "created", eventId: newId, blockId: row.id, source: "trainer_blocked_slots" });

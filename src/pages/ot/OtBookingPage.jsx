@@ -13,11 +13,6 @@ import {
   MEMBER_CANCEL_COACH_CONTACT_MESSAGE,
 } from '../../utils/bookingDateKeys';
 import { isSlotBlocked, normalizeBlockTime } from '../../utils/trainerBlockedSlots';
-import {
-  fetchAdminOnesignalPlayerId,
-  invokeNotifyAdminEvents,
-} from '../../utils/notifications';
-import { invokeOtBlockGoogleSync } from '../../utils/googleCalendarOtSync';
 
 const DEEP_GREEN = '#064e3b';
 const DAY_LABELS = ['일', '월', '화', '수', '목', '금', '토'];
@@ -200,15 +195,6 @@ export default function OtBookingPage({ token }) {
   const remaining = link?.remaining ?? 0;
   const myBookings = link?.bookings || [];
 
-  const reportSync = useCallback(async (bookingId, channel) => {
-    if (IS_DEMO || !bookingId) return;
-    try {
-      await supabase.rpc('ot_report_sync', { p_token: token, p_booking_id: bookingId, p_channel: channel });
-    } catch (e) {
-      console.warn('[ot] report sync:', e);
-    }
-  }, [token]);
-
   const submitBooking = async () => {
     if (!selectedDate || !selectedTime || busy) return;
     setBusy(true);
@@ -245,25 +231,10 @@ export default function OtBookingPage({ token }) {
       await loadLink();
       return;
     }
-    // 관리자 푸시 + 구글 캘린더 등록은 부가 동작 — 실패해도 신청은 유효.
-    // 보낸 뒤에는 서버에 보고해, 누락 시 관리자 화면에서 발견·재시도할 수 있게 한다.
-    try {
-      if (data.block) {
-        const res = await invokeOtBlockGoogleSync('INSERT', data.block);
-        if (res?.ok) await reportSync(data.booking_id, 'calendar');
-      }
-    } catch (e) {
-      console.warn('[ot] calendar sync:', e);
-    }
-    try {
-      const pid = await fetchAdminOnesignalPlayerId();
-      if (pid) {
-        const { error: pushError } = await invokeNotifyAdminEvents(pid, '새 오티 신청', `${memberName}님 - ${selectedDate} ${selectedTime}`);
-        if (!pushError) await reportSync(data.booking_id, 'admin_push');
-      }
-    } catch (e) {
-      console.warn('[ot] admin push:', e);
-    }
+    // 알림·캘린더는 이 공개 페이지에서 직접 외부를 호출하지 않는다.
+    // (기존 공개 Edge는 임의 대상/문구 호출이 가능해 무로그인 페이지에 연결하지 않음)
+    // 서버 검증형 알림·캘린더는 DB webhook + ot-booking-notify 함수로 대체 예정
+    // (배포 전까지는 관리자 화면 배지 + 수동 재시도로 복구).
     await loadLink();
     setJustBooked({ date: selectedDate, time: selectedTime, name: memberName });
     setBusy(false);
@@ -296,19 +267,6 @@ export default function OtBookingPage({ token }) {
       );
       setBusy(false);
       return;
-    }
-    try {
-      if (data.old_block) await invokeOtBlockGoogleSync('DELETE', null, data.old_block);
-    } catch (e) {
-      console.warn('[ot] calendar delete:', e);
-    }
-    try {
-      const pid = await fetchAdminOnesignalPlayerId();
-      if (pid) {
-        await invokeNotifyAdminEvents(pid, '오티 신청 취소', `${booking.name}님 - ${String(booking.date).slice(0, 10)} ${booking.time} 취소되었습니다.`);
-      }
-    } catch (e) {
-      console.warn('[ot] cancel push:', e);
     }
     await loadLink();
     setBusy(false);
