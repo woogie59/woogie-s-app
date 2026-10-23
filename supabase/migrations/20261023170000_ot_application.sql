@@ -86,7 +86,8 @@ BEGIN
 
   SELECT available_hours INTO v_open FROM public.trainer_open_dates WHERE date = p_date;
   IF FOUND THEN
-    RETURN COALESCE((SELECT array_agg(value::int) FROM jsonb_array_elements_text(v_open.available_hours) AS t(value)), '{}'::int[]);
+    -- to_jsonb(): live 컬럼이 jsonb/int[] 어느 쪽이든 동작 (reviewer 독립검증 2줄 수정)
+    RETURN COALESCE((SELECT array_agg(value::int) FROM jsonb_array_elements_text(to_jsonb(v_open.available_hours)) AS t(value)), '{}'::int[]);
   END IF;
 
   -- ※ trainer_holidays.date 는 라이브 스키마에서 text (2026-10-23 실측)
@@ -100,8 +101,9 @@ BEGIN
   IF NOT FOUND OR v_setting.off THEN
     RETURN NULL;
   END IF;
-  -- ※ trainer_settings.available_hours 는 라이브 스키마에서 integer[] (2026-10-23 실측)
-  RETURN COALESCE(v_setting.available_hours, '{}'::int[]);
+  -- ※ trainer_settings.available_hours 는 라이브 스키마에서 integer[] (2026-10-23 실측, udt_name=_int4)
+  -- to_jsonb(): live 컬럼이 int[]/jsonb 어느 쪽이든 동작 (reviewer 독립검증 2줄 수정)
+  RETURN COALESCE((SELECT array_agg(value::int) FROM jsonb_array_elements_text(to_jsonb(v_setting.available_hours)) AS t(value)), '{}'::int[]);
 END;
 $$;
 
