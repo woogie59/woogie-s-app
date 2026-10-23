@@ -43,10 +43,16 @@
 - 노쇼 정책: 미정 유지. 완료는 관리자가 출석 확인 후 건별 처리만 가능.
 
 ## 배포 체크리스트 (모두 승인 후)
-1. migration(ot_application rev5) 적용
-2. `supabase functions deploy ot-booking-notify google-calendar-sync`
-3. Secrets: OT_WEBHOOK_SECRET 설정 (ONESIGNAL_* 는 기존 설정 재사용)
-4. Dashboard Webhooks: ot_bookings INSERT→ot-booking-notify(시크릿 헤더),
-   trainer_blocked_slots→google-calendar-sync 확인/생성
-5. 더미 링크로 실테스트: 신청→푸시/캘린더/배지 해제, 취소→자리 해제,
+0. 기존 webhook 확인 완료(2026-10-23, 읽기): sync-to-google-calendar가 service_role
+   bearer로 호출 중 → 보강 함수 배포 후에도 무중단, 기존 설정 변경 불필요
+1. migration(ot_application rev5) 적용 (+ 후보 B 적용 시 ClassBooking RPC 전환 앱과 같은 배포)
+2. gcal_sync_hardening.sql + ot_booking_notify_webhook.sql 적용, DB 설정 4개
+   (app.gcal_sync_url/secret, app.ot_notify_url/secret)
+3. 앱 코드 배포 (util RPC 경유) — 함수 배포보다 먼저
+4. Secrets(GCAL_WEBHOOK_SECRET, OT_WEBHOOK_SECRET) 후 함수 2개 배포
+   — 보강된 google-calendar-sync는 service_role bearer OR 시크릿 모두 허용하므로
+   기존 webhook이 service_role로 호출 중이면 무중단
+5. Dashboard Webhooks: ot_bookings INSERT→ot-booking-notify(시크릿 헤더),
+   trainer_blocked_slots→google-calendar-sync 확인/생성 (기존 bookings webhook 헤더 점검)
+6. 더미 링크로 실테스트: 신청→푸시/캘린더/배지 해제, 취소→자리 해제,
    동시 2요청 경쟁, 완료 건별 처리

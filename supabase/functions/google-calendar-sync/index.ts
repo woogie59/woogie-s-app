@@ -453,16 +453,21 @@ Deno.serve(async (req: Request) => {
     return j({ error: "Method not allowed" }, 405);
   }
 
-  // 공유 비밀 검사: 이 함수는 외부 캘린더 쓰기를 하므로 무인증 공개 호출을 받지 않는다.
-  // Database Webhook / pg_net 트리거 / 관리자 RPC만 x-gcal-webhook-secret 로 호출.
+  // 인증: 이 함수는 외부 캘린더 쓰기를 하므로 무인증 공개 호출을 받지 않는다.
+  // 허용 경로 두 가지 (이행 안전):
+  //  ① Authorization: Bearer <service_role> — 기존 Database Webhook/pg_net 트리거가
+  //     이미 쓰는 방식. service_role은 서버 전용이라 공개 클라이언트(anon)는 통과 불가.
+  //  ② x-gcal-webhook-secret — 신규 webhook/관리자 RPC 경로.
   // (verify_jwt=false 는 게이트웨이 설정이며, 이 검사가 실제 인증이다.)
+  const serviceKey = (Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "").trim();
+  const bearer = (req.headers.get("authorization") ?? "").replace(/^Bearer\s+/i, "").trim();
   const gcalSecret = (Deno.env.get("GCAL_WEBHOOK_SECRET") ?? "").trim();
   const gotSecret = (req.headers.get("x-gcal-webhook-secret") ?? "").trim();
-  if (!gcalSecret || gotSecret !== gcalSecret) {
+  const okService = serviceKey !== "" && bearer === serviceKey;
+  const okSecret = gcalSecret !== "" && gotSecret === gcalSecret;
+  if (!okService && !okSecret) {
     return j({ error: "forbidden" }, 403);
   }
-
-  const serviceKey = (Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "").trim();
 
   const supabaseUrl = Deno.env.get("SUPABASE_URL");
   if (!supabaseUrl) return j({ error: "Missing SUPABASE_URL" }, 500);

@@ -10,13 +10,17 @@
 --   2) 브라우저의 직접 호출을 관리자 RPC로 대체 — 아래 admin_block_calendar_sync.
 --      관리자 화면(수동 OT, 오티 링크 재등록)은 이 RPC를 거쳐 서버가 함수를 호출.
 --
--- 실행 순서 (같은 배포):
+-- 실행 순서 (일관성 필수):
+--   0) 기존 webhook 확인 완료(2026-10-23, 읽기): sync-to-google-calendar =
+--      bookings INSERT/UPDATE/DELETE → google-calendar-sync, Authorization: bearer
+--      <service_role JWT> 로 호출 중. 함수가 service_role bearer OR 공유 비밀을 모두
+--      허용하므로 보강 배포 후에도 기존 설정 변경 없이 계속 동작한다.
 --   1) Dashboard → Database → Extensions: pg_net 활성화 확인
 --   2) 이 파일 실행 (SQL Editor)
 --   3) ALTER DATABASE postgres SET app.gcal_sync_url = 'https://<ref>.supabase.co/functions/v1/google-calendar-sync';
 --      ALTER DATABASE postgres SET app.gcal_sync_secret = '<랜덤 긴 값>';  (대시보드 SQL로)
---   4) Edge Secrets에 GCAL_WEBHOOK_SECRET 동일 값 설정 후 함수 배포
---   5) 앱 코드 배포 (util이 RPC를 부르는 버전)
+--   4) 앱 코드 배포 (util이 RPC를 부르는 버전) — 함수 배포보다 먼저여야 관리자 수동 OT가 끊기지 않음
+--   5) Edge Secrets에 GCAL_WEBHOOK_SECRET 설정 후 함수 배포 + 기존 webhook 헤더 점검/시크릿 추가
 -- =============================================================================
 
 CREATE OR REPLACE FUNCTION public.admin_block_calendar_sync(

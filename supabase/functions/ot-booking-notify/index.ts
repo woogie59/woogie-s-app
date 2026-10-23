@@ -87,7 +87,7 @@ Deno.serve(async (req: Request) => {
     headings: { en: "새 오티 신청", ko: "새 오티 신청" },
     contents: { en: `${bk.name}님 - ${dateS} ${bk.time}`, ko: `${bk.name}님 - ${dateS} ${bk.time}` },
     data: { labdot_audience: "admin", labdot_event: "ot_booking" },
-    idempotency_key: `ot-booking-${bookingId}`,
+    idempotency_key: bookingId, // OneSignal은 UUID 형식만 받는다 (30일 보관)
   };
 
   // 3) 송신 → 성공 후에만 기록 (중단되면 미기록 상태로 남아 재시도 가능,
