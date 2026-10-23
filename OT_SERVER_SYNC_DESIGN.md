@@ -24,6 +24,17 @@
    두 건(ot_bookings, trainer_blocked_slots)을 확인/생성한다 (코드 추가 없음, pg_net
    템플릿: supabase/ot_booking_notify_webhook.sql, google_calendar_sync_webhook.sql).
 
+## 보안 보강 (rev6, 로컬 준비)
+- google-calendar-sync: x-gcal-webhook-secret 공유 비밀 요구(기존 무인증 공개 POST — 위조
+  DELETE/임의 INSERT 가능 구조, 악용 확인 없음). verify_jwt 설정이 아니라 함수 내부 검사가 인증.
+- 브라우저 직접 호출 폐기: 관리자 화면(수동 OT, 오티 링크 재등록)도 admin_block_calendar_sync
+  RPC 경유 — 실재 행은 서버가 읽고, 비밀은 DB 설정(app.gcal_sync_url/secret)에만 둔다.
+  템플릿: supabase/gcal_sync_hardening.sql. util(invokeOtBlockGoogleSync)이 RPC를 부르므로
+  기존 수동 OT 화면 포함 전 호출자가 같은 서버 경로를 탄다 (같은 배포 필수).
+- ot-booking-notify: 송신 성공 후에만 admin_notified_at 기록(선점 후 중단 시 영구 미발송 창 제거).
+  중복은 OneSignal idempotency_key(ot-booking-<id>)가 억제. 재시도 경로: 관리자 화면
+  "푸시 미확인" 배지의 재시도 버튼 → ot_admin_resend_push RPC → 서버가 함수 재호출.
+
 ## 아직 안 하는 것
 - 취소 푸시: 취소 알림 1회 보장에는 별도 플래그 컬럼이 필요 → DB 변경 승인 후 추가.
 - 정규 회원 예약(bookings)과의 교차 writer 원자성: bookings INSERT/DELETE에

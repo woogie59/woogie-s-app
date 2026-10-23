@@ -45,3 +45,38 @@ CREATE TRIGGER ot_booking_admin_push
 -- 캘린더는 기존 google-calendar-sync에 trainer_blocked_slots용 Database Webhook을
 -- 연결하는 것으로 서버 보장이 된다 (INSERT는 google_event_id가 있으면 skip하는 멱등).
 -- 이름 없는 OT block은 '오티' 제목으로 등록된다 (함수 폴백).
+
+-- ---------------------------------------------------------------------------
+-- 관리자 화면 "푸시 재시도" 버튼용 RPC: 서버가 ot-booking-notify를 다시 호출.
+-- 실행 전: ALTER DATABASE postgres SET app.ot_notify_url = 'https://<ref>.supabase.co/functions/v1/ot-booking-notify';
+--          ALTER DATABASE postgres SET app.ot_notify_secret = '<OT_WEBHOOK_SECRET과 동일 값>';
+-- ---------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION public.ot_admin_resend_push(p_booking_id uuid)
+RETURNS json
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_url text;
+  v_secret text;
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role = 'admin') THEN
+    RETURN json_build_object('ok', false, 'error', 'forbidden');
+  END IF;
+  v_url := current_setting('app.ot_notify_url', true);
+  v_secret := current_setting('app.ot_notify_secret', true);
+  IF v_url IS NULL OR v_url = '' OR v_secret IS NULL OR v_secret = '' THEN
+    RETURN json_build_object('ok', false, 'error', 'sync_not_configured');
+  END IF;
+  PERFORM net.http_post(
+    url := v_url,
+    headers := jsonb_build_object('Content-Type', 'application/json', 'x-ot-webhook-secret', v_secret),
+    body := jsonb_build_object('booking_id', p_booking_id)
+  );
+  RETURN json_build_object('ok', true);
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.ot_admin_resend_push(uuid) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.ot_admin_resend_push(uuid) TO authenticated;

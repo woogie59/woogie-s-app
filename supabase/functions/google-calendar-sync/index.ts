@@ -453,6 +453,15 @@ Deno.serve(async (req: Request) => {
     return j({ error: "Method not allowed" }, 405);
   }
 
+  // 공유 비밀 검사: 이 함수는 외부 캘린더 쓰기를 하므로 무인증 공개 호출을 받지 않는다.
+  // Database Webhook / pg_net 트리거 / 관리자 RPC만 x-gcal-webhook-secret 로 호출.
+  // (verify_jwt=false 는 게이트웨이 설정이며, 이 검사가 실제 인증이다.)
+  const gcalSecret = (Deno.env.get("GCAL_WEBHOOK_SECRET") ?? "").trim();
+  const gotSecret = (req.headers.get("x-gcal-webhook-secret") ?? "").trim();
+  if (!gcalSecret || gotSecret !== gcalSecret) {
+    return j({ error: "forbidden" }, 403);
+  }
+
   const serviceKey = (Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "").trim();
 
   const supabaseUrl = Deno.env.get("SUPABASE_URL");

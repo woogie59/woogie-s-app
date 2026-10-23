@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { ArrowLeft, Link2, Plus, Copy, Ban, CalendarPlus, CheckCircle2, XCircle } from 'lucide-react';
+import { ArrowLeft, Link2, Plus, Copy, Ban, CalendarPlus, CheckCircle2, XCircle, BellRing } from 'lucide-react';
 import { supabase } from '../../lib/supabaseClient';
 import { useGlobalModal } from '../../context/GlobalModalContext';
 import { invokeOtBlockGoogleSync } from '../../utils/googleCalendarOtSync';
@@ -224,6 +224,21 @@ export default function AdminOtLinks({ goBack }) {
     }
   };
 
+  /** 관리자 푸시가 안 갔을 때 수동 재시도 (서버가 ot-booking-notify 호출) */
+  const handlePushResend = async (booking) => {
+    if (IS_DEMO) { demoBlocked(); return; }
+    if (syncingId) return;
+    setSyncingId(booking.id);
+    const { data, error } = await supabase.rpc('ot_admin_resend_push', { p_booking_id: booking.id });
+    setSyncingId(null);
+    if (error || !data?.ok) {
+      showAlert({ message: '푸시 재시도 실패: ' + (error?.message || data?.error || '설정을 확인해 주세요.') });
+      return;
+    }
+    showAlert({ message: '관리자 푸시를 다시 보냈습니다.' });
+    await fetchAll();
+  };
+
   const usageOf = (link) => {
     const rows = bookingsByLink[link.id] || [];
     const active = rows.filter((b) => b.status === 'confirmed').length;
@@ -361,9 +376,22 @@ export default function AdminOtLinks({ goBack }) {
                           )}
                         </div>
                         {b.status === 'confirmed' && (!b.calendar_synced_at || !b.admin_notified_at) && (
-                          <p className="text-[11px] text-amber-600">
+                          <p className="text-[11px] text-amber-600 flex items-center gap-1 flex-wrap">
                             {!b.calendar_synced_at && '캘린더 미등록 — 다시 등록 버튼을 눌러 주세요. '}
-                            {!b.admin_notified_at && '관리자 푸시 미확인'}
+                            {!b.admin_notified_at && (
+                              <span className="inline-flex items-center gap-1">
+                                관리자 푸시 미확인
+                                <button
+                                  type="button"
+                                  onClick={() => handlePushResend(b)}
+                                  disabled={syncingId === b.id}
+                                  aria-label="푸시 다시 보내기"
+                                  className="p-1 rounded text-amber-600 active:bg-amber-50"
+                                >
+                                  <BellRing size={13} strokeWidth={1.5} />
+                                </button>
+                              </span>
+                            )}
                           </p>
                         )}
                       </div>

@@ -7,11 +7,13 @@
 // 보장:
 //  - 공유 비밀(OT_WEBHOOK_SECRET) 헤더가 없으면 거부. 임의 호출 불가.
 //  - 예약은 DB에서 다시 읽어 실재·상태(confirmed)를 확인한 뒤에만 발송.
-//  - admin_notified_at 원자적 선점(UPDATE ... WHERE admin_notified_at IS NULL)으로
-//    중복 발송 방지. 발송 실패 시 선점을 되돌려 재시도 가능하게 둔다.
+//  - 발송 성공 후에만 admin_notified_at을 기록한다(선점 후 중단으로 영구 미발송되는
+//    창을 없앤다). 중복 방지는 OneSignal idempotency_key(ot-booking-<id>)가 흡수:
+//    송신 직후 기록 전에 중단돼도 재시도는 같은 키로 억제된다.
 //  - 관리자 OneSignal ID는 서비스 롤로 profiles에서 서버 측 조회 (클라이언트 입력 없음).
 //
-// 호출: Database Webhook(ot_bookings INSERT) 또는 수동 재시도 { "booking_id": "..." }.
+// 호출: Database Webhook(ot_bookings INSERT), 관리자 화면 수동 재시도 RPC,
+//       또는 { "booking_id": "..." } 직접 호출(비밀 필요).
 // 취소 알림은 별도 플래그 컬럼이 필요해 이 버전에서는 다루지 않는다(설계 문서 참고).
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
@@ -63,16 +65,7 @@ Deno.serve(async (req: Request) => {
   if (bk.status !== "confirmed") return j({ skipped: true, reason: "not confirmed" });
   if (bk.admin_notified_at) return j({ skipped: true, reason: "already notified" });
 
-  // 2) 원자적 선점 — 동시 호출은 한 건만 통과
-  const { data: claimed } = await db
-    .from("ot_bookings")
-    .update({ admin_notified_at: new Date().toISOString() })
-    .eq("id", bookingId)
-    .is("admin_notified_at", null)
-    .select("id");
-  if (!claimed || claimed.length === 0) return j({ skipped: true, reason: "claim lost" });
-
-  // 3) 대상·문구는 서버에서만 결정
+  // 2) 대상·문구는 서버에서만 결정
   const { data: admin, error: adminErr } = await db
     .from("profiles")
     .select("onesignal_id")
@@ -82,7 +75,6 @@ Deno.serve(async (req: Request) => {
     .limit(1)
     .maybeSingle();
   if (adminErr || !admin?.onesignal_id) {
-    await db.from("ot_bookings").update({ admin_notified_at: null }).eq("id", bookingId);
     return j({ error: "admin target unavailable" }, 500);
   }
 
@@ -98,6 +90,8 @@ Deno.serve(async (req: Request) => {
     idempotency_key: `ot-booking-${bookingId}`,
   };
 
+  // 3) 송신 → 성공 후에만 기록 (중단되면 미기록 상태로 남아 재시도 가능,
+  //    중복 송신은 idempotency_key가 억제)
   const response = await fetch("https://onesignal.com/api/v1/notifications", {
     method: "POST",
     headers: { "Content-Type": "application/json", Authorization: `Basic ${REST_KEY}` },
@@ -105,9 +99,18 @@ Deno.serve(async (req: Request) => {
   });
   const result = await response.json().catch(() => ({}));
   if (!response.ok || result.errors) {
-    // 실패 시 선점 해제 → 관리자 화면 배지/수동 재시도로 복구 가능
-    await db.from("ot_bookings").update({ admin_notified_at: null }).eq("id", bookingId);
     return j({ error: "provider rejected", details: result?.errors ?? response.status }, 502);
+  }
+
+  const { error: markErr } = await db
+    .from("ot_bookings")
+    .update({ admin_notified_at: new Date().toISOString() })
+    .eq("id", bookingId)
+    .is("admin_notified_at", null);
+  if (markErr) {
+    // 기록 실패 시 재시도가 다시 보낼 수 있으나 idempotency_key가 중복을 막는다.
+    console.error("[ot-booking-notify] mark failed:", markErr);
+    return j({ ok: true, booking_id: bookingId, warning: "mark failed" });
   }
   return j({ ok: true, booking_id: bookingId });
 });
