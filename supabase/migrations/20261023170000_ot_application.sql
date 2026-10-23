@@ -89,7 +89,8 @@ BEGIN
     RETURN COALESCE((SELECT array_agg(value::int) FROM jsonb_array_elements_text(v_open.available_hours) AS t(value)), '{}'::int[]);
   END IF;
 
-  IF EXISTS (SELECT 1 FROM public.trainer_holidays WHERE date = p_date) THEN
+  -- ※ trainer_holidays.date 는 라이브 스키마에서 text (2026-10-23 실측)
+  IF EXISTS (SELECT 1 FROM public.trainer_holidays WHERE left(btrim(date), 10) = p_date::text) THEN
     RETURN NULL;
   END IF;
 
@@ -99,7 +100,8 @@ BEGIN
   IF NOT FOUND OR v_setting.off THEN
     RETURN NULL;
   END IF;
-  RETURN COALESCE((SELECT array_agg(value::int) FROM jsonb_array_elements_text(v_setting.available_hours) AS t(value)), '{}'::int[]);
+  -- ※ trainer_settings.available_hours 는 라이브 스키마에서 integer[] (2026-10-23 실측)
+  RETURN COALESCE(v_setting.available_hours, '{}'::int[]);
 END;
 $$;
 
@@ -148,8 +150,8 @@ BEGIN
     'settings', COALESCE((SELECT json_agg(row_to_json(s)) FROM (
       SELECT day_of_week, available_hours, off FROM public.trainer_settings
     ) s), '[]'::json),
-    'holidays', COALESCE((SELECT json_agg(h.date) FROM public.trainer_holidays h
-      WHERE h.date BETWEEN p_from AND p_to), '[]'::json),
+    'holidays', COALESCE((SELECT json_agg(left(btrim(h.date), 10)) FROM public.trainer_holidays h
+      WHERE left(btrim(h.date), 10) BETWEEN p_from::text AND p_to::text), '[]'::json),
     'open_dates', COALESCE((SELECT json_agg(row_to_json(o)) FROM (
       SELECT date, available_hours FROM public.trainer_open_dates
       WHERE date BETWEEN p_from AND p_to
@@ -157,9 +159,9 @@ BEGIN
     'blocked', COALESCE((SELECT json_agg(json_build_object('date', b.block_date, 'time', b.block_time))
       FROM public.trainer_blocked_slots b
       WHERE b.block_date BETWEEN p_from AND p_to), '[]'::json),
-    'taken', COALESCE((SELECT json_agg(json_build_object('date', bk.date, 'time', bk.time))
+    'taken', COALESCE((SELECT json_agg(json_build_object('date', left(btrim(bk.date), 10), 'time', public._normalize_booking_time(bk.time)))
       FROM public.bookings bk
-      WHERE bk.date BETWEEN p_from AND p_to
+      WHERE left(btrim(bk.date), 10) BETWEEN p_from::text AND p_to::text
         AND COALESCE(bk.status, '') <> 'cancelled'), '[]'::json),
     'ot_taken', COALESCE((SELECT json_agg(json_build_object('date', ob.date, 'time', ob.time))
       FROM public.ot_bookings ob
@@ -231,8 +233,11 @@ BEGIN
   END IF;
 
   -- 1시간 1명: 정규 예약·관리자 홀드·다른 오티 신청과 겹치면 거부 (재조회 방어)
+  -- ※ bookings.date 는 라이브 스키마에서 text (2026-10-23 실측) — text 비교 + 시간 정규화
   IF EXISTS (SELECT 1 FROM public.bookings
-             WHERE date = p_date AND time = v_time AND COALESCE(status, '') <> 'cancelled')
+             WHERE left(btrim(date), 10) = p_date::text
+               AND public._normalize_booking_time(time) = v_time
+               AND COALESCE(status, '') <> 'cancelled')
      OR EXISTS (SELECT 1 FROM public.trainer_blocked_slots
                 WHERE block_date = p_date AND block_time = v_time)
      OR EXISTS (SELECT 1 FROM public.ot_bookings
