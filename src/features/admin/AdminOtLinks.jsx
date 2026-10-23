@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { ArrowLeft, Link2, Plus, Copy, Ban, CalendarPlus } from 'lucide-react';
+import { ArrowLeft, Link2, Plus, Copy, Ban, CalendarPlus, CheckCircle2, XCircle, RefreshCw } from 'lucide-react';
 import { supabase } from '../../lib/supabaseClient';
 import { useGlobalModal } from '../../context/GlobalModalContext';
 import { invokeOtBlockGoogleSync } from '../../utils/googleCalendarOtSync';
@@ -10,14 +10,14 @@ const DEEP_GREEN = '#064e3b';
 const IS_DEMO = typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('demo') === '1';
 
 const DEMO_LINKS = [
-  { id: 'demo-link-1', token: '11111111-2222-3333-4444-555555555555', label: '김OO님', max_sessions: 2, revoked_at: null, created_at: new Date().toISOString() },
-  { id: 'demo-link-2', token: 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee', label: '박OO님', max_sessions: 2, revoked_at: new Date().toISOString(), created_at: new Date().toISOString() },
+  { id: 'demo-link-1', token: '11111111-2222-3333-4444-555555555555', member_name: '김오티', label: '10월 소개', max_sessions: 2, revoked_at: null, created_at: new Date().toISOString() },
+  { id: 'demo-link-2', token: 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee', member_name: '박오티', label: null, max_sessions: 2, revoked_at: new Date().toISOString(), created_at: new Date().toISOString() },
 ];
 
 const DEMO_BOOKINGS_BY_LINK = {
   'demo-link-1': [
-    { id: 'demo-b1', link_id: 'demo-link-1', date: new Date(Date.now() + 3 * 86400000).toISOString().slice(0, 10), time: '15:00', name: '김오티', status: 'confirmed', block_id: 'demo-block-1' },
-    { id: 'demo-b2', link_id: 'demo-link-1', date: new Date(Date.now() - 3 * 86400000).toISOString().slice(0, 10), time: '14:00', name: '김오티', status: 'completed', block_id: 'demo-block-2' },
+    { id: 'demo-b1', link_id: 'demo-link-1', date: new Date(Date.now() + 3 * 86400000).toISOString().slice(0, 10), time: '15:00', name: '김오티', status: 'confirmed', block_id: 'demo-block-1', calendar_synced_at: null, admin_notified_at: new Date().toISOString() },
+    { id: 'demo-b2', link_id: 'demo-link-1', date: new Date(Date.now() - 3 * 86400000).toISOString().slice(0, 10), time: '14:00', name: '김오티', status: 'completed', block_id: 'demo-block-2', calendar_synced_at: new Date().toISOString(), admin_notified_at: new Date().toISOString() },
   ],
 };
 
@@ -31,9 +31,11 @@ export default function AdminOtLinks({ goBack }) {
   const [links, setLinks] = useState([]);
   const [bookingsByLink, setBookingsByLink] = useState({});
   const [loading, setLoading] = useState(true);
+  const [newName, setNewName] = useState('');
   const [newLabel, setNewLabel] = useState('');
   const [creating, setCreating] = useState(false);
   const [syncingId, setSyncingId] = useState(null);
+  const [completingDue, setCompletingDue] = useState(false);
 
   const fetchAll = useCallback(async () => {
     setLoading(true);
@@ -76,15 +78,13 @@ export default function AdminOtLinks({ goBack }) {
     fetchAll();
   }, [fetchAll]);
 
-  const demoBlocked = () => showAlert({ message: '검토용 데모 화면입니다. 실제 발급·회수·동기화는 되지 않습니다.' });
+  const demoBlocked = () => showAlert({ message: '검토용 데모 화면입니다. 실제 발급·폐기·완료·취소·동기화는 되지 않습니다.' });
 
-  const handleCreate = async () => {
-    if (creating) return;
-    if (IS_DEMO) { demoBlocked(); return; }
+  const doCreate = async (name, label) => {
     setCreating(true);
     const { data, error } = await supabase
       .from('ot_links')
-      .insert({ label: newLabel.trim() || null })
+      .insert({ member_name: name, label: label || null })
       .select()
       .single();
     setCreating(false);
@@ -92,14 +92,41 @@ export default function AdminOtLinks({ goBack }) {
       showAlert({ message: '링크 만들기 실패: ' + error.message });
       return;
     }
+    setNewName('');
     setNewLabel('');
     await fetchAll();
     try {
       await navigator.clipboard.writeText(linkUrl(data.token));
-      showAlert({ message: '링크를 만들고 주소를 복사했습니다. 카톡으로 붙여넣어 보내면 됩니다.' });
+      showAlert({ message: `${name}님 전용 링크를 만들고 주소를 복사했습니다. 카톡으로 붙여넣어 보내면 됩니다.` });
     } catch {
-      showAlert({ message: '링크를 만들었습니다. 목록에서 주소를 복사해 보내 주세요.' });
+      showAlert({ message: `${name}님 전용 링크를 만들었습니다. 목록에서 주소를 복사해 보내 주세요.` });
     }
+  };
+
+  const handleCreate = async () => {
+    if (creating) return;
+    if (IS_DEMO) { demoBlocked(); return; }
+    const name = newName.trim();
+    if (!name) {
+      showAlert({ message: '오티 대상자 이름을 적어 주세요.' });
+      return;
+    }
+    if (name.length > 30) {
+      showAlert({ message: '이름은 30자까지 가능합니다.' });
+      return;
+    }
+    // 같은 이름의 살아있는 링크가 있으면 한 번 더 확인 (링크당 2회 제한 우회 방지)
+    const dup = links.find((l) => !l.revoked_at && (l.member_name || '').trim() === name);
+    if (dup) {
+      showConfirm({
+        title: '같은 이름의 링크가 있습니다',
+        message: `${name} 이름으로 사용 중인 링크가 이미 있습니다. 같은 분이면 기존 링크를 다시 보내 주세요. 그래도 새로 만들까요?`,
+        confirmLabel: '새로 만들기',
+        onConfirm: () => doCreate(name, newLabel.trim() || null),
+      });
+      return;
+    }
+    await doCreate(name, newLabel.trim() || null);
   };
 
   const handleCopy = async (token) => {
@@ -146,11 +173,62 @@ export default function AdminOtLinks({ goBack }) {
     };
     const res = await invokeOtBlockGoogleSync('INSERT', record);
     setSyncingId(null);
-    showAlert({
-      message: res.ok
-        ? '캘린더 등록을 다시 시도했습니다. 캘린더에서 확인해 주세요.'
-        : '캘린더 등록에 실패했습니다. 설정을 확인해 주세요.',
+    if (res.ok) {
+      await supabase
+        .from('ot_bookings')
+        .update({ calendar_synced_at: new Date().toISOString() })
+        .eq('id', booking.id);
+      await fetchAll();
+      showAlert({ message: '캘린더 등록을 다시 시도했습니다. 캘린더에서 확인해 주세요.' });
+    } else {
+      showAlert({ message: '캘린더 등록에 실패했습니다. 설정을 확인해 주세요.' });
+    }
+  };
+
+  const handleComplete = async (booking) => {
+    if (IS_DEMO) { demoBlocked(); return; }
+    const { data, error } = await supabase.rpc('ot_admin_complete', { p_booking_id: booking.id });
+    if (error || !data?.ok) {
+      showAlert({ message: '완료 처리 실패: ' + (error?.message || data?.reason || '') });
+      return;
+    }
+    await fetchAll();
+  };
+
+  const handleAdminCancel = (booking) => {
+    if (IS_DEMO) { demoBlocked(); return; }
+    showConfirm({
+      title: '신청 취소',
+      message: `${booking.name}님 ${String(booking.date).slice(0, 10)} ${booking.time} 신청을 취소합니다. 자리는 바로 열리고 횟수는 돌아갑니다.`,
+      confirmLabel: '취소하기',
+      onConfirm: async () => {
+        const { data, error } = await supabase.rpc('ot_admin_cancel', { p_booking_id: booking.id });
+        if (error || !data?.ok) {
+          showAlert({ message: '취소 실패: ' + (error?.message || data?.reason || '') });
+          return;
+        }
+        try {
+          if (data.old_block) await invokeOtBlockGoogleSync('DELETE', null, data.old_block);
+        } catch (e) {
+          console.warn('[ot] admin cancel calendar delete:', e);
+        }
+        await fetchAll();
+      },
     });
+  };
+
+  const handleCompleteDue = async () => {
+    if (IS_DEMO) { demoBlocked(); return; }
+    if (completingDue) return;
+    setCompletingDue(true);
+    const { data, error } = await supabase.rpc('ot_auto_complete_due');
+    setCompletingDue(false);
+    if (error || !data?.ok) {
+      showAlert({ message: '일괄 완료 실패: ' + (error?.message || data?.reason || '') });
+      return;
+    }
+    showAlert({ message: `지난 신청 ${data.completed_count ?? 0}건을 완료 처리했습니다.` });
+    await fetchAll();
   };
 
   const usageOf = (link) => {
@@ -172,12 +250,22 @@ export default function AdminOtLinks({ goBack }) {
       <main className="px-6 pb-12 max-w-lg mx-auto space-y-6">
         <section className="border border-gray-200 rounded-2xl p-5">
           <p className="text-sm font-medium text-slate-900 mb-1">새 링크 만들기</p>
-          <p className="text-xs text-slate-400 mb-4">대상자에게 카톡으로 보낼 1인용 링크를 만듭니다. 링크 하나당 2회까지 신청됩니다.</p>
+          <p className="text-xs text-slate-400 mb-4">
+            대상자 이름으로 전용 링크를 만들어 카톡으로 보냅니다. 그 분 화면에는 "이름님, 환영합니다"가 뜨고, 링크 하나당 2회까지 신청됩니다.
+          </p>
+          <input
+            type="text"
+            value={newName}
+            onChange={(e) => setNewName(e.target.value)}
+            placeholder="오티 대상자 이름 (필수)"
+            maxLength={30}
+            className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-[15px] text-slate-900 focus:border-[#064e3b] outline-none mb-3"
+          />
           <input
             type="text"
             value={newLabel}
             onChange={(e) => setNewLabel(e.target.value)}
-            placeholder="메모 (선택, 예: 10월 김OO님)"
+            placeholder="메모 (선택, 예: 10월 소개)"
             maxLength={40}
             className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-[15px] text-slate-900 focus:border-[#064e3b] outline-none mb-3"
           />
@@ -192,6 +280,16 @@ export default function AdminOtLinks({ goBack }) {
           </button>
         </section>
 
+        <button
+          type="button"
+          onClick={handleCompleteDue}
+          disabled={completingDue}
+          className="w-full border border-gray-200 rounded-xl py-3 text-sm text-slate-600 active:bg-gray-50 flex items-center justify-center gap-2 disabled:opacity-40"
+        >
+          <RefreshCw size={15} strokeWidth={1.5} />
+          {completingDue ? '처리 중…' : '지난 신청 일괄 완료 처리'}
+        </button>
+
         {loading ? (
           <p className="text-sm text-slate-400">불러오는 중…</p>
         ) : links.length === 0 ? (
@@ -205,7 +303,7 @@ export default function AdminOtLinks({ goBack }) {
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
                     <p className="text-[15px] font-medium text-slate-900 truncate">
-                      {link.label || '(메모 없음)'}
+                      {link.member_name}님{link.label ? ` · ${link.label}` : ''}
                     </p>
                     <p className="text-xs text-slate-400 mt-1">
                       {revoked ? '폐기됨 · ' : ''}사용 {u.used}/{link.max_sessions}회 · 만든 날 {String(link.created_at).slice(0, 10)}
@@ -236,23 +334,51 @@ export default function AdminOtLinks({ goBack }) {
                 {(bookingsByLink[link.id] || []).length > 0 && (
                   <div className="mt-4 space-y-2 border-t border-gray-100 pt-4">
                     {(bookingsByLink[link.id] || []).map((b) => (
-                      <div key={b.id} className="flex items-center justify-between gap-2">
-                        <p className="text-sm text-slate-700">
-                          {b.name} · {String(b.date).slice(0, 10)} {b.time}{' '}
-                          <span className={`text-xs ${b.status === 'cancelled' ? 'text-slate-300 line-through' : 'text-slate-400'}`}>
-                            {b.status === 'confirmed' ? '신청됨' : b.status === 'completed' ? '완료' : '취소됨'}
-                          </span>
-                        </p>
-                        {b.status === 'confirmed' && b.block_id && (
-                          <button
-                            type="button"
-                            onClick={() => handleCalendarResync(b)}
-                            disabled={syncingId === b.id}
-                            aria-label="캘린더 다시 등록"
-                            className="p-2 rounded-lg text-slate-400 active:bg-gray-100 shrink-0"
-                          >
-                            <CalendarPlus size={16} strokeWidth={1.5} />
-                          </button>
+                      <div key={b.id} className="space-y-1">
+                        <div className="flex items-center justify-between gap-2">
+                          <p className="text-sm text-slate-700">
+                            {String(b.date).slice(0, 10)} {b.time}{' '}
+                            <span className={`text-xs ${b.status === 'cancelled' ? 'text-slate-300 line-through' : 'text-slate-400'}`}>
+                              {b.status === 'confirmed' ? '신청됨' : b.status === 'completed' ? '완료' : '취소됨'}
+                            </span>
+                          </p>
+                          {b.status === 'confirmed' && (
+                            <div className="flex gap-1 shrink-0">
+                              {b.block_id && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleCalendarResync(b)}
+                                  disabled={syncingId === b.id}
+                                  aria-label="캘린더 다시 등록"
+                                  className="p-2 rounded-lg text-slate-400 active:bg-gray-100"
+                                >
+                                  <CalendarPlus size={16} strokeWidth={1.5} />
+                                </button>
+                              )}
+                              <button
+                                type="button"
+                                onClick={() => handleComplete(b)}
+                                aria-label="완료 처리"
+                                className="p-2 rounded-lg text-[#064e3b] active:bg-emerald-50"
+                              >
+                                <CheckCircle2 size={16} strokeWidth={1.5} />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleAdminCancel(b)}
+                                aria-label="신청 취소"
+                                className="p-2 rounded-lg text-slate-400 active:bg-gray-100"
+                              >
+                                <XCircle size={16} strokeWidth={1.5} />
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                        {b.status === 'confirmed' && (!b.calendar_synced_at || !b.admin_notified_at) && (
+                          <p className="text-[11px] text-amber-600">
+                            {!b.calendar_synced_at && '캘린더 미등록 — 다시 등록 버튼을 눌러 주세요. '}
+                            {!b.admin_notified_at && '관리자 푸시 미확인'}
+                          </p>
                         )}
                       </div>
                     ))}

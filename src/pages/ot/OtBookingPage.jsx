@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { Calendar, Check, ChevronLeft, Clock } from 'lucide-react';
+import { Calendar, Check, ChevronLeft, ChevronRight, Clock } from 'lucide-react';
 import { supabase } from '../../lib/supabaseClient';
 import { LabDotBrand } from '../../components/ui/LabDotBrand';
 import {
@@ -21,17 +21,15 @@ import { invokeOtBlockGoogleSync } from '../../utils/googleCalendarOtSync';
 
 const DEEP_GREEN = '#064e3b';
 const DAY_LABELS = ['일', '월', '화', '수', '목', '금', '토'];
-/** 설계 가정(사용자 원문 요구에 없음): 신청 가능 범위를 앞으로 14일로 임의 제한. 변경 시 이 값만 바꾸면 된다. */
-const LOOKAHEAD_DAYS = 14;
 
 /** 검토용 데모 (?demo=1): 서버 없이 화면만 재생. 어떤 쓰기도 일어나지 않는다. */
 const DEMO_PARAMS = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
 const IS_DEMO = DEMO_PARAMS?.get('demo') === '1';
-/** 데모 전용: 특정 단계로 바로 열기 (?demo=1&phase=date|time|name|done|invalid) */
+/** 데모 전용: 특정 단계로 바로 열기 (?demo=1&phase=date|time|confirm|done|bookings|invalid) */
 const DEMO_PHASE = IS_DEMO ? DEMO_PARAMS?.get('phase') || '' : '';
 
 const DEMO = {
-  link: { ok: true, max_sessions: 2, remaining: 2, bookings: [] },
+  link: { ok: true, member_name: '김오티', max_sessions: 2, remaining: 2, bookings: [] },
   settings: [
     { day_of_week: 1, available_hours: [14, 15, 16, 17, 18, 19, 20, 21], off: false },
     { day_of_week: 2, available_hours: [14, 15, 16, 17, 18, 19, 20, 21], off: false },
@@ -70,29 +68,38 @@ const DEMO_DATE_LATER = (() => {
 /** 데모 전용: 내 신청 내역이 있는 상태 (?demo=1&phase=bookings) */
 const DEMO_LINK_WITH_BOOKING = {
   ok: true,
+  member_name: '김오티',
   max_sessions: 2,
   remaining: 1,
   bookings: [{ id: 'demo-1', date: DEMO_DATE_LATER, time: '14:00', name: '김오티', status: 'confirmed' }],
 };
 
+/** 월 달력 격자: 해당 월의 날짜 셀 배열 (앞쪽 빈 칸 포함) */
+function monthCells(year, month) {
+  const first = new Date(year, month, 1);
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  const cells = [];
+  for (let i = 0; i < first.getDay(); i += 1) cells.push(null);
+  for (let d = 1; d <= daysInMonth; d += 1) cells.push(new Date(year, month, d));
+  return cells;
+}
+
 export default function OtBookingPage({ token }) {
-  const [phase, setPhase] = useState(() => (['date', 'time', 'name', 'done', 'invalid'].includes(DEMO_PHASE) ? DEMO_PHASE : 'loading')); // loading | invalid | main | date | time | name | done
+  const [phase, setPhase] = useState(() => (['date', 'time', 'confirm', 'done', 'invalid'].includes(DEMO_PHASE) ? DEMO_PHASE : 'loading')); // loading | invalid | main | date | time | confirm | done
   const [invalidReason, setInvalidReason] = useState('');
-  const [link, setLink] = useState(null); // { remaining, max_sessions, bookings }
-  const [avail, setAvail] = useState(null); // { settings, holidays, openDates, blocked, taken, otTaken }
-  const [selectedDate, setSelectedDate] = useState(() => (DEMO_PHASE === 'time' || DEMO_PHASE === 'name' ? DEMO_DATE : null));
-  const [selectedTime, setSelectedTime] = useState(() => (DEMO_PHASE === 'name' ? '15:00' : null));
-  const [name, setName] = useState('');
+  const [link, setLink] = useState(null); // { member_name, remaining, max_sessions, bookings }
+  const [availByMonth, setAvailByMonth] = useState({}); // { 'YYYY-MM': {settings, holidays, openDates, blocked, taken, otTaken} }
+  const [viewMonth, setViewMonth] = useState(() => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+  });
+  const [selectedDate, setSelectedDate] = useState(() => (DEMO_PHASE === 'time' || DEMO_PHASE === 'confirm' ? DEMO_DATE : null));
+  const [selectedTime, setSelectedTime] = useState(() => (DEMO_PHASE === 'confirm' ? '15:00' : null));
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState('');
   const [justBooked, setJustBooked] = useState(null);
 
-  const range = useMemo(() => {
-    const from = new Date();
-    const to = new Date();
-    to.setDate(to.getDate() + LOOKAHEAD_DAYS - 1);
-    return { from: ymdFromDate(from), to: ymdFromDate(to) };
-  }, []);
+  const memberName = link?.member_name || '회원';
 
   const loadLink = useCallback(async () => {
     if (IS_DEMO) {
@@ -108,35 +115,31 @@ export default function OtBookingPage({ token }) {
     setLink(data);
   }, [token]);
 
-  const loadAvailability = useCallback(async () => {
+  const loadMonthAvailability = useCallback(async (monthKey) => {
     if (IS_DEMO) {
-      setAvail({
-        settings: DEMO.settings,
-        holidays: DEMO.holidays,
-        openDates: DEMO.openDates,
-        blocked: DEMO.blocked,
-        taken: DEMO.taken,
-        otTaken: DEMO.otTaken,
-      });
+      setAvailByMonth((prev) => (prev[monthKey] ? prev : { ...prev, [monthKey]: { ...DEMO, link: undefined } }));
       return;
     }
-    const { data, error } = await supabase.rpc('ot_get_availability', {
-      p_from: range.from,
-      p_to: range.to,
-    });
+    const [y, m] = monthKey.split('-').map((v) => parseInt(v, 10));
+    const from = `${monthKey}-01`;
+    const to = ymdFromDate(new Date(y, m, 0)); // 월말
+    const { data, error } = await supabase.rpc('ot_get_availability', { p_from: from, p_to: to });
     if (error) {
       console.warn('[ot] availability:', error.message);
       return;
     }
-    setAvail({
-      settings: data?.settings || [],
-      holidays: data?.holidays || [],
-      openDates: data?.open_dates || [],
-      blocked: data?.blocked || [],
-      taken: data?.taken || [],
-      otTaken: data?.ot_taken || [],
-    });
-  }, [range]);
+    setAvailByMonth((prev) => ({
+      ...prev,
+      [monthKey]: {
+        settings: data?.settings || [],
+        holidays: data?.holidays || [],
+        openDates: data?.open_dates || [],
+        blocked: data?.blocked || [],
+        taken: data?.taken || [],
+        otTaken: data?.ot_taken || [],
+      },
+    }));
+  }, []);
 
   useEffect(() => {
     (async () => {
@@ -146,60 +149,72 @@ export default function OtBookingPage({ token }) {
   }, [loadLink]);
 
   useEffect(() => {
-    if (IS_DEMO && (DEMO_PHASE === 'date' || DEMO_PHASE === 'time')) loadAvailability();
-  }, [loadAvailability]);
+    if (IS_DEMO && (DEMO_PHASE === 'date' || DEMO_PHASE === 'time')) loadMonthAvailability(viewMonth);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loadMonthAvailability]);
 
   useEffect(() => {
-    if (phase === 'date' && !avail) loadAvailability();
-  }, [phase, avail, loadAvailability]);
+    if (phase === 'date' && !availByMonth[viewMonth]) loadMonthAvailability(viewMonth);
+  }, [phase, viewMonth, availByMonth, loadMonthAvailability]);
 
-  const openDates = useMemo(() => {
-    if (!avail) return [];
-    const out = [];
-    for (let i = 0; i < LOOKAHEAD_DAYS; i += 1) {
-      const d = new Date();
-      d.setDate(d.getDate() + i);
-      const ymd = ymdFromDate(d);
-      const resolved = resolveDateAvailability(avail.settings, ymd, {
-        holidays: avail.holidays,
-        openDates: avail.openDates,
-      });
-      if (isResolvedDateOpen(resolved)) {
-        out.push({ ymd, dow: d.getDay(), hours: resolved.available_hours });
-      }
-    }
-    return out;
-  }, [avail]);
+  const monthOf = (ymd) => ymd?.slice(0, 7);
+  const availFor = useCallback((ymd) => availByMonth[monthOf(ymd)] || null, [availByMonth]);
 
-  const takenSet = useMemo(() => {
+  const takenSetFor = useCallback((ymd) => {
+    const a = availFor(ymd);
     const s = new Set();
-    (avail?.taken || []).forEach((r) => s.add(`${String(r.date).slice(0, 10)}|${normalizeBlockTime(r.time)}`));
-    (avail?.otTaken || []).forEach((r) => s.add(`${String(r.date).slice(0, 10)}|${normalizeBlockTime(r.time)}`));
+    (a?.taken || []).forEach((r) => s.add(`${String(r.date).slice(0, 10)}|${normalizeBlockTime(r.time)}`));
+    (a?.otTaken || []).forEach((r) => s.add(`${String(r.date).slice(0, 10)}|${normalizeBlockTime(r.time)}`));
     return s;
-  }, [avail]);
+  }, [availFor]);
+
+  /** 그 날 신청 가능한 정시가 하나라도 있는지 */
+  const hasFreeSlot = useCallback((ymd) => {
+    const a = availFor(ymd);
+    if (!a) return false;
+    const resolved = resolveDateAvailability(a.settings, ymd, { holidays: a.holidays, openDates: a.openDates });
+    if (!isResolvedDateOpen(resolved)) return false;
+    const taken = takenSetFor(ymd);
+    return resolved.available_hours.some((h) => {
+      const time = `${String(h).padStart(2, '0')}:00`;
+      if (isSlotBlocked(a.blocked, ymd, time)) return false;
+      if (taken.has(`${ymd}|${time}`)) return false;
+      return isMemberAppBookingAllowed(ymd, time);
+    });
+  }, [availFor, takenSetFor]);
 
   const slotsForDate = useMemo(() => {
-    if (!selectedDate || !avail) return [];
-    const day = openDates.find((d) => d.ymd === selectedDate);
-    if (!day) return [];
-    return day.hours.map((h) => {
+    if (!selectedDate) return [];
+    const a = availFor(selectedDate);
+    if (!a) return [];
+    const resolved = resolveDateAvailability(a.settings, selectedDate, { holidays: a.holidays, openDates: a.openDates });
+    if (!isResolvedDateOpen(resolved)) return [];
+    const taken = takenSetFor(selectedDate);
+    return resolved.available_hours.map((h) => {
       const time = `${String(h).padStart(2, '0')}:00`;
-      const blocked = isSlotBlocked(avail.blocked, selectedDate, time);
-      const taken = takenSet.has(`${selectedDate}|${time}`);
-      const bookable = isMemberAppBookingAllowed(selectedDate, time);
-      return { time, disabled: blocked || taken || !bookable };
+      const disabled = isSlotBlocked(a.blocked, selectedDate, time) || taken.has(`${selectedDate}|${time}`) || !isMemberAppBookingAllowed(selectedDate, time);
+      return { time, disabled };
     });
-  }, [selectedDate, avail, openDates, takenSet]);
+  }, [selectedDate, availFor, takenSetFor]);
 
   const remaining = link?.remaining ?? 0;
   const myBookings = link?.bookings || [];
 
+  const reportSync = useCallback(async (bookingId, channel) => {
+    if (IS_DEMO || !bookingId) return;
+    try {
+      await supabase.rpc('ot_report_sync', { p_token: token, p_booking_id: bookingId, p_channel: channel });
+    } catch (e) {
+      console.warn('[ot] report sync:', e);
+    }
+  }, [token]);
+
   const submitBooking = async () => {
-    if (!name.trim() || !selectedDate || !selectedTime || busy) return;
+    if (!selectedDate || !selectedTime || busy) return;
     setBusy(true);
     setNotice('');
     if (IS_DEMO) {
-      const fake = { id: `demo-${Date.now()}`, date: selectedDate, time: selectedTime, name: name.trim(), status: 'confirmed' };
+      const fake = { id: `demo-${Date.now()}`, date: selectedDate, time: selectedTime, name: memberName, status: 'confirmed' };
       setLink((prev) => ({
         ...prev,
         remaining: Math.max(0, (prev?.remaining ?? 2) - 1),
@@ -214,7 +229,6 @@ export default function OtBookingPage({ token }) {
       p_token: token,
       p_date: selectedDate,
       p_time: selectedTime,
-      p_name: name.trim(),
     });
     if (error || !data?.ok) {
       const reason = data?.reason || error?.message || '';
@@ -223,28 +237,35 @@ export default function OtBookingPage({ token }) {
           ? '방금 그 시간이 찼습니다. 다른 시간을 골라 주세요.'
           : reason === 'no_remaining'
             ? '남은 오티 횟수가 없습니다.'
-            : `신청에 실패했습니다. 다시 시도해 주세요. (${reason})`
+            : reason === 'too_soon'
+              ? '수업 1시간 전부터는 앱에서 신청할 수 없습니다.'
+              : '신청에 실패했습니다. 다시 시도해 주세요.'
       );
       setBusy(false);
       await loadLink();
       return;
     }
-    // 관리자 푸시 + 구글 캘린더 등록은 부가 동작 — 실패해도 신청은 유효
+    // 관리자 푸시 + 구글 캘린더 등록은 부가 동작 — 실패해도 신청은 유효.
+    // 보낸 뒤에는 서버에 보고해, 누락 시 관리자 화면에서 발견·재시도할 수 있게 한다.
     try {
-      if (data.block) await invokeOtBlockGoogleSync('INSERT', data.block);
+      if (data.block) {
+        const res = await invokeOtBlockGoogleSync('INSERT', data.block);
+        if (res?.ok) await reportSync(data.booking_id, 'calendar');
+      }
     } catch (e) {
       console.warn('[ot] calendar sync:', e);
     }
     try {
       const pid = await fetchAdminOnesignalPlayerId();
       if (pid) {
-        await invokeNotifyAdminEvents(pid, '새 오티 신청', `${name.trim()}님 - ${selectedDate} ${selectedTime}`);
+        const { error: pushError } = await invokeNotifyAdminEvents(pid, '새 오티 신청', `${memberName}님 - ${selectedDate} ${selectedTime}`);
+        if (!pushError) await reportSync(data.booking_id, 'admin_push');
       }
     } catch (e) {
       console.warn('[ot] admin push:', e);
     }
     await loadLink();
-    setJustBooked({ date: selectedDate, time: selectedTime, name: name.trim() });
+    setJustBooked({ date: selectedDate, time: selectedTime, name: memberName });
     setBusy(false);
     setPhase('done');
   };
@@ -296,7 +317,6 @@ export default function OtBookingPage({ token }) {
   const resetFlow = () => {
     setSelectedDate(null);
     setSelectedTime(null);
-    setName('');
     setJustBooked(null);
     setNotice('');
     setPhase('main');
@@ -346,7 +366,7 @@ export default function OtBookingPage({ token }) {
   }
 
   if (phase === 'done' && (justBooked || IS_DEMO)) {
-    const shown = justBooked || { date: DEMO_DATE, time: '15:00', name: '김오티' };
+    const shown = justBooked || { date: DEMO_DATE, time: '15:00', name: memberName };
     return (
       <Shell>
         <div className="flex-1 flex flex-col items-center justify-center text-center gap-6">
@@ -354,7 +374,7 @@ export default function OtBookingPage({ token }) {
             <Check size={28} className="text-white" strokeWidth={2} />
           </div>
           <div>
-            <p className="text-xl font-medium tracking-tight">오티 신청이 완료됐습니다.</p>
+            <p className="text-xl font-medium tracking-tight">{shown.name}님, 오티 신청이 완료됐습니다.</p>
             <p className="mt-2 text-[15px] text-slate-600">
               {formatDateLabel(String(shown.date).slice(0, 10))} {shown.time}
             </p>
@@ -373,27 +393,68 @@ export default function OtBookingPage({ token }) {
   }
 
   if (phase === 'date') {
+    const [vy, vm] = viewMonth.split('-').map((v) => parseInt(v, 10));
+    const now = new Date();
+    const thisMonthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+    const todayYmd = ymdFromDate(now);
+    const monthLoaded = Boolean(availByMonth[viewMonth]);
+    const moveMonth = (delta) => {
+      const d = new Date(vy, vm - 1 + delta, 1);
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+      setViewMonth(key);
+      if (!availByMonth[key]) loadMonthAvailability(key);
+    };
     return (
       <Shell showBack onBack={() => setPhase('main')}>
         <p className="text-lg font-medium tracking-tight mb-1">희망 날짜를 골라 주세요.</p>
-        <p className="text-sm text-slate-400 mb-6">앞으로 2주 안에서 고를 수 있습니다.</p>
-        {!avail ? (
-          <p className="text-sm text-slate-400">달력을 불러오는 중…</p>
+        <p className="text-sm text-slate-400 mb-5">수업이 열리는 날만 고를 수 있습니다.</p>
+
+        <div className="flex items-center justify-between mb-3">
+          <button
+            type="button"
+            aria-label="이전 달"
+            disabled={viewMonth <= thisMonthKey}
+            onClick={() => moveMonth(-1)}
+            className={`p-2 ${viewMonth <= thisMonthKey ? 'text-slate-200' : 'text-slate-500 active:text-slate-900'}`}
+          >
+            <ChevronLeft size={20} strokeWidth={1.5} />
+          </button>
+          <p className="text-[15px] font-semibold tracking-tight">{vy}년 {vm}월</p>
+          <button type="button" aria-label="다음 달" onClick={() => moveMonth(1)} className="p-2 text-slate-500 active:text-slate-900">
+            <ChevronRight size={20} strokeWidth={1.5} />
+          </button>
+        </div>
+
+        <div className="grid grid-cols-7 gap-1 text-center text-xs text-slate-400 mb-1">
+          {DAY_LABELS.map((d) => <span key={d} className="py-1">{d}</span>)}
+        </div>
+        {!monthLoaded ? (
+          <p className="text-sm text-slate-400 text-center py-10">달력을 불러오는 중…</p>
         ) : (
-          <div className="grid grid-cols-2 gap-3">
-            {openDates.map((d) => (
-              <button
-                key={d.ymd}
-                type="button"
-                onClick={() => {
-                  setSelectedDate(d.ymd);
-                  setPhase('time');
-                }}
-                className="bg-white border border-gray-200 rounded-2xl py-4 px-3 text-left active:border-[#064e3b] active:bg-emerald-50/40 transition-all"
-              >
-                <span className="block text-[15px] font-medium text-slate-900">{formatDateLabel(d.ymd)}</span>
-              </button>
-            ))}
+          <div className="grid grid-cols-7 gap-1">
+            {monthCells(vy, vm - 1).map((cell, i) => {
+              if (!cell) return <span key={`empty-${i}`} />;
+              const ymd = ymdFromDate(cell);
+              const enabled = ymd >= todayYmd && hasFreeSlot(ymd);
+              return (
+                <button
+                  key={ymd}
+                  type="button"
+                  disabled={!enabled}
+                  onClick={() => {
+                    setSelectedDate(ymd);
+                    setPhase('time');
+                  }}
+                  className={`aspect-square rounded-xl text-[15px] font-medium transition-all ${
+                    enabled
+                      ? 'text-slate-900 active:bg-[#064e3b] active:text-white'
+                      : 'text-slate-300'
+                  }`}
+                >
+                  {cell.getDate()}
+                </button>
+              );
+            })}
           </div>
         )}
       </Shell>
@@ -413,7 +474,7 @@ export default function OtBookingPage({ token }) {
               disabled={s.disabled}
               onClick={() => {
                 setSelectedTime(s.time);
-                setPhase('name');
+                setPhase('confirm');
               }}
               className={`rounded-2xl py-4 text-center text-[15px] font-medium transition-all ${
                 s.disabled
@@ -430,43 +491,38 @@ export default function OtBookingPage({ token }) {
     );
   }
 
-  if (phase === 'name') {
+  if (phase === 'confirm') {
     return (
       <Shell showBack onBack={() => setPhase('time')}>
-        <p className="text-lg font-medium tracking-tight mb-1">
-          {formatDateLabel(selectedDate)} {selectedTime}
-        </p>
-        <p className="text-sm text-slate-400 mb-6">신청자 이름을 적어 주세요.</p>
-        <input
-          type="text"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          placeholder="이름"
-          maxLength={20}
-          className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-4 text-[16px] text-slate-900 focus:border-[#064e3b] outline-none"
-        />
+        <p className="text-lg font-medium tracking-tight mb-1">{memberName}님의 오티</p>
+        <p className="text-sm text-slate-400 mb-6">아래 시간으로 신청합니다.</p>
+        <div className="border border-gray-200 rounded-2xl p-5 text-center">
+          <p className="text-xl font-semibold tracking-tight">
+            {formatDateLabel(selectedDate)} {selectedTime}
+          </p>
+        </div>
         {notice && <p className="mt-3 text-sm text-red-500">{notice}</p>}
         <button
           type="button"
-          disabled={!name.trim() || busy}
+          disabled={busy}
           onClick={submitBooking}
           className="mt-6 w-full bg-[#064e3b] text-white font-semibold py-4 rounded-xl text-[15px] tracking-wide active:scale-[0.99] transition-all disabled:opacity-40"
         >
-          {busy ? '신청 중…' : '신청하기'}
+          {busy ? '신청 중…' : '이 시간으로 신청하기'}
         </button>
       </Shell>
     );
   }
 
-  // main
+  // main (환영)
   return (
     <Shell>
       <div className="flex-1 flex flex-col">
         <div className="flex-1 flex flex-col items-center justify-center text-center gap-3 py-8">
           <p className="text-2xl font-medium tracking-tight leading-snug">
-            처음 수업을
+            {memberName}님,
             <br />
-            직접 골라 보세요.
+            환영합니다.
           </p>
           <p className="text-sm text-slate-400">
             남은 오티 {remaining}회 / 총 {link?.max_sessions ?? 2}회
