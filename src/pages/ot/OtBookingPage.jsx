@@ -69,6 +69,23 @@ const DEMO_LINK_WITH_BOOKING = {
   bookings: [{ id: 'demo-1', date: DEMO_DATE_LATER, time: '14:00', name: '김오티', status: 'confirmed' }],
 };
 
+/** 데모 전용: 소진 상태 합성 (?demo=1&demo_state=full_confirmed|full_completed) — 서버 쓰기 없음 */
+const DEMO_STATE = IS_DEMO ? DEMO_PARAMS?.get('demo_state') || '' : '';
+const DEMO_LINK_FULL_CONFIRMED = {
+  ok: true,
+  member_name: '김오티',
+  max_sessions: 2,
+  remaining: 0,
+  bookings: [
+    { id: 'demo-1', date: DEMO_DATE, time: '14:00', name: '김오티', status: 'confirmed' },
+    { id: 'demo-2', date: DEMO_DATE_LATER, time: '15:00', name: '김오티', status: 'confirmed' },
+  ],
+};
+const DEMO_LINK_FULL_COMPLETED = {
+  ...DEMO_LINK_FULL_CONFIRMED,
+  bookings: DEMO_LINK_FULL_CONFIRMED.bookings.map((b) => ({ ...b, status: 'completed' })),
+};
+
 /** 월 달력 격자: 해당 월의 날짜 셀 배열 (앞쪽 빈 칸 포함) */
 function monthCells(year, month) {
   const first = new Date(year, month, 1);
@@ -99,7 +116,15 @@ export default function OtBookingPage({ token }) {
 
   const loadLink = useCallback(async () => {
     if (IS_DEMO) {
-      setLink((prev) => prev || (DEMO_PHASE === 'bookings' ? { ...DEMO_LINK_WITH_BOOKING } : { ...DEMO.link }));
+      const fixture =
+        DEMO_STATE === 'full_confirmed'
+          ? DEMO_LINK_FULL_CONFIRMED
+          : DEMO_STATE === 'full_completed'
+            ? DEMO_LINK_FULL_COMPLETED
+            : DEMO_PHASE === 'bookings'
+              ? DEMO_LINK_WITH_BOOKING
+              : DEMO.link;
+      setLink((prev) => prev || { ...fixture });
       return;
     }
     const { data, error } = await supabase.rpc('ot_get_link', { p_token: token });
