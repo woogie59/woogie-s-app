@@ -14,6 +14,10 @@ const DEMO_LINKS = [
   { id: 'demo-link-2', token: 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee', member_name: '박오티', label: null, max_sessions: 2, revoked_at: new Date().toISOString(), created_at: new Date().toISOString() },
 ];
 
+const DEMO_PT_REQUESTS = [
+  { id: 'demo-pt-1', link_id: 'demo-link-1', requested_date: new Date(Date.now() + 5 * 86400000).toISOString().slice(0, 10), requested_time: '16:00', status: 'requested', created_at: new Date().toISOString() },
+];
+
 const DEMO_BOOKINGS_BY_LINK = {
   'demo-link-1': [
     { id: 'demo-b1', link_id: 'demo-link-1', date: new Date(Date.now() + 3 * 86400000).toISOString().slice(0, 10), time: '15:00', name: '김오티', status: 'confirmed', block_id: 'demo-block-1', calendar_synced_at: null, admin_notified_at: new Date().toISOString() },
@@ -30,6 +34,7 @@ export default function AdminOtLinks({ goBack }) {
   const { showAlert, showConfirm } = useGlobalModal();
   const [links, setLinks] = useState([]);
   const [bookingsByLink, setBookingsByLink] = useState({});
+  const [ptRequests, setPtRequests] = useState([]);
   const [loading, setLoading] = useState(true);
   const [newName, setNewName] = useState('');
   const [newLabel, setNewLabel] = useState('');
@@ -41,6 +46,7 @@ export default function AdminOtLinks({ goBack }) {
     if (IS_DEMO) {
       setLinks(DEMO_LINKS);
       setBookingsByLink(DEMO_BOOKINGS_BY_LINK);
+      setPtRequests(DEMO_PT_REQUESTS);
       setLoading(false);
       return;
     }
@@ -70,6 +76,12 @@ export default function AdminOtLinks({ goBack }) {
     } else {
       setBookingsByLink({});
     }
+    const { data: ptRows } = await supabase
+      .from('ot_pt_requests')
+      .select('*')
+      .order('created_at', { ascending: false })
+      .limit(50);
+    setPtRequests(ptRows || []);
     setLoading(false);
   }, [showAlert]);
 
@@ -216,6 +228,25 @@ export default function AdminOtLinks({ goBack }) {
     });
   };
 
+  const handlePtDecide = (request, decision) => {
+    if (IS_DEMO) { demoBlocked(); return; }
+    const name = nameOfLink(request.link_id);
+    const label = decision === 'accepted' ? '승인' : '거절';
+    showConfirm({
+      title: `피티 등록 신청 ${label}`,
+      message: `${name}님 ${String(request.requested_date).slice(0, 10)} ${request.requested_time} 신청을 ${label}합니다. 승인해도 예약은 자동으로 잡히지 않습니다. 실제 시간 확정은 기존 예약 화면에서 등록해 주세요.`,
+      confirmLabel: label,
+      onConfirm: async () => {
+        const { data, error } = await supabase.rpc('ot_admin_pt_decide', { p_request_id: request.id, p_decision: decision });
+        if (error || !data?.ok) {
+          showAlert({ message: `${label} 실패: ` + (error?.message || data?.reason || '') });
+          return;
+        }
+        await fetchAll();
+      },
+    });
+  };
+
   const isPastSlot = (b) => {
     try {
       return new Date(`${String(b.date).slice(0, 10)}T${b.time}:00+09:00`).getTime() < Date.now();
@@ -238,6 +269,8 @@ export default function AdminOtLinks({ goBack }) {
     showAlert({ message: '관리자 푸시를 다시 보냈습니다.' });
     await fetchAll();
   };
+
+  const nameOfLink = (linkId) => links.find((l) => l.id === linkId)?.member_name || '회원';
 
   const usageOf = (link) => {
     const rows = bookingsByLink[link.id] || [];
@@ -287,6 +320,47 @@ export default function AdminOtLinks({ goBack }) {
             {creating ? '만드는 중…' : '링크 만들고 주소 복사'}
           </button>
         </section>
+
+        {ptRequests.length > 0 && (
+          <section className="border border-gray-200 rounded-2xl p-5">
+            <p className="text-sm font-medium text-slate-900 mb-1">피티 등록 신청</p>
+            <p className="text-xs text-slate-400 mb-4">
+              오티를 다 마친 회원이 첫 PT 희망 일시로 신청합니다. 승인은 '검토 승인'일 뿐 실제 예약은 자동으로 잡히지 않습니다.
+            </p>
+            <div className="space-y-3">
+              {ptRequests.map((r) => (
+                <div key={r.id} className="border border-gray-100 rounded-xl p-3 flex items-center justify-between">
+                  <div>
+                    <p className="text-[15px] font-medium text-slate-900">
+                      {nameOfLink(r.link_id)} · {String(r.requested_date).slice(0, 10)} {r.requested_time}
+                    </p>
+                    <p className="text-xs text-slate-400 mt-0.5">
+                      {r.status === 'requested' ? '검토 중' : r.status === 'accepted' ? '승인됨' : r.status === 'declined' ? '거절됨' : '회원 취소'}
+                    </p>
+                  </div>
+                  {r.status === 'requested' && (
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        onClick={() => handlePtDecide(r, 'accepted')}
+                        className="text-sm font-medium px-3 py-2 rounded-lg text-[#064e3b] active:bg-emerald-50"
+                      >
+                        승인
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handlePtDecide(r, 'declined')}
+                        className="text-sm font-medium px-3 py-2 rounded-lg text-slate-400 active:bg-gray-100"
+                      >
+                        거절
+                      </button>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
 
         {loading ? (
           <p className="text-sm text-slate-400">불러오는 중…</p>

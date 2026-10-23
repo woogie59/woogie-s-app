@@ -85,6 +85,14 @@ const DEMO_LINK_FULL_COMPLETED = {
   ...DEMO_LINK_FULL_CONFIRMED,
   bookings: DEMO_LINK_FULL_CONFIRMED.bookings.map((b) => ({ ...b, status: 'completed' })),
 };
+const DEMO_LINK_PT_REQUESTED = {
+  ...DEMO_LINK_FULL_COMPLETED,
+  pt_request: { id: 'demo-pt-1', date: DEMO_DATE_LATER, time: '15:00', status: 'requested' },
+};
+const DEMO_LINK_PT_ACCEPTED = {
+  ...DEMO_LINK_FULL_COMPLETED,
+  pt_request: { id: 'demo-pt-1', date: DEMO_DATE_LATER, time: '15:00', status: 'accepted' },
+};
 
 /** 월 달력 격자: 해당 월의 날짜 셀 배열 (앞쪽 빈 칸 포함) */
 function monthCells(year, month) {
@@ -110,6 +118,7 @@ export default function OtBookingPage({ token }) {
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState('');
   const [cancelTarget, setCancelTarget] = useState(null);
+  const [ptFlow, setPtFlow] = useState(false);
   const [justBooked, setJustBooked] = useState(null);
 
   const memberName = link?.member_name || '회원';
@@ -121,9 +130,13 @@ export default function OtBookingPage({ token }) {
           ? DEMO_LINK_FULL_CONFIRMED
           : DEMO_STATE === 'full_completed'
             ? DEMO_LINK_FULL_COMPLETED
-            : DEMO_PHASE === 'bookings'
-              ? DEMO_LINK_WITH_BOOKING
-              : DEMO.link;
+            : DEMO_STATE === 'pt_requested'
+              ? DEMO_LINK_PT_REQUESTED
+              : DEMO_STATE === 'pt_accepted'
+                ? DEMO_LINK_PT_ACCEPTED
+                : DEMO_PHASE === 'bookings'
+                  ? DEMO_LINK_WITH_BOOKING
+                  : DEMO.link;
       setLink((prev) => prev || { ...fixture });
       return;
     }
@@ -224,6 +237,66 @@ export default function OtBookingPage({ token }) {
   const allSessionsCompleted =
     remaining === 0 && myBookings.length > 0 && myBookings.every((b) => b.status === 'completed');
 
+  const ptRequest = link?.pt_request || null;
+
+  const submitPtRequest = async () => {
+    if (!selectedDate || !selectedTime || busy) return;
+    setBusy(true);
+    setNotice('');
+    if (IS_DEMO) {
+      setLink((prev) => ({ ...prev, pt_request: { id: 'demo-pt-1', date: selectedDate, time: selectedTime, status: 'requested' } }));
+      setJustBooked({ date: selectedDate, time: selectedTime, name: memberName });
+      setBusy(false);
+      setPhase('done');
+      return;
+    }
+    const { data, error } = await supabase.rpc('ot_request_pt', {
+      p_token: token,
+      p_date: selectedDate,
+      p_time: selectedTime,
+    });
+    if (error || !data?.ok) {
+      const reason = data?.reason || error?.message || '';
+      setNotice(
+        reason === 'slot_taken'
+          ? '그 시간은 이미 차 있습니다. 다른 시간을 골라 주세요.'
+          : reason === 'already_requested'
+            ? '이미 신청이 접수되어 있습니다.'
+            : reason === 'not_completed'
+              ? '오티 출석이 모두 완료된 후 신청할 수 있습니다.'
+              : reason === 'too_soon'
+                ? '시작 1시간 전부터는 신청할 수 없습니다.'
+                : '신청에 실패했습니다. 다시 시도해 주세요.'
+      );
+      setBusy(false);
+      await loadLink();
+      return;
+    }
+    await loadLink();
+    setJustBooked({ date: selectedDate, time: selectedTime, name: memberName });
+    setBusy(false);
+    setPhase('done');
+  };
+
+  const cancelPtRequest = async () => {
+    if (busy || !ptRequest?.id) return;
+    setBusy(true);
+    setNotice('');
+    if (IS_DEMO) {
+      setLink((prev) => ({ ...prev, pt_request: null }));
+      setBusy(false);
+      return;
+    }
+    const { data, error } = await supabase.rpc('ot_cancel_pt_request', { p_token: token, p_request_id: ptRequest.id });
+    if (error || !data?.ok) {
+      setNotice('취소에 실패했습니다. 다시 시도해 주세요.');
+      setBusy(false);
+      return;
+    }
+    await loadLink();
+    setBusy(false);
+  };
+
   const submitBooking = async () => {
     if (!selectedDate || !selectedTime || busy) return;
     setBusy(true);
@@ -302,6 +375,7 @@ export default function OtBookingPage({ token }) {
   };
 
   const resetFlow = () => {
+    setPtFlow(false);
     setSelectedDate(null);
     setSelectedTime(null);
     setJustBooked(null);
@@ -361,11 +435,15 @@ export default function OtBookingPage({ token }) {
             <Check size={28} className="text-white" strokeWidth={2} />
           </div>
           <div>
-            <p className="text-xl font-medium tracking-tight">{shown.name}님, 오티 신청이 완료됐습니다.</p>
+            <p className="text-xl font-medium tracking-tight">
+              {ptFlow ? '피티 등록 신청이 접수됐습니다.' : `${shown.name}님, 오티 신청이 완료됐습니다.`}
+            </p>
             <p className="mt-2 text-[15px] text-slate-600">
               {formatDateLabel(String(shown.date).slice(0, 10))} {shown.time}
             </p>
-            <p className="mt-1 text-sm text-slate-400">센터에서 뵙겠습니다.</p>
+            <p className="mt-1 text-sm text-slate-400">
+              {ptFlow ? '센터에서 검토 후 확정 안내를 드립니다.' : '센터에서 뵙겠습니다.'}
+            </p>
           </div>
           <button
             type="button"
@@ -481,8 +559,10 @@ export default function OtBookingPage({ token }) {
   if (phase === 'confirm') {
     return (
       <Shell showBack onBack={() => setPhase('time')}>
-        <p className="text-lg font-medium tracking-tight mb-1">{memberName}님의 오티</p>
-        <p className="text-sm text-slate-400 mb-6">아래 시간으로 신청합니다.</p>
+        <p className="text-lg font-medium tracking-tight mb-1">{ptFlow ? '피티 등록 신청' : `${memberName}님의 오티`}</p>
+        <p className="text-sm text-slate-400 mb-6">
+          {ptFlow ? '첫 PT 희망 일시로 신청합니다. 센터 검토 후 확정 안내를 드립니다.' : '아래 시간으로 신청합니다.'}
+        </p>
         <div className="border border-gray-200 rounded-2xl p-5 text-center">
           <p className="text-xl font-semibold tracking-tight">
             {formatDateLabel(selectedDate)} {selectedTime}
@@ -492,10 +572,10 @@ export default function OtBookingPage({ token }) {
         <button
           type="button"
           disabled={busy}
-          onClick={submitBooking}
+          onClick={ptFlow ? submitPtRequest : submitBooking}
           className="mt-6 w-full bg-[#064e3b] text-white font-semibold py-4 rounded-xl text-[15px] tracking-wide active:scale-[0.99] transition-all disabled:opacity-40"
         >
-          {busy ? '신청 중…' : '이 시간으로 신청하기'}
+          {busy ? '신청 중…' : '이 일시로 신청하기'}
         </button>
       </Shell>
     );
@@ -553,7 +633,10 @@ export default function OtBookingPage({ token }) {
         {remaining > 0 ? (
           <button
             type="button"
-            onClick={() => setPhase('date')}
+            onClick={() => {
+              setPtFlow(false);
+              setPhase('date');
+            }}
             className="w-full bg-[#064e3b] text-white font-semibold py-5 rounded-2xl text-lg tracking-wide shadow-md active:scale-[0.99] transition-all flex items-center justify-center gap-2"
           >
             <Calendar size={22} strokeWidth={1.5} />
@@ -563,9 +646,65 @@ export default function OtBookingPage({ token }) {
           <div className="text-center border border-gray-200 rounded-2xl p-6 space-y-4">
             <div>
               <p className="text-[15px] font-medium text-slate-900">오티 출석이 모두 완료됐습니다.</p>
-              <p className="mt-1 text-sm text-slate-400">수고하셨습니다. 다음 단계는 센터에서 안내드립니다.</p>
+              <p className="mt-1 text-sm text-slate-400">수고하셨습니다.</p>
             </div>
-            {/* TODO(미확정): '피티 등록 신청' 버튼 + 날짜 선택 — 저장 위치(새 테이블/RPC)·날짜 의미(상담일/첫 PT일)·시간 필요 여부가 확정되면 연결 */}
+            {!ptRequest && (
+              <button
+                type="button"
+                onClick={() => {
+                  setPtFlow(true);
+                  setPhase('date');
+                }}
+                className="w-full bg-[#064e3b] text-white font-semibold py-4 rounded-xl text-[15px] tracking-wide active:scale-[0.99] transition-all"
+              >
+                피티 등록 신청
+              </button>
+            )}
+            {ptRequest?.status === 'requested' && (
+              <div className="space-y-3">
+                <div>
+                  <p className="text-[15px] font-medium text-slate-900">피티 등록 신청을 접수했어요.</p>
+                  <p className="mt-1 text-sm text-slate-500">
+                    {formatDateLabel(String(ptRequest.date).slice(0, 10))} {ptRequest.time} · 센터 검토 중
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={cancelPtRequest}
+                  className="text-sm text-slate-400 underline underline-offset-2 disabled:opacity-40"
+                >
+                  신청 취소
+                </button>
+              </div>
+            )}
+            {ptRequest?.status === 'accepted' && (
+              <div>
+                <p className="text-[15px] font-medium text-slate-900">센터가 신청을 확인했어요.</p>
+                <p className="mt-1 text-sm text-slate-500">
+                  {formatDateLabel(String(ptRequest.date).slice(0, 10))} {ptRequest.time}
+                </p>
+                <p className="mt-1 text-sm text-slate-400">시간 확정은 센터에서 별도로 안내드립니다.</p>
+              </div>
+            )}
+            {ptRequest?.status === 'declined' && (
+              <div className="space-y-3">
+                <div>
+                  <p className="text-[15px] font-medium text-slate-900">신청하신 일시는 어렵습니다.</p>
+                  <p className="mt-1 text-sm text-slate-400">다른 일시로 다시 신청하시거나 센터 안내를 기다려 주세요.</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setPtFlow(true);
+                    setPhase('date');
+                  }}
+                  className="w-full bg-[#064e3b] text-white font-semibold py-4 rounded-xl text-[15px] tracking-wide active:scale-[0.99] transition-all"
+                >
+                  다른 일시로 다시 신청
+                </button>
+              </div>
+            )}
           </div>
         ) : (
           <p className="text-center text-sm text-slate-400">예약된 오티 출석이 끝나면 다음 단계를 안내드릴게요.</p>
