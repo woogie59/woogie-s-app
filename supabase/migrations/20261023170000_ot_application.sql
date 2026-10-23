@@ -136,7 +136,8 @@ BEGIN
         'id', b.id, 'date', b.date, 'time', b.time, 'name', b.name, 'status', b.status
       ) ORDER BY b.date, b.time)
       FROM public.ot_bookings b
-      WHERE b.link_id = v_link.id AND b.status = 'confirmed'
+      -- confirmed(예약) + completed(출석 소진) 모두 반환: 화면이 '오티 끝' 안내를 출석 기준으로 판단
+      WHERE b.link_id = v_link.id AND b.status IN ('confirmed', 'completed')
     ), '[]'::json)
   );
 END;

@@ -92,6 +92,7 @@ export default function OtBookingPage({ token }) {
   const [selectedTime, setSelectedTime] = useState(() => (DEMO_PHASE === 'confirm' ? '15:00' : null));
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState('');
+  const [cancelTarget, setCancelTarget] = useState(null);
   const [justBooked, setJustBooked] = useState(null);
 
   const memberName = link?.member_name || '회원';
@@ -194,6 +195,9 @@ export default function OtBookingPage({ token }) {
 
   const remaining = link?.remaining ?? 0;
   const myBookings = link?.bookings || [];
+  // 예약(confirmed)과 출석 소진(completed) 분리: '오티 끝' 안내는 전부 출석 완료 후에만
+  const allSessionsCompleted =
+    remaining === 0 && myBookings.length > 0 && myBookings.every((b) => b.status === 'completed');
 
   const submitBooking = async () => {
     if (!selectedDate || !selectedTime || busy) return;
@@ -498,19 +502,21 @@ export default function OtBookingPage({ token }) {
                       {formatDateLabel(String(b.date).slice(0, 10))} {b.time}
                     </p>
                     <p className="text-xs text-slate-400 mt-0.5 flex items-center gap-1">
-                      <Clock size={12} strokeWidth={1.5} /> 신청 완료
+                      <Clock size={12} strokeWidth={1.5} /> {b.status === 'completed' ? '출석 완료' : '신청 완료'}
                     </p>
                   </div>
-                  <button
-                    type="button"
-                    disabled={busy}
-                    onClick={() => cancelBooking(b)}
-                    className={`text-sm font-medium px-3 py-2 rounded-lg ${
-                      canCancel ? 'text-slate-500 active:bg-gray-100' : 'text-slate-300'
-                    }`}
-                  >
-                    취소
-                  </button>
+                  {b.status !== 'completed' && (
+                    <button
+                      type="button"
+                      disabled={busy}
+                      onClick={() => setCancelTarget(b)}
+                      className={`text-sm font-medium px-3 py-2 rounded-lg ${
+                        canCancel ? 'text-slate-500 active:bg-gray-100' : 'text-slate-300'
+                      }`}
+                    >
+                      취소
+                    </button>
+                  )}
                 </div>
               );
             })}
@@ -528,13 +534,55 @@ export default function OtBookingPage({ token }) {
             <Calendar size={22} strokeWidth={1.5} />
             오티 신청
           </button>
-        ) : (
-          <div className="text-center border border-gray-200 rounded-2xl p-6">
-            <p className="text-[15px] font-medium text-slate-900">오티가 끝났습니다.</p>
-            <p className="mt-1 text-sm text-slate-400">정규 등록은 센터에서 안내드립니다.</p>
+        ) : allSessionsCompleted ? (
+          <div className="text-center border border-gray-200 rounded-2xl p-6 space-y-4">
+            <div>
+              <p className="text-[15px] font-medium text-slate-900">오티 출석이 모두 완료됐습니다.</p>
+              <p className="mt-1 text-sm text-slate-400">수고하셨습니다. 다음 단계는 센터에서 안내드립니다.</p>
+            </div>
+            {/* TODO(미확정): '피티 등록 신청' 버튼 + 날짜 선택 — 저장 위치(새 테이블/RPC)·날짜 의미(상담일/첫 PT일)·시간 필요 여부가 확정되면 연결 */}
           </div>
+        ) : (
+          <p className="text-center text-sm text-slate-400">예약된 오티 출석이 끝나면 다음 단계를 안내드릴게요.</p>
         )}
       </div>
+
+      {cancelTarget && (
+        <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center px-6">
+          <div className="bg-white rounded-2xl p-6 w-full max-w-sm text-center">
+            <p className="text-[15px] font-medium text-slate-900">
+              {formatDateLabel(String(cancelTarget.date).slice(0, 10))} {cancelTarget.time}
+            </p>
+            <p className="mt-2 text-sm text-slate-500 leading-relaxed">
+              이 오티 신청을 취소할까요?
+              <br />
+              자리는 바로 열리고 횟수는 돌아갑니다.
+            </p>
+            <div className="mt-6 flex gap-3">
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() => setCancelTarget(null)}
+                className="flex-1 border border-gray-200 text-slate-600 font-medium py-3 rounded-xl text-[15px] active:bg-gray-50"
+              >
+                돌아가기
+              </button>
+              <button
+                type="button"
+                disabled={busy}
+                onClick={async () => {
+                  const target = cancelTarget;
+                  setCancelTarget(null);
+                  await cancelBooking(target);
+                }}
+                className="flex-1 bg-[#064e3b] text-white font-semibold py-3 rounded-xl text-[15px] active:scale-[0.99] transition-all disabled:opacity-40"
+              >
+                {busy ? '취소 중…' : '취소하기'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </Shell>
   );
 }
