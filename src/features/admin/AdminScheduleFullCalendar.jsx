@@ -102,6 +102,9 @@ const AdminScheduleFullCalendar = ({
   initialDate,
 }) => {
   const calRef = useRef(null);
+  // 좌우 스와이프 주 전환: 탭/세로 스크롤과 구분하기 위한 상태
+  const swipeStartRef = useRef(null);
+  const swipeNavRef = useRef(false);
   const [exporting, setExporting] = useState(false);
   const [copying, setCopying] = useState(false);
   const [viewDate, setViewDate] = useState(() =>
@@ -229,6 +232,57 @@ const AdminScheduleFullCalendar = ({
     const isCurrent = nowD.getFullYear() === start.getFullYear() && nowD.getMonth() === start.getMonth();
     return { total, done, label: isCurrent ? '이번 달' : `${start.getMonth() + 1}월` };
   }, [events, viewDate]);
+
+  // 주간 캘린더 좌우 스와이프: 수평 이동이 충분하고 수직보다 우세할 때만 이전/다음 주 전환.
+  // 탭(미세 이동)과 세로 스크롤은 기존 동작 그대로.
+  const WEEK_SWIPE_MIN_X = 60;
+  const handleWeekSwipeStart = useCallback(
+    (e) => {
+      swipeStartRef.current = null;
+      if (viewMode !== 'calendar' || viewType !== 'timeGridWeek') return;
+      const touches = e.touches;
+      if (!touches || touches.length !== 1) return;
+      const t = touches[0];
+      swipeStartRef.current = { x: t.clientX, y: t.clientY };
+    },
+    [viewMode, viewType]
+  );
+
+  const handleWeekSwipeEnd = useCallback(
+    (e) => {
+      const start = swipeStartRef.current;
+      swipeStartRef.current = null;
+      if (!start) return;
+      if (viewMode !== 'calendar' || viewType !== 'timeGridWeek') return;
+      const t = e.changedTouches && e.changedTouches[0];
+      if (!t) return;
+      const dx = t.clientX - start.x;
+      const dy = t.clientY - start.y;
+      if (Math.abs(dx) < WEEK_SWIPE_MIN_X) return;
+      if (Math.abs(dy) > Math.abs(dx) * 0.5) return;
+      const api = calRef.current?.getApi?.();
+      if (!api) return;
+      // 스와이프 직후 발생할 수 있는 잔여 클릭은 한 번 흡수
+      swipeNavRef.current = true;
+      setTimeout(() => {
+        swipeNavRef.current = false;
+      }, 350);
+      if (dx < 0) api.next();
+      else api.prev();
+    },
+    [viewMode, viewType]
+  );
+
+  const handleWeekSwipeCancel = useCallback(() => {
+    swipeStartRef.current = null;
+  }, []);
+
+  const handleSwipeClickCapture = useCallback((e) => {
+    if (!swipeNavRef.current) return;
+    swipeNavRef.current = false;
+    e.preventDefault();
+    e.stopPropagation();
+  }, []);
 
   const handleDatesSet = useCallback((arg) => {
     if (arg?.view?.type) setViewType(arg.view.type);
@@ -445,6 +499,10 @@ const AdminScheduleFullCalendar = ({
 
       <div
         className={`labdot-fc-wrap relative rounded-2xl border border-[#064e3b]/15 bg-white shadow-sm overflow-hidden ${viewMode === 'agenda' ? 'labdot-cal-hidden' : ''}`}
+        onTouchStart={handleWeekSwipeStart}
+        onTouchEnd={handleWeekSwipeEnd}
+        onTouchCancel={handleWeekSwipeCancel}
+        onClickCapture={handleSwipeClickCapture}
       >
         {loading && (
           <div className="absolute inset-0 z-10 bg-white/70 backdrop-blur-[1px] flex items-center justify-center">

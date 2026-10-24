@@ -1,5 +1,7 @@
 /* LabDot — FullCalendar skin (dark green clinical) */
 .labdot-fc-wrap .fc {
+  /* 세로 스크롤은 브라우저에 맡기고, 가로 제스처는 주 전환 스와이프가 처리 */
+  touch-action: pan-y;
   --fc-border-color: rgba(6, 78, 59, 0.12);
   --fc-button-bg-color: #064e3b;
   --fc-button-border-color: #064e3b;
