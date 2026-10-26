@@ -1,5 +1,6 @@
 import { useDesignRefinement, formatBookingDateKo } from '../design/designRefinement';
 import React, { useState, useEffect, useLayoutEffect, useMemo, useCallback, useRef } from 'react';
+import Skeleton from '../../components/ui/Skeleton';
 import { Lock } from 'lucide-react';
 import { supabase } from '../../lib/supabaseClient';
 import { fetchAdminOnesignalProfile } from '../../utils/notifications';
@@ -524,7 +525,9 @@ const ClassBooking = ({ user, profileName = '', setView, goBack }) => {
                 {getDaySetting(selectedDate).off ? (
                   <p className="text-center text-sm font-light text-gray-500 py-12 tracking-wide">휴무일입니다.</p>
                 ) : loading ? (
-                  <p className="text-center text-sm text-gray-400 py-12 font-light">불러오는 중…</p>
+                  refined ? <div role="status" aria-label="시간을 불러오는 중" className="grid grid-cols-3 gap-3">
+                    {Array.from({ length: 9 }, (_, index) => <Skeleton key={index} className="h-14 rounded-xl" />)}
+                  </div> : <p className="text-center text-sm text-gray-400 py-12 font-light">불러오는 중…</p>
                 ) : generateTimeSlots().length === 0 ? (
                   <p className="text-center text-sm font-light text-gray-500 py-12">이 날짜에 열린 슬롯이 없습니다.</p>
                 ) : (
@@ -585,9 +588,9 @@ const ClassBooking = ({ user, profileName = '', setView, goBack }) => {
                               >
                                 {time}
                               </span>
-                              {!isNewMemberUiEnabled() && (
+                              {(refined || !isNewMemberUiEnabled()) && (
                                 <span className="text-[10px] font-semibold tracking-[0.12em] text-white/95">
-                                  내 예약
+                                  {refined ? '내 예약 · 취소' : '내 예약'}
                                 </span>
                               )}
                             </>
