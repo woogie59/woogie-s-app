@@ -1,4 +1,6 @@
+import { useDesignRefinement, formatBookingDateKo } from '../design/designRefinement';
 import React, { useState, useEffect, useLayoutEffect, useMemo, useCallback, useRef } from 'react';
+import Skeleton from '../../components/ui/Skeleton';
 import { Lock } from 'lucide-react';
 import { supabase } from '../../lib/supabaseClient';
 import { fetchAdminOnesignalProfile } from '../../utils/notifications';
@@ -65,7 +67,8 @@ function slotHourFromTime(time) {
 }
 
 const ClassBooking = ({ user, profileName = '', setView, goBack }) => {
-  const { showAlert, showConfirm } = useGlobalModal();
+  const { enabled: refined } = useDesignRefinement();
+  const { showAlert, showConfirm, showToast, closeModal } = useGlobalModal();
   const profileNameResolvedRef = useRef(false);
   /** sessionStorage 1순 (과제) + 동기 초기화 — '오늘' 기본값으로 덮지 않음 */
   const [selectedDate, setSelectedDate] = useState(() => getBookingInitialPwaState(user?.id).selectedDate);
@@ -282,7 +285,7 @@ const ClassBooking = ({ user, profileName = '', setView, goBack }) => {
     const date = selectedDate;
     showConfirm({
       title: '수업 예약',
-      message: `${date} ${timeSlot} 수업을 예약하시겠습니까?`,
+      message: `${refined ? formatBookingDateKo(date, timeSlot) : `${date} ${timeSlot}`} 수업을 예약하시겠습니까?`,
       confirmLabel: '예약확인',
       onConfirm: async () => {
         if (!isMemberAppBookingAllowed(date, timeSlot)) {
@@ -327,7 +330,8 @@ const ClassBooking = ({ user, profileName = '', setView, goBack }) => {
           }
           throw error;
         }
-        showAlert({ message: '예약이 완료되었습니다!', confirmLabel: '확인' });
+        if (refined) { closeModal(); showToast('예약이 완료되었습니다.'); }
+        else showAlert({ message: '예약이 완료되었습니다!', confirmLabel: '확인' });
         const { data: updated } = await supabase.from('bookings').select('*').eq('date', date);
         setBookings(updated || []);
         fetchMyAllBookings();
@@ -448,7 +452,7 @@ const ClassBooking = ({ user, profileName = '', setView, goBack }) => {
           <div className="shrink-0 px-5 pt-4 pb-2 overflow-hidden">
             <p className="text-xs font-bold text-gray-400 tracking-wider mb-3">날짜 선택</p>
             <div
-              className="flex gap-2 overflow-x-auto overflow-y-hidden pb-2 -mx-1 px-1 scrollbar-hide"
+              className={`flex gap-2 overflow-x-auto overflow-y-hidden pb-2 -mx-1 px-1 scrollbar-hide ${refined ? 'refinement-week' : ''}`}
               style={{ WebkitOverflowScrolling: 'touch', touchAction: 'pan-x' }}
             >
               {weekDates.map((date) => {
@@ -521,7 +525,9 @@ const ClassBooking = ({ user, profileName = '', setView, goBack }) => {
                 {getDaySetting(selectedDate).off ? (
                   <p className="text-center text-sm font-light text-gray-500 py-12 tracking-wide">휴무일입니다.</p>
                 ) : loading ? (
-                  <p className="text-center text-sm text-gray-400 py-12 font-light">불러오는 중…</p>
+                  refined ? <div role="status" aria-label="시간을 불러오는 중" className="grid grid-cols-3 gap-3">
+                    {Array.from({ length: 9 }, (_, index) => <Skeleton key={index} className="h-14 rounded-xl" />)}
+                  </div> : <p className="text-center text-sm text-gray-400 py-12 font-light">불러오는 중…</p>
                 ) : generateTimeSlots().length === 0 ? (
                   <p className="text-center text-sm font-light text-gray-500 py-12">이 날짜에 열린 슬롯이 없습니다.</p>
                 ) : (
@@ -582,9 +588,9 @@ const ClassBooking = ({ user, profileName = '', setView, goBack }) => {
                               >
                                 {time}
                               </span>
-                              {!isNewMemberUiEnabled() && (
+                              {(refined || !isNewMemberUiEnabled()) && (
                                 <span className="text-[10px] font-semibold tracking-[0.12em] text-white/95">
-                                  내 예약
+                                  {refined ? '내 예약 · 취소' : '내 예약'}
                                 </span>
                               )}
                             </>
@@ -609,6 +615,7 @@ const ClassBooking = ({ user, profileName = '', setView, goBack }) => {
       )}
 
       <MemberCancelBookingModals
+        refined={refined}
         user={user}
         memberDisplayName={user?.user_metadata?.full_name || user?.email?.split('@')[0]}
         openBooking={cancelIntent}

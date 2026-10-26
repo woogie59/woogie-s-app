@@ -1,3 +1,4 @@
+import { DesignRefinementProvider } from './features/design/DesignRefinement'
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import './index.css'
@@ -14,7 +15,7 @@ const demoAdminOt = window.location.pathname === '/demo/admin-ot-links' && new U
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>
-    <GlobalModalProvider>
+    <DesignRefinementProvider><GlobalModalProvider>
       {demoAdminOt ? <AdminOtLinks goBack={() => window.history.back()} /> : otMatch ? <OtBookingPage token={otMatch[1]} /> : <App />}
       <Toaster
         position="top-center"
@@ -29,6 +30,6 @@ createRoot(document.getElementById('root')).render(
           },
         }}
       />
-    </GlobalModalProvider>
+    </GlobalModalProvider></DesignRefinementProvider>
   </StrictMode>,
 )

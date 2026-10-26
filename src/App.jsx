@@ -1,5 +1,7 @@
+import { MemberHomeSkeleton } from './features/design/DesignRefinement';
+import { useDesignRefinement, isDesignRefinementEnabled } from './features/design/designRefinement';
 import OtCalendarActionDialog from './features/admin/OtCalendarActionDialog';
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useLayoutEffect, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { QrCode, Camera, ChevronRight, ChevronUp, BookOpen, LogOut, Plus, User, X, Search, ArrowLeft, Edit3, Save, Sparkles, MessageSquare, Calendar, Clock, ChevronLeft, Edit, Image, DollarSign, Download, Printer } from 'lucide-react';
 import OneSignal from 'react-onesignal';
@@ -211,6 +213,11 @@ export default function App() {
   /** From `profiles.role` — used for library back nav & admin-only UI */
   const [userProfileRole, setUserProfileRole] = useState(null);
   const [userProfileName, setUserProfileName] = useState(null);
+  const { enabled: refinedDesign, setEnabled: setRefinedDesign } = useDesignRefinement();
+  useLayoutEffect(() => {
+    setRefinedDesign(Boolean(session?.user?.id) && isDesignRefinementEnabled({ id: session?.user?.id, role: userProfileRole }));
+    return () => setRefinedDesign(false);
+  }, [session?.user?.id, userProfileName, userProfileRole, setRefinedDesign]);
 
   /** Previous views for historical back navigation (custom router) */
   const viewHistoryRef = useRef([]);
@@ -319,6 +326,7 @@ export default function App() {
     if (!sessionData?.user?.id) {
       readyAuthUid.current = null;
       setUserProfileRole(null);
+      setUserProfileName(null);
       if (viewRef.current !== 'register') {
         replaceView('login');
       }
@@ -1134,12 +1142,12 @@ export default function App() {
 
           {/* Normal views - only show if NOT in password reset mode */}
           {/* 가입 플로우: 전역 loading 시 RegisterView가 언마운트되면 isSuccess가 날아가므로 register는 로딩 게이트 밖에서 렌더 */}
-          {!showResetPassword && loading && view !== 'register' && (
+          {!showResetPassword && loading && view !== 'register' && (refinedDesign ? <MemberHomeSkeleton /> : (
             <div className="min-h-[100dvh] flex flex-col items-center justify-center bg-white text-slate-900 gap-6">
               <LabDotBrand variant="header" />
               <p className="text-gray-400 text-xs tracking-[0.2em] uppercase">준비 중</p>
             </div>
-          )}
+          ))}
           {!showResetPassword && view === 'register' && (
             <RegisterView setView={navigate} goBack={goBack} />
           )}
