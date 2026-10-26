@@ -1,3 +1,4 @@
+import { formatBookingDateKo } from '../../features/design/designRefinement';
 import React, { useState, useCallback, useEffect } from 'react';import { isNewMemberUiEnabled } from '../../utils/bookingDateKeys';
 
 import { motion, AnimatePresence } from 'framer-motion';
@@ -23,6 +24,7 @@ const ICON_STROKE = 1;
  */
 const MemberCancelBookingModals = ({
   user,
+  refined = false,
   memberDisplayName,
   openBooking,
   onOpenBookingChange,
@@ -31,7 +33,7 @@ const MemberCancelBookingModals = ({
 }) => {
   const isNewUi = isNewMemberUiEnabled();
 
-  const { showAlert } = useGlobalModal();
+  const { showAlert, showToast } = useGlobalModal();
   const [showCancelPolicyLockModal, setShowCancelPolicyLockModal] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [bookingToDelete, setBookingToDelete] = useState(null);
@@ -80,7 +82,11 @@ const MemberCancelBookingModals = ({
     }
 
     setCancelling(null);
-    setCancelDeleteModalView('success');
+    if (refined) {
+      resetDeleteFlow();
+      showToast('예약이 취소되었습니다.');
+      await onAfterSuccessConfirm?.();
+    } else setCancelDeleteModalView('success');
 
     try {
       const pid = await fetchAdminOnesignalPlayerId();
@@ -149,7 +155,7 @@ const MemberCancelBookingModals = ({
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[320] flex items-center justify-center p-4 bg-gray-900/20"
+            className={`fixed inset-0 z-[320] flex items-center justify-center p-4 bg-gray-900/20 ${refined ? 'refinement-sheet-backdrop' : ''}`}
             style={{ backdropFilter: 'blur(8px)' }}
             onClick={() => {
               if (cancelDeleteModalView === 'loading' || cancelDeleteModalView === 'success') return;
@@ -161,7 +167,8 @@ const MemberCancelBookingModals = ({
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.98 }}
               transition={{ duration: 0.2, ease: [0.25, 0.46, 0.45, 0.94] }}
-              className="w-full max-w-md bg-white/95 border border-emerald-600/20 rounded-2xl shadow-xl shadow-gray-900/10 p-6 backdrop-blur-xl"
+              role="dialog" aria-modal="true" aria-label="예약 취소"
+              className={`w-full max-w-md bg-white/95 border border-emerald-600/20 rounded-2xl shadow-xl shadow-gray-900/10 p-6 backdrop-blur-xl ${refined ? 'refinement-sheet' : ''}`}
               onClick={(e) => e.stopPropagation()}
             >
               {cancelDeleteModalView === 'success' ? (
@@ -181,7 +188,7 @@ const MemberCancelBookingModals = ({
                     확인
                   </button>
                 </div>
-              ) : cancelDeleteModalView === 'loading' ? (
+              ) : cancelDeleteModalView === 'loading' && !refined ? (
                 <div
                   className="flex min-h-[200px] flex-col items-center justify-center gap-3 py-2"
                   role="status"
@@ -197,7 +204,7 @@ const MemberCancelBookingModals = ({
                 <>
                   <h3 className="text-lg font-serif text-[#064e3b] mb-2">예약 취소</h3>
                   <p className="text-gray-600 text-sm leading-relaxed mb-2 whitespace-pre-line">
-                    {bookingToDelete.date} {bookingToDelete.time}
+                    {refined ? formatBookingDateKo(bookingToDelete.date, bookingToDelete.time) : `${bookingToDelete.date} ${bookingToDelete.time}`}
                   </p>
                   <p className="text-gray-600 text-sm leading-relaxed mb-6 whitespace-pre-line">
                     해당 수업 예약을 취소하시겠습니까?
@@ -206,6 +213,7 @@ const MemberCancelBookingModals = ({
                     <button
                       type="button"
                       onClick={resetDeleteFlow}
+                      disabled={Boolean(cancelling)}
                       className="px-5 py-3 rounded-xl text-gray-600 hover:text-emerald-700 hover:bg-gray-100 transition-all font-medium min-w-[80px]"
                     >
                       돌아가기
@@ -213,9 +221,10 @@ const MemberCancelBookingModals = ({
                     <button
                       type="button"
                       onClick={confirmDeleteAction}
+                      disabled={Boolean(cancelling)}
                       className={`px-5 py-3 rounded-xl font-medium text-white ${isNewUi ? 'bg-[#064e3b] hover:bg-[#053d2f]' : 'bg-gradient-to-r from-emerald-600 to-emerald-700 hover:from-emerald-500 hover:to-emerald-600'} active:scale-[0.98] transition-all shadow-lg shadow-emerald-900/20 border border-emerald-600/30 min-w-[80px]`}
                     >
-                      예, 취소할게요
+                      {cancelling ? '취소 중…' : '예, 취소할게요'}
                     </button>
                   </div>
                 </>

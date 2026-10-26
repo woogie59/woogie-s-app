@@ -1,7 +1,9 @@
+import { useDesignRefinement } from '../features/design/designRefinement';
 import React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 const GlobalModal = ({ isOpen, title, message, type = 'alert', onConfirm, onClose, confirmLabel, cancelLabel, loading }) => {
+  const { enabled: refined } = useDesignRefinement();
   const isConfirm = type === 'confirm';
 
   return (
@@ -12,7 +14,7 @@ const GlobalModal = ({ isOpen, title, message, type = 'alert', onConfirm, onClos
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           transition={{ duration: 0.2 }}
-          className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-gray-900/20"
+          className={`fixed inset-0 z-[200] flex items-center justify-center p-4 bg-gray-900/20 ${refined ? 'refinement-sheet-backdrop' : ''}`}
           style={{ backdropFilter: 'blur(8px)' }}
         >
           <motion.div
@@ -20,7 +22,8 @@ const GlobalModal = ({ isOpen, title, message, type = 'alert', onConfirm, onClos
             animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0, scale: 0.98 }}
             transition={{ duration: 0.25, ease: [0.25, 0.46, 0.45, 0.94] }}
-            className="w-full max-w-md bg-white/95 border border-emerald-600/20 rounded-2xl shadow-xl shadow-gray-900/10 p-6 backdrop-blur-xl"
+            role="dialog" aria-modal="true" aria-label={title || "안내"}
+            className={`w-full max-w-md bg-white/95 border border-emerald-600/20 rounded-2xl shadow-xl shadow-gray-900/10 p-6 backdrop-blur-xl ${refined ? 'refinement-sheet' : ''}`}
           >
             {title && (
               <h3 className="text-lg font-serif text-emerald-600 mb-2">{title}</h3>

@@ -1,3 +1,5 @@
+import { MemberHomeSkeleton } from '../../features/design/DesignRefinement';
+import { useDesignRefinement } from '../../features/design/designRefinement';
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { LogOut, ChevronRight, ChevronDown, Calendar, BookOpen, Check, User, Dumbbell, X, DoorClosed, Shirt } from 'lucide-react';
@@ -62,6 +64,7 @@ const qaHomeSnapshot = { userId: null, batches: null, logs: null, bookings: null
 /** 깔끔한 짧은 화살표 (일정 목록용) — 막대 길이를 절반으로 줄인 디자인 */
 
 const ClientHome = ({ user, logout, setView }) => {
+  const { enabled: refined } = useDesignRefinement();
   const { showAlert } = useGlobalModal();
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -608,6 +611,7 @@ const ClientHome = ({ user, logout, setView }) => {
   }
 
   if (loading) {
+    if (refined) return <MemberHomeSkeleton />;
     return (
       <div className="min-h-[100dvh] flex flex-col items-center justify-center bg-gray-50 px-6">
         <div
@@ -904,7 +908,7 @@ const ClientHome = ({ user, logout, setView }) => {
                         <li
                           key={booking.id}
                           className={`list-none flex justify-between items-center py-4 border-b cursor-pointer ${isNewUi ? 'border-b-2 border-gray-200 transition-all duration-100 active:bg-gray-100 active:scale-[0.99]' : 'border-gray-100'}`}
-                          onClick={() => setCancelIntent(booking)}
+                          onClick={refined ? undefined : () => setCancelIntent(booking)}
                         >
                           <div className="flex items-center justify-between gap-3 w-full">
                             {isNewUi && <span className="h-1.5 w-1.5 rounded-full bg-[#064e3b] shrink-0" aria-hidden />}
@@ -913,7 +917,11 @@ const ClientHome = ({ user, logout, setView }) => {
                                 {formatUpcomingDateLabel(booking)} {formatTime24hStatic(booking.time)}
                               </p>
                             </div>
-                            {isNewUi ? (
+                            {refined ? (
+                              <button type="button" onClick={() => setCancelIntent(booking)}
+                                aria-label={`${formatUpcomingDateLabel(booking)} ${formatTime24hStatic(booking.time)} 예약 취소`}
+                                className="shrink-0 min-h-11 px-3 rounded-xl border border-gray-300 bg-white text-gray-600 text-xs font-medium">취소</button>
+                            ) : isNewUi ? (
                               <span className="flex h-9 w-9 -my-2 items-center justify-center shrink-0 text-gray-300" aria-hidden>
                                 <X size={14} strokeWidth={1.8} />
                               </span>
@@ -1071,6 +1079,7 @@ const ClientHome = ({ user, logout, setView }) => {
       </AnimatePresence>
 
       <MemberCancelBookingModals
+        refined={refined}
         user={user}
         memberDisplayName={profile?.name || user?.user_metadata?.full_name || user?.email?.split('@')[0]}
         openBooking={cancelIntent}
