@@ -245,10 +245,10 @@
 }
 
 .view-anim-forward {
-  animation: view-slide-in-right 0.32s cubic-bezier(0.32, 0.72, 0, 1) both;
+  animation: view-slide-in-right 0.32s cubic-bezier(0.32, 0.72, 0, 1) backwards;
 }
 .view-anim-back {
-  animation: view-slide-in-left 0.32s cubic-bezier(0.32, 0.72, 0, 1) both;
+  animation: view-slide-in-left 0.32s cubic-bezier(0.32, 0.72, 0, 1) backwards;
 }
 
 @media (prefers-reduced-motion: reduce) {

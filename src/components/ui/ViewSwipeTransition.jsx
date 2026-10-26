@@ -69,6 +69,9 @@ export default function ViewSwipeTransition({
       }
       if (g.dx > 12 && g.dx > Math.abs(g.dy) * CANCEL_RATIO) {
         g.active = true;
+        // 진행 중인 진입 애니메이션이 인라인 transform을 덮지 않도록 제거
+        const el = itemRef.current;
+        if (el) el.classList.remove('view-anim-forward', 'view-anim-back');
       } else {
         return;
       }
