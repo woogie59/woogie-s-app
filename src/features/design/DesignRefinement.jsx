@@ -31,7 +31,7 @@ export function DesignRefinementProvider({ children }) {
   const [enabled, setEnabled] = useState(false);
   useLayoutEffect(() => {
     if (!enabled) return;
-    document.getElementById('root')?.setAttribute('data-design-refinement', 'test2');
+    document.getElementById('root')?.setAttribute('data-design-refinement', 'qq-preview');
     const meta = document.querySelector('meta[name="viewport"]');
     const original = meta?.getAttribute('content');
     meta?.setAttribute('content', 'width=device-width, initial-scale=1, viewport-fit=cover');

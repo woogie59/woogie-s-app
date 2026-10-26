@@ -215,7 +215,7 @@ export default function App() {
   const [userProfileName, setUserProfileName] = useState(null);
   const { enabled: refinedDesign, setEnabled: setRefinedDesign } = useDesignRefinement();
   useLayoutEffect(() => {
-    setRefinedDesign(Boolean(session?.user?.id) && isDesignRefinementEnabled({ name: userProfileName, role: userProfileRole }));
+    setRefinedDesign(Boolean(session?.user?.id) && isDesignRefinementEnabled({ id: session?.user?.id, role: userProfileRole }));
     return () => setRefinedDesign(false);
   }, [session?.user?.id, userProfileName, userProfileRole, setRefinedDesign]);
 

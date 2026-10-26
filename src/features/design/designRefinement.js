@@ -1,8 +1,8 @@
 import { createContext, useContext } from 'react';
 
-// Opt-in is resolved only from the authenticated profile. Never from URL/storage.
+// User selected qq@qq.qq (테스트용1) on 2026-10-26. Verified auth UUID only; never name, URL or storage flags.
 export const isDesignRefinementEnabled = (profile) =>
-  profile?.name === '테스트2' && profile?.role === 'user';
+  profile?.id === '54f02379-a548-4bf8-aaf5-150055b6ec1e' && profile?.role === 'user';
 
 export const DesignRefinementContext = createContext({ enabled: false, setEnabled: () => {} });
 export const useDesignRefinement = () => useContext(DesignRefinementContext);
