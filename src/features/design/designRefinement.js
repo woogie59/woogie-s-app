@@ -1,8 +1,9 @@
 import { createContext, useContext } from 'react';
 
-// User selected qq@qq.qq (테스트용1) on 2026-10-26. Verified auth UUID only; never name, URL or storage flags.
+// User approved all-member rollout after qq account testing on 2026-10-26.
+// Administrators and unauthenticated screens keep their existing UI.
 export const isDesignRefinementEnabled = (profile) =>
-  profile?.id === '54f02379-a548-4bf8-aaf5-150055b6ec1e' && profile?.role === 'user';
+  Boolean(profile?.id) && profile?.role === 'user';
 
 export const DesignRefinementContext = createContext({ enabled: false, setEnabled: () => {} });
 export const useDesignRefinement = () => useContext(DesignRefinementContext);

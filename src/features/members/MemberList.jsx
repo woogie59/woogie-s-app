@@ -77,7 +77,7 @@ const MemberList = ({ setView, goBack, setSelectedMemberId }) => {
     setUsers(mapped);
     setSummary({
       total: mapped.length,
-      lowCredit: mapped.filter((u) => (u.computedRemaining ?? 0) <= 5).length,
+      lowCredit: mapped.filter((u) => (u.computedRemaining ?? 0) <= 9).length,
       unbooked: mapped.filter((u) => !u.hasFutureBooking).length,
     });
     setLoading(false);
@@ -102,7 +102,7 @@ const MemberList = ({ setView, goBack, setSelectedMemberId }) => {
 
   const filteredMembers = users.filter((u) => {
     if (memberTab === 'inactive') return true;
-    if (filterMode === 'low_credit') return (u.computedRemaining ?? 0) <= 5;
+    if (filterMode === 'low_credit') return (u.computedRemaining ?? 0) <= 9;
     if (filterMode === 'unbooked') return !u.hasFutureBooking;
     return true;
   });
@@ -189,7 +189,7 @@ const MemberList = ({ setView, goBack, setSelectedMemberId }) => {
             </button>
             <span>|</span>
             <button type="button" onClick={() => setFilterMode('low_credit')} className={`rounded-full px-2.5 py-1 ${filterMode === 'low_credit' ? 'bg-white text-slate-900 border border-gray-200' : ''}`}>
-              만료 임박(5회 이하) {summary.lowCredit}명
+              만료 임박(9회 이하) {summary.lowCredit}명
             </button>
             <span>|</span>
             <button type="button" onClick={() => setFilterMode('unbooked')} className={`rounded-full px-2.5 py-1 ${filterMode === 'unbooked' ? 'bg-white text-slate-900 border border-gray-200' : ''}`}>
