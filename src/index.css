@@ -209,3 +209,51 @@
   pointer-events: none;
 }
 
+
+/* ===== 화면 전환 + 스와이프 뒤로가기 (메이저 앱 스타일) ===== */
+.view-swipe-wrap {
+  width: 100%;
+  min-height: 0;
+}
+.view-swipe-item {
+  width: 100%;
+  min-height: 0;
+  will-change: transform;
+  background: inherit;
+}
+
+@keyframes view-slide-in-right {
+  from {
+    transform: translateX(100%);
+    box-shadow: -16px 0 40px rgba(0, 0, 0, 0.18);
+  }
+  to {
+    transform: translateX(0);
+    box-shadow: -16px 0 40px rgba(0, 0, 0, 0);
+  }
+}
+
+@keyframes view-slide-in-left {
+  from {
+    transform: translateX(-33%);
+    opacity: 0.55;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+.view-anim-forward {
+  animation: view-slide-in-right 0.32s cubic-bezier(0.32, 0.72, 0, 1) both;
+}
+.view-anim-back {
+  animation: view-slide-in-left 0.32s cubic-bezier(0.32, 0.72, 0, 1) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .view-anim-forward,
+  .view-anim-back {
+    animation: none;
+  }
+}

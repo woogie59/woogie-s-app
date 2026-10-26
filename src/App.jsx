@@ -30,6 +30,7 @@ import LabDotBrand from './components/ui/LabDotBrand';
 import ButtonPrimary from './components/ui/ButtonPrimary';
 import ButtonGhost from './components/ui/ButtonGhost';
 import BackButton from './components/ui/BackButton';
+import ViewSwipeTransition from './components/ui/ViewSwipeTransition';
 import Skeleton from './components/ui/Skeleton';
 
 import LoginView from './pages/auth/LoginView';
@@ -221,23 +222,33 @@ export default function App() {
 
   /** Previous views for historical back navigation (custom router) */
   const viewHistoryRef = useRef([]);
+  const viewRef = useRef(view);
+  viewRef.current = view;
+  /** 화면 전환 방향 (슬라이드 모션) + 스와이프 뒤로가기 가능 여부 */
+  const [navDirection, setNavDirection] = useState('none');
+  const [historyDepth, setHistoryDepth] = useState(0);
+
   const replaceView = useCallback((next) => {
     viewHistoryRef.current = [];
+    setHistoryDepth(0);
+    setNavDirection('none');
     setViewState(next);
   }, []);
 
   const navigate = useCallback((next) => {
-    setViewState((prev) => {
-      if (next !== prev) {
-        viewHistoryRef.current.push(prev);
-      }
-      return next;
-    });
+    const cur = viewRef.current;
+    if (next === cur) return;
+    viewHistoryRef.current.push(cur);
+    setHistoryDepth(viewHistoryRef.current.length);
+    setNavDirection('forward');
+    setViewState(next);
   }, []);
 
   const goBack = useCallback(() => {
     const prev = viewHistoryRef.current.pop();
     const home = userProfileRole === 'admin' ? 'admin_home' : 'client_home';
+    setHistoryDepth(viewHistoryRef.current.length);
+    setNavDirection('back');
     if (prev === undefined) {
       setViewState(session?.user?.id ? home : 'login');
       return;
@@ -256,9 +267,6 @@ export default function App() {
     }
     setViewState(prev);
   }, [userProfileRole, session?.user?.id, selectedMemberId]);
-
-  const viewRef = useRef(view);
-  viewRef.current = view;
 
   /** PWA: localStorage 우선 + `lastVisitedPath` — 백그라운드 복귀 시 홈 강제 이동 방지 */
   useEffect(() => {
@@ -1128,6 +1136,12 @@ export default function App() {
           animate={{ opacity: 1 }}
           transition={{ duration: 0.35, ease: [0.4, 0, 0.2, 1] }}
         >
+          <ViewSwipeTransition
+            viewKey={view}
+            direction={navDirection}
+            canGoBack={historyDepth > 0}
+            onSwipeBack={goBack}
+          >
           
           {/* [PASSWORD RESET OVERRIDE] - Shows above everything else */}
           {showResetPassword && (
@@ -1738,6 +1752,8 @@ export default function App() {
           
             </>
           )}
+
+          </ViewSwipeTransition>
 
           {showAdminTrainingReport && (
             <AdminTrainingReportForm
