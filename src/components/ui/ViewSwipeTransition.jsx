@@ -1,19 +1,21 @@
-import React, { useCallback, useEffect, useRef } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 
 /**
  * ViewSwipeTransition
- * - viewKey가 바뀔 때 새 화면에 슬라이드 전환 모션을 적용한다.
- *   forward: 오른쪽에서 밀려 들어옴 / back: 왼쪽에서 밀려 들어옴 (iOS 네이티브 감각)
- * - canGoBack일 때 화면 왼쪽 가장자리(28px)에서 시작하는 가로 스와이프로
- *   뒤로가기를 지원한다. 드래그 중 화면이 손끝을 따라 움직이고,
- *   임계 거리/속도를 넘으면 onSwipeBack을 호출한다.
- * 순수 시각/입력 레이어라 데이터·라우팅 로직에는 관여하지 않는다.
+ * - viewKey 전환 시 이전 화면을 짧게 유지한 채 두 화면이 겹쳐 움직인다 (iOS 감각).
+ *   forward: 새 화면이 오른쪽에서 들어오고, 기존 화면은 왼쪽으로 살짝 밀리며 어두워짐
+ *   back: 기존 화면이 오른쪽으로 밀려 나가고, 이전 화면이 왼쪽에서 들어옴
+ * - canGoBack일 때 좌측 가장자리(28px) 스와이프로 뒤로가기.
+ *   드래그 위치 그대로 이어서 밀려나가므로 중간에 끊기는 느낌이 없다.
+ * 순수 시각/입력 레이어. 라우팅·데이터 로직에는 관여하지 않는다.
  */
 
-const EDGE_PX = 28;          // 제스처 시작 인식 영역 (좌측)
-const TRIGGER_PX = 72;       // 이 거리 이상 밀면 뒤로가기 확정
-const FLICK_VELOCITY = 0.45; // px/ms 이상이면 빠른 밀기로 확정
-const CANCEL_RATIO = 1.4;    // 가로 우세 판정 비율
+const EDGE_PX = 28;
+const TRIGGER_PX = 72;
+const FLICK_VELOCITY = 0.45;
+const CANCEL_RATIO = 1.4;
+const EXIT_MS = 420;
+const EXIT_EASE = 'cubic-bezier(0.32,0.72,0,1)';
 
 export default function ViewSwipeTransition({
   viewKey,
@@ -26,10 +28,32 @@ export default function ViewSwipeTransition({
   const itemRef = useRef(null);
   const gestureRef = useRef(null);
   const stateRef = useRef({ canGoBack, onSwipeBack });
-
   useEffect(() => {
     stateRef.current = { canGoBack, onSwipeBack };
   }, [canGoBack, onSwipeBack]);
+
+  // 전환 동안만 유지되는 이전 화면 레이어
+  const [exiting, setExiting] = useState(null); // { key, children, mode }
+  const latestRef = useRef({ key: viewKey, children });
+  const prevKeyRef = useRef(viewKey);
+
+  useEffect(() => {
+    if (prevKeyRef.current === viewKey) return undefined;
+    const fromKey = prevKeyRef.current;
+    prevKeyRef.current = viewKey;
+    gestureRef.current = null;
+    if (direction === 'forward' || direction === 'back') {
+      setExiting({ key: fromKey, children: latestRef.current.children, mode: direction });
+      const t = window.setTimeout(() => setExiting(null), EXIT_MS);
+      return () => window.clearTimeout(t);
+    }
+    setExiting(null);
+    return undefined;
+  }, [viewKey, direction]);
+
+  useEffect(() => {
+    latestRef.current = { key: viewKey, children };
+  });
 
   const resetItemStyle = useCallback(() => {
     const el = itemRef.current;
@@ -87,6 +111,17 @@ export default function ViewSwipeTransition({
     }
   }, []);
 
+  // 뒤로가기 확정 시: 드래그 위치에서 그대로 100%까지 밀려나간다.
+  // 같은 DOM 노드가 exit-over 레이어로 옮겨지므로 인라인 transform이 유지된다.
+  const exitOverRef = useCallback((el) => {
+    if (!el) return;
+    requestAnimationFrame(() => {
+      el.style.transition = `transform 0.28s ${EXIT_EASE}, box-shadow 0.28s ease`;
+      el.style.transform = 'translateX(100%)';
+      el.style.boxShadow = 'none';
+    });
+  }, []);
+
   const onTouchEnd = useCallback(() => {
     const g = gestureRef.current;
     gestureRef.current = null;
@@ -96,16 +131,16 @@ export default function ViewSwipeTransition({
     const velocity = g.dx / dt;
     const commit = g.dx > TRIGGER_PX || velocity > FLICK_VELOCITY;
 
+    if (commit) {
+      // 밀려나가는 레이어로 자연스럽게 이어지도록 즉시 뒤로가기
+      stateRef.current.onSwipeBack?.();
+      return;
+    }
     const el = itemRef.current;
     if (el) {
-      el.style.transition = 'transform 0.22s cubic-bezier(0.32,0.72,0,1), box-shadow 0.22s ease';
-      el.style.transform = commit ? 'translateX(100%)' : 'translateX(0px)';
+      el.style.transition = `transform 0.22s ${EXIT_EASE}, box-shadow 0.22s ease`;
+      el.style.transform = 'translateX(0px)';
       el.style.boxShadow = 'none';
-    }
-    if (commit) {
-      // 밀려나가는 모션이 보인 뒤 실제 뒤로가기 (들어오는 화면은 왼쪽에서 슬라이드)
-      window.setTimeout(() => stateRef.current.onSwipeBack?.(), 140);
-    } else {
       window.setTimeout(resetItemStyle, 260);
     }
   }, [resetItemStyle]);
@@ -125,12 +160,6 @@ export default function ViewSwipeTransition({
     };
   }, [onTouchStart, onTouchMove, onTouchEnd]);
 
-  // 뷰가 바뀌면 드래그 잔여 스타일 정리
-  useEffect(() => {
-    gestureRef.current = null;
-    resetItemStyle();
-  }, [viewKey, resetItemStyle]);
-
   const animClass =
     direction === 'forward'
       ? 'view-anim-forward'
@@ -140,9 +169,19 @@ export default function ViewSwipeTransition({
 
   return (
     <div ref={wrapRef} className="view-swipe-wrap">
+      {exiting && exiting.mode === 'forward' && (
+        <div key={exiting.key} className="view-layer-exit-under" aria-hidden="true">
+          {exiting.children}
+        </div>
+      )}
       <div key={viewKey} ref={itemRef} className={`view-swipe-item ${animClass}`}>
         {children}
       </div>
+      {exiting && exiting.mode === 'back' && (
+        <div key={exiting.key} ref={exitOverRef} className="view-layer-exit-over" aria-hidden="true">
+          {exiting.children}
+        </div>
+      )}
     </div>
   );
 }

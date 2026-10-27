@@ -212,14 +212,47 @@
 
 /* ===== 화면 전환 + 스와이프 뒤로가기 (메이저 앱 스타일) ===== */
 .view-swipe-wrap {
+  position: relative;
   width: 100%;
   min-height: 0;
+  background:
+    linear-gradient(to right, rgba(15, 23, 42, 0.07), rgba(15, 23, 42, 0) 90px),
+    #f8fafc;
 }
 .view-swipe-item {
+  position: relative;
+  z-index: 1;
   width: 100%;
   min-height: 0;
   will-change: transform;
-  background: inherit;
+}
+/* 전환 중에만 존재하는 이전 화면 레이어 */
+.view-layer-exit-under {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  pointer-events: none;
+  animation: view-exit-under 0.32s cubic-bezier(0.32, 0.72, 0, 1) both;
+}
+.view-layer-exit-over {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  overflow: hidden;
+  pointer-events: none;
+  will-change: transform;
+  box-shadow: -16px 0 40px rgba(0, 0, 0, 0.18);
+}
+@keyframes view-exit-under {
+  from {
+    transform: translateX(0);
+    filter: brightness(1);
+  }
+  to {
+    transform: translateX(-25%);
+    filter: brightness(0.92);
+  }
 }
 
 @keyframes view-slide-in-right {

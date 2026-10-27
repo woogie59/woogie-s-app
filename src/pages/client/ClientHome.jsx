@@ -59,15 +59,20 @@ const formatUpcomingDateLabel = (b) => {
 
 /** 테스트용1 전용: 화면 복귀 후 리패치 동안 이전 값을 유지하기 위한 인메모리 스냅샷.
  *  모듈 스코프라 같은 SPA 세션 내 언마운트/리마운트에만 유지되고, 새로고침하면 초기화된다. */
-const qaHomeSnapshot = { userId: null, batches: null, logs: null, bookings: null };
+const qaHomeSnapshot = { userId: null, batches: null, logs: null, bookings: null, profile: null };
 
 /** 깔끔한 짧은 화살표 (일정 목록용) — 막대 길이를 절반으로 줄인 디자인 */
 
 const ClientHome = ({ user, logout, setView }) => {
   const { enabled: refined } = useDesignRefinement();
   const { showAlert } = useGlobalModal();
-  const [profile, setProfile] = useState(null);
-  const [loading, setLoading] = useState(true);
+  // 화면 복귀 시 스냅샷 프로필로 즉시 렌더 (스켈레톤 깜빡임 방지), 백그라운드에서 리패치
+  const [profile, setProfile] = useState(() =>
+    qaHomeSnapshot.userId === user?.id ? qaHomeSnapshot.profile : null
+  );
+  const [loading, setLoading] = useState(
+    () => !(qaHomeSnapshot.userId === user?.id && qaHomeSnapshot.profile)
+  );
   const [isCheckInSubmitting, setIsCheckInSubmitting] = useState(false);
   /** attendance_logs INSERT + bookings UPDATE 둘 다 올 때 토스트/팝업 중복 방지 */
   const lastCheckInRealtimeRef = useRef(0);
@@ -103,6 +108,8 @@ const ClientHome = ({ user, logout, setView }) => {
         console.error('프로필 로딩 실패:', error);
       } else {
         setProfile(data);
+        qaHomeSnapshot.userId = user.id;
+        qaHomeSnapshot.profile = data;
       }
       setLoading(false);
     };
