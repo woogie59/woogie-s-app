@@ -53,6 +53,18 @@ export default function ViewSwipeTransition({
 
   useEffect(() => {
     if (!exiting) return undefined;
+    if (exiting.mode === 'back') {
+      // 드래그 위치(또는 0)에서 그대로 100%까지 밀려나가는 애니메이션.
+      // key 매칭으로 이동한 같은 DOM 노드라 인라인 transform이 이어진다.
+      const el = wrapRef.current?.querySelector('.view-layer-exit-over');
+      if (el) {
+        requestAnimationFrame(() => {
+          el.style.transition = `transform 0.28s ${EXIT_EASE}, box-shadow 0.28s ease`;
+          el.style.transform = 'translateX(100%)';
+          el.style.boxShadow = 'none';
+        });
+      }
+    }
     const t = window.setTimeout(() => setExiting(null), EXIT_MS);
     return () => window.clearTimeout(t);
   }, [exiting]);
@@ -113,17 +125,6 @@ export default function ViewSwipeTransition({
     }
   }, []);
 
-  // 뒤로가기 확정 시: 드래그 위치에서 그대로 100%까지 밀려나간다.
-  // 같은 DOM 노드가 exit-over 레이어로 옮겨지므로 인라인 transform이 유지된다.
-  const exitOverRef = useCallback((el) => {
-    if (!el) return;
-    requestAnimationFrame(() => {
-      el.style.transition = `transform 0.28s ${EXIT_EASE}, box-shadow 0.28s ease`;
-      el.style.transform = 'translateX(100%)';
-      el.style.boxShadow = 'none';
-    });
-  }, []);
-
   const onTouchEnd = useCallback(() => {
     const g = gestureRef.current;
     gestureRef.current = null;
@@ -180,7 +181,7 @@ export default function ViewSwipeTransition({
         {children}
       </div>
       {exiting && exiting.mode === 'back' && (
-        <div key={exiting.key} ref={exitOverRef} className="view-layer-exit-over" aria-hidden="true">
+        <div key={exiting.key} className="view-layer-exit-over" aria-hidden="true">
           {exiting.children}
         </div>
       )}
