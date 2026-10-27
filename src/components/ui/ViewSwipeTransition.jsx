@@ -32,28 +32,30 @@ export default function ViewSwipeTransition({
     stateRef.current = { canGoBack, onSwipeBack };
   }, [canGoBack, onSwipeBack]);
 
-  // 전환 동안만 유지되는 이전 화면 레이어
+  // 전환 동안만 유지되는 이전 화면 레이어.
+  // effect가 아니라 렌더 중 파생 상태로 처리해야, 화면이 바뀌는 바로 그 렌더에서
+  // 이전 화면이 keyed 레이어로 남아 DOM/상태가 그대로 이어진다 (리마운트 깜빡임 방지).
   const [exiting, setExiting] = useState(null); // { key, children, mode }
-  const latestRef = useRef({ key: viewKey, children });
-  const prevKeyRef = useRef(viewKey);
+  const [snapshot, setSnapshot] = useState({ key: viewKey, children });
 
-  useEffect(() => {
-    if (prevKeyRef.current === viewKey) return undefined;
-    const fromKey = prevKeyRef.current;
-    prevKeyRef.current = viewKey;
-    gestureRef.current = null;
+  if (snapshot.key !== viewKey) {
+    // 화면 전환: 나가는 화면을 최신 상태 그대로 레이어에 보존
     if (direction === 'forward' || direction === 'back') {
-      setExiting({ key: fromKey, children: latestRef.current.children, mode: direction });
-      const t = window.setTimeout(() => setExiting(null), EXIT_MS);
-      return () => window.clearTimeout(t);
+      setExiting({ key: snapshot.key, children: snapshot.children, mode: direction });
+    } else {
+      setExiting(null);
     }
-    setExiting(null);
-    return undefined;
-  }, [viewKey, direction]);
+    setSnapshot({ key: viewKey, children });
+  } else if (snapshot.children !== children) {
+    // 같은 화면이면 최신 children으로 갱신해 두어 나갈 때 스냅샷이 신선하도록
+    setSnapshot({ key: viewKey, children });
+  }
 
   useEffect(() => {
-    latestRef.current = { key: viewKey, children };
-  });
+    if (!exiting) return undefined;
+    const t = window.setTimeout(() => setExiting(null), EXIT_MS);
+    return () => window.clearTimeout(t);
+  }, [exiting]);
 
   const resetItemStyle = useCallback(() => {
     const el = itemRef.current;
