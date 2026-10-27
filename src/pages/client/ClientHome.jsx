@@ -77,8 +77,13 @@ const ClientHome = ({ user, logout, setView }) => {
   /** attendance_logs INSERT + bookings UPDATE 둘 다 올 때 토스트/팝업 중복 방지 */
   const lastCheckInRealtimeRef = useRef(0);
 
-  const [myBookings, setMyBookings] = useState([]);
-  const [loadingBookings, setLoadingBookings] = useState(false);
+  // 화면 복귀 시 스냅샷 예약으로 즉시 렌더 (다음 수업 로딩 플레이스홀더 방지), 백그라운드 리패치
+  const [myBookings, setMyBookings] = useState(() =>
+    qaHomeSnapshot.userId === user?.id && qaHomeSnapshot.bookings ? qaHomeSnapshot.bookings : []
+  );
+  const [loadingBookings, setLoadingBookings] = useState(
+    () => !(qaHomeSnapshot.userId === user?.id && qaHomeSnapshot.bookings)
+  );
   /** All packs for this user — sum(total_count) = purchased sessions (source of truth for 잔여). */
   const [sessionBatches, setSessionBatches] = useState([]);
   /** attendance_logs rows for eligible count (with bookings, excludes zombies). */
@@ -447,7 +452,8 @@ const ClientHome = ({ user, logout, setView }) => {
 
   const displayBookings = useMemo(() => {
     if (myBookings?.length) return myBookings;
-    if (isNewUi && loadingBookings && qaHomeSnapshot.userId === user?.id && qaHomeSnapshot.bookings?.length) {
+    // 빈 배열 스냅샷도 유효한 캐시다 (예약 없음을 그대로 보여줌)
+    if (isNewUi && loadingBookings && qaHomeSnapshot.userId === user?.id && qaHomeSnapshot.bookings) {
       return qaHomeSnapshot.bookings;
     }
     return myBookings || [];

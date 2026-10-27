@@ -1124,30 +1124,26 @@ export default function App() {
     if (view !== 'admin_schedule') setScheduleCalendarSeed(null);
   }, [view]);
 
-  return (
-    <div className="bg-white flex-1 min-h-0 w-full flex flex-col font-sans selection:bg-emerald-500/20 overflow-y-auto overflow-x-hidden">
-      <AnimatePresence>
-        {showIntro && <CinematicIntro onComplete={() => setShowIntro(false)} />}
-      </AnimatePresence>
+  // 뒤로가기 스와이프 드래그 중 손가락 아래에 깔리는 이전 화면의 view 키
+  const [dragBackKey, setDragBackKey] = useState(null);
+  const handleDragPreview = useCallback((active) => {
+    if (active) {
+      const stack = viewHistoryRef.current;
+      setDragBackKey(stack.length > 0 ? stack[stack.length - 1] : null);
+    } else {
+      setDragBackKey(null);
+    }
+  }, []);
 
-      {!showIntro && (
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ duration: 0.35, ease: [0.4, 0, 0.2, 1] }}
-        >
-          <ViewSwipeTransition
-            viewKey={view}
-            direction={navDirection}
-            canGoBack={historyDepth > 0}
-            onSwipeBack={goBack}
-          >
+  // 화면 JSX를 view 키로부터 렌더 — 현재 화면과 스와이프 미리보기(이전 화면)가 공유
+  const renderViewContent = (v) => (
+    <>
           
           {/* [PASSWORD RESET OVERRIDE] - Shows above everything else */}
           {showResetPassword && (
             <ResetPasswordView 
               onClose={() => {
-                console.log('🔄 Closing reset view, returning to login');
+                console.log('🔄 Closing reset v, returning to login');
                 setShowResetPassword(false);
                 replaceView('login');
               }} 
@@ -1156,44 +1152,44 @@ export default function App() {
 
           {/* Normal views - only show if NOT in password reset mode */}
           {/* 가입 플로우: 전역 loading 시 RegisterView가 언마운트되면 isSuccess가 날아가므로 register는 로딩 게이트 밖에서 렌더 */}
-          {!showResetPassword && loading && view !== 'register' && (refinedDesign ? <MemberHomeSkeleton /> : (
+          {!showResetPassword && loading && v !== 'register' && (refinedDesign ? <MemberHomeSkeleton /> : (
             <div className="min-h-[100dvh] flex flex-col items-center justify-center bg-white text-slate-900 gap-6">
               <LabDotBrand variant="header" />
               <p className="text-gray-400 text-xs tracking-[0.2em] uppercase">준비 중</p>
             </div>
           ))}
-          {!showResetPassword && view === 'register' && (
+          {!showResetPassword && v === 'register' && (
             <RegisterView setView={navigate} goBack={goBack} />
           )}
           {!showResetPassword && !loading && (
             <>
-              {!session && view === 'login' && <LoginView setView={navigate} />}
+              {!session && v === 'login' && <LoginView setView={navigate} />}
 
               {/* 로그인 했을 때 보여줄 화면 (일반 회원) */}
-              {session && view === 'client_home' && <ClientHome user={session.user} logout={handleLogout} setView={navigate} goBack={goBack} />}
-          {session && view === 'hall_of_fame_member_self' && (
+              {session && v === 'client_home' && <ClientHome user={session.user} logout={handleLogout} setView={navigate} goBack={goBack} />}
+          {session && v === 'hall_of_fame_member_self' && (
             <MemberAthleteView userId={session.user.id} goBack={goBack} />
           )}
 
-          {session && view === 'member_exercise_library' && !isNewMemberUiEnabled() && (
+          {session && v === 'member_exercise_library' && !isNewMemberUiEnabled() && (
             <MemberExerciseLibrary goBack={() => navigate('client_home')} />
           )}
 
           {/* 관리자 화면 (admin role 필수) */}
-          {view === 'admin_home' && (
+          {v === 'admin_home' && (
             <AdminRoute session={session} replaceView={replaceView} knownRole={userProfileRole}>
               <AdminHome setView={navigate} logout={handleLogout} onOpenTrainingLog={() => setShowAdminTrainingReport(true)} adminName={userProfileName} />
             </AdminRoute>
           )}
 
           {/* 회원 목록 */}
-          {view === 'member_list' && (
+          {v === 'member_list' && (
             <AdminRoute session={session} replaceView={replaceView} knownRole={userProfileRole}>
               <MemberList setView={navigate} goBack={goBack} setSelectedMemberId={setSelectedMemberId} />
             </AdminRoute>
           )}
 
-          {view === 'hall_of_fame_hub' && (
+          {v === 'hall_of_fame_hub' && (
             <AdminRoute session={session} replaceView={replaceView} knownRole={userProfileRole}>
               <HallOfFameHub
                 setView={navigate}
@@ -1203,43 +1199,43 @@ export default function App() {
             </AdminRoute>
           )}
 
-          {view === 'admin_settings' && (
+          {v === 'admin_settings' && (
             <AdminRoute session={session} replaceView={replaceView} knownRole={userProfileRole}>
               <AdminSettings goBack={goBack} />
             </AdminRoute>
           )}
 
-          {view === 'admin_payroll' && (
+          {v === 'admin_payroll' && (
             <AdminRoute session={session} replaceView={replaceView} knownRole={userProfileRole}>
               <AdminPayrollDashboard goBack={goBack} />
             </AdminRoute>
           )}
 
-          {view === 'admin_member_announcements' && (
+          {v === 'admin_member_announcements' && (
             <AdminRoute session={session} replaceView={replaceView} knownRole={userProfileRole}>
               <AdminMemberAnnouncements goBack={goBack} />
             </AdminRoute>
           )}
 
-          {view === 'ot_links' && (
+          {v === 'ot_links' && (
             <AdminRoute session={session} replaceView={replaceView} knownRole={userProfileRole}>
               <AdminOtLinks goBack={() => navigate('admin_home')} />
             </AdminRoute>
           )}
 
-          {view === 'exercise_library' && (
+          {v === 'exercise_library' && (
             <AdminRoute session={session} replaceView={replaceView} knownRole={userProfileRole}>
               <AdminExerciseLibrary goBack={() => navigate('admin_home')} />
             </AdminRoute>
           )}
 
           {/* 회원 상세 */}
-          {view === 'member_detail' && selectedMemberId && (
+          {v === 'member_detail' && selectedMemberId && (
             <AdminRoute session={session} replaceView={replaceView} knownRole={userProfileRole}>
               <MemberDetail selectedMemberId={selectedMemberId} goBack={goBack} />
             </AdminRoute>
           )}
-          {view === 'hall_of_fame_member' && selectedMemberId && (
+          {v === 'hall_of_fame_member' && selectedMemberId && (
             <AdminRoute session={session} replaceView={replaceView} knownRole={userProfileRole}>
               <MemberDetail
                 selectedMemberId={selectedMemberId}
@@ -1254,7 +1250,7 @@ export default function App() {
               />
             </AdminRoute>
           )}
-          {view === 'hall_of_fame_member' && !selectedMemberId && (
+          {v === 'hall_of_fame_member' && !selectedMemberId && (
             <AdminRoute session={session} replaceView={replaceView} knownRole={userProfileRole}>
               <div className="min-h-[100dvh] bg-[#050505] flex items-center justify-center px-6 text-zinc-300">
                 <div className="rounded-2xl border border-white/10 bg-zinc-900/40 p-6 text-center backdrop-blur-xl">
@@ -1270,7 +1266,7 @@ export default function App() {
               </div>
             </AdminRoute>
           )}
-          {view === 'member_detail' && !selectedMemberId && (
+          {v === 'member_detail' && !selectedMemberId && (
             <AdminRoute session={session} replaceView={replaceView} knownRole={userProfileRole}>
               <div className="min-h-[100dvh] flex items-center justify-center bg-[#050505] px-6 text-zinc-300">
                 <div className="rounded-2xl border border-white/10 bg-zinc-900/40 p-6 text-center backdrop-blur-xl">
@@ -1288,14 +1284,14 @@ export default function App() {
           )}
 
           {/* QR 스캐너 */}
-          {view === 'scanner' && (
+          {v === 'scanner' && (
             <AdminRoute session={session} replaceView={replaceView} knownRole={userProfileRole}>
               <QRScanner setView={navigate} goBack={goBack} />
             </AdminRoute>
           )}
 
           {/* Schedule: FullCalendar + embedded 예약 설정 */}
-          {view === 'admin_schedule' && (
+          {v === 'admin_schedule' && (
             <AdminRoute session={session} replaceView={replaceView} knownRole={userProfileRole}>
               <div className="min-h-[100dvh] bg-gradient-to-b from-white to-emerald-50/20 text-slate-900 flex flex-col overflow-y-auto pb-24">
                 <div className="px-4 sm:px-6 pt-4 sm:pt-6 pb-2 max-w-7xl w-full mx-auto">
@@ -1449,7 +1445,7 @@ export default function App() {
           )}
 
           {/* Revenue: monthly payroll & CSV only (was Private/Manager on Schedule) */}
-          {view === 'revenue' && (
+          {v === 'revenue' && (
             <AdminRoute session={session} replaceView={replaceView} knownRole={userProfileRole}>
               <div className="min-h-[100dvh] bg-white flex flex-col text-slate-900 overflow-y-auto pb-24">
                 <div className="p-6 pb-2">
@@ -1545,15 +1541,15 @@ export default function App() {
           )}
 
           {/* 클래스 예약 */}
-          {session && view === 'class_booking' && (
+          {session && v === 'class_booking' && (
             <ClassBooking user={session.user} profileName={userProfileName} setView={navigate} goBack={goBack} />
           )}
 
-          {session && view === 'member_workout_log' && isNewMemberUiEnabled() && (
+          {session && v === 'member_workout_log' && isNewMemberUiEnabled() && (
             <MemberWorkoutLog key={session.user.id} user={session.user} setView={navigate} goBack={goBack} />
           )}
 
-          {session && view === 'training_log' && (
+          {session && v === 'training_log' && (
             <TrainingLogList
               user={session.user}
               setView={navigate}
@@ -1565,12 +1561,12 @@ export default function App() {
             />
           )}
 
-          {session && view === 'training_log_detail' && trainingLogId && (
+          {session && v === 'training_log_detail' && trainingLogId && (
             <TrainingLogDetail user={session.user} reportId={trainingLogId} onBack={goBack} />
           )}
 
           {/* Library article — full-screen editorial (no modal) */}
-          {session && view === 'library_article' && selectedPost && (
+          {session && v === 'library_article' && selectedPost && (
             <LibraryArticleScreen
               post={selectedPost}
               onBack={() => {
@@ -1581,7 +1577,7 @@ export default function App() {
           )}
 
           {/* 라이브러리 (지식 베이스) */}
-          {(session || view === 'admin_home' || view === 'library') && view === 'library' && (
+          {(session || v === 'admin_home' || v === 'library') && v === 'library' && (
             <div className="min-h-[100dvh] h-full max-w-full bg-white flex flex-col overflow-hidden">
               <div className="flex-1 overflow-y-auto overscroll-contain min-h-0 p-6 pb-24" style={{ WebkitOverflowScrolling: 'touch' }}>
               <BackButton onClick={goBack} />
@@ -1753,6 +1749,31 @@ export default function App() {
             </>
           )}
 
+    </>
+  );
+
+
+  return (
+    <div className="bg-white flex-1 min-h-0 w-full flex flex-col font-sans selection:bg-emerald-500/20 overflow-y-auto overflow-x-hidden">
+      <AnimatePresence>
+        {showIntro && <CinematicIntro onComplete={() => setShowIntro(false)} />}
+      </AnimatePresence>
+
+      {!showIntro && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ duration: 0.35, ease: [0.4, 0, 0.2, 1] }}
+        >
+          <ViewSwipeTransition
+            viewKey={view}
+            direction={navDirection}
+            canGoBack={historyDepth > 0}
+            onSwipeBack={goBack}
+            onDragPreview={handleDragPreview}
+            underlay={dragBackKey ? renderViewContent(dragBackKey) : null}
+          >
+          {renderViewContent(view)}
           </ViewSwipeTransition>
 
           {showAdminTrainingReport && (

@@ -226,6 +226,26 @@
   min-height: 0;
   will-change: transform;
 }
+
+/* 뒤로가기 드래그 중 손가락 아래에 깔리는 실제 이전 화면 */
+.view-layer-drag-under {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  pointer-events: none;
+  background: #ffffff;
+  transform: translateX(-25%);
+  will-change: transform;
+}
+.view-drag-dim {
+  position: absolute;
+  inset: 0;
+  background: #000000;
+  opacity: 0.25;
+  pointer-events: none;
+}
+
 /* 전환 중에만 존재하는 이전 화면 레이어 */
 .view-layer-exit-under {
   position: absolute;
