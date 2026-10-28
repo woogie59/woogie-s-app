@@ -310,3 +310,21 @@
     animation: none;
   }
 }
+
+/* ===== OT 링크 첫 진입 환영 연출: 기존 인사말이 페이드인되며 메인이 이어짐 (총 ~1.1s) ===== */
+.ot-welcome-greeting {
+  animation: ot-welcome-in 0.6s ease-out both;
+}
+.ot-welcome-rest {
+  animation: ot-welcome-in 0.5s ease-out 0.6s both;
+}
+@keyframes ot-welcome-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ot-welcome-greeting,
+  .ot-welcome-rest {
+    animation: none;
+  }
+}

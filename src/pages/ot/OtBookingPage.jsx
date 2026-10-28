@@ -118,6 +118,10 @@ export default function OtBookingPage({ token }) {
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState('');
   const [cancelTarget, setCancelTarget] = useState(null);
+
+  // OT 링크 첫 진입 환영 연출: 링크가 서버에서 확인된 회원 이름으로, 해당 링크당 한 번만
+  const [welcome, setWelcome] = useState(false);
+  const welcomeSeenKey = `labdot_ot_welcome_seen_${token}`;
   const [ptFlow, setPtFlow] = useState(false);
   const [justBooked, setJustBooked] = useState(null);
 
@@ -181,6 +185,22 @@ export default function OtBookingPage({ token }) {
       setPhase((p) => (p === 'loading' ? 'main' : p));
     })();
   }, [loadLink]);
+
+  // 링크 확인(서버 검증된 member_name) 후 첫 진입에만 환영 오버레이 표시.
+  // 이름은 토큰이 확인해준 link.member_name에서만 온다 (URL 등 미검증 입력 사용 안 함).
+  useEffect(() => {
+    if (!link?.ok || !link?.member_name) return;
+    const force = IS_DEMO && DEMO_PARAMS?.get('welcome') === 'always'; // 검증용 데모 전용
+    try {
+      if (!force && window.localStorage.getItem(welcomeSeenKey)) return;
+      window.localStorage.setItem(welcomeSeenKey, '1');
+    } catch {
+      // 저장이 막힌 환경(프라이빗 모드 등)에서는 그냥 표시만 한다
+    }
+    setWelcome(true);
+    const t = window.setTimeout(() => setWelcome(false), 1500);
+    return () => window.clearTimeout(t);
+  }, [link, welcomeSeenKey]);
 
   useEffect(() => {
     if (IS_DEMO && (DEMO_PHASE === 'date' || DEMO_PHASE === 'time')) loadMonthAvailability(viewMonth);
@@ -471,8 +491,7 @@ export default function OtBookingPage({ token }) {
     };
     return (
       <Shell showBack onBack={() => setPhase('main')}>
-        <p className="text-lg font-medium tracking-tight mb-1">{ptFlow ? '피티 희망 날짜를 골라 주세요.' : '희망 날짜를 골라 주세요.'}</p>
-        <p className="text-sm text-slate-400 mb-5">수업이 열리는 날만 고를 수 있습니다.</p>
+        <p className="text-lg font-medium tracking-tight mb-5">{ptFlow ? '피티 희망 날짜를 골라 주세요.' : '희망 날짜를 골라 주세요.'}</p>
 
         <div className="flex items-center justify-between mb-3">
           <button
@@ -559,10 +578,10 @@ export default function OtBookingPage({ token }) {
   if (phase === 'confirm') {
     return (
       <Shell showBack onBack={() => setPhase('time')}>
-        <p className="text-lg font-medium tracking-tight mb-1">{ptFlow ? '피티 등록 신청' : `${memberName}님의 오티`}</p>
-        <p className="text-sm text-slate-400 mb-6">
-          {ptFlow ? '첫 PT 희망 일시로 신청합니다. 센터 검토 후 확정 안내를 드립니다.' : '아래 시간으로 신청합니다.'}
-        </p>
+        <p className={`text-lg font-medium tracking-tight ${ptFlow ? 'mb-1' : 'mb-6'}`}>{ptFlow ? '피티 등록 신청' : `${memberName}님의 오티`}</p>
+        {ptFlow && (
+          <p className="text-sm text-slate-400 mb-6">첫 PT 희망 일시로 신청합니다. 센터 검토 후 확정 안내를 드립니다.</p>
+        )}
         <div className="border border-gray-200 rounded-2xl p-5 text-center">
           <p className="text-xl font-semibold tracking-tight">
             {formatDateLabel(selectedDate)} {selectedTime}
@@ -575,7 +594,7 @@ export default function OtBookingPage({ token }) {
           onClick={ptFlow ? submitPtRequest : submitBooking}
           className="mt-6 w-full bg-[#064e3b] text-white font-semibold py-4 rounded-xl text-[15px] tracking-wide active:scale-[0.99] transition-all disabled:opacity-40"
         >
-          {busy ? '신청 중…' : '이 일시로 신청하기'}
+          {busy ? '신청 중…' : ptFlow ? '이 일시로 신청하기' : '이 날짜로 신청하기'}
         </button>
       </Shell>
     );
@@ -586,18 +605,18 @@ export default function OtBookingPage({ token }) {
     <Shell>
       <div className="flex-1 flex flex-col">
         <div className="flex-1 flex flex-col items-center justify-center text-center gap-3 py-8">
-          <p className="text-2xl font-medium tracking-tight leading-snug">
+          <p className={`text-2xl font-medium tracking-tight leading-snug${welcome ? ' ot-welcome-greeting' : ''}`}>
             {memberName}님,
             <br />
             환영합니다.
           </p>
-          <p className="text-sm text-slate-400">
+          <p className={`text-sm text-slate-400${welcome ? ' ot-welcome-rest' : ''}`}>
             남은 오티 {remaining}회 / 총 {link?.max_sessions ?? 2}회
           </p>
         </div>
 
         {myBookings.length > 0 && (
-          <div className="mb-6 space-y-3">
+          <div className={`mb-6 space-y-3${welcome ? ' ot-welcome-rest' : ''}`}>
             {myBookings.map((b) => {
               const canCancel = isMemberAppCancellationAllowed({ date: String(b.date).slice(0, 10), time: b.time });
               return (
@@ -637,13 +656,13 @@ export default function OtBookingPage({ token }) {
               setPtFlow(false);
               setPhase('date');
             }}
-            className="w-full bg-[#064e3b] text-white font-semibold py-5 rounded-2xl text-lg tracking-wide shadow-md active:scale-[0.99] transition-all flex items-center justify-center gap-2"
+            className={`w-full bg-[#064e3b] text-white font-semibold py-5 rounded-2xl text-lg tracking-wide shadow-md active:scale-[0.99] transition-all flex items-center justify-center gap-2${welcome ? ' ot-welcome-rest' : ''}`}
           >
             <Calendar size={22} strokeWidth={1.5} />
             오티 신청
           </button>
         ) : allSessionsCompleted ? (
-          <div className="text-center border border-gray-200 rounded-2xl p-6 space-y-4">
+          <div className={`text-center border border-gray-200 rounded-2xl p-6 space-y-4${welcome ? ' ot-welcome-rest' : ''}`}>
             <div>
               <p className="text-[15px] font-medium text-slate-900">오티 출석이 모두 완료됐습니다.</p>
               <p className="mt-1 text-sm text-slate-400">수고하셨습니다.</p>
