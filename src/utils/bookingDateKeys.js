@@ -119,7 +119,13 @@ export const NEXT_WEEK_BOOKING_QA_PROFILE_NAME = '테스트용1';
 export const QA_PROFILE_NAMES = [NEXT_WEEK_BOOKING_QA_PROFILE_NAME, '송이담', '테스트2'];
 
 /** "다음 주 예약" 잠금 우회 계정 — UI QA 게이트와 별도. 송이담은 2026-10-20 사용자 지시로 일반 회원과 동일하게 잠금 적용. */
-export const NEXT_WEEK_BYPASS_PROFILE_NAMES = [NEXT_WEEK_BOOKING_QA_PROFILE_NAME, '테스트2'];
+export const NEXT_WEEK_BYPASS_PROFILE_NAMES = [
+  NEXT_WEEK_BOOKING_QA_PROFILE_NAME,
+  '테스트2',
+  // 2026-10-29 사용자 지시(phonemsg-01M63AAY8W5D4VPFK6VF4GSRMS): 김윤서 회원 다음 주(11/2~11/8) 예약 조기 오픈.
+  // 동명 회원 없음 확인(DB 조회). 10/31(토) 13:00 전체 오픈 후 제거 예정 — 상시 조기 오픈 권한 부여 아님.
+  '김윤서',
+];
 
 /** QA 계정 여부 (프로필 이름 기준, 앞뒤 공백 무시) */
 export const isQaProfileName = (profileName) => QA_PROFILE_NAMES.includes(String(profileName || '').trim());
