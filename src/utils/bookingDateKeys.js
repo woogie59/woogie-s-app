@@ -122,9 +122,11 @@ export const QA_PROFILE_NAMES = [NEXT_WEEK_BOOKING_QA_PROFILE_NAME, '송이담',
 export const NEXT_WEEK_BYPASS_PROFILE_NAMES = [
   NEXT_WEEK_BOOKING_QA_PROFILE_NAME,
   '테스트2',
-  // 2026-10-29 사용자 지시(phonemsg-01M63AAY8W5D4VPFK6VF4GSRMS): 김윤서 회원 다음 주(11/2~11/8) 예약 조기 오픈.
-  // 동명 회원 없음 확인(DB 조회). 10/31(토) 13:00 전체 오픈 후 제거 예정 — 상시 조기 오픈 권한 부여 아님.
+  // 2026-10-29 사용자 지시(phonemsg-01M63AAY8W5D4VPFK6VF4GSRMS + 18:01 유지 지시): 김윤서 회원 다음 주 예약 상시 조기 오픈. 회수 지시 전까지 유지.
   '김윤서',
+  // 2026-10-30 사용자 지시(phonemsg-01M66AMFC45ZF39A8P5QHN12Z9): 김다혜 회원 다음 주 예약 상시 조기 오픈. "따로 말하지 않으면 유지" — 회수 지시 전까지 유지.
+  // 동명 회원 없음 확인(DB 조회: id 8921f067-313f-4ef0-8b70-78da8936e4bc).
+  '김다혜',
 ];
 
 /** QA 계정 여부 (프로필 이름 기준, 앞뒤 공백 무시) */
