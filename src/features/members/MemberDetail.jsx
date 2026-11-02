@@ -39,6 +39,9 @@ const MemberDetail = ({ selectedMemberId, goBack, startInStatusMode = false, onE
   const [isMemoSaving, setIsMemoSaving] = useState(false);
   const [memoSavedFlash, setMemoSavedFlash] = useState(false);
   const [memberStats, setMemberStats] = useState([]);
+  const [membershipEditing, setMembershipEditing] = useState(false);
+  const [membershipEnd, setMembershipEnd] = useState('');
+  const [isMembershipSaving, setIsMembershipSaving] = useState(false);
   const [portalOverlayVisible, setPortalOverlayVisible] = useState(startInStatusMode);
 
   const fetchMemberStats = useCallback(async () => {
@@ -89,6 +92,31 @@ const MemberDetail = ({ selectedMemberId, goBack, startInStatusMode = false, onE
 
     setLoadingBatches(false);
   };
+
+  const saveMembershipPeriod = async () => {
+    const en = membershipEnd;
+    if (!en) {
+      toast.error('종료일을 입력해 주세요.');
+      return;
+    }
+    setIsMembershipSaving(true);
+    const { error } = await supabase
+      .from('profiles')
+      .update({ membership_end: en })
+      .eq('id', selectedMemberId);
+    setIsMembershipSaving(false);
+    if (error) {
+      console.error('membership period save error:', error);
+      toast.error('회원권 기간 저장에 실패했습니다.');
+      return;
+    }
+    toast.success('회원권 기간이 저장되었습니다.');
+    setMembershipEditing(false);
+    fetchMemberDetails();
+  };
+
+  const formatPeriodDate = (d) =>
+    d ? new Date(`${d}T00:00:00`).toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric' }) : '';
 
   useEffect(() => {
     fetchMemberDetails();
@@ -258,6 +286,61 @@ const MemberDetail = ({ selectedMemberId, goBack, startInStatusMode = false, onE
 
       <section className="mb-16">
         <div className="flex items-center justify-between gap-4 mb-6">
+          <h2 className="text-base font-semibold text-neutral-950">회원권 기간</h2>
+          {!membershipEditing && (
+            <button
+              type="button"
+              onClick={() => {
+                setMembershipEnd(u?.membership_end || '');
+                setMembershipEditing(true);
+              }}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-neutral-300 px-3 py-2 text-xs font-semibold text-neutral-700 hover:border-[#064e3b]/40 hover:text-[#064e3b] transition-colors"
+            >
+              <Settings2 size={14} />
+              설정
+            </button>
+          )}
+        </div>
+        {membershipEditing ? (
+          <div className="space-y-6">
+            <div>
+              <label htmlFor="membership-end" className="block text-sm font-medium text-neutral-800 mb-2">종료일</label>
+              <input
+                id="membership-end"
+                type="date"
+                value={membershipEnd}
+                onChange={(e) => setMembershipEnd(e.target.value)}
+                className="w-full border-0 border-b border-neutral-900/20 bg-transparent py-2 text-lg font-semibold text-neutral-950 outline-none focus:border-neutral-900 transition-colors"
+              />
+            </div>
+            <div className="flex gap-3">
+              <button
+                type="button"
+                onClick={saveMembershipPeriod}
+                disabled={isMembershipSaving}
+                className="flex-1 rounded-lg bg-[#064e3b] px-3 py-3 text-sm font-semibold text-white hover:bg-[#053d2f] disabled:opacity-40 transition-colors"
+              >
+                {isMembershipSaving ? '저장 중…' : '저장'}
+              </button>
+              <button
+                type="button"
+                onClick={() => setMembershipEditing(false)}
+                disabled={isMembershipSaving}
+                className="rounded-lg border border-neutral-300 px-5 py-3 text-sm font-semibold text-neutral-700 hover:border-neutral-400 transition-colors"
+              >
+                취소
+              </button>
+            </div>
+          </div>
+        ) : u?.membership_end ? (
+          <p className="text-lg font-medium text-neutral-950">만료 {formatPeriodDate(u.membership_end)}</p>
+        ) : (
+          <p className="text-sm text-neutral-500">설정된 회원권 기간이 없습니다.</p>
+        )}
+      </section>
+
+      <section className="mb-16">
+        <div className="flex items-center justify-between gap-4 mb-6">
           <h2 className="text-base font-semibold text-neutral-950">수강권 내역</h2>
           <button
             type="button"
@@ -418,6 +501,7 @@ const MemberDetail = ({ selectedMemberId, goBack, startInStatusMode = false, onE
         <AddSessionModal
           key={typeof sessionModal === 'object' && sessionModal?.id ? sessionModal.id : 'new-pack'}
           userId={selectedMemberId}
+          currentMembershipEnd={u?.membership_end || null}
           mode={typeof sessionModal === 'object' ? 'edit' : 'create'}
           editBatch={typeof sessionModal === 'object' ? sessionModal : null}
           onClose={() => setSessionModal(null)}
