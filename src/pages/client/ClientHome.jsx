@@ -921,7 +921,7 @@ const ClientHome = ({ user, logout, setView }) => {
                         <li
                           key={booking.id}
                           className={`list-none flex justify-between items-center py-4 border-b cursor-pointer ${isNewUi ? 'border-b-2 border-gray-200 transition-all duration-100 active:bg-gray-100 active:scale-[0.99]' : 'border-gray-100'}`}
-                          onClick={refined ? undefined : () => setCancelIntent(booking)}
+                          onClick={() => setCancelIntent(booking)}
                         >
                           <div className="flex items-center justify-between gap-3 w-full">
                             {isNewUi && <span className="h-1.5 w-1.5 rounded-full bg-[#064e3b] shrink-0" aria-hidden />}
@@ -931,7 +931,7 @@ const ClientHome = ({ user, logout, setView }) => {
                               </p>
                             </div>
                             {refined ? (
-                              <button type="button" onClick={() => setCancelIntent(booking)}
+                              <button type="button" onClick={(e) => { e.stopPropagation(); setCancelIntent(booking); }}
                                 aria-label={`${formatUpcomingDateLabel(booking)} ${formatTime24hStatic(booking.time)} 예약 취소`}
                                 className="shrink-0 min-h-11 px-3 rounded-xl border border-gray-300 bg-white text-gray-600 text-xs font-medium">취소</button>
                             ) : isNewUi ? (

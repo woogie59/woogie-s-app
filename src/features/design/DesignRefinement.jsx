@@ -24,6 +24,7 @@ const styles = `
 [data-design-refinement] .refinement-week > button { min-width:0; padding-left:2px; padding-right:2px; }
 [data-design-refinement] .refinement-sheet-backdrop { align-items:flex-end; padding:0; }
 [data-design-refinement] .refinement-sheet { max-width:480px; border-radius:24px 24px 0 0; padding:24px 24px max(24px,env(safe-area-inset-bottom)); background:white; }
+[data-design-refinement] .refinement-dialog-backdrop { align-items:center; padding:1rem; padding-top:14vh; }
 @media (prefers-reduced-motion:reduce) { [data-design-refinement] * { animation:none !important; transition:none !important; } }
 `;
 

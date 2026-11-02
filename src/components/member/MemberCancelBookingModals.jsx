@@ -155,7 +155,7 @@ const MemberCancelBookingModals = ({
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className={`fixed inset-0 z-[320] flex items-center justify-center p-4 bg-gray-900/20 ${refined ? 'refinement-sheet-backdrop' : ''}`}
+            className={`fixed inset-0 z-[320] flex items-center justify-center p-4 bg-gray-900/20 ${refined ? 'refinement-dialog-backdrop' : ''}`}
             style={{ backdropFilter: 'blur(8px)' }}
             onClick={() => {
               if (cancelDeleteModalView === 'loading' || cancelDeleteModalView === 'success') return;
@@ -168,7 +168,7 @@ const MemberCancelBookingModals = ({
               exit={{ opacity: 0, scale: 0.98 }}
               transition={{ duration: 0.2, ease: [0.25, 0.46, 0.45, 0.94] }}
               role="dialog" aria-modal="true" aria-label="예약 취소"
-              className={`w-full max-w-md bg-white/95 border border-emerald-600/20 rounded-2xl shadow-xl shadow-gray-900/10 p-6 backdrop-blur-xl ${refined ? 'refinement-sheet' : ''}`}
+              className={`w-full max-w-md bg-white/95 border border-emerald-600/20 rounded-2xl shadow-xl shadow-gray-900/10 p-6 backdrop-blur-xl `}
               onClick={(e) => e.stopPropagation()}
             >
               {cancelDeleteModalView === 'success' ? (
