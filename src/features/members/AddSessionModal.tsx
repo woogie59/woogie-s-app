@@ -415,7 +415,9 @@ export default function AddSessionModal({
               onChange={(e) => setMembershipEnd(e.target.value)}
               className="w-full border-0 border-b border-neutral-900/20 bg-transparent py-2 text-base font-semibold text-neutral-950 outline-none focus:border-neutral-900 transition-colors"
             />
-            <p className="mt-2 text-xs text-neutral-500">비워 두면 기존 만료일이 유지됩니다.</p>
+            <p className="mt-2 text-xs text-neutral-500">
+              비워 두면 기존 만료일이 유지됩니다. 만료일만 바꾸려면 회원 상세의 회원권 설정을 이용하세요.
+            </p>
           </div>
 
           {error ? <p className="text-sm text-red-600">{error}</p> : null}

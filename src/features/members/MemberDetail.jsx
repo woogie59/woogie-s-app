@@ -284,7 +284,7 @@ const MemberDetail = ({ selectedMemberId, goBack, startInStatusMode = false, onE
         <p className="text-5xl font-semibold tabular-nums text-neutral-950 tracking-tight">{totalRemaining}</p>
       </section>
 
-      <section className="mb-16">
+      <section className="mb-16" id="membership-period-section">
         <div className="flex items-center justify-between gap-4 mb-6">
           <h2 className="text-base font-semibold text-neutral-950">회원권 기간</h2>
           {!membershipEditing && (
@@ -297,7 +297,7 @@ const MemberDetail = ({ selectedMemberId, goBack, startInStatusMode = false, onE
               className="inline-flex items-center gap-1.5 rounded-lg border border-neutral-300 px-3 py-2 text-xs font-semibold text-neutral-700 hover:border-[#064e3b]/40 hover:text-[#064e3b] transition-colors"
             >
               <Settings2 size={14} />
-              설정
+              회원권 설정
             </button>
           )}
         </div>
@@ -342,14 +342,28 @@ const MemberDetail = ({ selectedMemberId, goBack, startInStatusMode = false, onE
       <section className="mb-16">
         <div className="flex items-center justify-between gap-4 mb-6">
           <h2 className="text-base font-semibold text-neutral-950">수강권 내역</h2>
-          <button
-            type="button"
-            onClick={() => setSessionModal('add')}
-            className="inline-flex items-center gap-1.5 rounded-lg bg-[#064e3b] px-3 py-2 text-xs font-semibold text-white hover:bg-[#053d2f] transition-colors"
-          >
-            <Plus size={14} />
-            수강권 추가
-          </button>
+          <div className="flex shrink-0 flex-col items-end gap-2">
+            <button
+              type="button"
+              onClick={() => setSessionModal('add')}
+              className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-lg bg-[#064e3b] px-3 py-2 text-xs font-semibold text-white hover:bg-[#053d2f] transition-colors"
+            >
+              <Plus size={14} />
+              수강권 추가
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setMembershipEnd(u?.membership_end || '');
+                setMembershipEditing(true);
+                document.getElementById('membership-period-section')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+              }}
+              className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-lg border border-neutral-300 px-3 py-2 text-xs font-semibold text-neutral-700 hover:border-[#064e3b]/40 hover:text-[#064e3b] transition-colors"
+            >
+              <Settings2 size={14} />
+              회원권 설정
+            </button>
+          </div>
         </div>
 
         {!loadingBatches && (
