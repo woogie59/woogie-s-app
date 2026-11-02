@@ -21,6 +21,7 @@ export const GlobalModalProvider = ({ children }) => {
     confirmLabel: null,
     cancelLabel: null,
     loading: false,
+    centeredDialog: false,
   });
 
   const closeModal = useCallback(() => {
@@ -38,10 +39,11 @@ export const GlobalModalProvider = ({ children }) => {
       confirmLabel: confirmLabel ?? '확인',
       cancelLabel: null,
       loading: false,
+      centeredDialog: false,
     });
   }, [closeModal]);
 
-  const showConfirm = useCallback(({ title = '', message, onConfirm, confirmLabel, cancelLabel }) => {
+  const showConfirm = useCallback(({ title = '', message, onConfirm, confirmLabel, cancelLabel, centeredDialog = false }) => {
     const handleConfirm = async () => {
       if (typeof onConfirm !== 'function') {
         closeModal();
@@ -67,6 +69,7 @@ export const GlobalModalProvider = ({ children }) => {
       confirmLabel: confirmLabel ?? '확인',
       cancelLabel: cancelLabel ?? '취소',
       loading: false,
+      centeredDialog,
     });
   }, [closeModal, showAlert]);
 
@@ -101,6 +104,7 @@ export const GlobalModalProvider = ({ children }) => {
         confirmLabel={modal.confirmLabel}
         cancelLabel={modal.cancelLabel}
         loading={modal.loading}
+        centeredDialog={modal.centeredDialog}
       />
       {toastMessage ? (
         <div

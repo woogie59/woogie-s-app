@@ -284,6 +284,7 @@ const ClassBooking = ({ user, profileName = '', setView, goBack }) => {
     if (!isSlotBookable(timeSlot)) return;
     const date = selectedDate;
     showConfirm({
+      centeredDialog: true,
       title: '수업 예약',
       message: `${refined ? formatBookingDateKo(date, timeSlot) : `${date} ${timeSlot}`} 수업을 예약하시겠습니까?`,
       confirmLabel: '예약확인',
