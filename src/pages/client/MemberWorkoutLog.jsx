@@ -12,7 +12,7 @@ import { isAttendanceLogCompletedForBalance } from '../../utils/sessionHelpers';
  * 개인운동: member_workout_entries 테이블 (본인 행만, RLS).
  * PT: 기존 attendance_logs의 완료 출석에서 파생.
  */
-const WORKOUT_PARTS = ['가슴', '등', '하체', '어깨', '팔', '코어', '유산소'];
+const WORKOUT_PARTS = ['가슴', '등', '하체', '힙', '어깨', '팔', '코어', '유산소'];
 const WEEKDAYS = ['월', '화', '수', '목', '금', '토', '일'];
 
 const kstYmd = (iso) =>
