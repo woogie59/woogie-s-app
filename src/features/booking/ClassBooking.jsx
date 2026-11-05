@@ -3,7 +3,6 @@ import React, { useState, useEffect, useLayoutEffect, useMemo, useCallback, useR
 import Skeleton from '../../components/ui/Skeleton';
 import { Lock } from 'lucide-react';
 import { supabase } from '../../lib/supabaseClient';
-import { fetchAdminOnesignalProfile } from '../../utils/notifications';
 import {
   computeRemainingSessions,
   countScheduledSessionsForBalance,
@@ -336,37 +335,7 @@ const ClassBooking = ({ user, profileName = '', setView, goBack }) => {
         const { data: updated } = await supabase.from('bookings').select('*').eq('date', date);
         setBookings(updated || []);
         fetchMyAllBookings();
-        try {
-          const { adminProfile, error: adminProfileErr } = await fetchAdminOnesignalProfile();
-          if (adminProfileErr) {
-            console.warn('[ClassBooking] admin profile:', adminProfileErr.message);
-          }
-          console.log('🎯 Triggering Push to Admin ID:', adminProfile?.onesignal_id);
-          if (!adminProfile?.onesignal_id) {
-            console.warn(
-              '🎯 Push skipped: admin onesignal_id missing (set profiles.onesignal_id for admin or apply get_admin_onesignal_player_id migration)'
-            );
-          } else {
-            const { data: prof } = await supabase.from('profiles').select('name').eq('id', user.id).maybeSingle();
-            const memberName =
-              (prof?.name && String(prof.name).trim()) ||
-              user?.user_metadata?.full_name ||
-              user?.user_metadata?.name ||
-              user?.email ||
-              '회원';
-            const { data, error } = await supabase.functions.invoke('notify-admin-events', {
-              body: {
-                targetId: adminProfile.onesignal_id,
-                title: '새로운 세션 확정',
-                message: `${memberName}님 - ${date} ${timeSlot}`,
-              },
-            });
-            console.log('📡 [Edge Function Result]:', data);
-            if (error) console.error('🚨 [Edge Function Error]:', error);
-          }
-        } catch (e) {
-          console.warn('[ClassBooking] admin push:', e);
-        }
+        // 관리자 푸시는 서버(bookings 트리거 → booking-admin-notify outbox)가 발송 - 클라이언트 발송 제거됨.
       },
     });
   };

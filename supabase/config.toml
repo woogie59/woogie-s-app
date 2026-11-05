@@ -30,6 +30,11 @@ verify_jwt = true
 import_map = "./functions/notify-member-events/deno.json"
 entrypoint = "./functions/notify-member-events/index.ts"
 
+[functions.booking-admin-notify]
+enabled = true
+# Invoked only by booking_notify_fire (pg_net) with the Vault shared secret header (no end-user JWT)
+verify_jwt = false
+
 [functions.google-calendar-sync]
 enabled = true
 # Invoked with Authorization: Bearer <SUPABASE_SERVICE_ROLE_KEY> (DB webhook or pg_net)

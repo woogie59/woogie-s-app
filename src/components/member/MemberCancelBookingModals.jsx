@@ -4,7 +4,6 @@ import React, { useState, useCallback, useEffect } from 'react';import { isNewMe
 import { motion, AnimatePresence } from 'framer-motion';
 import { Check, Lock } from 'lucide-react';
 import { supabase } from '../../lib/supabaseClient';
-import { invokeNotifyAdminEvents, fetchAdminOnesignalPlayerId } from '../../utils/notifications';
 import { useGlobalModal } from '../../context/GlobalModalContext';
 import {
   isMemberAppCancellationAllowed,
@@ -88,23 +87,7 @@ const MemberCancelBookingModals = ({
       await onAfterSuccessConfirm?.();
     } else setCancelDeleteModalView('success');
 
-    try {
-      const pid = await fetchAdminOnesignalPlayerId();
-      if (pid) {
-        const memberName =
-          memberDisplayName?.trim() ||
-          user?.user_metadata?.full_name ||
-          user?.email?.split('@')[0] ||
-          '회원';
-        await invokeNotifyAdminEvents(
-          pid,
-          '세션 취소 알림',
-          `${memberName}님 - ${date} ${time} 예약이 취소되었습니다.`
-        );
-      }
-    } catch (e) {
-      console.warn('[MemberCancelBookingModals] cancel push:', e);
-    }
+    // 관리자 푸시는 서버(bookings 트리거 → booking-admin-notify outbox)가 발송 - 클라이언트 발송 제거됨.
   };
 
   const closeCancelSuccessAndRefresh = useCallback(async () => {
