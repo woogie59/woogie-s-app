@@ -449,6 +449,13 @@ export default function AdminOtLinks({ goBack }) {
                             </div>
                           )}
                         </div>
+                        {(b.goal || b.interests || b.health_note) && (
+                          <div className="space-y-0.5 text-xs text-slate-500">
+                            {b.goal && <p>운동 목표: {b.goal}</p>}
+                            {b.interests && <p>배우고 싶은 운동·부위: {b.interests}</p>}
+                            {b.health_note && <p>특이사항: {b.health_note}</p>}
+                          </div>
+                        )}
                         {b.status === 'confirmed' && (!b.calendar_synced_at || !b.admin_notified_at) && (
                           <p className="text-[11px] text-amber-600 flex items-center gap-1 flex-wrap">
                             {!b.calendar_synced_at && '캘린더 미등록 — 다시 등록 버튼을 눌러 주세요. '}

@@ -115,6 +115,11 @@ export default function OtBookingPage({ token }) {
   });
   const [selectedDate, setSelectedDate] = useState(() => (DEMO_PHASE === 'time' || DEMO_PHASE === 'confirm' ? DEMO_DATE : null));
   const [selectedTime, setSelectedTime] = useState(() => (DEMO_PHASE === 'confirm' ? '15:00' : null));
+  // 문진 (모두 선택 항목 — 비워도 신청 가능, 사용자 승인 phonemsg-01M6RFZFM55WHEBH9R3DG2F2TW)
+  const [goal, setGoal] = useState('');
+  const [interests, setInterests] = useState('');
+  const [healthNote, setHealthNote] = useState('');
+  const [healthConsent, setHealthConsent] = useState(false);
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState('');
   const [cancelTarget, setCancelTarget] = useState(null);
@@ -319,6 +324,11 @@ export default function OtBookingPage({ token }) {
 
   const submitBooking = async () => {
     if (!selectedDate || !selectedTime || busy) return;
+    // 건강정보는 옆의 별도 동의 체크가 있을 때만 보낸다 (제23조 별도 동의)
+    if (healthNote.trim() && !healthConsent) {
+      setNotice('특이사항을 적으셨다면 옆의 건강정보 수집·이용 동의에 체크해 주세요. 동의하지 않으시면 칸을 비워 두세요.');
+      return;
+    }
     setBusy(true);
     setNotice('');
     if (IS_DEMO) {
@@ -337,6 +347,10 @@ export default function OtBookingPage({ token }) {
       p_token: token,
       p_date: selectedDate,
       p_time: selectedTime,
+      p_goal: goal.trim() || null,
+      p_interests: interests.trim() || null,
+      p_health_note: healthNote.trim() || null,
+      p_health_consent: healthConsent,
     });
     if (error || !data?.ok) {
       const reason = data?.reason || error?.message || '';
@@ -347,7 +361,11 @@ export default function OtBookingPage({ token }) {
             ? '남은 오티 횟수가 없습니다.'
             : reason === 'too_soon'
               ? '수업 1시간 전부터는 앱에서 신청할 수 없습니다.'
-              : '신청에 실패했습니다. 다시 시도해 주세요.'
+              : reason === 'consent_required'
+                ? '특이사항을 적으셨다면 옆의 건강정보 수집·이용 동의에 체크해 주세요. 동의하지 않으시면 칸을 비워 두세요.'
+                : reason === 'goal_too_long' || reason === 'interests_too_long' || reason === 'health_too_long'
+                  ? '문진 답변은 각 200자까지 적을 수 있습니다.'
+                  : '신청에 실패했습니다. 다시 시도해 주세요.'
       );
       setBusy(false);
       await loadLink();
@@ -398,6 +416,10 @@ export default function OtBookingPage({ token }) {
     setPtFlow(false);
     setSelectedDate(null);
     setSelectedTime(null);
+    setGoal('');
+    setInterests('');
+    setHealthNote('');
+    setHealthConsent(false);
     setJustBooked(null);
     setNotice('');
     setPhase('main');
@@ -587,6 +609,69 @@ export default function OtBookingPage({ token }) {
             {formatDateLabel(selectedDate)} {selectedTime}
           </p>
         </div>
+        {!ptFlow && (
+          <div className="mt-6 space-y-4 text-left">
+            <p className="text-sm text-slate-500">
+              오티 전에 알려주시면 수업 준비에 참고합니다. 모두 선택 항목이며, 비워도 신청할 수 있습니다.
+            </p>
+            <div>
+              <label htmlFor="ot-goal" className="text-sm font-medium text-slate-700">
+                운동 목표 <span className="font-normal text-slate-400">(선택)</span>
+              </label>
+              <input
+                id="ot-goal"
+                type="text"
+                maxLength={200}
+                value={goal}
+                onChange={(e) => setGoal(e.target.value)}
+                placeholder="예: 체중 감량, 근력 향상"
+                className="mt-1 w-full rounded-xl border border-gray-200 px-4 py-3 text-[15px] outline-none focus:border-[#064e3b]"
+              />
+            </div>
+            <div>
+              <label htmlFor="ot-interests" className="text-sm font-medium text-slate-700">
+                배우고 싶은 운동이나 부위 <span className="font-normal text-slate-400">(선택)</span>
+              </label>
+              <input
+                id="ot-interests"
+                type="text"
+                maxLength={200}
+                value={interests}
+                onChange={(e) => setInterests(e.target.value)}
+                placeholder="예: 스쿼트, 어깨 운동"
+                className="mt-1 w-full rounded-xl border border-gray-200 px-4 py-3 text-[15px] outline-none focus:border-[#064e3b]"
+              />
+            </div>
+            <div>
+              <label htmlFor="ot-health" className="text-sm font-medium text-slate-700">
+                특이사항 (통증·수술 이력 등) <span className="font-normal text-slate-400">(선택)</span>
+              </label>
+              <input
+                id="ot-health"
+                type="text"
+                maxLength={200}
+                value={healthNote}
+                onChange={(e) => setHealthNote(e.target.value)}
+                placeholder="예: 무릎 통증"
+                className="mt-1 w-full rounded-xl border border-gray-200 px-4 py-3 text-[15px] outline-none focus:border-[#064e3b]"
+              />
+              <label className="mt-2 flex items-start gap-2">
+                <input
+                  type="checkbox"
+                  checked={healthConsent}
+                  onChange={(e) => setHealthConsent(e.target.checked)}
+                  className="mt-0.5 h-4 w-4 shrink-0 accent-[#064e3b]"
+                />
+                <span className="text-xs leading-relaxed text-slate-500">
+                  특이사항(건강정보) 수집·이용에 동의합니다 (선택). 상담·수업 준비 목적으로만 쓰이며, OT 날짜가 지나거나 링크가 폐기된 후 30일 이내에 삭제됩니다. 동의하지 않아도 신청할 수 있습니다.
+                </span>
+              </label>
+            </div>
+            <p className="text-[11px] leading-relaxed text-slate-400">
+              입력하신 내용은 오티 상담·수업 준비 목적으로만 사용되며, OT 날짜가 지나거나 링크가 폐기된 후 30일 이내에 삭제됩니다. 쓰지 않아도 신청할 수 있습니다.
+            </p>
+          </div>
+        )}
         {notice && <p className="mt-3 text-sm text-red-500">{notice}</p>}
         <button
           type="button"
