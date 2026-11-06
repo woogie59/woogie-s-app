@@ -20,7 +20,9 @@ const DEMO_PT_REQUESTS = [
 
 const DEMO_BOOKINGS_BY_LINK = {
   'demo-link-1': [
-    { id: 'demo-b1', link_id: 'demo-link-1', date: new Date(Date.now() + 3 * 86400000).toISOString().slice(0, 10), time: '15:00', name: '김오티', status: 'confirmed', block_id: 'demo-block-1', calendar_synced_at: null, admin_notified_at: new Date().toISOString() },
+    { id: 'demo-b1', link_id: 'demo-link-1', date: new Date(Date.now() + 3 * 86400000).toISOString().slice(0, 10), time: '15:00', name: '김오티', status: 'confirmed', block_id: 'demo-block-1', calendar_synced_at: null, admin_notified_at: new Date().toISOString(),
+      // 문진 데모값 (interests의 HTML은 이스케이프 렌더 검증용 프로브 — 텍스트로만 보여야 함)
+      goal: '체중 감량 (데모)', interests: '스쿼트 <img src=x onerror=alert(1)>', health_note: '무릎 통증 (데모)' },
     { id: 'demo-b2', link_id: 'demo-link-1', date: new Date(Date.now() - 3 * 86400000).toISOString().slice(0, 10), time: '14:00', name: '김오티', status: 'completed', block_id: 'demo-block-2', calendar_synced_at: new Date().toISOString(), admin_notified_at: new Date().toISOString() },
   ],
 };
