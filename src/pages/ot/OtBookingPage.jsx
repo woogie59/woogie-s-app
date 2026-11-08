@@ -427,7 +427,7 @@ export default function OtBookingPage({ token }) {
 
   /** 공통 레이아웃 */
   const Shell = ({ children, showBack, onBack }) => (
-    <div className="min-h-[100dvh] bg-white text-slate-900 flex flex-col">
+    <div className="h-[100dvh] bg-white text-slate-900 flex flex-col">
       <header className="px-6 pt-8 pb-4 flex items-center justify-between max-w-md w-full mx-auto">
         {showBack ? (
           <button type="button" onClick={onBack} aria-label="뒤로" className="p-2 -ml-2 text-slate-500 active:text-slate-900">
@@ -439,7 +439,7 @@ export default function OtBookingPage({ token }) {
         <LabDotBrand variant="header" />
         <span className="w-[38px]" />
       </header>
-      <main className="flex-1 flex flex-col px-6 pb-10 max-w-md w-full mx-auto">{children}</main>
+      <main className="scrollable flex-1 flex flex-col px-6 pb-10 max-w-md w-full mx-auto">{children}</main>
     </div>
   );
 
