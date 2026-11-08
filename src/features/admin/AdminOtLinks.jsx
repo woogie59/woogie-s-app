@@ -31,6 +31,11 @@ function linkUrl(token) {
   return `${window.location.origin}/ot/${token}`;
 }
 
+// OT 신청 안내 문구 — 파트너가 보내준 원문 그대로, 회원 이름과 실제 링크 주소만 치환 (요청 phonemsg-01M6WCMF1MBF8E0SHC7XM58HKV)
+function buildOtInviteMessage(name, token) {
+  return `${name}회원님 안녕하세요! 피트니스써밋 권태욱 트레이너입니다! 이번에 회원님 오티를 담당하게 되었는데요, 아래 링크를 통해 편하신 시간에 오티 신청을 해주시면 너무 감사드리겠습니다!:-) 회원님께 꼭 필요한 운동으로 알찬시간 되실 수 있도록 준비하겠습니다. 오늘도 좋은하루 되시길 바랍니다!\n\n오티 신청 링크: ${linkUrl(token)}`;
+}
+
 /** 오티 1인용 신청 링크 발급·관리 (관리자 전용) */
 export default function AdminOtLinks({ goBack }) {
   const { showAlert, showConfirm } = useGlobalModal();
@@ -109,10 +114,10 @@ export default function AdminOtLinks({ goBack }) {
     setNewLabel('');
     await fetchAll();
     try {
-      await navigator.clipboard.writeText(linkUrl(data.token));
-      showAlert({ message: `${name}님 전용 링크를 만들고 주소를 복사했습니다. 카톡으로 붙여넣어 보내면 됩니다.` });
+      await navigator.clipboard.writeText(buildOtInviteMessage(name, data.token));
+      showAlert({ message: `${name}님 전용 링크를 만들고 안내 문구를 복사했습니다. 카톡에 붙여넣어 보내면 됩니다.` });
     } catch {
-      showAlert({ message: `${name}님 전용 링크를 만들었습니다. 목록에서 주소를 복사해 보내 주세요.` });
+      showAlert({ message: `${name}님 전용 링크를 만들었습니다. 목록에서 안내 문구를 복사해 보내 주세요.` });
     }
   };
 
@@ -142,12 +147,13 @@ export default function AdminOtLinks({ goBack }) {
     await doCreate(name, newLabel.trim() || null);
   };
 
-  const handleCopy = async (token) => {
+  const handleCopy = async (link) => {
+    const message = buildOtInviteMessage(link.member_name || '회원', link.token);
     try {
-      await navigator.clipboard.writeText(linkUrl(token));
-      showAlert({ message: '링크 주소를 복사했습니다.' });
+      await navigator.clipboard.writeText(message);
+      showAlert({ message: '안내 문구와 링크를 복사했습니다.' });
     } catch {
-      showAlert({ message: linkUrl(token) });
+      showAlert({ message });
     }
   };
 
@@ -319,7 +325,7 @@ export default function AdminOtLinks({ goBack }) {
             className="w-full bg-[#064e3b] text-white font-semibold py-3.5 rounded-xl text-[15px] active:scale-[0.99] transition-all disabled:opacity-40 flex items-center justify-center gap-2"
           >
             <Plus size={18} strokeWidth={1.5} />
-            {creating ? '만드는 중…' : '링크 만들고 주소 복사'}
+            {creating ? '만드는 중…' : '링크 만들고 안내문 복사'}
           </button>
         </section>
 
@@ -387,8 +393,8 @@ export default function AdminOtLinks({ goBack }) {
                     <div className="flex gap-1 shrink-0">
                       <button
                         type="button"
-                        onClick={() => handleCopy(link.token)}
-                        aria-label="링크 복사"
+                        onClick={() => handleCopy(link)}
+                        aria-label="안내문 복사"
                         className="p-2.5 rounded-lg text-[#064e3b] active:bg-emerald-50"
                       >
                         <Copy size={18} strokeWidth={1.5} />
