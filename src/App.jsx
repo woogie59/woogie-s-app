@@ -132,6 +132,7 @@ export default function App() {
   const [revenueLogs, setRevenueLogs] = useState([]);
   const [dashboardBookings, setDashboardBookings] = useState([]);
   const [dashboardBlockedSlots, setDashboardBlockedSlots] = useState([]);
+  const [dashboardOtNamesByBlock, setDashboardOtNamesByBlock] = useState({});
   /** Month-scoped: scheduled class count (bookings/schedules), not attendance logs */
   const [monthlyScheduledCount, setMonthlyScheduledCount] = useState(0);
   /** Month-scoped: sum of pack revenue from session_batches (price or total_count × price_per_session) */
@@ -675,13 +676,25 @@ export default function App() {
           .order('block_date', { ascending: true })
           .order('block_time', { ascending: true });
 
-        const [bookingsRes, logsRes, blocksRes] = await Promise.all([bookingsQuery, logsQuery, blocksQuery]);
+        const otBookingsQuery = supabase
+          .from('ot_bookings')
+          .select('block_id, name')
+          .gte('date', startKey)
+          .lte('date', endKey)
+          .neq('status', 'cancelled');
+
+        const [bookingsRes, logsRes, blocksRes, otBookingsRes] = await Promise.all([bookingsQuery, logsQuery, blocksQuery, otBookingsQuery]);
         if (logsRes.error) throw logsRes.error;
         if (bookingsRes.error) throw bookingsRes.error;
         const scheduleRows = bookingsRes.data || [];
         setRevenueLogs(logsRes.data || []);
         setDashboardBookings(scheduleRows);
         setDashboardBlockedSlots(blocksRes.error ? [] : blocksRes.data || []);
+        const otNameMap = {};
+        ((otBookingsRes.error ? [] : otBookingsRes.data) || []).forEach((r) => {
+          if (r?.block_id && r?.name) otNameMap[r.block_id] = r.name;
+        });
+        setDashboardOtNamesByBlock(otNameMap);
         setMonthlyScheduledCount((scheduleRows || []).filter((b) => b?.status !== 'cancelled').length);
       } else {
         const batchesQuery = supabase
@@ -917,9 +930,9 @@ export default function App() {
   const adminCalendarEvents = React.useMemo(
     () => [
       ...buildAdminCalendarEvents(mergedItemsByDate),
-      ...buildBlockedCalendarEvents(dashboardBlockedSlots),
+      ...buildBlockedCalendarEvents(dashboardBlockedSlots, dashboardOtNamesByBlock),
     ],
-    [mergedItemsByDate, dashboardBlockedSlots],
+    [mergedItemsByDate, dashboardBlockedSlots, dashboardOtNamesByBlock],
   );
 
   const openCalendarEvent = (info) => {

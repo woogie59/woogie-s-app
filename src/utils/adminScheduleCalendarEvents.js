@@ -56,9 +56,10 @@ export function buildAdminCalendarEvents(mergedItemsByDate) {
 
 /**
  * @param {Array<{ id: string, block_date?: string, date?: string, block_time?: string, time?: string, label?: string }>} blocks
+ * @param {Record<string, string>} [otNamesByBlockId] OT 신청 블록 id → 신청자 이름 (ot_bookings 조인 결과, 관리자 조회 전용)
  * @returns {import('@fullcalendar/core').EventInput[]}
  */
-export function buildBlockedCalendarEvents(blocks) {
+export function buildBlockedCalendarEvents(blocks, otNamesByBlockId) {
   const out = [];
   (blocks || []).forEach((row) => {
     const dateKey = String(row.block_date ?? row.date ?? '');
@@ -69,7 +70,13 @@ export function buildBlockedCalendarEvents(blocks) {
     if (Number.isNaN(start.getTime())) return;
     const end = new Date(start.getTime() + SESSION_MS);
     const isHold = row.kind === 'hold';
-    const title = blockedSlotDisplayTitle(row);
+    // OT 신청 블록은 프라이버시상 이름을 테이블에 쓰지 않으므로, 관리자 조회 시에만
+    // ot_bookings 이름을 화면 표시에 덧붙인다 (사용자 요청: 빨간 OT만 보여 신청자 구분 불가)
+    const otName =
+      row.kind === 'ot' && !String(row?.member_name || '').trim()
+        ? String(otNamesByBlockId?.[row.id] || '').trim()
+        : '';
+    const title = otName ? `${otName}님 오티` : blockedSlotDisplayTitle(row);
     out.push({
       id: `block-${row.id}`,
       title,
