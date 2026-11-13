@@ -11,7 +11,7 @@ try{
  const load=async(q='')=>{await page.goto('http://127.0.0.1:8473/tests/slot-alert/ui.html'+q);await page.getByRole('button',{name:'14:00 빈자리 알림 받기',exact:true}).waitFor();};
  await load();
  await page.waitForTimeout(500);
- assert.ok((await page.getByText('마감 · 알림',{exact:true}).count())>0);count++;
+ assert.ok((await page.getByText('알림',{exact:true}).count())>0);count++;
  await page.screenshot({path:'/tmp/slot-alert-mobile.png'});
  await page.getByRole('button',{name:'14:00 빈자리 알림 받기',exact:true}).click();
  await page.getByRole('button',{name:'알림 신청',exact:true}).waitFor();

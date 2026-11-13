@@ -11,7 +11,7 @@ export default function SlotAlertCard({ time, registered, busy, onClick }) {
     <span className="text-sm tabular-nums font-medium text-gray-400">{time}</span>
     <span className="flex items-center gap-1 bg-gray-50 px-1 text-[10px] leading-4 font-medium text-gray-600">
       {registered ? <BellOff size={12}/> : <Bell size={12}/>}
-      {busy ? '처리 중…' : registered ? '마감 · 알림 해제' : '마감 · 알림'}
+      {busy ? '처리 중…' : registered ? '해제' : '알림'}
     </span>
   </button>;
 }
