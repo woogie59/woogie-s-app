@@ -1,14 +1,17 @@
 import {chromium} from 'playwright-core';
 import assert from 'node:assert/strict';
+import {readFileSync} from 'node:fs';
 const browser=await chromium.launch({executablePath:'/usr/bin/google-chrome',headless:true,args:['--no-sandbox']});
 let count=0;
 try{
  const page=await browser.newPage({viewport:{width:390,height:844},isMobile:true,deviceScaleFactor:1,timezoneId:'Asia/Seoul'});
  await page.addInitScript(() => { const D=Date; class FixedDate extends D { constructor(...a){super(...(a.length?a:['2026-11-12T22:30:00+09:00']));} static now(){return new D('2026-11-12T22:30:00+09:00').getTime();} } window.Date=FixedDate; });
+ if(process.env.SLOT_ALERT_QA_FONT) await page.addInitScript((font)=>{const style=document.createElement('style');style.textContent=`@font-face{font-family:Pretendard;src:url(data:font/woff2;base64,${font}) format('woff2');font-weight:100 900;} body{font-family:Pretendard,sans-serif!important}`;document.addEventListener('DOMContentLoaded',()=>document.head.appendChild(style));},readFileSync(process.env.SLOT_ALERT_QA_FONT).toString('base64'));
  const errors=[];page.on('pageerror',e=>errors.push(e.message));
  const load=async(q='')=>{await page.goto('http://127.0.0.1:8473/tests/slot-alert/ui.html'+q);await page.getByRole('button',{name:'14:00 빈자리 알림 받기',exact:true}).waitFor();};
  await load();
  await page.waitForTimeout(500);
+ assert.ok((await page.getByText('마감 · 알림',{exact:true}).count())>0);count++;
  await page.screenshot({path:'/tmp/slot-alert-mobile.png'});
  await page.getByRole('button',{name:'14:00 빈자리 알림 받기',exact:true}).click();
  await page.getByRole('button',{name:'알림 신청',exact:true}).waitFor();

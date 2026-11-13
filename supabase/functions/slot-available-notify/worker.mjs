@@ -29,8 +29,9 @@ export function createHandler({ db, secret, appId, apiKey, fetcher = fetch, uuid
               idempotency_key:id}),
           });
           const body=await res.json();
-          ok=res.ok && typeof body.id==='string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(body.id) && body.recipients!==0 && !(body.errors && Object.keys(body.errors).length);
-          if (ok) messageId=body.id; else tag='provider_rejected';
+          ok=res.ok && typeof body.id==='string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(body.id);
+          // A UUID is the provider receipt. Per-identifier errors can accompany a successful send.
+          if (ok) messageId=body.id; else tag=`provider_rejected_${res.status}`;
         } catch { /* Do not log provider body, push keys, or personal data. */ }
         const {data:saved,error:saveError}=await db.rpc('slot_alert_finish',{p_job:id,p_claim:claim,p_ok:ok,p_message:messageId,p_error:ok?null:tag});
         return saveError || saved!==true ? 'receipt_failed' : ok ? 'provider_accepted' : 'retry_pending';
