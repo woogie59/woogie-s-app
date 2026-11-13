@@ -13,7 +13,7 @@ import { emitSessionBalanceRefresh } from './utils/sessionBalanceEvents';
 import { invokeNotifyMemberEvents } from './utils/notifications';
 import { invokeOtBlockGoogleSync } from './utils/googleCalendarOtSync';
 import { clearWorkoutViewState, isSameUserAuthResume } from './utils/workoutViewState';
-import { clearBookingPwaState } from './utils/bookingPwaState';
+import { clearBookingPwaState, writeBookingPwaToSessionAndUrl } from './utils/bookingPwaState';
 import { isNewMemberUiEnabled } from './utils/bookingDateKeys';
 import {
   readPersistedView,
@@ -304,6 +304,22 @@ export default function App() {
       }
       if (!data || typeof data !== 'object') return;
       const action = data.labdot_action;
+      if (action === 'slot_available') {
+        const date = data.booking_date;
+        const uid = activeAuthUid.current;
+        if (!uid || userProfileRole === 'admin' || typeof date !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(date)) return;
+        const d = new Date(`${date}T12:00:00+09:00`);
+        if (Number.isNaN(d.getTime())) return;
+        const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Seoul', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
+        const nowKst = new Date(`${today}T12:00:00+09:00`);
+        const dow = (nowKst.getUTCDay() + 6) % 7;
+        const nextMonday = new Date(nowKst.getTime() + (7 - dow) * 86400000);
+        const week = d >= nextMonday ? 'next' : 'current';
+        writeBookingPwaToSessionAndUrl(uid, { selectedDate: date, weekMode: week });
+        window.dispatchEvent(new Event('labdot-slot-alert-open'));
+        navigate('class_booking');
+        return;
+      }
       if (action === 'member_announcement') {
         window.dispatchEvent(new Event('labdot-open-announcement'));
         navigate('client_home');
@@ -320,7 +336,7 @@ export default function App() {
 
     OneSignal.Notifications.addEventListener('click', onNotificationClick);
     return () => OneSignal.Notifications.removeEventListener('click', onNotificationClick);
-  }, [oneSignalReady, navigate]);
+  }, [oneSignalReady, navigate, userProfileRole]);
 
   const initialAuthReady = useRef(false);
   const activeAuthUid = useRef(null);

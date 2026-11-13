@@ -1,0 +1,57 @@
+import {PGlite} from '@electric-sql/pglite';
+import fs from 'node:fs';
+import assert from 'node:assert/strict';
+const db=new PGlite();
+let tests=0;
+async function test(name,fn){ await fn(); tests++; console.log('PASS',name); }
+const A='00000000-0000-4000-8000-000000000001',B='00000000-0000-4000-8000-000000000002',C='00000000-0000-4000-8000-000000000003',D='00000000-0000-4000-8000-000000000004';
+const rows=async(s,p=[]) => (await db.query(s,p)).rows;
+const scalar=async(s,p=[]) => Object.values((await rows(s,p))[0])[0];
+const auth=async(id)=>{await db.exec('RESET ROLE'); await db.query("SELECT set_config('request.jwt.claim.sub',$1,false)",[id]);await db.exec('SET ROLE authenticated');};
+const owner=()=>db.exec('RESET ROLE');
+try {
+ await db.exec(fs.readFileSync('tests/slot-alert/schema-fixture.sql','utf8'));
+ await test('core migration compiles transactionally',async()=>db.exec(fs.readFileSync('supabase/slot_alert_core.sql','utf8')));
+ // Runtime-controlled synthetic clock not needed: pick a bookable future current/next-week slot.
+ const today=await scalar("SELECT (now() AT TIME ZONE 'Asia/Seoul')::date::text");
+ const candidates=await rows("SELECT d::date::text date,t FROM generate_series((now() AT TIME ZONE 'Asia/Seoul')::date,(now() AT TIME ZONE 'Asia/Seoul')::date+6,'1 day')d CROSS JOIN (VALUES('10:00'),('14:00'),('18:00'),('20:00'),('22:00'))h(t) WHERE public.slot_alert_allowed_time(d::date,t) ORDER BY d,t");
+ assert.ok(candidates.length>=3); const date=candidates[0].date,time=candidates[0].t; const next=candidates[1];
+ await test('feature is initially fail-closed',async()=>{await auth(A);assert.equal(await scalar('SELECT public.slot_alert_capabilities()'),false);});
+ await owner();await db.exec(`CREATE OR REPLACE FUNCTION public.slot_alert_enabled(p_user uuid) RETURNS boolean LANGUAGE sql STABLE SECURITY DEFINER SET search_path=public AS $$ SELECT p_user IN ('${A}'::uuid,'${B}'::uuid) $$`);
+ const book=async(d=date,t=time,u=C) => scalar('INSERT INTO public.bookings(user_id,date,time) VALUES($1,$2,$3) RETURNING id',[u,d,t]);
+ const reg=async(u=A,d=date,t=time)=>{await auth(u);return scalar('SELECT public.slot_alert_register($1,$2)',[d,t]);};
+ let bookingId;
+ await test('unoccupied slot refuses registration',async()=>assert.equal((await reg()).reason,'already_available'));
+ await owner();bookingId=await book();
+ let ra,rb;
+ await test('occupied slot accepts own enrollment',async()=>{ra=(await reg()).id;assert.ok(ra);});
+ await test('duplicate enrollment returns same identity',async()=>{const r=await reg();assert.equal(r.id,ra);assert.equal(r.already_registered,true);});
+ await test('second registrant has equal eligibility',async()=>{rb=(await reg(B)).id;assert.ok(rb);});
+ await test('non-QA cannot enroll',async()=>assert.equal((await reg(D)).reason,'not_enabled'));
+ await test('RLS reads only own requests',async()=>{await auth(A);const r=await rows('SELECT id FROM public.slot_alert_requests');assert.deepEqual(r.map(x=>x.id),[ra]);});
+ await test('members cannot access job table',async()=>{await assert.rejects(()=>db.exec('SELECT * FROM public.slot_alert_jobs'),/permission denied/);});
+ await test('member cannot directly set status or select recipient',async()=>{await assert.rejects(()=>db.exec("UPDATE public.slot_alert_requests SET state='notified'"),/permission denied/);await assert.rejects(()=>db.query('SELECT public.slot_alert_claim($1,$2)',[crypto.randomUUID(),crypto.randomUUID()]),/permission denied/);});
+ await test('past and invalid times fail closed',async()=>{assert.equal((await reg(A,'2020-01-01','10:00')).reason,'unavailable');assert.equal((await reg(A,date,'99:00')).reason,'unavailable');});
+ await owner();
+ await test('DELETE queues all registrants in same vacancy event',async()=>{await db.query('DELETE FROM public.bookings WHERE id=$1',[bookingId]);const j=await rows('SELECT * FROM slot_alert_jobs');assert.equal(j.length,2);assert.equal(j[0].vacancy_id,j[1].vacancy_id);assert.equal(await scalar('SELECT count(*)::int FROM bookings'),0);});
+ await test('member cancellation request only affects own row',async()=>{await auth(B);assert.equal((await scalar('SELECT public.slot_alert_cancel($1)',[ra])).reason,'not_found');});
+ await owner();const ja=await scalar('SELECT id FROM slot_alert_jobs WHERE request_id=$1',[ra]);const jb=await scalar('SELECT id FROM slot_alert_jobs WHERE request_id=$1',[rb]);const claim=crypto.randomUUID();
+ await test('claim resolves recipient from durable request',async()=>{const t=await scalar('SELECT slot_alert_claim($1,$2)',[ja,claim]);assert.equal(t.user_id,A);});
+ await test('duplicate worker claim skips sending row',async()=>assert.equal(await scalar('SELECT slot_alert_claim($1,$2)',[ja,crypto.randomUUID()]),null));
+ await test('receipt cannot be forged with wrong claim',async()=>assert.equal(await scalar('SELECT slot_alert_finish($1,$2,true,$3,null)',[ja,crypto.randomUUID(),crypto.randomUUID()]),false));
+ await test('uncertain failure returns pending and preserves job id',async()=>{assert.equal(await scalar('SELECT slot_alert_finish($1,$2,false,null,\'transport_unknown\')',[ja,claim]),true);assert.equal(await scalar('SELECT state FROM slot_alert_jobs WHERE id=$1',[ja]),'pending');});
+ await db.exec('UPDATE slot_alert_jobs SET released_at=NULL');
+ await test('unreleased rebooking before send skips job and keeps waiting',async()=>{bookingId=await book();assert.equal(await scalar('SELECT slot_alert_claim($1,$2)',[ja,crypto.randomUUID()]),null);assert.equal(await scalar('SELECT state FROM slot_alert_requests WHERE id=$1',[ra]),'active');});
+ await test('unreleased event restores all registrants before next cancellation',async()=>assert.equal(await scalar('SELECT state FROM slot_alert_requests WHERE id=$1',[rb]),'active'));
+ await test('second cancellation produces new vacancy identity',async()=>{await db.query('DELETE FROM bookings WHERE id=$1',[bookingId]);assert.equal(await scalar('SELECT count(*)::int FROM slot_alert_jobs WHERE request_id=$1',[ra]),2);});
+ const ja2=await scalar("SELECT id FROM slot_alert_jobs WHERE request_id=$1 AND state='pending'",[ra]);const claim2=crypto.randomUUID();
+ await test('provider receipt closes one-time enrollment',async()=>{await scalar('SELECT slot_alert_claim($1,$2)',[ja2,claim2]);await scalar('SELECT slot_alert_finish($1,$2,true,$3,null)',[ja2,claim2,crypto.randomUUID()]);assert.equal(await scalar('SELECT state FROM slot_alert_requests WHERE id=$1',[ra]),'notified');});
+ await test('released event still alerts remaining registrants after first booker wins',async()=>{const b=await book();const other=await scalar("SELECT id FROM slot_alert_jobs WHERE request_id=$1 AND state='pending' ORDER BY created_at DESC LIMIT 1",[rb]);assert.ok(await scalar('SELECT slot_alert_claim($1,$2)',[other,crypto.randomUUID()]));await db.query('DELETE FROM bookings WHERE id=$1',[b]);});
+ await test('repeat vacancy never renotifies closed registration',async()=>{const b=await book();await db.query('DELETE FROM bookings WHERE id=$1',[b]);assert.equal(await scalar('SELECT count(*)::int FROM slot_alert_jobs WHERE request_id=$1',[ra]),2);});
+ await test('cancel enrollment marks pending job skipped',async()=>{await auth(B);const res=await scalar('SELECT public.slot_alert_cancel($1)',[rb]);assert.equal(res.ok,true);await owner();assert.equal(await scalar('SELECT state FROM slot_alert_jobs WHERE id=$1',[jb]),'skipped');});
+ await test('manual OT block prevents enrollment',async()=>{bookingId=await book();await db.query("INSERT INTO trainer_blocked_slots(block_date,block_time,kind) VALUES($1,$2,'ot')",[date,time]);assert.equal((await reg()).reason,'unavailable');await owner();await db.exec('DELETE FROM trainer_blocked_slots');});
+ await test('own booking cannot register',async()=>{await db.query('UPDATE bookings SET user_id=$1 WHERE id=$2',[A,bookingId]);assert.equal((await reg()).reason,'own_booking');await owner();});
+ await test('status cancellation queues notification',async()=>{await db.query('UPDATE bookings SET user_id=$1 WHERE id=$2',[C,bookingId]);const r=await reg();await owner();await db.query("UPDATE bookings SET status='cancelled' WHERE id=$1",[bookingId]);assert.equal(await scalar('SELECT count(*)::int FROM slot_alert_jobs WHERE request_id=$1',[r.id]),1);});
+ await test('maintain deletes ONLY closed new data older than 30 days',async()=>{const existingCount=await scalar('SELECT count(*)::int FROM bookings');await db.exec("UPDATE slot_alert_requests SET closed_at=now()-interval '31 days' WHERE state NOT IN ('active','queued')");await db.exec('SELECT slot_alert_maintain()');assert.equal(await scalar("SELECT count(*)::int FROM slot_alert_requests WHERE closed_at<now()-interval '30 days'"),0);assert.equal(await scalar('SELECT count(*)::int FROM bookings'),existingCount);});
+ console.log(`RESULT ${tests} passed`);
+} finally {await db.close();}

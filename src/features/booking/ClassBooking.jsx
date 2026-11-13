@@ -1,3 +1,5 @@
+import OneSignal from 'react-onesignal';
+import SlotAlertCard from '../../components/member/SlotAlertCard';
 import { useDesignRefinement, formatBookingDateKo } from '../design/designRefinement';
 import React, { useState, useEffect, useLayoutEffect, useMemo, useCallback, useRef } from 'react';
 import Skeleton from '../../components/ui/Skeleton';
@@ -74,6 +76,7 @@ const ClassBooking = ({ user, profileName = '', setView, goBack }) => {
   const [weekMode, setWeekMode] = useState(() => getBookingInitialPwaState(user?.id).weekMode);
   const [bookings, setBookings] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [slotAlertOpenTick, setSlotAlertOpenTick] = useState(0);
   const [settings, setSettings] = useState([]);
   const [holidays, setHolidays] = useState([]);
   const [openDates, setOpenDates] = useState([]);
@@ -82,6 +85,10 @@ const ClassBooking = ({ user, profileName = '', setView, goBack }) => {
   const [weekToast, setWeekToast] = useState(null);
   /** 내 예약 슬롯·티켓 탭 → 공통 취소 모달 */
   const [cancelIntent, setCancelIntent] = useState(null);
+  const [slotAlertsEnabled, setSlotAlertsEnabled] = useState(false);
+  const [slotAlerts, setSlotAlerts] = useState({});
+  const [slotAlertBusy, setSlotAlertBusy] = useState(null);
+  const [slotAlertReadError, setSlotAlertReadError] = useState(false);
   /** 전체 예약(캘린더 점 + 다가오는 일정) — 본인 행만 */
   const [myAllBookings, setMyAllBookings] = useState([]);
   /** 2h 취소 잠금 경계 UI 갱신 */
@@ -183,6 +190,19 @@ const ClassBooking = ({ user, profileName = '', setView, goBack }) => {
     };
   }, []);
 
+  // A notification may be tapped while this screen is already mounted.
+  useEffect(() => {
+    const open = () => {
+      const restored = getBookingInitialPwaState(user?.id, profileName);
+      setWeekMode(restored.weekMode);
+      setSelectedDate(restored.selectedDate);
+      setSlotAlertOpenTick((n) => n + 1);
+      fetchMyAllBookings();
+    };
+    window.addEventListener('labdot-slot-alert-open', open);
+    return () => window.removeEventListener('labdot-slot-alert-open', open);
+  }, [user?.id, profileName, fetchMyAllBookings]);
+
   useEffect(() => {
     const fetchSettings = async () => {
       const { data, error } = await supabase.from('trainer_settings').select('*').order('day_of_week');
@@ -222,7 +242,7 @@ const ClassBooking = ({ user, profileName = '', setView, goBack }) => {
       }
     };
     fetchBookings();
-  }, [selectedDate]);
+  }, [selectedDate, slotAlertOpenTick]);
 
   useEffect(() => {
     if (!weekToast) return;
@@ -349,6 +369,81 @@ const ClassBooking = ({ user, profileName = '', setView, goBack }) => {
     await fetchMyAllBookings();
     emitSessionBalanceRefresh();
   }, [selectedDate, fetchMyAllBookings]);
+
+  // Server capability gate is fail-closed: unapproved members do not see the feature.
+  useEffect(() => {
+    let live = true;
+    setSlotAlertsEnabled(false);
+    supabase.rpc('slot_alert_capabilities').then(({ data, error }) => {
+      if (live && !error) setSlotAlertsEnabled(data === true);
+    });
+    return () => { live = false; };
+  }, [user?.id]);
+
+  const refreshSlotAlerts = useCallback(async () => {
+    if (!slotAlertsEnabled || !selectedDate || !user?.id) return;
+    const { data, error } = await supabase.from('slot_alert_requests')
+      .select('id, slot_time, state').eq('user_id', user.id).eq('slot_date', selectedDate)
+      .in('state', ['active', 'queued']);
+    setSlotAlertReadError(Boolean(error));
+    if (error) return;
+    const map = {};
+    (data || []).forEach((r) => { map[r.slot_time] = r; });
+    setSlotAlerts(map);
+  }, [slotAlertsEnabled, selectedDate, user?.id]);
+
+  useEffect(() => {
+    setSlotAlerts({});
+    refreshSlotAlerts();
+    const onFocus = () => refreshSlotAlerts();
+    window.addEventListener('focus', onFocus);
+    return () => window.removeEventListener('focus', onFocus);
+  }, [refreshSlotAlerts]);
+
+  const handleSlotAlert = (time) => {
+    if (slotAlertBusy || slotAlertReadError) return;
+    const existing = slotAlerts[time];
+    const date = selectedDate;
+    const dateLabel = `${Number(date.slice(5, 7))}월 ${Number(date.slice(8, 10))}일 ${time}`;
+    showConfirm({
+      centeredDialog: true,
+      title: existing ? '빈자리 알림 해제' : '빈자리 알림 받기',
+      message: existing
+        ? `${dateLabel} 알림을 해제하시겠습니까? 이미 발송 중인 알림은 도착할 수 있습니다.`
+        : `${dateLabel}\n\n빈자리가 생기면 알림을 보내드립니다. 자동 예약은 아니며, 알림 확인 후 직접 예약해주세요. 다른 알림신청자에게도 알림이 갑니다.`,
+      confirmLabel: existing ? '알림 해제' : '알림 신청',
+      onConfirm: async () => {
+        setSlotAlertBusy(time);
+        try {
+          if (!existing && !OneSignal.User?.PushSubscription?.optedIn) {
+            showAlert({ message: '휴대폰에서 LAB DOT 푸시 알림을 먼저 허용해 주세요. 알림 허용 후 다시 신청할 수 있습니다. 빈자리 알림은 아직 신청되지 않았습니다.' });
+            await OneSignal.Slidedown.promptPush();
+            return;
+          }
+          const { data, error } = existing
+            ? await supabase.rpc('slot_alert_cancel', { p_id: existing.id })
+            : await supabase.rpc('slot_alert_register', { p_date: date, p_time: time });
+          if (error) throw error;
+          if (!data?.ok) {
+            const reasons = {
+              already_available: '이미 빈자리가 생겼습니다. 예약 화면을 새로 확인해 주세요.',
+              own_booking: '이미 본인이 예약한 시간입니다.',
+              unavailable: '현재 알림 신청이 불가능한 시간입니다.',
+              not_enabled: '아직 빈자리 알림 이용 대상이 아닙니다.',
+              inactive: '회원 상태를 확인해 주세요.',
+            };
+            throw new Error(reasons[data?.reason] || '알림 신청 상태를 확인할 수 없습니다.');
+          }
+          await refreshSlotAlerts();
+          showAlert({ message: existing
+            ? (data.may_already_be_sending ? '해제했습니다. 이미 발송 중인 알림은 도착할 수 있습니다.' : '빈자리 알림을 해제했습니다.')
+            : '빈자리 알림을 신청했습니다. 한 번 알려드리며, 직접 예약해야 확정됩니다.' });
+        } catch (error) {
+          showAlert({ message: `빈자리 알림 처리 실패: ${error?.message || '다시 시도해 주세요.'}` });
+        } finally { setSlotAlertBusy(null); }
+      },
+    });
+  };
 
   const handleSelectWeekMode = (mode) => {
     if (mode === 'next' && !nextUnlocked) {
@@ -501,6 +596,9 @@ const ClassBooking = ({ user, profileName = '', setView, goBack }) => {
                 ) : generateTimeSlots().length === 0 ? (
                   <p className="text-center text-sm font-light text-gray-500 py-12">이 날짜에 열린 슬롯이 없습니다.</p>
                 ) : (
+                  <>
+                  {slotAlertsEnabled && <p className="text-xs leading-5 text-gray-500 mb-3">빈자리 알림은 1회만 발송됩니다. 자동 예약되지 않으며, 먼저 직접 예약한 분이 확정됩니다.</p>}
+                  {slotAlertsEnabled && slotAlertReadError && <button type="button" onClick={refreshSlotAlerts} className="text-xs text-red-700 underline mb-3">알림 신청 상태를 불러오지 못했습니다. 다시 확인</button>}
                   <div className="grid grid-cols-3 gap-3 pb-3">
                     {generateTimeSlots().map((time) => {
                       const expired = isSlotExpired(selectedDate, time);
@@ -526,6 +624,16 @@ const ClassBooking = ({ user, profileName = '', setView, goBack }) => {
                       } else {
                         slotClass +=
                           ' cursor-pointer bg-white border-gray-200 text-gray-900 hover:border-[#0B3B24]/40 hover:shadow-sm active:scale-[0.98]';
+                      }
+
+                      const canAlert = slotAlertsEnabled && isOther && !expired &&
+                        isMemberAppBookingAllowed(selectedDate, time) &&
+                        !isSlotBlocked(blockedSlots, selectedDate, time);
+                      if (canAlert || (slotAlertsEnabled && !isMine && slotAlerts[time])) {
+                        return <SlotAlertCard key={time} time={time}
+                          registered={Boolean(slotAlerts[time])}
+                          busy={slotAlertBusy !== null || slotAlertReadError}
+                          onClick={() => handleSlotAlert(time)} />;
                       }
 
                       const slotButtonDisabled = isOther || (!isMine && !clickable);
@@ -573,6 +681,7 @@ const ClassBooking = ({ user, profileName = '', setView, goBack }) => {
                       );
                     })}
                   </div>
+                  </>
                 )}
               </>
             )}
