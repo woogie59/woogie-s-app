@@ -81,6 +81,7 @@ const ClassBooking = ({ user, profileName = '', setView, goBack }) => {
   const [holidays, setHolidays] = useState([]);
   const [openDates, setOpenDates] = useState([]);
   const [blockedSlots, setBlockedSlots] = useState([]);
+  const [availabilityReadError, setAvailabilityReadError] = useState(false);
   /** Non-blocking toast when next week is still locked */
   const [weekToast, setWeekToast] = useState(null);
   /** 내 예약 슬롯·티켓 탭 → 공통 취소 모달 */
@@ -223,25 +224,33 @@ const ClassBooking = ({ user, profileName = '', setView, goBack }) => {
 
   useEffect(() => {
     if (!selectedDate) return;
+    let live = true;
     const fetchBookings = async () => {
       setLoading(true);
+      setAvailabilityReadError(false);
       try {
         const [bookingsRes, blocksRes] = await Promise.all([
           supabase.from('bookings').select('*').eq('date', selectedDate),
           // 최소 읽기: 날짜·시간·kind만 (후보 migration 20261023180000 적용 후 동작)
           supabase.rpc('get_blocked_slots_public', { p_date: selectedDate }),
         ]);
+        if (!live) return;
         if (bookingsRes.error) throw bookingsRes.error;
+        if (blocksRes.error) throw blocksRes.error;
+        if (!Array.isArray(bookingsRes.data) || !Array.isArray(blocksRes.data)) throw new Error('invalid_availability');
         setBookings(Array.isArray(bookingsRes.data) ? bookingsRes.data : []);
-        setBlockedSlots(blocksRes.error ? [] : blocksRes.data || []);
+        setBlockedSlots(blocksRes.data);
       } catch {
+        if (!live) return;
+        setAvailabilityReadError(true);
         setBookings([]);
         setBlockedSlots([]);
       } finally {
-        setLoading(false);
+        if (live) setLoading(false);
       }
     };
     fetchBookings();
+    return () => { live = false; };
   }, [selectedDate, slotAlertOpenTick]);
 
   useEffect(() => {
@@ -287,7 +296,7 @@ const ClassBooking = ({ user, profileName = '', setView, goBack }) => {
   const slotRemaining = (time) => Math.max(0, MAX_PER_SLOT - countSlot(selectedDate, time));
 
   const isSlotBookable = (time) => {
-    if (!selectedDate) return false;
+    if (!selectedDate || loading || availabilityReadError) return false;
     if (getDaySetting(selectedDate).off) return false;
     if (!isHourInAvailableMatrix(selectedDate, time)) return false;
     if (isSlotBlocked(blockedSlots, selectedDate, time)) return false;
@@ -310,6 +319,20 @@ const ClassBooking = ({ user, profileName = '', setView, goBack }) => {
       onConfirm: async () => {
         if (!isMemberAppBookingAllowed(date, timeSlot)) {
           showAlert({ message: MEMBER_BOOKING_ONE_HOUR_MESSAGE, confirmLabel: '확인' });
+          return;
+        }
+        // Recheck after confirmation: another member or OT may have taken the slot.
+        const [freshBookings, freshBlocks] = await Promise.all([
+          supabase.from('bookings').select('id, date, time, status').eq('date', date),
+          supabase.rpc('get_blocked_slots_public', { p_date: date }),
+        ]);
+        if (freshBookings.error || freshBlocks.error || !Array.isArray(freshBookings.data) || !Array.isArray(freshBlocks.data)) {
+          showAlert({ message: '예약 가능 시간을 확인하지 못했습니다. 다시 확인해 주세요.', confirmLabel: '확인' });
+          return;
+        }
+        if (isSlotBlocked(freshBlocks.data, date, timeSlot) || freshBookings.data.some((b) => b.status !== 'cancelled' && String(b.time).slice(0, 5) === timeSlot)) {
+          setSlotAlertOpenTick((n) => n + 1);
+          showAlert({ message: '이미 마감된 시간입니다. 다른 시간을 선택해 주세요.', confirmLabel: '확인' });
           return;
         }
         const metrics = await fetchSessionBalanceMetrics(supabase, user.id);
@@ -337,6 +360,11 @@ const ClassBooking = ({ user, profileName = '', setView, goBack }) => {
 
         const { error } = await supabase.from('bookings').insert([{ user_id: user.id, date, time: timeSlot }]).select();
         if (error) {
+          if (error.code === '23505' || /slot_taken/.test(error.message || '')) {
+            setSlotAlertOpenTick((n) => n + 1);
+            showAlert({ message: '이미 마감된 시간입니다. 다른 시간을 선택해 주세요.', confirmLabel: '확인' });
+            return;
+          }
           const em = error?.message ?? '';
           if (/ticket|티켓|session|세션|remaining|잔여/i.test(em) || em.toLowerCase().includes('no remaining')) {
             logBoundaryMathCheck({
@@ -593,6 +621,11 @@ const ClassBooking = ({ user, profileName = '', setView, goBack }) => {
                   refined ? <div role="status" aria-label="시간을 불러오는 중" className="grid grid-cols-3 gap-3">
                     {Array.from({ length: 9 }, (_, index) => <Skeleton key={index} className="h-14 rounded-xl" />)}
                   </div> : <p className="text-center text-sm text-gray-400 py-12 font-light">불러오는 중…</p>
+                ) : availabilityReadError ? (
+                  <div role="alert" className="text-center py-8 text-sm text-gray-600">
+                    <p>예약 가능 시간을 확인하지 못했습니다.</p>
+                    <button type="button" className="mt-3 underline p-3" onClick={() => setSlotAlertOpenTick((n) => n + 1)}>다시 확인</button>
+                  </div>
                 ) : generateTimeSlots().length === 0 ? (
                   <p className="text-center text-sm font-light text-gray-500 py-12">이 날짜에 열린 슬롯이 없습니다.</p>
                 ) : (

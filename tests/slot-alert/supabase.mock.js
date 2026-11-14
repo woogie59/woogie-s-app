@@ -3,6 +3,8 @@ const own='00000000-0000-4000-8000-000000000001';
 const date='2026-11-13';
 let enrolled=params.get('registered')==='1';
 window.__mockRpc=[];
+window.__blockReadError=params.get('blockError')==='1';
+window.__blockTakenOnConfirm=false;
 const bookings=[{id:'b1',user_id:'other',date,time:'14:00'},{id:'b2',user_id:'other',date,time:'15:00'},{id:'b3',user_id:own,date,time:'16:00'}];
 export const supabase={
  from(table){const filters=[];const q={select(){return this},eq(k,v){filters.push([k,v]);return this},order(){return this},in(){return this},then(resolve){let data=[];
@@ -11,6 +13,6 @@ export const supabase={
  if(table==='slot_alert_requests')data=enrolled?[{id:'r1',slot_time:'14:00',state:'active'}]:[];
  return Promise.resolve({data,error:null}).then(resolve);}};return q;},
  async rpc(name,args){window.__mockRpc.push({name,args});if(name==='slot_alert_capabilities')return {data:params.get('enabled')!=='0'};
- if(name==='get_blocked_slots_public')return {data:[{block_date:date,block_time:'18:00',kind:'hold'}]};
+ if(name==='get_blocked_slots_public')return window.__blockReadError?{data:null,error:{message:'missing function'}}:{data:[{block_date:date,block_time:window.__blockTakenOnConfirm?'10:00':'18:00',kind:'ot'}]};
  if(name==='slot_alert_register'){enrolled=true;return {data:{ok:true,id:'r1'}}}if(name==='slot_alert_cancel'){enrolled=false;return {data:{ok:true}}}return {data:null};},
 };
