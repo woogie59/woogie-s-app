@@ -1,3 +1,4 @@
+import { isActiveBooking } from '../../utils/activeBookings';
 import OneSignal from 'react-onesignal';
 import SlotAlertCard from '../../components/member/SlotAlertCard';
 import { useDesignRefinement, formatBookingDateKo } from '../design/designRefinement';
@@ -130,7 +131,7 @@ const ClassBooking = ({ user, profileName = '', setView, goBack }) => {
       .order('date', { ascending: true })
       .order('time', { ascending: true });
     if (error) setMyAllBookings([]);
-    else setMyAllBookings(Array.isArray(data) ? data : []);
+    else setMyAllBookings(Array.isArray(data) ? data.filter(isActiveBooking) : []);
   }, [user?.id]);
 
   useEffect(() => {
@@ -238,7 +239,7 @@ const ClassBooking = ({ user, profileName = '', setView, goBack }) => {
         if (bookingsRes.error) throw bookingsRes.error;
         if (blocksRes.error) throw blocksRes.error;
         if (!Array.isArray(bookingsRes.data) || !Array.isArray(blocksRes.data)) throw new Error('invalid_availability');
-        setBookings(bookingsRes.data.filter((b) => b.status !== 'cancelled'));
+        setBookings(bookingsRes.data.filter(isActiveBooking));
         setBlockedSlots(blocksRes.data);
       } catch {
         if (!live) return;
@@ -381,7 +382,7 @@ const ClassBooking = ({ user, profileName = '', setView, goBack }) => {
         if (refined) { closeModal(); showToast('예약이 완료되었습니다.'); }
         else showAlert({ message: '예약이 완료되었습니다!', confirmLabel: '확인' });
         const { data: updated } = await supabase.from('bookings').select('*').eq('date', date);
-        setBookings((updated || []).filter((b) => b.status !== 'cancelled'));
+        setBookings((updated || []).filter(isActiveBooking));
         fetchMyAllBookings();
         // 관리자 푸시는 서버(bookings 트리거 → booking-admin-notify outbox)가 발송 - 클라이언트 발송 제거됨.
       },
@@ -392,7 +393,7 @@ const ClassBooking = ({ user, profileName = '', setView, goBack }) => {
     if (selectedDate) {
       const { data: updated, error } = await supabase.from('bookings').select('*').eq('date', selectedDate);
       if (error) setBookings([]);
-      else setBookings((updated || []).filter((b) => b.status !== 'cancelled'));
+      else setBookings((updated || []).filter(isActiveBooking));
     }
     await fetchMyAllBookings();
     emitSessionBalanceRefresh();

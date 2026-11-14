@@ -13,6 +13,7 @@ import {
 } from '../../utils/sessionHelpers';
 import { emitSessionBalanceRefresh } from '../../utils/sessionBalanceEvents';
 import { useGlobalModal } from '../../context/GlobalModalContext';
+import { isActiveBooking } from '../../utils/activeBookings';
 import LabDotBrand from '../../components/ui/LabDotBrand';
 import Skeleton from '../../components/ui/Skeleton';
 import SessionHistoryModal from '../../features/members/SessionHistoryModal';
@@ -463,6 +464,7 @@ const ClientHome = ({ user, logout, setView }) => {
     if (!displayBookings?.length) return null;
     const now = new Date();
     const future = displayBookings
+      .filter(isActiveBooking)
       .map((b) => ({ b, dt: bookingDateTime(b) }))
       .filter((x) => x.dt && x.dt >= now)
       .sort((a, b) => a.dt - b.dt);
