@@ -56,3 +56,7 @@ entrypoint = "./functions/send-admin-alert/index.ts"
 [functions.ot-booking-notify]
 # Database Webhook이 공유 비밀 헤더(x-ot-webhook-secret)로 호출. 함수 내부에서 검증.
 verify_jwt = false
+
+[functions.ot-pt-request-notify]
+# DB 트리거가 공유 비밀 헤더(x-ot-webhook-secret)로 호출. 함수 내부에서 검증. (승인 후 배포)
+verify_jwt = false
