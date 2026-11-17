@@ -1,6 +1,7 @@
 import { MemberHomeSkeleton } from './features/design/DesignRefinement';
 import { useDesignRefinement, isDesignRefinementEnabled } from './features/design/designRefinement';
 import OtCalendarActionDialog from './features/admin/OtCalendarActionDialog';
+import PtRequestCalendarDialog from './features/admin/PtRequestCalendarDialog';
 import React, { useState, useLayoutEffect, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { QrCode, Camera, ChevronRight, ChevronUp, BookOpen, LogOut, Plus, User, X, Search, ArrowLeft, Edit3, Save, Sparkles, MessageSquare, Calendar, Clock, ChevronLeft, Edit, Image, DollarSign, Download, Printer } from 'lucide-react';
@@ -51,7 +52,7 @@ import AdminMemberAnnouncements from './pages/admin/AdminMemberAnnouncements';
 import AdminBookingSettingsPanel from './features/admin/AdminBookingSettingsPanel';
 import AdminScheduleFullCalendar from './features/admin/AdminScheduleFullCalendar';
 import { getTrainerHourLaneState, isTrainerHourAvailable, normalizeTrainerHours } from './utils/labdotWeekSchedulePolicy';
-import { buildAdminCalendarEvents, buildBlockedCalendarEvents } from './utils/adminScheduleCalendarEvents';
+import { buildAdminCalendarEvents, buildBlockedCalendarEvents, buildPtRequestCalendarEvents } from './utils/adminScheduleCalendarEvents';
 import { blockedSlotDisplayTitle, blockedSlotUsesGoogleCalendar } from './utils/trainerBlockedSlots';
 
 import LibraryArticleScreen from './features/library/LibraryArticleScreen';
@@ -133,6 +134,7 @@ export default function App() {
   const [dashboardBookings, setDashboardBookings] = useState([]);
   const [dashboardBlockedSlots, setDashboardBlockedSlots] = useState([]);
   const [dashboardOtNamesByBlock, setDashboardOtNamesByBlock] = useState({});
+  const [dashboardPtRequests, setDashboardPtRequests] = useState([]);
   /** Month-scoped: scheduled class count (bookings/schedules), not attendance logs */
   const [monthlyScheduledCount, setMonthlyScheduledCount] = useState(0);
   /** Month-scoped: sum of pack revenue from session_batches (price or total_count × price_per_session) */
@@ -141,6 +143,7 @@ export default function App() {
   /** OneSignal deep link → open schedule on a specific day */
   const [scheduleCalendarSeed, setScheduleCalendarSeed] = useState(null);
   const [otCalendarBlock, setOtCalendarBlock] = useState(null);
+  const [ptCalendarRequest, setPtCalendarRequest] = useState(null);
   const [calendarActionModal, setCalendarActionModal] = useState(null);
   const [calendarActionBusy, setCalendarActionBusy] = useState(false);
   const bookingPanelRef = useRef(null);
@@ -699,7 +702,15 @@ export default function App() {
           .lte('date', endKey)
           .neq('status', 'cancelled');
 
-        const [bookingsRes, logsRes, blocksRes, otBookingsRes] = await Promise.all([bookingsQuery, logsQuery, blocksQuery, otBookingsQuery]);
+        // 피티 등록 신청(오티 링크): 검토 중·승인됨만 주간 캘린더에 표시 (2026-11-17 사용자 요청)
+        const ptRequestsQuery = supabase
+          .from('ot_pt_requests')
+          .select('id, link_id, requested_date, requested_time, status, ot_links(member_name)')
+          .gte('requested_date', startKey)
+          .lte('requested_date', endKey)
+          .in('status', ['requested', 'accepted']);
+
+        const [bookingsRes, logsRes, blocksRes, otBookingsRes, ptRequestsRes] = await Promise.all([bookingsQuery, logsQuery, blocksQuery, otBookingsQuery, ptRequestsQuery]);
         if (logsRes.error) throw logsRes.error;
         if (bookingsRes.error) throw bookingsRes.error;
         const scheduleRows = bookingsRes.data || [];
@@ -711,6 +722,9 @@ export default function App() {
           if (r?.block_id && r?.name) otNameMap[r.block_id] = r.name;
         });
         setDashboardOtNamesByBlock(otNameMap);
+        const ptRows = (ptRequestsRes.error ? [] : ptRequestsRes.data) || [];
+        if (ptRequestsRes.error) console.warn('[Dashboard] ot_pt_requests:', ptRequestsRes.error);
+        setDashboardPtRequests(ptRows.map((r) => ({ ...r, member_name: r?.ot_links?.member_name || '' })));
         setMonthlyScheduledCount((scheduleRows || []).filter((b) => b?.status !== 'cancelled').length);
       } else {
         const batchesQuery = supabase
@@ -947,11 +961,14 @@ export default function App() {
     () => [
       ...buildAdminCalendarEvents(mergedItemsByDate),
       ...buildBlockedCalendarEvents(dashboardBlockedSlots, dashboardOtNamesByBlock),
+      ...buildPtRequestCalendarEvents(dashboardPtRequests),
     ],
-    [mergedItemsByDate, dashboardBlockedSlots, dashboardOtNamesByBlock],
+    [mergedItemsByDate, dashboardBlockedSlots, dashboardOtNamesByBlock, dashboardPtRequests],
   );
 
   const openCalendarEvent = (info) => {
+    const ptReq = info?.event?.extendedProps?.ptRequest;
+    if (info?.event?.extendedProps?.isPtRequest && ptReq?.id) { setPtCalendarRequest(ptReq); return; }
     const block = info?.event?.extendedProps?.block;
     if (info?.event?.extendedProps?.isBlock && block?.id) {
       if (block.kind === 'ot') { setOtCalendarBlock(block); return; }
@@ -1054,6 +1071,7 @@ export default function App() {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'bookings' }, scheduleRefetch)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'attendance_logs' }, scheduleRefetch)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'trainer_blocked_slots' }, scheduleRefetch)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'ot_pt_requests' }, scheduleRefetch)
       .subscribe();
     return () => {
       if (t) clearTimeout(t);
@@ -1367,6 +1385,7 @@ export default function App() {
                   />
                 </div>
 
+                {ptCalendarRequest ? <PtRequestCalendarDialog request={ptCalendarRequest} onClose={() => setPtCalendarRequest(null)} onChanged={fetchRevenueData} /> : null}
                 {otCalendarBlock ? <OtCalendarActionDialog block={otCalendarBlock} onClose={() => setOtCalendarBlock(null)} onChanged={fetchRevenueData} onUnlinked={(block) => { setOtCalendarBlock(null); setCalendarActionModal({ isBlock: true, block, label: blockedSlotDisplayTitle(block), date: String(block.block_date || ''), time: String(block.block_time || '') }); }} /> : null}
                 {calendarActionModal ? (
                   <div

@@ -88,3 +88,32 @@ export function buildBlockedCalendarEvents(blocks, otNamesByBlockId) {
   });
   return out;
 }
+
+/**
+ * OT 링크의 피티 등록 신청(ot_pt_requests) → FullCalendar EventInput.
+ * 슬롯을 점유하지 않고, 관리자 주간 캘린더에 '신청 있음' 표시만 한다 (2026-11-17 사용자 요청).
+ * @param {Array<{ id: string, requested_date?: string, requested_time?: string, status?: string, member_name?: string }>} requests
+ * @returns {import('@fullcalendar/core').EventInput[]}
+ */
+export function buildPtRequestCalendarEvents(requests) {
+  const out = [];
+  (requests || []).forEach((row) => {
+    const dateKey = String(row.requested_date ?? '').slice(0, 10);
+    const parts = parseTimeToHm(row.requested_time);
+    if (!dateKey || !parts) return;
+    const start = new Date(`${dateKey}T${pad2(parts.h)}:${pad2(parts.m)}:00`);
+    if (Number.isNaN(start.getTime())) return;
+    const end = new Date(start.getTime() + SESSION_MS);
+    const name = String(row.member_name || '').trim() || '회원';
+    const accepted = row.status === 'accepted';
+    out.push({
+      id: `ptreq-${row.id}`,
+      title: `${name}님 피티 신청${accepted ? ' · 승인됨' : ''}`,
+      start,
+      end,
+      classNames: ['labdot-pt-request'],
+      extendedProps: { isPtRequest: true, ptRequest: row, dateKey },
+    });
+  });
+  return out;
+}
