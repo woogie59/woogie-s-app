@@ -458,6 +458,8 @@
 .labdot-agenda-row .b-done { background: #eceeed; color: #98a29b; }
 .labdot-agenda-row .b-wait { background: #fdeaea; color: #b3261e; }
 .labdot-agenda-row .b-off { background: #eceeed; color: #98a29b; }
+.labdot-agenda-row .b-ptreq { background: #ede9fe; color: #6d28d9; }
+.labdot-agenda-row.k-ptreq .name { color: #6d28d9; }
 .labdot-agenda-row.k-done,
 .labdot-agenda-row.k-off { opacity: 0.6; }
 .labdot-agenda-empty {

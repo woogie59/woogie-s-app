@@ -41,6 +41,9 @@ const mockClient = {
   },
 };
 
+// App.jsx는 scheduleCalendarSeed를 안정된 state로 유지하고 key로 리마운트 → 동일하게 상수 사용
+const INITIAL_DATE = new Date('2026-11-17T09:00:00+09:00');
+
 function Preview() {
   const [ptRequests, setPtRequests] = useState(RAW_PT_REQUESTS);
   const [ptCalendarRequest, setPtCalendarRequest] = useState(null);
@@ -75,7 +78,7 @@ function Preview() {
       <AdminScheduleFullCalendar
         events={events}
         onEventClick={openCalendarEvent}
-        initialDate={new Date('2026-11-17T09:00:00+09:00')}
+        initialDate={INITIAL_DATE}
       />
       {ptCalendarRequest ? (
         <PtRequestCalendarDialog

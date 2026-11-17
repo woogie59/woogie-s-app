@@ -34,6 +34,15 @@ function describeEvent(ev) {
       badge: hold ? '휴무' : '차단',
     };
   }
+  if (p.isPtRequest) {
+    const accepted = p.ptRequest?.status === 'accepted';
+    return {
+      kind: 'ptreq',
+      name: ev.title || '피티 신청',
+      sub: accepted ? '피티 등록 신청 · 승인됨' : '피티 등록 신청 · 승인 대기',
+      badge: accepted ? '승인됨' : '신청',
+    };
+  }
   const done = p.item?.status === 'Completed';
   return {
     kind: done ? 'done' : 'ok',
