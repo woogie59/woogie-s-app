@@ -783,12 +783,21 @@ export default function OtBookingPage({ token }) {
               </div>
             )}
             {ptRequest?.status === 'accepted' && (
-              <div>
-                <p className="text-[15px] font-medium text-slate-900">센터가 신청을 확인했어요.</p>
-                <p className="mt-1 text-sm text-slate-500">
-                  {formatDateLabel(String(ptRequest.date).slice(0, 10))} {ptRequest.time}
-                </p>
-                <p className="mt-1 text-sm text-slate-400">시간 확정은 센터에서 별도로 안내드립니다.</p>
+              <div className="space-y-3">
+                <div>
+                  <p className="text-[15px] font-medium text-slate-900">피티등록이 신청되었습니다.</p>
+                  <p className="mt-1 text-sm text-slate-500">
+                    {formatDateLabel(String(ptRequest.date).slice(0, 10))} {ptRequest.time}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={cancelPtRequest}
+                  className="text-sm text-slate-400 underline underline-offset-2 disabled:opacity-40"
+                >
+                  신청 취소
+                </button>
               </div>
             )}
             {ptRequest?.status === 'declined' && (

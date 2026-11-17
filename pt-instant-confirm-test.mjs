@@ -88,15 +88,24 @@ if(gone!==0) fail('decline did not release block');
 const others=(await q(`SELECT count(*)::int c FROM public.trainer_blocked_slots`)).rows[0].c;
 if(others!==2) fail('unrelated blocks touched: '+others); // r1 block + r6 block survive
 
-// 8) member cancel of a blocked requested row releases only its block
+// 8) member cancel of an instantly-ACCEPTED row releases only its block (regression: cancel scope preserved)
 const l5=(await q(`INSERT INTO public.ot_links(member_name) VALUES('최더미') RETURNING id, token`)).rows[0];
 const r8=(await q(`INSERT INTO public.ot_pt_requests(link_id,requested_date,requested_time,status,block_id) VALUES('${l5.id}','2026-11-28','12:00','requested',NULL) RETURNING id`)).rows[0];
 res=(await q(`SELECT public.ot_admin_pt_decide('${r8.id}','accepted') AS j`)).rows[0].j;
 if(!res.ok) fail('accept r8 failed');
-await q(`UPDATE public.ot_pt_requests SET status='requested' WHERE id='${r8.id}'`);
 res=(await q(`SELECT public.ot_cancel_pt_request('${l5.token}','${r8.id}') AS j`)).rows[0].j;
-if(!res.ok) fail('cancel failed: '+JSON.stringify(res));
+if(!res.ok) fail('cancel on accepted failed: '+JSON.stringify(res));
 const gone8=(await q(`SELECT count(*)::int c FROM public.trainer_blocked_slots WHERE block_date='2026-11-28'`)).rows[0].c;
 if(gone8!==0) fail('cancel did not release block');
+const st8=(await q(`SELECT status FROM public.ot_pt_requests WHERE id='${r8.id}'`)).rows[0].status;
+if(st8!=='cancelled') fail('cancel did not set cancelled: '+st8);
+// 9) legacy requested row still cancellable
+const l6=(await q(`INSERT INTO public.ot_links(member_name) VALUES('오더미') RETURNING id, token`)).rows[0];
+const r9=(await q(`INSERT INTO public.ot_pt_requests(link_id,requested_date,requested_time,status,block_id) VALUES('${l6.id}','2026-11-29','12:00','requested',NULL) RETURNING id`)).rows[0];
+res=(await q(`SELECT public.ot_cancel_pt_request('${l6.token}','${r9.id}') AS j`)).rows[0].j;
+if(!res.ok) fail('cancel on requested failed: '+JSON.stringify(res));
+// 10) double cancel is not_found (idempotent no-op)
+res=(await q(`SELECT public.ot_cancel_pt_request('${l6.token}','${r9.id}') AS j`)).rows[0].j;
+if(res.ok||res.reason!=='not_found') fail('double cancel should be not_found: '+JSON.stringify(res));
 
-console.log('INSTANT-CONFIRM DRY-RUN PASS: request→accepted+block+notify, dup guard, slot_taken x3 conflicts, legacy accept idempotent, decline/cancel release only linked block');
+console.log('DRY-RUN PASS: instant accept+block+notify, dup guard, slot_taken x3, legacy accept idempotent, decline release, cancel accepted+requested release only linked block, double cancel safe');

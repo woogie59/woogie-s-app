@@ -116,6 +116,8 @@ END;
 $$;
 
 -- 3) 회원 신청 취소: 연결된 해당 블록만 해제 (기존 OT/타 예약 불변).
+--    즉시 확정 모델에서 신청은 곧바로 'accepted'가 되므로 취소 권한 범위를 보존하려면
+--    requested(레거시 검토 중)와 accepted(즉시 확정) 모두 회원 본인 토큰으로 취소 가능해야 한다.
 --    블록 DELETE는 ot_calendar_enqueue가 감지해 구글캘린더 삭제 동기화로 이어진다.
 CREATE OR REPLACE FUNCTION public.ot_cancel_pt_request(p_token uuid, p_request_id uuid)
 RETURNS json
@@ -132,7 +134,7 @@ BEGIN
 
   UPDATE public.ot_pt_requests
   SET status = 'cancelled', decided_at = now()
-  WHERE id = p_request_id AND link_id = v_link.id AND status = 'requested'
+  WHERE id = p_request_id AND link_id = v_link.id AND status IN ('requested', 'accepted')
   RETURNING block_id INTO v_block;
   IF NOT FOUND THEN
     RETURN json_build_object('ok', false, 'reason', 'not_found');
