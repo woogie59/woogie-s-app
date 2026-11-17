@@ -24,7 +24,8 @@ export const handler = async (req: Request): Promise<Response> => {
   try {
     const { data: rq, error: re } = await db.from("ot_pt_requests").select("requested_date,requested_time,status,ot_links(member_name)").eq("id", id).maybeSingle();
     if (re || !rq) throw Error("request_unavailable");
-    if (rq.status !== "requested") { await save("skipped", null); return j({ skipped: true }); }
+    // 신청 즉시 확정(accepted) 모델에서도 신규 신청 INSERT는 accepted로 들어온다 — 둘 다 발송.
+    if (rq.status !== "requested" && rq.status !== "accepted") { await save("skipped", null); return j({ skipped: true }); }
     const name = (rq.ot_links as { member_name?: string } | null)?.member_name || "회원";
     // Fail closed when admin identity is ambiguous; never select an arbitrary admin.
     const { data: admins, error: ae } = await db.from("profiles").select("onesignal_id").eq("role", "admin").limit(2);

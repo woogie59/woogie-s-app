@@ -3,7 +3,8 @@ import { supabase } from '../../lib/supabaseClient';
 
 /**
  * 관리자 주간 캘린더의 '피티 등록 신청' 이벤트 다이얼로그 (2026-11-17 사용자 요청).
- * 승인은 검토 통과일 뿐 실제 예약은 자동으로 잡히지 않는다 (2026-10-23 합의 그대로).
+ * 블록 없는 레거시 '검토 중' 신청만 여기에 표시된다 — 승인하면 즉시 시간이 확정되고 닫힌다
+ * (2026-11-17 20:51 사용자 지시: 신청 즉시 예약 확정 + 즉시 마감).
  */
 export default function PtRequestCalendarDialog({ request, onClose, onChanged, client = supabase }) {
   const [busy, setBusy] = useState(false);
@@ -45,12 +46,12 @@ export default function PtRequestCalendarDialog({ request, onClose, onChanged, c
         <p className="mt-2 text-sm text-slate-500">{date} · {time}</p>
         <p className="mt-4 font-semibold">{name}님 피티 등록 신청</p>
         {status === 'accepted' ? (
-          <p className="mt-4 rounded-xl bg-emerald-50 p-3 text-sm">승인된 신청입니다. 실제 수업 등록은 기존 예약 화면에서 진행해 주세요.</p>
+          <p className="mt-4 rounded-xl bg-emerald-50 p-3 text-sm">승인된 신청입니다.</p>
         ) : confirm ? (
           <>
             <p className="mt-4 text-sm">
               {confirm === 'accepted'
-                ? '이 신청을 승인할까요? 승인해도 예약은 자동으로 잡히지 않습니다. 실제 시간 확정은 기존 예약 화면에서 등록해 주세요.'
+                ? '이 신청을 승인할까요? 승인하면 해당 시간이 확정되고 캘린더에서 닫힙니다.'
                 : '이 신청을 거절할까요? 회원은 다시 신청할 수 있습니다.'}
             </p>
             <div className="mt-5 grid grid-cols-2 gap-3">

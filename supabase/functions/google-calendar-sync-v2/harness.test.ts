@@ -8,6 +8,7 @@ const db = {
   jobs: new Map<string, Row>(),
   blocks: new Map<string, Row>(),
   bookings: new Map<string, Row>(),
+  ptrequests: new Map<string, Row>(),
 };
 const gcalEvents = new Map<string, Row>();
 let googleCalls: Array<{ method: string; path: string; body?: any }> = [];
@@ -22,7 +23,7 @@ let fail = {
 };
 
 function resetAll() {
-  db.jobs.clear(); db.blocks.clear(); db.bookings.clear();
+  db.jobs.clear(); db.blocks.clear(); db.bookings.clear(); db.ptrequests.clear();
   gcalEvents.clear(); googleCalls = [];
   fail = { blockRead: false, blockWriteZeroRows: false, googleInsertStatus: 0, googleDeleteStatus: 0, googleGetStatus: 0, googlePutStatus: 0 };
   onGooglePost = null;
@@ -54,6 +55,7 @@ const TABLE_MAP: Record<string, string> = {
   ot_calendar_sync_jobs: "jobs",
   trainer_blocked_slots: "blocks",
   ot_bookings: "bookings",
+  ot_pt_requests: "ptrequests",
 };
 function pgrest(table: string, method: string, q: URLSearchParams, body: any, prefer: string): Response {
   const store: Map<string, Row> = (db as any)[TABLE_MAP[table] ?? table];
@@ -411,6 +413,21 @@ Deno.test("private booking name: server source only, no block name write", async
   const r = await call({job_id:job});
   if (r.status !== 200 || summaryOf(detId(b)) !== "제목더미님 오티") throw Error("private name missing");
   if (db.blocks.get(b).member_name !== null) throw Error("public block name leaked");
+});
+Deno.test("PT request block name: ot_pt_requests source, '님 피티' summary", async () => {
+  resetAll(); const b = B(); addBlock(b, { label: "PT" });
+  const rid = B(); db.ptrequests.set(rid, { id: rid, block_id: b, status: "accepted", ot_links: { member_name: "김피티" } });
+  const job = addJob(b, "INSERT", "2026-10-23T12:00:00Z");
+  const r = await call({ job_id: job });
+  if (r.status !== 200 || summaryOf(detId(b)) !== "김피티님 피티") throw Error("pt name missing: " + summaryOf(detId(b)));
+  if (db.blocks.get(b).member_name !== null) throw Error("public block name leaked");
+});
+Deno.test("ambiguous PT request name: fail closed before Google write", async () => {
+  resetAll(); const b = B(); addBlock(b, { label: "PT" });
+  for (const n of ["더미A","더미B"]) { const id=B(); db.ptrequests.set(id,{id,block_id:b,status:"accepted",ot_links:{member_name:n}}); }
+  const job = addJob(b,"INSERT","2026-10-23T12:00:00Z");
+  const r=await call({job_id:job});
+  if(r.status!==502||googleCalls.length) throw Error("ambiguous pt name must not write");
 });
 Deno.test("ambiguous booking name: fail closed before Google write", async () => {
   resetAll(); const b = B(); addBlock(b);

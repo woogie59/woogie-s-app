@@ -705,7 +705,7 @@ export default function App() {
         // 피티 등록 신청(오티 링크): 검토 중·승인됨만 주간 캘린더에 표시 (2026-11-17 사용자 요청)
         const ptRequestsQuery = supabase
           .from('ot_pt_requests')
-          .select('id, link_id, requested_date, requested_time, status, ot_links(member_name)')
+          .select('id, link_id, requested_date, requested_time, status, block_id, ot_links(member_name)')
           .gte('requested_date', startKey)
           .lte('requested_date', endKey)
           .in('status', ['requested', 'accepted']);
@@ -717,14 +717,19 @@ export default function App() {
         setRevenueLogs(logsRes.data || []);
         setDashboardBookings(scheduleRows);
         setDashboardBlockedSlots(blocksRes.error ? [] : blocksRes.data || []);
+        const ptRows = (ptRequestsRes.error ? [] : ptRequestsRes.data) || [];
+        if (ptRequestsRes.error) console.warn('[Dashboard] ot_pt_requests:', ptRequestsRes.error);
+        const mappedPtRows = ptRows.map((r) => ({ ...r, member_name: r?.ot_links?.member_name || '' }));
         const otNameMap = {};
         ((otBookingsRes.error ? [] : otBookingsRes.data) || []).forEach((r) => {
           if (r?.block_id && r?.name) otNameMap[r.block_id] = r.name;
         });
+        // 신청 즉시 확정된 피티 신청 블록도 신청자 이름으로 표시 (block_id → ot_links.member_name)
+        mappedPtRows.forEach((r) => {
+          if (r?.block_id && r?.member_name && !otNameMap[r.block_id]) otNameMap[r.block_id] = r.member_name;
+        });
         setDashboardOtNamesByBlock(otNameMap);
-        const ptRows = (ptRequestsRes.error ? [] : ptRequestsRes.data) || [];
-        if (ptRequestsRes.error) console.warn('[Dashboard] ot_pt_requests:', ptRequestsRes.error);
-        setDashboardPtRequests(ptRows.map((r) => ({ ...r, member_name: r?.ot_links?.member_name || '' })));
+        setDashboardPtRequests(mappedPtRows);
         setMonthlyScheduledCount((scheduleRows || []).filter((b) => b?.status !== 'cancelled').length);
       } else {
         const batchesQuery = supabase

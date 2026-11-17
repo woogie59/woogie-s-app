@@ -16,7 +16,8 @@ import {
 // App.jsx의 쿼리: .in('status', ['requested','accepted']) — 여기서도 같은 필터를 적용한다.
 const RAW_PT_REQUESTS = [
   { id: 'dummy-req-1', link_id: 'l1', requested_date: '2026-11-19', requested_time: '14:00', status: 'requested', member_name: '김더미' },
-  { id: 'dummy-req-2', link_id: 'l2', requested_date: '2026-11-20', requested_time: '10:00', status: 'accepted', member_name: '박더미' },
+  // 신청 즉시 확정 모델: accepted 신청은 block_id를 갖고 블록으로만 표시된다
+  { id: 'dummy-req-2', link_id: 'l2', requested_date: '2026-11-20', requested_time: '10:00', status: 'accepted', member_name: '박더미', block_id: 'blk-pt-1' },
   { id: 'dummy-req-3', link_id: 'l1', requested_date: '2026-11-18', requested_time: '11:00', status: 'cancelled', member_name: '취소더미' },
   { id: 'dummy-req-4', link_id: 'l2', requested_date: '2026-11-18', requested_time: '15:00', status: 'declined', member_name: '거절더미' },
 ];
@@ -27,9 +28,12 @@ const MERGED_ITEMS = {
   ],
 };
 
-const BLOCKS = [
+const RAW_BLOCKS = [
   { id: 'blk-ot-1', block_date: '2026-11-19', block_time: '16:00', kind: 'ot' },
+  // 즉시 확정된 박더미 신청의 블록 — 이름은 블록에 쓰지 않고 otNames 맵으로만 표시
+  { id: 'blk-pt-1', block_date: '2026-11-20', block_time: '10:00', kind: 'ot', label: 'PT' },
 ];
+const RAW_OT_NAMES = { 'blk-ot-1': '오티더미', 'blk-pt-1': '박더미' };
 
 // decide RPC 모의: 실제 서버 호출 없음, 호출 인자 기록
 const rpcCalls = [];
@@ -46,6 +50,8 @@ const INITIAL_DATE = new Date('2026-11-17T09:00:00+09:00');
 
 function Preview() {
   const [ptRequests, setPtRequests] = useState(RAW_PT_REQUESTS);
+  const [blocks, setBlocks] = useState(RAW_BLOCKS);
+  const [otNames, setOtNames] = useState(RAW_OT_NAMES);
   const [ptCalendarRequest, setPtCalendarRequest] = useState(null);
 
   const events = useMemo(() => {
@@ -53,10 +59,10 @@ function Preview() {
     const visible = ptRequests.filter((r) => r.status === 'requested' || r.status === 'accepted');
     return [
       ...buildAdminCalendarEvents(MERGED_ITEMS),
-      ...buildBlockedCalendarEvents(BLOCKS, { 'blk-ot-1': '오티더미' }),
+      ...buildBlockedCalendarEvents(blocks, otNames),
       ...buildPtRequestCalendarEvents(visible),
     ];
-  }, [ptRequests]);
+  }, [ptRequests, blocks, otNames]);
 
   // App.jsx openCalendarEvent 의 PT 분기와 동일
   const openCalendarEvent = (info) => {
@@ -68,7 +74,16 @@ function Preview() {
   const refetch = () => {
     const rpc = window.__lastRpc;
     if (rpc?.fn === 'ot_admin_pt_decide') {
-      setPtRequests((prev) => prev.map((r) => (r.id === rpc.args.p_request_id ? { ...r, status: rpc.args.p_decision } : r)));
+      const req = ptRequests.find((r) => r.id === rpc.args.p_request_id);
+      if (rpc.args.p_decision === 'accepted' && req) {
+        // 새 RPC는 승인 즉시 블록을 만든다 — 동일하게 모사
+        const nb = 'blk-new-' + req.id;
+        setPtRequests((prev) => prev.map((r) => (r.id === req.id ? { ...r, status: 'accepted', block_id: nb } : r)));
+        setBlocks((prev) => [...prev, { id: nb, block_date: req.requested_date, block_time: req.requested_time, kind: 'ot', label: 'PT' }]);
+        setOtNames((prev) => ({ ...prev, [nb]: req.member_name }));
+      } else {
+        setPtRequests((prev) => prev.map((r) => (r.id === rpc.args.p_request_id ? { ...r, status: rpc.args.p_decision } : r)));
+      }
     }
   };
 

@@ -478,14 +478,14 @@ export default function OtBookingPage({ token }) {
           </div>
           <div>
             <p className="text-xl font-medium tracking-tight">
-              {ptFlow ? '피티 등록 신청이 접수됐습니다.' : `${shown.name}님, 오티 신청이 완료됐습니다.`}
+              {ptFlow ? '피티등록이 신청되었습니다.' : `${shown.name}님, 오티 신청이 완료됐습니다.`}
             </p>
             <p className="mt-2 text-[15px] text-slate-600">
               {formatDateLabel(String(shown.date).slice(0, 10))} {shown.time}
             </p>
-            <p className="mt-1 text-sm text-slate-400">
-              {ptFlow ? '센터에서 검토 후 확정 안내를 드립니다.' : '센터에서 뵙겠습니다.'}
-            </p>
+            {!ptFlow && (
+              <p className="mt-1 text-sm text-slate-400">센터에서 뵙겠습니다.</p>
+            )}
           </div>
           <button
             type="button"
@@ -602,7 +602,7 @@ export default function OtBookingPage({ token }) {
       <Shell showBack onBack={() => setPhase('time')}>
         <p className={`text-lg font-medium tracking-tight ${ptFlow ? 'mb-1' : 'mb-6'}`}>{ptFlow ? '피티 등록 신청' : `${memberName}님의 오티`}</p>
         {ptFlow && (
-          <p className="text-sm text-slate-400 mb-6">첫 PT 희망 일시로 신청합니다. 센터 검토 후 확정 안내를 드립니다.</p>
+          <p className="text-sm text-slate-400 mb-6">첫 PT 희망 일시로 신청합니다. 신청 즉시 예약이 확정됩니다.</p>
         )}
         <div className="border border-gray-200 rounded-2xl p-5 text-center">
           <p className="text-xl font-semibold tracking-tight">

@@ -22,10 +22,11 @@ function formatEventSummary(userName: string): string {
   return `${n}님 수업`;
 }
 
-/** OT hold: `{이름}님 오티`. */
-function formatOtEventSummary(memberName: string): string {
+/** OT hold: `{이름}님 오티`. PT 신청 확정 블록: `{이름}님 피티`. */
+function formatOtEventSummary(memberName: string, isPt = false): string {
   const n = (memberName || "").trim();
-  return n ? `${n}님 오티` : "오티";
+  if (n) return isPt ? `${n}님 피티` : `${n}님 오티`;
+  return isPt ? "피티" : "오티";
 }
 
 /**
@@ -313,9 +314,10 @@ function buildOtGoogleCalendarEventBody(
   memberName: string,
   start: string,
   end: string,
+  isPt = false,
 ) {
   return {
-    summary: formatOtEventSummary(memberName),
+    summary: formatOtEventSummary(memberName, isPt),
     start: { dateTime: start, timeZone: KST },
     end: { dateTime: end, timeZone: KST },
     reminders: getStrictEventReminders(),
@@ -370,11 +372,20 @@ type SyncJob = {
 const MAX_ATTEMPTS = 20;
 
 // Names stay in the admin-only booking source, never the broadly readable block.
-async function privateOtName(db: ReturnType<typeof createClient>, blockId: string, fallback: unknown) {
+// PT 신청 확정 블록(label='PT')은 ot_bookings가 없으므로 ot_pt_requests → ot_links에서 조회한다.
+async function privateOtName(db: ReturnType<typeof createClient>, blockId: string, fallback: unknown, fallbackIsPt = false) {
   const { data, error } = await db.from("ot_bookings")
     .select("name").eq("block_id", blockId).eq("status", "confirmed").limit(2);
   if (error || (data?.length ?? 0) > 1) throw Error("OT booking name unavailable");
-  return data?.length === 1 ? String(data[0].name ?? "").trim() : String(fallback ?? "").trim();
+  if (data?.length === 1) return { name: String(data[0].name ?? "").trim(), isPt: false };
+  const { data: pr, error: pe } = await db.from("ot_pt_requests")
+    .select("status, ot_links(member_name)").eq("block_id", blockId).limit(2);
+  if (pe || (pr?.length ?? 0) > 1) throw Error("PT request name unavailable");
+  if (pr?.length === 1) {
+    const nm = (pr[0].ot_links as { member_name?: string } | null)?.member_name;
+    return { name: String(nm ?? "").trim(), isPt: true };
+  }
+  return { name: String(fallback ?? "").trim(), isPt: fallbackIsPt };
 }
 
 
@@ -497,11 +508,12 @@ async function processSyncJob(
     }
 
     let memberName: string;
-    try { memberName = await privateOtName(supabase, blockId, brow.member_name); }
+    let isPt: boolean;
+    try { const r = await privateOtName(supabase, blockId, brow.member_name, String(brow.label ?? "") === "PT"); memberName = r.name; isPt = r.isPt; }
     catch { return retry("OT booking name read failed"); }
     const range = toKstRange(normDate(String(brow.block_date ?? "")), String(brow.block_time ?? ""));
     if (!range) return retry("invalid block date/time");
-    const eventBody = buildOtGoogleCalendarEventBody(memberName, range.start, range.end);
+    const eventBody = buildOtGoogleCalendarEventBody(memberName, range.start, range.end, isPt);
 
     const storedId = String(brow.google_event_id ?? oldRow?.google_event_id ?? "").trim();
     let eventId = storedId;
@@ -573,7 +585,7 @@ async function processSyncJob(
     // 검증 읽기: 쓰기 사이에 캘린더 내용 컬럼이 바뀌지 않았는지 확인.
     const { data: vrow, error: vErr } = await supabase
       .from("trainer_blocked_slots")
-      .select("block_date, block_time, member_name, kind")
+      .select("block_date, block_time, member_name, kind, label")
       .eq("id", blockId)
       .maybeSingle();
     if (vErr) return retry("verify read failed: " + vErr.message);
@@ -582,10 +594,11 @@ async function processSyncJob(
       return finish({ action: "deleted during sync", eventId });
     }
     let latestName: string;
-    try { latestName = await privateOtName(supabase, blockId, vrow.member_name); }
+    try { const r = await privateOtName(supabase, blockId, vrow.member_name, String(vrow.label ?? "") === "PT"); latestName = r.name; }
     catch { return retry("OT booking name verify failed"); }
     const unchanged =
       latestName === memberName &&
+      String(vrow.label ?? "") === String(brow.label ?? "") &&
       normDate(String(vrow.block_date ?? "")) === normDate(String(brow.block_date ?? "")) &&
       String(vrow.block_time ?? "") === String(brow.block_time ?? "") &&
       String(vrow.member_name ?? "") === String(brow.member_name ?? "") &&

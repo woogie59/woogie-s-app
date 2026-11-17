@@ -15,7 +15,7 @@ class Query {
  then(resolve,reject){let data=null,error=null;
  if(this.t==='ot_pt_request_notify_jobs'){
   if(this.filters.every(([k,v])=>k==='request_id'||state[k]===v)){if(this.patch)Object.assign(state,this.patch);data=[{attempts:state.attempts}];}else data=[];
- }else if(this.t==='ot_pt_requests') data={requested_date:'2026-11-23',requested_time:'14:00',status:mode==='cancelled'?'cancelled':'requested',ot_links:{member_name:'알림검증더미'}};
+ }else if(this.t==='ot_pt_requests') data={requested_date:'2026-11-23',requested_time:'14:00',status:mode==='cancelled'?'cancelled':mode==='accepted'?'accepted':'requested',ot_links:{member_name:'알림검증더미'}};
  else if(this.t==='profiles') data=mode==='multi'?[{onesignal_id:'a'},{onesignal_id:'b'}]:mode==='no-target'?[{onesignal_id:null}]:[{onesignal_id:'test-subscription'}];
  return Promise.resolve({data,error}).then(resolve,reject);
  }
@@ -28,6 +28,7 @@ for(const s of ['','wrong']){reset();assert.equal((await handler(request(s))).st
 reset();assert.equal((await handler(request('private-test-secret','invalid'))).status,400);tests++;
 reset('cancelled');assert.equal((await handler(request())).status,200);assert.equal(calls.length,0);assert.equal(state.state,'skipped');tests++;
 for(const m of ['multi','no-target']){reset(m);assert.equal((await handler(request())).status,502);assert.equal(calls.length,0);assert.equal(state.last_error,'admin_target_unavailable');tests++;}
+reset('accepted');assert.equal((await handler(request())).status,200);assert.equal(state.state,'provider_accepted');assert.equal(calls.length,1);tests++;
 reset();assert.equal((await handler(request())).status,200);assert.equal(state.state,'provider_accepted');assert.equal(calls.length,1);assert.equal(calls[0].idempotency_key,id);assert.deepEqual(calls[0].include_subscription_ids,['test-subscription']);
 assert.equal(calls[0].headings.ko,'피티 등록 신청');assert.equal(calls[0].contents.ko,'알림검증더미님 - 2026-11-23 14:00');assert.equal(calls[0].data.labdot_event,'ot_pt_request');tests++;
 assert.equal((await handler(request())).status,200);assert.equal(calls.length,1);tests++;

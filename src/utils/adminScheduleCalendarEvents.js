@@ -76,7 +76,8 @@ export function buildBlockedCalendarEvents(blocks, otNamesByBlockId) {
       row.kind === 'ot' && !String(row?.member_name || '').trim()
         ? String(otNamesByBlockId?.[row.id] || '').trim()
         : '';
-    const title = otName ? `${otName}님 오티` : blockedSlotDisplayTitle(row);
+    // 피티 신청 즉시 확정 블록(label='PT')은 '님 피티'로 표시 (2026-11-17 사용자 요청)
+    const title = otName ? `${otName}님 ${row.label === 'PT' ? '피티' : '오티'}` : blockedSlotDisplayTitle(row);
     out.push({
       id: `block-${row.id}`,
       title,
@@ -98,6 +99,8 @@ export function buildBlockedCalendarEvents(blocks, otNamesByBlockId) {
 export function buildPtRequestCalendarEvents(requests) {
   const out = [];
   (requests || []).forEach((row) => {
+    // 즉시 확정 신청은 trainer_blocked_slots 블록으로 이미 표시된다 — 이중 표시 방지
+    if (row.block_id) return;
     const dateKey = String(row.requested_date ?? '').slice(0, 10);
     const parts = parseTimeToHm(row.requested_time);
     if (!dateKey || !parts) return;
