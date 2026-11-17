@@ -185,6 +185,7 @@ const AdminScheduleFullCalendar = ({
   const monthCounts = useMemo(() => {
     const counts = {};
     (events || []).forEach((ev) => {
+      if (ev.extendedProps?.isPtRequest) return; // 피티 등록 신청은 수업이 아니라 집계 제외
       const s = ev.start instanceof Date ? ev.start : new Date(ev.start);
       if (Number.isNaN(s.getTime())) return;
       const key = toYmd(s);
@@ -206,7 +207,7 @@ const AdminScheduleFullCalendar = ({
     let total = 0;
     let done = 0;
     (events || []).forEach((ev) => {
-      if (ev.extendedProps?.isBlock) return;
+      if (ev.extendedProps?.isBlock || ev.extendedProps?.isPtRequest) return;
       const st = ev.start instanceof Date ? ev.start : new Date(ev.start);
       if (Number.isNaN(st.getTime()) || st < start || st >= end) return;
       total += 1;
@@ -222,7 +223,7 @@ const AdminScheduleFullCalendar = ({
     let total = 0;
     let done = 0;
     (events || []).forEach((ev) => {
-      if (ev.extendedProps?.isBlock) return;
+      if (ev.extendedProps?.isBlock || ev.extendedProps?.isPtRequest) return;
       const st = ev.start instanceof Date ? ev.start : new Date(ev.start);
       if (Number.isNaN(st.getTime()) || st < start || st >= end) return;
       total += 1;
